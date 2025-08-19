@@ -1,8 +1,6 @@
-package com.example.BES;
+package com.example.BES.services;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -20,6 +18,7 @@ public class RegistrationService {
             battlers.add(i+1);
         }
     }
+    
     public int drawRandomNumberService(){
         // need to handle empty list
         if(battlers.size() <= 0){

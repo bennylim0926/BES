@@ -1,11 +1,14 @@
-package com.example.BES;
+package com.example.BES.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
+import com.example.BES.services.RegistrationService;
+
+@RestController
+@RequestMapping("/api/v1/registration")
 public class RegistrationController {
 
     @Autowired
