@@ -14,9 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class GoogleDriveConfig {
-    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-    private static final String CREDENTIALS_FILE_PATH = getPathToGoogleCredentials();
+public class GoogleDriveConfig implements GoogleServiceFactory {
     
     @Bean
     public Drive getDrive(){
@@ -30,11 +28,5 @@ public class GoogleDriveConfig {
         }catch(Exception e){
             throw new RuntimeException(e);
         }
-    }
-
-    private static String getPathToGoogleCredentials(){
-        String currentDirectory = System.getProperty("user.dir");
-        Path filePath = Paths.get(currentDirectory,"credentials.json");
-        return filePath.toString();
     }
 }
