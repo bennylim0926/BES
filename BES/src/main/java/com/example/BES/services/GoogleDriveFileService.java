@@ -31,6 +31,7 @@ public class GoogleDriveFileService {
     private void fillGoogleDriveFileDTOList(List<GoogleDriveFileDto> googleDriveFileDTOS, File file, GoogleDriveFileDto driveFileDto) {
         driveFileDto.setFileId(file.getId());
         driveFileDto.setFileName(file.getName());
+        driveFileDto.setFileType(file.getMimeType());
         driveFileDto.setThumbnailLink(file.getThumbnailLink());
         driveFileDto.setSize(String.valueOf(file.getSize()));
         driveFileDto.setLink("https://drive.google.com/file/d/" + file.getId() + "/view?usp=sharing");

@@ -8,6 +8,7 @@ import lombok.Setter;
 public class GoogleDriveFileDto {
     private String fileId;
     private String fileName;
+    private String fileType;
     private String link;
     private String size;
     private String thumbnailLink;

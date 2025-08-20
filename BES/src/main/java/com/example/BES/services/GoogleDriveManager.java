@@ -42,7 +42,7 @@ public class GoogleDriveManager {
                     .list()
                     .setQ(query)
                     .setPageSize(10)
-                    .setFields("nextPageToken, files(id, name, size, thumbnailLink)")
+                    .setFields("nextPageToken, files(id, name, size, thumbnailLink, mimeType)")
                     .execute();
             return result.getFiles();
         } catch (IOException e) {

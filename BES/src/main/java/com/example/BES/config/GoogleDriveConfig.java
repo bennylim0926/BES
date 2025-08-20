@@ -1,13 +1,9 @@
 package com.example.BES.config;
 
 import java.io.FileInputStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 import org.springframework.context.annotation.Bean;
