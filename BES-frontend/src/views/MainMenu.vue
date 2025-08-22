@@ -12,26 +12,26 @@
 <script setup>
 import Button from "primevue/button"
 import { ref, onMounted } from "vue";
-const selectedEvent = ref(null)
+
 const events = ref(null)
+const currentEvent = ref(null)
 const participantsNumBreakdown = ref(null)
-const csvFileId = ref('')
+
+// step 1
 const fetchEventData = async () =>{
     try{
         const res = await fetch('http://localhost:5050/api/v1/folders')
         if (!res.ok) throw new Error('Failed to fetch')
         events.value = res.json().then(result =>{
             events.value = result})
-        // console.log(data.value)
     }catch(err){
         console.log(err)
     }finally{
     }
 }
 
+// step 2
 const onEventSelected = async(event)=>{
-    // take the folder id and find its csv
-    // console.log(event.folderID)
     try{
         const res = await fetch(`http://localhost:5050/api/v1/files/${event.folderID}`)
         if (!res.ok) throw new Error('Failed to fetch')
@@ -41,22 +41,23 @@ const onEventSelected = async(event)=>{
     }
 }
 
+// step 3
+// if no csv found it should display no data found
+const findResponseSheetId = (data) =>{
+    console.log(data)
+    if(data.length == 0)participantsNumBreakdown.value = null
+    else getResponseDetails(data[0].fileId)
+}
+
+// step 4
 const getResponseDetails = async(fileId) =>{
     try{
         const res = await fetch(`http://localhost:5050/api/v1/sheets/${fileId}`)
-        if (!res.ok) throw new Error('Failed to fetch')
+        if (!res.ok) throw new Error('Failed to read')
         res.json().then(result =>{
             participantsNumBreakdown.value = result}) 
     }catch(err){
     }
-}
-
-const findResponseSheetId = (data) =>{
-    for (let i = 0; i < data.length ; i++) {
-        if(data[i].fileType === "application/vnd.google-apps.spreadsheet"){
-            getResponseDetails(data[i].fileId)
-        }
-}
 }
 
 onMounted(()=>{
@@ -65,11 +66,17 @@ onMounted(()=>{
 </script>
 
 <template>
-<select class="dropdown" v-model="selectedEvent" @change="()=>onEventSelected(selectedEvent)">
-    <option :value="''"></option>
- <option v-for="(event) in events" :key="event.folderID" :value="event">{{event.folderName}}</option>
+<select 
+    class="dropdown" 
+    v-model="currentEvent" 
+    @change="()=>onEventSelected(currentEvent)">
+    <option 
+        v-for="(event) in events" 
+        :key="event.folderID" 
+        :value="event">{{event.folderName}}
+    </option>
 </select>
-<div v-if="selectedEvent !== null">
+<div v-if="currentEvent !== null">
     <br></br>
     <Button>Registration</Button>
     <br></br>
@@ -85,6 +92,9 @@ onMounted(()=>{
         <div>Waacking: {{ participantsNumBreakdown['waacking'] }}</div>
         <div>Hip Hop: {{ participantsNumBreakdown['hiphop'] }}</div>
         <div>Breaking: {{ participantsNumBreakdown['breaking'] }}</div>
+    </div>
+    <div v-else>
+        <div>No data found</div>
     </div>
 </div>
 
