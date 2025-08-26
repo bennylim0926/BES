@@ -12,7 +12,7 @@ public class GoogleSheetParser {
 
     public static boolean columnExists(List<String> headers, String keyword) {
         return headers.stream()
-                      .anyMatch(h -> h != null && h.equalsIgnoreCase(keyword));
+                      .anyMatch(h -> h != null && h.toLowerCase().contains(keyword.toLowerCase()));
     }
 
     public static List<String> readHeaders(ValueRange firstRow) {

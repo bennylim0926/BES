@@ -1,12 +1,14 @@
 package com.example.BES.clients;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.config.GoogleSheetConfig;
+import com.example.BES.request.GoogleSheetRequestFactory;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest;
 import com.google.api.services.sheets.v4.model.Spreadsheet;
@@ -59,4 +61,13 @@ public class GoogleSheetClient {
         return getSpreadsheet(fileId).getSheets().get(0).getProperties().getSheetId();
     }
 
+    public void insertPaymentCheckboxes(String sheetsId, int headerLastIndex, int lastRowIndex, int sheetId) throws IOException{
+        BatchUpdateSpreadsheetRequest body = new BatchUpdateSpreadsheetRequest()
+                                        .setRequests(Arrays.asList(
+                                            GoogleSheetRequestFactory.insertColumn(headerLastIndex, sheetId),
+                                            GoogleSheetRequestFactory.headerCell(headerLastIndex, sheetId, "Payment Status"),
+                                            GoogleSheetRequestFactory.checkBoxRequest(headerLastIndex, lastRowIndex, sheetId)
+                                        ));
+        batchUpdate(sheetsId, body);
+    }
 }
