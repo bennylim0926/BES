@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.services.GoogleSheetService;
+import com.google.api.services.sheets.v4.model.ValueRange;
 
 @RestController
 @CrossOrigin
@@ -29,7 +30,7 @@ public class GoogleSheetsController {
 
     // Refresh Payment status
     @GetMapping("/payment/{sheetId}")
-    public ResponseEntity<List<String>> getPaymentInformationById(@PathVariable String sheetId) throws IOException{
+    public ResponseEntity<ValueRange> getPaymentInformationById(@PathVariable String sheetId) throws IOException{
         return ResponseEntity.ok(service.updatePaymentStatus(sheetId));
     }
 
