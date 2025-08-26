@@ -12,14 +12,15 @@ public class GoogleDriveFileService {
     @Autowired
     private GoogleDriveManager manager;
 
-    public List<GoogleDriveFileDto> findAllInFolder(String folderId){
+    // Note that every battle event folder should contain only one sheet in this case
+    public List<GoogleDriveFileDto> findAllSheetsInFolder(String folderId){
         List<GoogleDriveFileDto> googleDriveFileDTOList = new ArrayList<>();
         List<File> files = manager.findAllFilesInFolderById(folderId);
 
         if (files == null) return googleDriveFileDTOList;
 
         files.forEach(file -> {
-            if (file.getSize() != null) {
+            if (file.getSize() != null && file.getMimeType().equals("application/vnd.google-apps.spreadsheet")) {
                 GoogleDriveFileDto driveFileDto = new GoogleDriveFileDto();
                 fillGoogleDriveFileDTOList(googleDriveFileDTOList, file, driveFileDto);
             }
