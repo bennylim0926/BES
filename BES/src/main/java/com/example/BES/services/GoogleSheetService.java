@@ -24,6 +24,8 @@ public class GoogleSheetService {
     // if any new category just add here and update the constructor to map the function
     // need to update dto as well
     private final static String KEYWORD = "Categories";
+    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList("DonePayment", "email", "name","categories", "local/overseas"));
+
     private final static String POPPING = "Popping";
     private final static String WAACKING = "Waacking";
     private final static String LOCKING = "Locking";
@@ -57,30 +59,10 @@ public class GoogleSheetService {
      * 3. 
     */
     
-    private static String colIndexToLetter(int index) {
-        StringBuilder result = new StringBuilder();
-        while (index > 0) {
-            int rem = (index - 1) % 26;
-            result.insert(0, (char) ('A' + rem));
-            index = (index - 1) / 26;
-        }
-        return result.toString();
-    }
-    
     public GoogleSheetFileDto getSheetInformationById(String fileId) throws IOException{
         GoogleSheetFileDto dto = new GoogleSheetFileDto();
         // Get the header
-        ValueRange firstRow = config
-                                .getSheets()
-                                .spreadsheets()
-                                .values()
-                                .get(fileId, "1:1")
-                                .execute();
- 
-        List<String> headers = firstRow.getValues().get(0)
-                                .stream()
-                                .map(object -> Objects.toString(object, null))
-                                .toList();
+        List<String> headers  = readSheetHeader(fileId);
 
         // Identify the Alphabet of columns that have "Categories"
         List<String> matchingColumnIndices = new ArrayList<>();
@@ -117,26 +99,76 @@ public class GoogleSheetService {
         return dto;
     }
 
+    public List<String> updatePaymentStatus(String fileId) throws IOException{
+        // Read thru the google sheets
+        // information needed email, categories, donePayment, local/overseas
+        // if no overseas should assume only local
+        // if no payment by default should send email
+        // need database to store the information eg. payment status, registered, audition number and etc
+        // if donePayment column not there create one with all false
+        List<String> headers = readSheetHeader(fileId);
+        List<String> matchingColumnIndices = new ArrayList<>();
+        for(int i = 0; i< headers.size(); i ++){
+           for(String keyword: PAYMENT_KEYWORDS){
+            if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
+                String colLetter = colIndexToLetter(i + 1);
+                matchingColumnIndices.add(colLetter + ":" + colLetter);
+            }
+           }
+        }
+        System.err.println(matchingColumnIndices);
+        return matchingColumnIndices;
+    }
+
     private Integer categoriesCount(List<String> data, String Category){
         return (int)data.stream()
-                .filter(s -> s.startsWith(Category))
+                .filter(s -> s.toLowerCase().contains(Category.toLowerCase()))
                 .count();
     }
 
     private void setDtoCategory(GoogleSheetFileDto dto, List<String> data){
         Set<String> categories = new HashSet<String>(data);
-        for (String category : categories){
-            String normalizeCategory = normalizeGenre(category, genres);
-            actions.get(normalizeCategory).accept(dto, data);;
+        for (String category: categories){
+            List<String> normalizeCategories = normalizeGenre(category, genres);
+            for(String normalizeCategory: normalizeCategories){
+                System.out.println(normalizeCategory);
+                actions.get(normalizeCategory).accept(dto, data);
+            }
         }
     }
 
-    private String normalizeGenre(String event, List<String> genres){
+    private List<String> normalizeGenre(String event, List<String> genres){
+        List<String> matchingGenre = new ArrayList<>();
         for(String genre : genres){
             if(event.contains(genre)){
-                return genre;
+                matchingGenre.add(genre);
             }
         }
-        return event;
+        System.out.println(matchingGenre);
+        return matchingGenre;
+    }
+
+    private static String colIndexToLetter(int index) {
+        StringBuilder result = new StringBuilder();
+        while (index > 0) {
+            int rem = (index - 1) % 26;
+            result.insert(0, (char) ('A' + rem));
+            index = (index - 1) / 26;
+        }
+        return result.toString();
+    }
+
+    private List<String> readSheetHeader(String fileId) throws IOException{
+        ValueRange firstRow = config
+                .getSheets()
+                .spreadsheets()
+                .values()
+                .get(fileId, "1:1")
+                .execute();
+        List<String> headers = firstRow.getValues().get(0)
+                .stream()
+                .map(object -> Objects.toString(object, null))
+                .toList();
+        return headers;
     }
 }

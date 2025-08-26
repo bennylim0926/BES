@@ -26,4 +26,11 @@ public class GoogleSheetsController {
     public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String sheetId) throws IOException{
         return ResponseEntity.ok(service.getSheetInformationById(sheetId));
     }
+
+    // Refresh Payment status
+    @GetMapping("/payment/{sheetId}")
+    public ResponseEntity<List<String>> getPaymentInformationById(@PathVariable String sheetId) throws IOException{
+        return ResponseEntity.ok(service.updatePaymentStatus(sheetId));
+    }
+
 }
