@@ -1,16 +1,14 @@
 package com.example.BES.services;
 
-import static org.mockito.Answers.values;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -18,9 +16,14 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.BES.clients.GoogleSheetClient;
 import com.example.BES.config.GoogleSheetConfig;
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.RegistrationDto;
+import com.example.BES.enums.Genre;
+import com.example.BES.mapper.RegistrationDtoMapper;
+import com.example.BES.parsers.GoogleSheetParser;
+import com.example.BES.request.GoogleSheetRequestFactory;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest;
 import com.google.api.services.sheets.v4.model.BooleanCondition;
@@ -42,6 +45,8 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 public class GoogleSheetService {
     // if any new category just add here and update the constructor to map the function
     // need to update dto as well
+    private static final String CATEGORY_KEYWORD = "Categories";
+
     private final static String KEYWORD = "Categories";
     private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList("payment status", "email", "name","categories", "local/overseas"));
 
@@ -53,6 +58,12 @@ public class GoogleSheetService {
     private final static String OPEN = "Open";
     private final static String AUDIENCE = "Audience";
     
+    @Autowired
+    private GoogleSheetClient client;
+
+    @Autowired
+    private RegistrationDtoMapper mapper;
+
     @Autowired
     GoogleSheetConfig config;
 
@@ -70,15 +81,16 @@ public class GoogleSheetService {
         actions.put(OPEN, (dto,list) -> dto.setOpen(categoriesCount(list, OPEN)));
         actions.put(AUDIENCE, (dto,list) -> dto.setAudience(categoriesCount(list, AUDIENCE)));
     }
-    
-    // This is hardcoded we cannot confirmed where it will be located
+
     /* Correct order should be: 
      * 1. Search first row to identify the index of rows that has certain keyword eg. Category
      * 2. Store the indices in list, and by going through the list transform index to alphabet and in H:H format
      * 3. 
     */
     private List<Integer> getCategoriesColumns(String fileId) throws IOException{
-        List<String> headers = readSheetHeader(fileId);
+        ValueRange headerRange = client.getRange(fileId, "1:1");
+        List<String> headers = GoogleSheetParser.readHeaders(headerRange);
+        // List<String> headers = readSheetHeader(fileId);
         List<Integer> matchingColumnIndices = new ArrayList<>();
         for(int i = 0; i < headers.size(); i++){
             if(headers.get(i).equalsIgnoreCase(KEYWORD)){
@@ -132,18 +144,20 @@ public class GoogleSheetService {
         // need database to store the information eg. payment status, registered, audition number and etc
         // if donePayment column not there create one with all false
         Map<String, Integer> colIndexMap = new HashMap<>();
-        List<String> headers = readSheetHeader(fileId);
+
+        ValueRange headerRange = client.getRange(fileId, "1:1");
+        List<String> headers = GoogleSheetParser.readHeaders(headerRange);
+        // List<String> headers = readSheetHeader(fileId);
         List<RegistrationDto> registeredParticipants = new ArrayList<>(); 
         ValueRange results = new ValueRange();
         
         // check if payment status header existed
-        int rowSize = sheetsSize(fileId);
-        if(!checkColumnExist(headers, "payment status")){
-            insertPaymentCheckboxes(fileId, headers.size(), rowSize, getSheetId(fileId));
+        int rowSize = client.getSheetSize(fileId);
+        if(!GoogleSheetParser.columnExists(headers, "payment status")){
+            insertPaymentCheckboxes(fileId, headers.size(), rowSize, client.getSheetId(fileId));
         }else{
             // Check with participants has paid
             // Then proceed to check if paid, then send qr
-            
             // map the keywords with its columnIndex
             for(Integer i = 0; i< headers.size(); i ++){
                 for(String keyword: PAYMENT_KEYWORDS){
@@ -175,7 +189,7 @@ public class GoogleSheetService {
                 List<Integer> categoriesColumn = getCategoriesColumns(fileId);
                 List<String> categories = new ArrayList<>();
                 for(Integer i : categoriesColumn){
-                    categories =  normalizeGenre(res.get(i).toString(),genres);
+                    categories =  GoogleSheetParser.normalizeGenre(res.get(i).toString(),genres);
                     if(categories.size() != 0){
                         break;
                     }
@@ -183,16 +197,8 @@ public class GoogleSheetService {
                 dto.setCategories(categories);
                 registeredParticipants.add(dto);
             }
-            // for(RegistrationDto dto: registeredParticipants){
-            //     System.out.println(dto.getName());
-            //     System.out.println(dto.getEmail());
-            //     System.out.println(dto.getResidency());
-            //     System.out.println(dto.getPaymentStatus());
-            //     System.out.println(dto.getCategories());
-            //     System.out.println("\n");
-            // }
         }
-        if(!checkColumnExist(headers, "local")){
+        if(!GoogleSheetParser.columnExists(headers, "local")){
             System.out.println("This battle doesnt accept overseas battlers");
         }
         // check local/overseas
@@ -211,23 +217,12 @@ public class GoogleSheetService {
     private void setDtoCategory(GoogleSheetFileDto dto, List<String> data){
         Set<String> categories = new HashSet<String>(data);
         for (String category: categories){
-            List<String> normalizeCategories = normalizeGenre(category, genres);
+            // List<String> normalizeCategories = normalizeGenre(category, genres);
+            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category, genres);
             for(String normalizeCategory: normalizeCategories){
                 actions.get(normalizeCategory).accept(dto, data);
             }
         }
-    }
-
-    // Given a any string, return the genres that a string contains
-    // eg. "Waacking 1v1, Open 1v1" -> ["Waacking", "Open"]
-    private List<String> normalizeGenre(String event, List<String> genres){
-        List<String> matchingGenre = new ArrayList<>();
-        for(String genre : genres){
-            if(event.contains(genre)){
-                matchingGenre.add(genre);
-            }
-        }
-        return matchingGenre;
     }
 
     // Map the index to Alphabet in Google Sheet eg. A == 1, B == 2
@@ -241,102 +236,13 @@ public class GoogleSheetService {
         return result.toString();
     }
 
-    // Return the first row of headers as a List
-    private List<String> readSheetHeader(String fileId) throws IOException{
-        ValueRange firstRow = config
-                .getSheets()
-                .spreadsheets()
-                .values()
-                .get(fileId, "1:1")
-                .execute();
-        List<String> headers = firstRow.getValues().get(0)
-                .stream()
-                .map(object -> Objects.toString(object, null))
-                .toList();
-        return headers;
-    }
-
-    private Boolean checkColumnExist(List<String> sheetsHeaders, String keyword){
-        for(String header : sheetsHeaders){
-            if(header.toLowerCase().contains(keyword.toLowerCase())){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private Request insertColumnRequest(int lastIndex, int sheetId) {
-        return new Request()
-                .setInsertDimension(new InsertDimensionRequest()
-                .setRange(new DimensionRange()
-                    .setSheetId(sheetId)
-                    .setDimension("COLUMNS")
-                    .setStartIndex(lastIndex)
-                    .setEndIndex(lastIndex + 1))
-                .setInheritFromBefore(true));
-    } 
-
-    private Request setHeaderRequest(int lastIndex, int sheetId){
-        CellData headerCell = new CellData()
-                                .setUserEnteredValue(new ExtendedValue().setStringValue("Payment Status"));
-
-        RowData rowData = new RowData().setValues(Collections.singletonList(headerCell));
-        return new Request()
-            .setUpdateCells(new UpdateCellsRequest()
-                .setRange(new GridRange()
-                    .setSheetId(sheetId)
-                    .setStartRowIndex(0)
-                    .setEndRowIndex(1)
-                    .setStartColumnIndex(lastIndex )
-                    .setEndColumnIndex(lastIndex + 1))
-                .setRows(Collections.singletonList(rowData))
-                .setFields("userEnteredValue"));
-        }
-
-    private DataValidationRule setCheckBoxValidation(){
-        BooleanCondition condition = new BooleanCondition()
-        .setType("BOOLEAN");
-        return new DataValidationRule()
-                    .setCondition(condition)
-                    .setStrict(true)
-                    .setShowCustomUi(true);
-    }
-
-    private Request checkBoxRequest(int lastIndex, int lastRowIndex, int sheetId){
-        return new Request()
-            .setSetDataValidation(new SetDataValidationRequest()
-                .setRange(new GridRange()
-                    .setSheetId(sheetId)
-                    .setStartRowIndex(1)  // start below header
-                    .setEndRowIndex(lastRowIndex) // adjust to your row count
-                    .setStartColumnIndex(lastIndex)
-                    .setEndColumnIndex(lastIndex + 1))
-                .setRule(setCheckBoxValidation()));
-    }
-
     private void insertPaymentCheckboxes(String sheetsId, int headerLastIndex, int lastRowIndex, int sheetId) throws IOException{
         BatchUpdateSpreadsheetRequest body = new BatchUpdateSpreadsheetRequest()
                                         .setRequests(Arrays.asList(
-                                            insertColumnRequest(headerLastIndex, sheetId),
-                                            setHeaderRequest(headerLastIndex, sheetId),
-                                            checkBoxRequest(headerLastIndex, lastRowIndex, sheetId)
+                                            GoogleSheetRequestFactory.insertColumn(headerLastIndex, sheetId),
+                                            GoogleSheetRequestFactory.headerCell(headerLastIndex, sheetId, "Payment Status"),
+                                            GoogleSheetRequestFactory.checkBoxRequest(headerLastIndex, lastRowIndex, sheetId)
                                         ));
         config.getSheets().spreadsheets().batchUpdate(sheetsId, body).execute();
-    }
-
-    private int sheetsSize(String fileId) throws IOException{
-        ValueRange response = config.getSheets().spreadsheets().values()
-                                        .get(fileId, "A:A") // read column A
-                                        .execute();
-
-        List<List<Object>> values = response.getValues();
-        int rowCount = (values != null) ? values.size() : 0;
-        return Math.max(0, rowCount);
-    }
-
-    private int getSheetId(String fileId) throws IOException{
-        Spreadsheet sheet = config.getSheets().spreadsheets().get(fileId).execute();
-        List<Sheet> sheets = sheet.getSheets();
-        return sheets.get(0).getProperties().getSheetId();
     }
 }
