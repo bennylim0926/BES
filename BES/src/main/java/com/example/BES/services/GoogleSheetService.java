@@ -1,6 +1,7 @@
 package com.example.BES.services;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -12,6 +13,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.clients.GoogleSheetClient;
@@ -25,6 +28,12 @@ import com.example.BES.parsers.GoogleSheetParser;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
+import jakarta.activation.DataHandler;
+import jakarta.activation.DataSource;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.util.ByteArrayDataSource;
+
 @Service
 public class GoogleSheetService {
     // if any new category just add here and update the constructor to map the function
@@ -33,13 +42,16 @@ public class GoogleSheetService {
     private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL,SheetHeader.NAME,SheetHeader.PAYMENT_STATUS,SheetHeader.CATEGORIES,SheetHeader.LOCAL_OVERSEAS));    
     
     @Autowired
-    private GoogleSheetClient client;
+    private GoogleSheetClient sheetClient;
 
     @Autowired
     private RegistrationDtoMapper mapper;
 
     @Autowired
     GoogleSheetConfig config;
+
+    @Autowired
+    MailSenderService mailService;
 
     Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
     List<String> genres;
@@ -74,7 +86,7 @@ public class GoogleSheetService {
                             
         // Get the value based on the columns identified
         // usually there will be only two which are local and overseas 
-        BatchGetValuesResponse response = client.batchGet(fileId, matchingColumnAlphabet);
+        BatchGetValuesResponse response = sheetClient.batchGet(fileId, matchingColumnAlphabet);
         List<ValueRange> valueRanges = response.getValueRanges();
 
         List<List<Object>> localGenre = valueRanges.get(0).getValues();
@@ -91,14 +103,14 @@ public class GoogleSheetService {
         return dto;
     }
 
-    public ValueRange updatePaymentStatus(String fileId) throws IOException{
+    public ValueRange updatePaymentStatus(String fileId) throws IOException, MessagingException{
         // Read thru the google sheets
         // information needed email, categories, donePayment, local/overseas
         // if no overseas should assume only local
         // if no payment by default should send email
         // need database to store the information eg. payment status, registered, audition number and etc
         // if donePayment column not there create one with all false
-        ValueRange headerRange = client.getRange(fileId, "1:1");
+        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         Map<String, Integer> colIndexMap = new HashMap<>();
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         List<RegistrationDto> registeredParticipants = new ArrayList<>(); 
@@ -106,8 +118,8 @@ public class GoogleSheetService {
         
         // check if payment status header existed
         if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
-            int rowSize = client.getSheetSize(fileId);
-            client.insertPaymentCheckboxes(fileId, headers.size(), rowSize, client.getSheetId(fileId));
+            int rowSize = sheetClient.getSheetSize(fileId);
+            sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
         }else{
             // Check with participants has paid
             // Then proceed to check if paid, then send qr
@@ -122,7 +134,7 @@ public class GoogleSheetService {
             // Read everything except the headers
             String range = "A2:"+colIndexToLetter(headers.size());
             List<Integer> categoriesColumn = getCategoriesColumns(fileId);
-            results= client.getRange(fileId, range);
+            results= sheetClient.getRange(fileId, range);
             List<List<String>> resultString = results.getValues().stream()
                                                     .map(row -> row.stream()
                                                         .map(Object::toString)   // convert each Object to String
@@ -132,6 +144,9 @@ public class GoogleSheetService {
                 mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
                 registeredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
             }
+            // image place holder, should return generated qr code
+            byte[] sourceBytes = fetchRandomImage();
+            mailService.sendEmailWithAttachment("bennylim926@gmail.com", "Test", "This is to test simple email", sourceBytes);
         }
         if(!GoogleSheetParser.columnExists(headers, SheetHeader.LOCAL_OVERSEAS)){
             System.out.println("This battle doesnt accept overseas battlers");
@@ -139,6 +154,13 @@ public class GoogleSheetService {
         // check local/overseas
         // if(!headers.contains(""))
         return results;
+    }
+
+    public byte[] fetchRandomImage() {
+        RestTemplate restTemplate = new RestTemplate();
+        String url = "https://picsum.photos/200";
+        ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);
+        return response.getBody(); // this is your random image as byte[]
     }
 
     // Get the count of the input category
@@ -150,7 +172,7 @@ public class GoogleSheetService {
 
     // identify columns "Categories" from the sheet
     private List<Integer> getCategoriesColumns(String fileId) throws IOException{
-        ValueRange headerRange = client.getRange(fileId, "1:1");
+        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         // List<String> headers = readSheetHeader(fileId);
         List<Integer> matchingColumnIndices = new ArrayList<>();

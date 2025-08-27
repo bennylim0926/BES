@@ -15,6 +15,8 @@ import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.services.GoogleSheetService;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
+import jakarta.mail.MessagingException;
+
 @RestController
 @CrossOrigin
 @RequestMapping("/api/v1/sheets")
@@ -30,7 +32,7 @@ public class GoogleSheetsController {
 
     // Refresh Payment status
     @GetMapping("/payment/{sheetId}")
-    public ResponseEntity<ValueRange> getPaymentInformationById(@PathVariable String sheetId) throws IOException{
+    public ResponseEntity<ValueRange> getPaymentInformationById(@PathVariable String sheetId) throws IOException, MessagingException{
         return ResponseEntity.ok(service.updatePaymentStatus(sheetId));
     }
 
