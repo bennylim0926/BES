@@ -13,6 +13,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Io;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,8 @@ import org.springframework.stereotype.Service;
 import com.example.BES.clients.GoogleSheetClient;
 import com.example.BES.config.GoogleSheetConfig;
 import com.example.BES.dtos.GoogleSheetFileDto;
-import com.example.BES.dtos.RegistrationDto;
+import com.example.BES.dtos.ParticpantsDto;
+import com.example.BES.enums.EmailTemplates;
 import com.example.BES.enums.Genre;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
@@ -53,6 +55,8 @@ public class GoogleSheetService {
     @Autowired
     MailSenderService mailService;
 
+
+
     Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
     List<String> genres;
 
@@ -75,7 +79,9 @@ public class GoogleSheetService {
      * 2. Store the indices in list, and by going through the list transform index to alphabet and in H:H format
      * 3. 
     */
-    public GoogleSheetFileDto getSheetInformationById(String fileId) throws IOException{
+    
+    // get numbers of participants of each genre
+    public GoogleSheetFileDto getParticipantsBreakDown(String fileId) throws IOException{
         GoogleSheetFileDto dto = new GoogleSheetFileDto();  
         List<String> matchingColumnAlphabet = new ArrayList<>();
         List<Integer> matchingCategoriesIndixes = getCategoriesColumns(fileId);
@@ -103,7 +109,35 @@ public class GoogleSheetService {
         return dto;
     }
 
-    public ValueRange updatePaymentStatus(String fileId) throws IOException, MessagingException{
+    // When there is a new form, need to insert payment column for payment validation
+    public void insertPaymentColumn(String sheetId) throws IOException{
+        ValueRange headerRange = sheetClient.getRange(sheetId, "1:1");
+        List<String> headers = GoogleSheetParser.readHeaders(headerRange);
+        if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
+            int rowSize = sheetClient.getSheetSize(sheetId);
+            sheetClient.insertPaymentCheckboxes(sheetId, headers.size(), rowSize, sheetClient.getSheetId(sheetId));
+        }
+    }
+
+    // get all "ticked" participants
+    // BUT this is not enuf, need to confirm if haven receive email as well
+    public List<ParticpantsDto> getAllNewPaidParticipants(String fileId) throws IOException{
+        List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
+        Map<String, Integer> colIndexMap = getColumnIndexMap(fileId);
+        List<List<String>> resultString = getsheetAllRows(fileId);
+        List<Integer> categoriesColumn = getCategoriesColumns(fileId);  
+        System.out.println(resultString);                          
+        for(List<String> res : resultString){
+            ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            if(participants.getPaymentStatus()){
+                // need to access to database to check if sent isnt marked true
+                paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
+            }
+        }
+        return paidRegisteredParticipants;
+    }
+
+    public void updatePaymentStatus(String fileId, String eventName) throws IOException, MessagingException{
         // Read thru the google sheets
         // information needed email, categories, donePayment, local/overseas
         // if no overseas should assume only local
@@ -113,54 +147,77 @@ public class GoogleSheetService {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         Map<String, Integer> colIndexMap = new HashMap<>();
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
-        List<RegistrationDto> registeredParticipants = new ArrayList<>(); 
+        List<ParticpantsDto> registeredParticipants = new ArrayList<>(); 
         ValueRange results = new ValueRange();
         
         // check if payment status header existed
-        if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
-            int rowSize = sheetClient.getSheetSize(fileId);
-            sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
-        }else{
             // Check with participants has paid
             // Then proceed to check if paid, then send qr
             // map the keywords with its columnIndex
-            for(Integer i = 0; i< headers.size(); i ++){
-                for(String keyword: PAYMENT_KEYWORDS){
-                    if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
-                        colIndexMap.put(keyword, i);
-                    }
+        for(Integer i = 0; i< headers.size(); i ++){
+            for(String keyword: PAYMENT_KEYWORDS){
+                if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
+                    colIndexMap.put(keyword, i);
                 }
             }
-            // Read everything except the headers
-            String range = "A2:"+colIndexToLetter(headers.size());
-            List<Integer> categoriesColumn = getCategoriesColumns(fileId);
-            results= sheetClient.getRange(fileId, range);
-            List<List<String>> resultString = results.getValues().stream()
-                                                    .map(row -> row.stream()
-                                                        .map(Object::toString)   // convert each Object to String
-                                                        .collect(Collectors.toList()))
-                                                    .collect(Collectors.toList());                                
-            for(List<String> res : resultString){
-                mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
-                registeredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
-            }
-            // image place holder, should return generated qr code
-            byte[] sourceBytes = fetchRandomImage();
-            mailService.sendEmailWithAttachment("bennylim926@gmail.com", "Test", "This is to test simple email", sourceBytes);
         }
+        // Read everything except the headers
+        String range = "A2:"+colIndexToLetter(headers.size());
+        List<Integer> categoriesColumn = getCategoriesColumns(fileId);
+        results= sheetClient.getRange(fileId, range);
+        List<List<String>> resultString = results.getValues().stream()
+                                                .map(row -> row.stream()
+                                                    .map(Object::toString)   // convert each Object to String
+                                                    .collect(Collectors.toList()))
+                                                .collect(Collectors.toList());                                
+        for(List<String> res : resultString){
+            mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            registeredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
+        }
+        
         if(!GoogleSheetParser.columnExists(headers, SheetHeader.LOCAL_OVERSEAS)){
             System.out.println("This battle doesnt accept overseas battlers");
         }
         // check local/overseas
         // if(!headers.contains(""))
-        return results;
+        // return results;
     }
 
-    public byte[] fetchRandomImage() {
-        RestTemplate restTemplate = new RestTemplate();
-        String url = "https://picsum.photos/200";
-        ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);
-        return response.getBody(); // this is your random image as byte[]
+    /*
+     * Helper functions region
+     */
+    private Map<String,Integer> getColumnIndexMap(String fileId) throws IOException{
+        Map<String, Integer> colIndexMap = new HashMap<>();
+        List<String> headers = getHeaders(fileId);
+        for(Integer i = 0; i< headers.size(); i ++){
+            for(String keyword: PAYMENT_KEYWORDS){
+                if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
+                    colIndexMap.put(keyword, i);
+                }
+            }
+        }
+        return colIndexMap;
+    }
+
+    private List<String> getHeaders(String fileId) throws IOException{
+        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
+        return GoogleSheetParser.readHeaders(headerRange);
+
+    }
+
+    private List<List<String>> getsheetAllRows(String fileId) throws IOException{
+        // Map<String, Integer> colIndexMap = new HashMap<>();
+        List<String> headers = getHeaders(fileId);
+        String range = "A2:"+colIndexToLetter(headers.size());
+        // List<Integer> categoriesColumn = getCategoriesColumns(fileId);
+        
+        ValueRange results = new ValueRange();
+        results = sheetClient.getRange(fileId, range);
+        return results.getValues().stream()
+                        .map(row -> row.stream()
+                            .map(Object::toString)   // convert each Object to String
+                            .collect(Collectors.toList()))
+                        .collect(Collectors.toList());       
     }
 
     // Get the count of the input category
@@ -178,7 +235,6 @@ public class GoogleSheetService {
         List<Integer> matchingColumnIndices = new ArrayList<>();
         for(int i = 0; i < headers.size(); i++){
             if(headers.get(i).equalsIgnoreCase(CATEGORY_KEYWORD)){
-                // String colLetter = colIndexToLetter(i + 1);
                 matchingColumnIndices.add(i);
             }
         }     

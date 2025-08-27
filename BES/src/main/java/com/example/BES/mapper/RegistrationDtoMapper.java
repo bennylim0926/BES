@@ -6,17 +6,17 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import com.example.BES.dtos.RegistrationDto;
+import com.example.BES.dtos.ParticpantsDto;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.parsers.GoogleSheetParser;
 
 @Component
 public class RegistrationDtoMapper {
-    public RegistrationDto mapRow(List<String> row, 
+    public ParticpantsDto mapRow(List<String> row, 
                                         Map<String,Integer> colIndexMap, 
                                         List<Integer> categoriesCols, 
                                         List<String> genres){
-        RegistrationDto dto = new RegistrationDto();
+        ParticpantsDto dto = new ParticpantsDto();
         dto.setName(row.get(colIndexMap.get(SheetHeader.NAME)));
         dto.setEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));
         dto.setResidency(row.get(colIndexMap.get(SheetHeader.LOCAL_OVERSEAS)));
