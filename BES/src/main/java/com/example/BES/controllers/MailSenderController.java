@@ -24,7 +24,7 @@ public class MailSenderController {
 
     @PostMapping("/comfirmation-qr")
     public ResponseEntity<Void> sendComfirmationEmail(@RequestBody EmailRequestDto dto) throws MessagingException{
-        mailService.bulkSendEmailWithAttachment(dto);
+        // mailService.sendEmailWithAttachment(dto);
         return new ResponseEntity<>(HttpStatus.OK);
     }   
 }

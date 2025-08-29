@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.EmailRequestDto;
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.PaymentColumnRequestDto;
@@ -52,8 +53,14 @@ public class GoogleSheetsController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    @GetMapping("/paid-participants/{fileId}")
-    public ResponseEntity<List<ParticpantsDto>> getPaidParticipants(@PathVariable String fileId) throws IOException{
-        return ResponseEntity.ok(service.getAllNewPaidParticipants(fileId));
+    // @GetMapping("/paid-participants/{fileId}")
+    // public ResponseEntity<List<ParticpantsDto>> getPaidParticipants(@PathVariable String fileId) throws IOException{
+    //     return ResponseEntity.ok(service.getAllNewPaidParticipants(fileId));
+    // }
+
+    @PostMapping("/participant/")
+    public ResponseEntity<String> getPaidParticipants(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException{
+        ResponseEntity.ok(service.addParticpantToEvent(dto));
+        return new ResponseEntity<>("Paid participants should be in the system and received confirmation email", HttpStatus.CREATED);
     }
 }

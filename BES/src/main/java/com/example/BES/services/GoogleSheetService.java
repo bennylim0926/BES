@@ -20,13 +20,17 @@ import org.springframework.stereotype.Service;
 
 import com.example.BES.clients.GoogleSheetClient;
 import com.example.BES.config.GoogleSheetConfig;
+import com.example.BES.dtos.AddParticipantDto;
+import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.ParticpantsDto;
 import com.example.BES.enums.EmailTemplates;
 import com.example.BES.enums.Genre;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
+import com.example.BES.models.EventParticipant;
 import com.example.BES.parsers.GoogleSheetParser;
+import com.example.BES.respositories.EventParticipantRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
@@ -54,6 +58,9 @@ public class GoogleSheetService {
 
     @Autowired
     MailSenderService mailService;
+
+    @Autowired
+    EventParticpantService eventParticipantService;
 
 
 
@@ -121,16 +128,38 @@ public class GoogleSheetService {
 
     // get all "ticked" participants
     // BUT this is not enuf, need to confirm if haven receive email as well
-    public List<ParticpantsDto> getAllNewPaidParticipants(String fileId) throws IOException{
+    // public List<ParticpantsDto> getAllNewPaidParticipants(String fileId) throws IOException{
+    //     List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
+    //     Map<String, Integer> colIndexMap = getColumnIndexMap(fileId);
+    //     List<List<String>> resultString = getsheetAllRows(fileId);
+    //     List<Integer> categoriesColumn = getCategoriesColumns(fileId);  
+    //     System.out.println(resultString);                          
+    //     for(List<String> res : resultString){
+    //         ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+    //         if(participants.getPaymentStatus()){
+    //             // need to access to database to check alrd in db, only paid and receive email will add here
+    //             // eventParticipantRepo.findByEventAndParticipant(null, null)
+    //             // EventParticipant eventParticpant =new EventParticipant()
+    //             // eventParticipantService.AddPartipantToEventService(null, fileId)
+    //             // eventParticipantRepo.save(null);
+    //             paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
+    //         }
+    //     }
+    //     return paidRegisteredParticipants;
+    // }
+
+    public List<ParticpantsDto> addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException{ 
         List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
-        Map<String, Integer> colIndexMap = getColumnIndexMap(fileId);
-        List<List<String>> resultString = getsheetAllRows(fileId);
-        List<Integer> categoriesColumn = getCategoriesColumns(fileId);  
-        System.out.println(resultString);                          
+        Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
+        List<List<String>> resultString = getsheetAllRows(dto.fileId);
+        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
         for(List<String> res : resultString){
             ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
             if(participants.getPaymentStatus()){
-                // need to access to database to check if sent isnt marked true
+                AddParticipantDto addParticipant = new AddParticipantDto();
+                addParticipant.setParticipantEmail(participants.getEmail());
+                addParticipant.setParticipantName(participants.getName());
+                eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
                 paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
             }
         }

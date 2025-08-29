@@ -18,6 +18,7 @@ public class Participant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long participantId;
+    
     private String participantName;
     private String participantEmail;
 

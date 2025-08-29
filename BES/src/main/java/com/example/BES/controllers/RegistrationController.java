@@ -11,23 +11,23 @@ import com.example.BES.services.RegistrationService;
 @RequestMapping("/api/v1/registration")
 public class RegistrationController {
 
-    @Autowired
-    RegistrationService service;
+    // @Autowired
+    // RegistrationService service;
 
-    @RequestMapping("/audition-order")
-    @ResponseBody
-    public int drawRandomNumber(){
-        return service.drawRandomNumberService();
-    }
+    // @RequestMapping("/audition-order")
+    // @ResponseBody
+    // public int drawRandomNumber(){
+    //     return service.drawRandomNumberService();
+    // }
 
-    @RequestMapping("/validate-registration")
-    @ResponseBody
-    public boolean validateRegistration(){
-        // it should be a qr consisting name, category and payment status 
-        return service.validateRegistrationService();
-    }
+    // @RequestMapping("/validate-registration")
+    // @ResponseBody
+    // public boolean validateRegistration(){
+    //     // it should be a qr consisting name, category and payment status 
+    //     return service.validateRegistrationService();
+    // }
 
-    public void addWalkInBattler(){
-        service.increaseBattlersList();
-    }
+    // public void addWalkInBattler(){
+    //     service.increaseBattlersList();
+    // }
 }
