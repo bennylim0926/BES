@@ -20,11 +20,8 @@ public class GoogleDriveFileController {
     
     @Autowired
     private GoogleDriveFileService service;
-
-    // this should just return spreadhsheet as I dont need other files
     @GetMapping("/{folderId}")
     public ResponseEntity<List<GoogleDriveFileDto>> findAllInFolder(@PathVariable String folderId) {
         return ResponseEntity.ok(service.findAllSheetsInFolder(folderId));
     }
-
 }

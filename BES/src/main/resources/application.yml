@@ -1,0 +1,18 @@
+emails:
+  events:
+    "Jump5_Vol_1":
+        subject: "Jump5 Vol.1 Confirmation" 
+        body: |
+          Hello {name},
+
+          Thanks for registering for Jump5 Vol.1.
+          Please show this QR code during registration to get audition number.
+    "Funk_Battle":
+      subject: "Funk Battle Confirmation"
+      body: |
+        Hello {name},
+
+        Thanks for registering for Funk Battle.
+        Please show this QR code during registration to get audition number.
+        
+    

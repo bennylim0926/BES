@@ -18,7 +18,7 @@ public class GoogleSheetConfig implements GoogleServiceFactory{
      public Sheets getSheets(){
         try{
             GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream(CREDENTIALS_FILE_PATH))
-            .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS_READONLY));
+            .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
             return new Sheets.Builder(GoogleNetHttpTransport.newTrustedTransport(),
             JSON_FACTORY,
             credential)

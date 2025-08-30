@@ -1,33 +1,38 @@
-package com.example.BES.controllers;
+/*
+ * 
+ * CURRENTLY NOT IN USE
+ * 
+ */
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+// package com.example.BES.controllers;
 
-import com.example.BES.services.RegistrationService;
+// import org.springframework.beans.factory.annotation.Autowired;
+// import org.springframework.web.bind.annotation.RequestMapping;
+// import org.springframework.web.bind.annotation.ResponseBody;
+// import org.springframework.web.bind.annotation.RestController;
+// import com.example.BES.services.RegistrationService;
 
-@RestController
-@RequestMapping("/api/v1/registration")
-public class RegistrationController {
+// @RestController
+// @RequestMapping("/api/v1/registration")
+// public class RegistrationController {
 
-    @Autowired
-    RegistrationService service;
+//     @Autowired
+//     RegistrationService service;
 
-    @RequestMapping("/audition-order")
-    @ResponseBody
-    public int drawRandomNumber(){
-        return service.drawRandomNumberService();
-    }
+//     @RequestMapping("/audition-order")
+//     @ResponseBody
+//     public int drawRandomNumber(){
+//         return service.drawRandomNumberService();
+//     }
 
-    @RequestMapping("/validate-registration")
-    @ResponseBody
-    public boolean validateRegistration(){
-        // it should be a qr consisting name, category and payment status 
-        return service.validateRegistrationService();
-    }
+//     @RequestMapping("/validate-registration")
+//     @ResponseBody
+//     public boolean validateRegistration(){
+//         // it should be a qr consisting name, category and payment status 
+//         return service.validateRegistrationService();
+//     }
 
-    public void addWalkInBattler(){
-        service.increaseBattlersList();
-    }
-}
+//     public void addWalkInBattler(){
+//         service.increaseBattlersList();
+//     }
+// }
