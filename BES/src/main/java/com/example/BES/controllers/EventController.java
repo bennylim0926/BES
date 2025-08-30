@@ -1,9 +1,8 @@
 package com.example.BES.controllers;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 
-import java.util.List;
+import java.io.IOException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,21 +14,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.AddParticipantDto;
+import com.example.BES.dtos.AddParticipantToEventGenreDto;
+import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
 import com.example.BES.services.ParticipantService;
 
-/*
- * Event Controller should handle
- * 1. Create new event
- * 2. Assign genres to event
- * 3. Create participant
- * 4. Sign particpant in an event
- * 5. Assign participant to genre of his choice in event
- * 
- */
 @RestController
 @CrossOrigin
 @RequestMapping("/api/v1/event")
@@ -45,6 +36,9 @@ public class EventController {
 
     @Autowired
     EventGenreService eventGenreService;
+
+    @Autowired
+    EventGenreParticpantService eventGenreParticipantService;
 
     @PostMapping
     public ResponseEntity<Void> createNewEvent(@RequestBody AddEventDto dto){
@@ -62,17 +56,13 @@ public class EventController {
         }
     }
 
-    // if paid then register in database
-    // send email to them as well (logic in another controller)
-    @PostMapping("/participants")
-    public ResponseEntity<String> addParticipantToEvent(@RequestBody AddParticipantDto dto){
-        // Add particpant to database if not exist
-        // Add participant to event if not exist
+    @PostMapping("/register-participant")
+    public ResponseEntity<String> registerParticipantWithGenre(@RequestBody AddParticipantToEventGenreDto dto) throws IOException{ 
         try{
-            eventParticipantService.AddPartipantToEventService(dto, dto.eventName);
-            return new ResponseEntity<>("Register user to the event", HttpStatus.CREATED);
+            eventGenreParticipantService.addParticipantToEventGenreService(dto);
+            return new ResponseEntity<>("", HttpStatus.CREATED);
         }catch(Exception e){
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
         }
     }
 }

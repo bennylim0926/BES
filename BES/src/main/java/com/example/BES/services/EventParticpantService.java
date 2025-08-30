@@ -45,9 +45,7 @@ public class EventParticpantService {
         }
         newParticipant.setParticipant(joiningParticipant);
         newParticipant.setEvent(event);
-        // send email here
-
-        // EmailTemplates.Template template = emailTemplates.getEvents().get(normalizeKey(eventName)); 
+        
         mailService.sendEmailWithAttachment(eventName, joiningParticipant);
 
         return eventParticipantRepo.save(newParticipant);

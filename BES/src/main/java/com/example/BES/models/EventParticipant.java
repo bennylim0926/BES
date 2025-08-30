@@ -30,5 +30,7 @@ public class EventParticipant {
     @ManyToOne
     @JoinColumn(name = "participant_id", nullable = false)
     private Participant participant;
+
+    private String residency;
 }
 

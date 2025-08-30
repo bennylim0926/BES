@@ -24,5 +24,4 @@ public class GoogleDriveFileController {
     public ResponseEntity<List<GoogleDriveFileDto>> findAllInFolder(@PathVariable String folderId) {
         return ResponseEntity.ok(service.findAllSheetsInFolder(folderId));
     }
-
 }

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddParticipantToEventDto;
+import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.EmailRequestDto;
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.PaymentColumnRequestDto;
@@ -36,10 +37,7 @@ public class GoogleSheetsController {
     public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String sheetId) throws IOException{
         return ResponseEntity.ok(service.getParticipantsBreakDown(sheetId));
     }
-
-    // Refresh Payment status
-    // Need to pass event name
-    // and this might be a POST since internally it changes stuffs
+    
     @PostMapping("/payment")
     public ResponseEntity<Void> getPaymentInformationById(@RequestBody EmailRequestDto dto) throws IOException, MessagingException{
         service.updatePaymentStatus(dto.sheetId, dto.eventName);
@@ -53,14 +51,9 @@ public class GoogleSheetsController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    // @GetMapping("/paid-participants/{fileId}")
-    // public ResponseEntity<List<ParticpantsDto>> getPaidParticipants(@PathVariable String fileId) throws IOException{
-    //     return ResponseEntity.ok(service.getAllNewPaidParticipants(fileId));
-    // }
-
-    @PostMapping("/participant/")
-    public ResponseEntity<String> getPaidParticipants(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException{
-        ResponseEntity.ok(service.addParticpantToEvent(dto));
+    @PostMapping("/participants")
+    public ResponseEntity<String> confirmParticipantsInEvent(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException{
+        service.addParticpantToEvent(dto);
         return new ResponseEntity<>("Paid participants should be in the system and received confirmation email", HttpStatus.CREATED);
     }
 }
