@@ -7,7 +7,8 @@ public enum Genre {
     BREAKING("Breaking"),
     HIPHOP("Hiphop"),
     OPEN("Open"),
-    AUDIENCE("Audience");
+    AUDIENCE("Audience"),
+    ROOKIE("Rookie");
 
     private final String label;
     Genre(String label) { this.label = label; }
