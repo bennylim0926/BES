@@ -24,14 +24,14 @@ const props = defineProps({
 })
 
 const onSubmit = async () =>{
-    const insertPaymentStatus = await fetch("http://localhost:5050/api/v1/sheets/payment-status", {
+    await fetch("http://localhost:5050/api/v1/sheets/payment-status", {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            sheetId: fileId.value,
+            fileId: fileId.value,
         })
     })
     

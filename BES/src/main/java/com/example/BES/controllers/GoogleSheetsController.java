@@ -33,9 +33,9 @@ public class GoogleSheetsController {
     @Autowired
     GoogleSheetService service;
 
-    @GetMapping("/participants/breakdown/{sheetId}")
-    public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String sheetId) throws IOException{
-        return ResponseEntity.ok(service.getParticipantsBreakDown(sheetId));
+    @GetMapping("/participants/breakdown/{fileId}")
+    public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String fileId) throws IOException{
+        return ResponseEntity.ok(service.getParticipantsBreakDown(fileId));
     }
     
     @PostMapping("/payment")
@@ -47,7 +47,7 @@ public class GoogleSheetsController {
     // Whenever the event change or start app, insert payment column if not exist
     @PostMapping("/payment-status")
     public ResponseEntity<Void> insertPaymentColumn(@RequestBody PaymentColumnRequestDto dto) throws IOException{
-        service.insertPaymentColumn(dto.sheetId);
+        service.insertPaymentColumn(dto.fileId);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 

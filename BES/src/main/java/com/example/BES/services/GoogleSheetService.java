@@ -118,12 +118,12 @@ public class GoogleSheetService {
     }
 
     // When there is a new form, need to insert payment column for payment validation
-    public void insertPaymentColumn(String sheetId) throws IOException{
-        ValueRange headerRange = sheetClient.getRange(sheetId, "1:1");
+    public void insertPaymentColumn(String fileId) throws IOException{
+        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
-            int rowSize = sheetClient.getSheetSize(sheetId);
-            sheetClient.insertPaymentCheckboxes(sheetId, headers.size(), rowSize, sheetClient.getSheetId(sheetId));
+            int rowSize = sheetClient.getSheetSize(fileId);
+            sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
         }
     }
 
