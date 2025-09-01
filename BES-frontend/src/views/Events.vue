@@ -1,9 +1,12 @@
 <script setup>
 import { Button } from 'primevue';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router'
 
-const events = ref(null)
+import Splitter from 'primevue/splitter';
+import SplitterPanel from 'primevue/splitterpanel';
+
+const events = ref([])
 const router = useRouter()
 
 function goToEventDetails(eventName, folderID) {
@@ -29,12 +32,28 @@ const fetchAllEvents = async() =>{
 onMounted(()=>{
   fetchAllEvents()
 })
+
+function chunkArray(arr, size) {
+  const result = []
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size))
+  }
+  return result
+}
+
+const rows = computed(() => chunkArray(events.value, 2))
 </script>
 
 <template>
-  <Button 
-  v-for="event in events"
-  @click="goToEventDetails(event.folderName, event.folderID)"
-  >{{ event.folderName }}</Button>
-
+  <div class="grid grid-cols-2 gap-4">
+    <div
+      v-for="event in events"
+      :key="event.folderID"
+      @click="goToEventDetails(event.folderName, event.folderID)"
+      class="flex items-center justify-center p-6 bg-gray-700 rounded-xl text-gray-200 shadow 
+             cursor-pointer hover:bg-gray-500 hover:shadow-lg transition"
+    >
+      {{ event.folderName }}
+    </div>
+  </div>
 </template>

@@ -1,6 +1,4 @@
 <script setup>
-import { MultiSelect } from 'primevue';
-import { Button } from 'primevue';
 import {ref, onMounted, reactive} from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -151,46 +149,49 @@ onMounted(()=>{
         to create event with genre, need eventName and genreName
     once created, show verified and unverified participants
  -->
- <div>This is details for {{ props.eventName }}</div>
- <table border="1" cellspacing="0" cellpadding="6">
-        <thead>
+ <h1 class="text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
+ <div class="relative overflow-x-auto shadow-md sm:rounded-lg mb-3">
+    <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
         <tr>
-            <th>Genre</th>
-            <th>Number of participants</th>
+            <th scope="col" class="px-6 py-3">Genre</th>
+            <th scope="col" class="px-6 py-3">Number of participants</th>
         </tr>
         </thead>
         <tbody>
-        <tr v-for="(value, key) in participantsNumBreakdown" :key="key">
-            <td>{{ key }}</td>
-            <td>{{ value }}</td>
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200" v-for="(value, key) in participantsNumBreakdown" :key="key">
+            <td class="px-6 py-2">{{ key }}</td>
+            <td class="px-6 py-2 text-center">{{ value }}</td>
         </tr>
         </tbody>
     </table>
+</div>
  <div v-if="tableExist">
-    <p>The table exist: {{ tableExist }}</p>
-    <Button
+    <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3"
     @click="refreshParticipant">
         Refresh participants
-    </Button>
+    </button>
     <div v-if="verifiedParticipants != null">
-    <table border="1" cellspacing="0" cellpadding="6">
-        <thead>
-        <tr>
-            <th>no.</th>
-            <th>Name</th>
-            <th>Genre(s) participated</th>
-            <th>Residency</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="(row, i) in verifiedParticipants" :key="i">
-            <td> {{ i+1 }}</td>
-            <td>{{ row.name }}</td>
-            <td>{{ row.genre }}</td>
-            <td>{{ row.residency }}</td>
-        </tr>
-        </tbody>
-    </table>
+        <div class="relative overflow-x-auto shadow-md">
+        <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+            <tr>
+                <th scope="col" class="px-6 py-3"> no.</th>
+                <th scope="col" class="px-6 py-3"> Name</th>
+                <th scope="col" class="px-6 py-3"> Genre(s) participated</th>
+                <th scope="col" class="px-6 py-3"> Residency</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200" v-for="(row, i) in verifiedParticipants" :key="i">
+                <td class="px-6 py-2"> {{ i+1 }}</td>
+                <td class="px-6 py-2">{{ row.name }}</td>
+                <td class="px-6 py-2">{{ row.genre }}</td>
+                <td class="px-6 py-2">{{ row.residency }}</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
     </div>
     <div v-else> Please check your response form and mark it if the participant paid</div>
 
