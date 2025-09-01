@@ -7,6 +7,8 @@ import java.io.IOException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,6 +42,12 @@ public class EventController {
     @Autowired
     EventGenreParticpantService eventGenreParticipantService;
 
+    @GetMapping("/{eventName}")
+    public ResponseEntity<Boolean> eventExistByName(@PathVariable String eventName){
+        AddEventDto event = eventService.findEventbyNameSerivce(eventName);
+        return new ResponseEntity<>(event != null, HttpStatus.OK);
+    }
+
     @PostMapping
     public ResponseEntity<Void> createNewEvent(@RequestBody AddEventDto dto){
         eventService.createEventService(dto);
@@ -50,7 +58,7 @@ public class EventController {
     public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto){
         try{
             eventGenreService.addGenreToEventService(dto);
-            return new ResponseEntity<>(String.format("Add %s to %s", dto.genreName, dto.eventName), HttpStatus.CREATED);
+            return new ResponseEntity<>(String.format("create database"), HttpStatus.CREATED);
         }catch(Exception e){
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }

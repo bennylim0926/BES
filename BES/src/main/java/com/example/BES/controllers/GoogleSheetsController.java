@@ -51,8 +51,9 @@ public class GoogleSheetsController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    @PostMapping("/participants")
+    @PostMapping("/participants/")
     public ResponseEntity<String> confirmParticipantsInEvent(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException{
+        System.out.println("hi");
         service.addParticpantToEvent(dto);
         return new ResponseEntity<>("Paid participants should be in the system and received confirmation email", HttpStatus.CREATED);
     }

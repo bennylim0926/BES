@@ -32,6 +32,7 @@ import com.example.BES.models.EventParticipant;
 import com.example.BES.parsers.GoogleSheetParser;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
+import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
 import jakarta.activation.DataHandler;

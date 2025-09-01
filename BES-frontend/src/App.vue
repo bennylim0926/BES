@@ -1,8 +1,14 @@
 <script setup>
-import MainMenu from './views/MainMenu.vue';
+// import MainMenu from './views/MainMenu.vue';
 </script>
 
 <template>
-  <MainMenu></MainMenu>
+
+   <div id="nav">
+    <router-link to='/main'>Main Menu</router-link>
+    <router-link to='/event'>Events</router-link>
+
+   </div>
+  <router-view/>
 </template>
 

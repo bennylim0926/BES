@@ -24,19 +24,22 @@ public class EventGenreService {
     @Autowired
     GenreRepo genreRepo;
 
-    public EventGenre addGenreToEventService(AddGenreToEventDto dto){
+    public void addGenreToEventService(AddGenreToEventDto dto){
         Event e = eventRepo.findByEventName(dto.eventName).orElse(null);
-        Genre g = genreRepo.findByGenreName(dto.genreName.toLowerCase()).orElse(null);
-        if(e == null || g == null){
-            throw new NullPointerException("event or genre does not exist");
+        // Genre g = genreRepo.findByGenreName(dto.genreName.toLowerCase()).orElse(null);
+        for(String genre :dto.genreName){
+            Genre g = genreRepo.findByGenreName(genre.toLowerCase()).orElse(null);
+            if(g == null){
+                throw new NullPointerException("genre does not exist");
+            }
+            EventGenre eventGenre = eventGenreRepo.findByEventAndGenre(e, g).orElse(new EventGenre());
+            if(eventGenre.getGenre() != null){
+                throw new DataIntegrityViolationException("This event alrd has this genre");
+            }
+            eventGenre.setEvent(e);
+            eventGenre.setGenre(g);
+            eventGenre.setId(new EventGenreId(e.getEventId(), g.getGenreId()));
+            eventGenreRepo.save(eventGenre);
         }
-        EventGenre eventGenre = eventGenreRepo.findByEventAndGenre(e, g).orElse(new EventGenre());
-        if(eventGenre.getGenre() != null){
-            throw new DataIntegrityViolationException("This event alrd has this genre");
-        }
-        eventGenre.setEvent(e);
-        eventGenre.setGenre(g);
-        eventGenre.setId(new EventGenreId(e.getEventId(), g.getGenreId()));
-        return eventGenreRepo.save(eventGenre);
     }
 }
