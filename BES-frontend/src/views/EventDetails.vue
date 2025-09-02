@@ -150,7 +150,7 @@ onMounted(()=>{
     once created, show verified and unverified participants
  -->
  <h1 class="text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
- <div class="relative overflow-x-auto shadow-md sm:rounded-lg mb-3">
+ <div class="relative overflow-x-auto sm:rounded-lg mb-3">
     <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
         <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
         <tr>
@@ -197,15 +197,46 @@ onMounted(()=>{
 
 </div>
  <div v-else>
-    <p>The table does not exist</p>
-    <form @submit.prevent="onSubmit">
-        <h4>Create database</h4>
-        <input type="text" disabled :value="route.params.eventName"></input>
-        <input class="button" type="submit" value="Submit"></input>
-        <MultiSelect v-model="createTable.genres" :options="genreOptions"
-        optionLabel="genreName" 
-        optionValue="genreName">
-        </MultiSelect>
+    <form class="mx-auto relative overflow-x-auto" @submit.prevent="onSubmit">
+        <!-- <div>
+            <label for="small-input" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Event Name</label>
+            <input type="text" disabled :value="route.params.eventName" class="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"></input>
+        </div> -->
+        
+        
+        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+    Select genres
+  </label>
+
+  <div class="grid grid-cols-2 gap-3 w-fit mb-2">
+    <div
+      v-for="g in genreOptions"
+      :key="g.genreName"
+      class="flex items-center px-3 py-2 border border-gray-200 rounded-md 
+             dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
+    >
+      <input
+        type="checkbox"
+        :id="g.genreName"
+        :value="g.genreName"
+        v-model="createTable.genres"
+        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm
+               focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800
+               focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+      />
+      <label
+        :for="g.genreName"
+        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+      >
+        {{ g.genreName }}
+      </label>
+    </div>
+  </div>
+  <p class="mt-2 text-sm mb-2">Selected: {{ createTable.genres.join(', ') }}</p>
+  <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" type="submit" value="Submit">
+            Create Table
+        </button>
     </form>
 </div>
+
 </template>

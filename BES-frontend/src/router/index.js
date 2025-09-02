@@ -4,13 +4,18 @@ import Event from "@/views/Events.vue"
 import EventDetails from "@/views/EventDetails.vue";
 
 const routes = [
+    // {
+    //     path: '/main',
+    //     name: 'Main',
+    //     component: MainMenu
+    // },
     {
-        path: '/main',
+        path: '/',
         name: 'Main',
         component: MainMenu
     },
     {
-        path: '/event',
+        path: '/events',
         name: 'Event',
         component: Event
     },

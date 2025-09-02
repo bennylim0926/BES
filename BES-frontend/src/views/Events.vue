@@ -41,11 +41,11 @@ function chunkArray(arr, size) {
   return result
 }
 
-const rows = computed(() => chunkArray(events.value, 2))
+const rows = computed(() => chunkArray(events.value, 7))
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-4">
+  <div class="grid grid-cols-7 gap-4">
     <div
       v-for="event in events"
       :key="event.folderID"
