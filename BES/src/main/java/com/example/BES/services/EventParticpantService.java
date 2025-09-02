@@ -2,7 +2,9 @@ package com.example.BES.services;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -75,6 +77,7 @@ public class EventParticpantService {
         mailService.sendEmailWithAttachment(eventName, joiningParticipant, ids);
         
         eventParticipantRepo.save(newParticipant);
+        
         for(EventGenreParticipantId id : ids){
             EventGenreParticipant p = new EventGenreParticipant();
             p.setId(id);
@@ -83,6 +86,26 @@ public class EventParticpantService {
             p.setParticipant(joiningParticipant);
             eventGenreParticipantRepo.save(p);
         }
+    }
+
+    public Map<EventParticipant,List<EventGenreParticipantId>>  getAlleventGenreParticipantIds(AddParticipantDto dto,Event event, Participant participant){
+        EventParticipant newParticipant = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(new EventParticipant());
+        if(newParticipant.getEvent() != null){
+            return null;   
+        }
+        newParticipant.setParticipant(participant);
+        newParticipant.setEvent(event);
+        newParticipant.setResidency(dto.getResidency());
+        newParticipant.setGenre(String.join(", ", dto.getGenres()));
+        List<EventGenreParticipantId> ids = new ArrayList<>();
+        for(String g: dto.getGenres()){
+            Genre genre = genreRepo.findByGenreName(g.toLowerCase()).orElse(null);
+            EventGenreParticipantId id = new EventGenreParticipantId(event.getEventId(), genre.getGenreId(), participant.getParticipantId());
+            ids.add(id);
+        }
+        Map<EventParticipant,List<EventGenreParticipantId>> res = new HashMap<>();
+        res.put(newParticipant, ids);
+        return res;
     }
 
     // get by event

@@ -63,7 +63,7 @@ const onSubmit = async () =>{
 }
 
 const refreshParticipant = async() =>{
-    const createEventResponse = await fetch("http://localhost:5050/api/v1/sheets/participants/", {
+    const createEventResponse = await fetch("http://localhost:5050/api/v1/event/participants/", {
         method: 'POST',
         headers: {
         'Accept': 'application/json',

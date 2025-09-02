@@ -22,7 +22,7 @@ public class GoogleDriveFileController {
     private GoogleDriveFileService service;
     
     @GetMapping("/{folderId}")
-    public ResponseEntity<List<GoogleDriveFileDto>> findAllInFolder(@PathVariable String folderId) {
+    public ResponseEntity<List<GoogleDriveFileDto>> findSheetInFolder(@PathVariable String folderId) {
         return ResponseEntity.ok(service.findAllSheetsInFolder(folderId));
     }
 }

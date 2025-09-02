@@ -1,7 +1,6 @@
 package com.example.BES.services;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,9 +12,6 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Io;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.clients.GoogleSheetClient;
@@ -24,23 +20,15 @@ import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.ParticpantsDto;
-import com.example.BES.enums.EmailTemplates;
 import com.example.BES.enums.Genre;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
-import com.example.BES.models.EventParticipant;
 import com.example.BES.parsers.GoogleSheetParser;
-import com.example.BES.respositories.EventParticipantRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
-import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
 import com.google.zxing.WriterException;
 
-import jakarta.activation.DataHandler;
-import jakarta.activation.DataSource;
 import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeBodyPart;
-import jakarta.mail.util.ByteArrayDataSource;
 
 @Service
 public class GoogleSheetService {
@@ -63,8 +51,6 @@ public class GoogleSheetService {
 
     @Autowired
     EventParticpantService eventParticipantService;
-
-
 
     Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
     List<String> genres;
@@ -130,8 +116,8 @@ public class GoogleSheetService {
         }
     }
 
-    public List<ParticpantsDto> addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException, WriterException{ 
-        List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
+    public void addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException, WriterException{ 
+        // List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
         Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
         List<List<String>> resultString = getsheetAllRows(dto.fileId);
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
@@ -144,57 +130,32 @@ public class GoogleSheetService {
                 addParticipant.setGenres(participants.getCategories());
                 addParticipant.setResidency(participants.getResidency());
                 eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
-                paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
+                // paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
+            }
+        }
+        // return paidRegisteredParticipants;
+    }
+
+    public List<AddParticipantDto> getAllPaidParticipants(AddParticipantToEventDto dto)
+        throws IOException, MessagingException, WriterException{
+        List<AddParticipantDto> paidRegisteredParticipants = new ArrayList<>();    
+        Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
+        List<List<String>> resultString = getsheetAllRows(dto.fileId);
+        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
+        for(List<String> res : resultString){
+            ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            if(participants.getPaymentStatus()){
+                AddParticipantDto addParticipant = new AddParticipantDto();
+                addParticipant.setParticipantEmail(participants.getEmail());
+                addParticipant.setParticipantName(participants.getName());
+                addParticipant.setGenres(participants.getCategories());
+                addParticipant.setResidency(participants.getResidency());
+                // eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
+                paidRegisteredParticipants.add(addParticipant);
             }
         }
         return paidRegisteredParticipants;
-    }
-
-    public void updatePaymentStatus(String fileId, String eventName) throws IOException, MessagingException{
-        // Read thru the google sheets
-        // information needed email, categories, donePayment, local/overseas
-        // if no overseas should assume only local
-        // if no payment by default should send email
-        // need database to store the information eg. payment status, registered, audition number and etc
-        // if donePayment column not there create one with all false
-        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
-        Map<String, Integer> colIndexMap = new HashMap<>();
-        List<String> headers = GoogleSheetParser.readHeaders(headerRange);
-        List<ParticpantsDto> registeredParticipants = new ArrayList<>(); 
-        ValueRange results = new ValueRange();
-        
-        // check if payment status header existed
-            // Check with participants has paid
-            // Then proceed to check if paid, then send qr
-            // map the keywords with its columnIndex
-        for(Integer i = 0; i< headers.size(); i ++){
-            for(String keyword: PAYMENT_KEYWORDS){
-                if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
-                    colIndexMap.put(keyword, i);
-                }
-            }
         }
-        // Read everything except the headers
-        String range = "A2:"+colIndexToLetter(headers.size());
-        List<Integer> categoriesColumn = getCategoriesColumns(fileId);
-        results= sheetClient.getRange(fileId, range);
-        List<List<String>> resultString = results.getValues().stream()
-                                                .map(row -> row.stream()
-                                                    .map(Object::toString)   // convert each Object to String
-                                                    .collect(Collectors.toList()))
-                                                .collect(Collectors.toList());                                
-        for(List<String> res : resultString){
-            mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
-            registeredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
-        }
-        
-        if(!GoogleSheetParser.columnExists(headers, SheetHeader.LOCAL_OVERSEAS)){
-            System.out.println("This battle doesnt accept overseas battlers");
-        }
-        // check local/overseas
-        // if(!headers.contains(""))
-        // return results;
-    }
 
     /*
      * Helper functions region
