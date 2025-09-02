@@ -32,5 +32,6 @@ public class EventParticipant {
     private Participant participant;
 
     private String residency;
+    private String genre;
 }
 

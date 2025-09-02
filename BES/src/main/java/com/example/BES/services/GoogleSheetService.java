@@ -32,6 +32,7 @@ import com.example.BES.models.EventParticipant;
 import com.example.BES.parsers.GoogleSheetParser;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
+import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
 import jakarta.activation.DataHandler;
@@ -70,7 +71,8 @@ public class GoogleSheetService {
     public GoogleSheetService(){
         genres = new ArrayList<>(Arrays.asList(Genre.POPPING.getLabel(), Genre.WAACKING.getLabel(), 
                                                 Genre.LOCKING.getLabel(), Genre.BREAKING.getLabel(), 
-                                                Genre.HIPHOP.getLabel(), Genre.OPEN.getLabel()));
+                                                Genre.HIPHOP.getLabel(), Genre.OPEN.getLabel(),
+                                                Genre.AUDIENCE.getLabel(), Genre.ROOKIE.getLabel()));
         actions = new HashMap<>();
         actions.put(Genre.POPPING.getLabel(), (dto,list) -> dto.setPopping(categoriesCount(list, Genre.POPPING.getLabel())));
         actions.put(Genre.WAACKING.getLabel(), (dto,list) -> dto.setWaacking(categoriesCount(list, Genre.WAACKING.getLabel())));
@@ -79,6 +81,7 @@ public class GoogleSheetService {
         actions.put(Genre.HIPHOP.getLabel(), (dto,list) -> dto.setHiphop(categoriesCount(list, Genre.HIPHOP.getLabel())));
         actions.put(Genre.OPEN.getLabel(), (dto,list) -> dto.setOpen(categoriesCount(list, Genre.OPEN.getLabel())));
         actions.put(Genre.AUDIENCE.getLabel(), (dto,list) -> dto.setAudience(categoriesCount(list, Genre.AUDIENCE.getLabel())));
+        actions.put(Genre.ROOKIE.getLabel(), (dto,list) -> dto.setRookie(categoriesCount(list, Genre.ROOKIE.getLabel())));
     }
 
     /* Correct order should be: 
@@ -117,36 +120,14 @@ public class GoogleSheetService {
     }
 
     // When there is a new form, need to insert payment column for payment validation
-    public void insertPaymentColumn(String sheetId) throws IOException{
-        ValueRange headerRange = sheetClient.getRange(sheetId, "1:1");
+    public void insertPaymentColumn(String fileId) throws IOException{
+        ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
-            int rowSize = sheetClient.getSheetSize(sheetId);
-            sheetClient.insertPaymentCheckboxes(sheetId, headers.size(), rowSize, sheetClient.getSheetId(sheetId));
+            int rowSize = sheetClient.getSheetSize(fileId);
+            sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
         }
     }
-
-    // get all "ticked" participants
-    // BUT this is not enuf, need to confirm if haven receive email as well
-    // public List<ParticpantsDto> getAllNewPaidParticipants(String fileId) throws IOException{
-    //     List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
-    //     Map<String, Integer> colIndexMap = getColumnIndexMap(fileId);
-    //     List<List<String>> resultString = getsheetAllRows(fileId);
-    //     List<Integer> categoriesColumn = getCategoriesColumns(fileId);  
-    //     System.out.println(resultString);                          
-    //     for(List<String> res : resultString){
-    //         ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
-    //         if(participants.getPaymentStatus()){
-    //             // need to access to database to check alrd in db, only paid and receive email will add here
-    //             // eventParticipantRepo.findByEventAndParticipant(null, null)
-    //             // EventParticipant eventParticpant =new EventParticipant()
-    //             // eventParticipantService.AddPartipantToEventService(null, fileId)
-    //             // eventParticipantRepo.save(null);
-    //             paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
-    //         }
-    //     }
-    //     return paidRegisteredParticipants;
-    // }
 
     public List<ParticpantsDto> addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException{ 
         List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
@@ -159,6 +140,8 @@ public class GoogleSheetService {
                 AddParticipantDto addParticipant = new AddParticipantDto();
                 addParticipant.setParticipantEmail(participants.getEmail());
                 addParticipant.setParticipantName(participants.getName());
+                addParticipant.setGenres(participants.getCategories());
+                addParticipant.setResidency(participants.getResidency());
                 eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
                 paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
             }

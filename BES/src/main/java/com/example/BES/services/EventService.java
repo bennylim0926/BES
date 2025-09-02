@@ -20,4 +20,14 @@ public class EventService {
             repo.save(newEvent);
         }
     }
+
+    public AddEventDto findEventbyNameSerivce(String eventName){
+        Event event = repo.findByEventName(eventName).orElse(null);
+        if(event != null){
+            AddEventDto dto = new AddEventDto();
+            dto.eventName = eventName;
+            return dto;
+        }
+        return null;
+    }
 }
