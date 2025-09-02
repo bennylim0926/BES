@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@primeuix/themes": "^1.2.3",
+    "@stomp/stompjs": "^7.1.1",
     "@tailwindcss/vite": "^4.1.12",
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",

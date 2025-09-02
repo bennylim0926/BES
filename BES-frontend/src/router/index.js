@@ -2,13 +2,9 @@ import { createRouter, createWebHistory } from "vue-router";
 import MainMenu from "@/views/MainMenu.vue";
 import Event from "@/views/Events.vue"
 import EventDetails from "@/views/EventDetails.vue";
+import AuditionNumber from "@/views/AuditionNumber.vue";
 
 const routes = [
-    // {
-    //     path: '/main',
-    //     name: 'Main',
-    //     component: MainMenu
-    // },
     {
         path: '/',
         name: 'Main',
@@ -27,6 +23,11 @@ const routes = [
             eventName: route.params.eventName,
             folderID: route.query.folderID
         })
+    },
+    {
+        path: '/event/audition-number',
+        name: 'Audition Number',
+        component: AuditionNumber
     }
 ]
 

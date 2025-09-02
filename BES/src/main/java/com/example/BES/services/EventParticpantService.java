@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.AddParticipantDto;
@@ -16,7 +15,6 @@ import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
-import com.example.BES.models.EventParticipantId;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventGenreParticpantRepo;
