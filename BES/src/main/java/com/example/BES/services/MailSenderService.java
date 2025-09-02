@@ -1,5 +1,8 @@
 package com.example.BES.services;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
@@ -11,7 +14,11 @@ import org.springframework.web.client.RestTemplate;
 import com.example.BES.dtos.EmailRequestDto;
 import com.example.BES.dtos.ParticpantsDto;
 import com.example.BES.enums.EmailTemplates;
+import com.example.BES.models.EventGenreParticipantId;
+import com.example.BES.models.EventParticipantId;
 import com.example.BES.models.Participant;
+import com.example.BES.respositories.GenreRepo;
+import com.google.zxing.WriterException;
 
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
@@ -28,6 +35,12 @@ public class MailSenderService {
     @Autowired
     EmailTemplates emailTemplates;
 
+    @Autowired
+    QrCodeService qrService;
+
+    @Autowired
+    GenreRepo genreRepo;
+
     public void sendEmail(String toEmail, String subject, String body){
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom("bennylim0926@gmail.com");
@@ -37,26 +50,26 @@ public class MailSenderService {
         mailSender.send(message);
     }
 
-    public void sendEmailWithAttachment(String eventName, Participant receiver) throws MessagingException{
+    public void sendEmailWithAttachment(String eventName, Participant receiver, List<EventGenreParticipantId> ids) throws MessagingException, WriterException, IOException{
         EmailTemplates.Template template = emailTemplates.getEvents().get(normalizeKey(eventName)); 
         // SimpleMailMessage message = new SimpleMailMessage();
-        byte[] sourceBytes = fetchRandomImage();
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
-
-        DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
+        for(EventGenreParticipantId id : ids){
+            String registerLink = String.format("https://travelling-translation-trap-vocals.trycloudflare.com/api/v1/event/register-participant/%d/%d/%d",id.getParticipantId(),id.getEventId(), id.getGenreId());
+            byte[] sourceBytes = qrService.generateQrCode(registerLink, 150, 150);
+            DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
+            MimeBodyPart attachmentPart = new MimeBodyPart();
+            attachmentPart.setDataHandler(new DataHandler(dataSource));
+            String genreName = genreRepo.findById(id.getGenreId()).orElse(null).getGenreName();
+            attachmentPart.setFileName(String.format("%s.jpg", genreName));
+            messageHelper.addAttachment(String.format("%s.jpg", genreName), dataSource);;
+        }
             // use with MimeBodyPart
-        MimeBodyPart attachmentPart = new MimeBodyPart();
-        attachmentPart.setDataHandler(new DataHandler(dataSource));
-        attachmentPart.setFileName("random.jpg");
-
         messageHelper.setFrom("bennylim0926@gmail.com");
         messageHelper.setTo(receiver.getParticipantEmail());
         messageHelper.setText(template.getBody().replace("{name}", receiver.getParticipantName()));
         messageHelper.setSubject(template.getSubject());
-        
-        messageHelper.addAttachment("qr.png", dataSource);;
-        
         mailSender.send(mimeMessage);
     }
 

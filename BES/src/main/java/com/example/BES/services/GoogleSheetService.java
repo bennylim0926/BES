@@ -34,6 +34,7 @@ import com.example.BES.respositories.EventParticipantRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
+import com.google.zxing.WriterException;
 
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
@@ -129,7 +130,7 @@ public class GoogleSheetService {
         }
     }
 
-    public List<ParticpantsDto> addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException{ 
+    public List<ParticpantsDto> addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException, WriterException{ 
         List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
         Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
         List<List<String>> resultString = getsheetAllRows(dto.fileId);

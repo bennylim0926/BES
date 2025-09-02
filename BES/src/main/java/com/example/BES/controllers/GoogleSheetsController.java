@@ -2,6 +2,7 @@ package com.example.BES.controllers;
 
 import java.io.IOException;
 import com.google.gson.Gson;
+import com.google.zxing.WriterException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,7 +52,7 @@ public class GoogleSheetsController {
     }
 
     @PostMapping("/participants/")
-    public ResponseEntity<String> confirmParticipantsInEvent(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException{
+    public ResponseEntity<String> confirmParticipantsInEvent(@RequestBody AddParticipantToEventDto dto) throws IOException, MessagingException, WriterException{
         service.addParticpantToEvent(dto);
         return new ResponseEntity<>(gson.toJson( "Paid participants should be in the system and received confirmation email"), HttpStatus.CREATED);
     }
