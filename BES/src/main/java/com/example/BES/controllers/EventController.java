@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import java.io.IOException;
 import java.util.List;
 
+import org.hibernate.internal.ExceptionConverterImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -75,9 +76,9 @@ public class EventController {
 
     // Create a new entry in the event table
     @PostMapping
-    public ResponseEntity<Void> createNewEvent(@RequestBody AddEventDto dto){
+    public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto){
         eventService.createEventService(dto);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+        return new ResponseEntity<>(gson.toJson("Table created"), HttpStatus.CREATED);
     }
 
     // Assign a genre to a existing event
@@ -85,7 +86,7 @@ public class EventController {
     public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto){
         try{
             eventGenreService.addGenreToEventService(dto);
-            return new ResponseEntity<>(String.format("create database"), HttpStatus.CREATED);
+            return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
         }catch(Exception e){
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
@@ -93,14 +94,22 @@ public class EventController {
 
     @PostMapping("/participants/")
     public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)throws IOException, MessagingException, WriterException{
-        registerService.addParticipantToEvent(dto);
-        return new ResponseEntity<>(gson.toJson( "Paid participants should be in the system and received confirmation email"), HttpStatus.CREATED);
+        try{
+            registerService.addParticipantToEvent(dto);
+            return new ResponseEntity<>(gson.toJson( "Participants list updated!"), HttpStatus.CREATED);
+        }catch(NullPointerException e){
+            return new ResponseEntity<>(gson.toJson( "The record is empty, please verify the payment in the google sheet"), HttpStatus.NOT_FOUND);
+        }
+        
     }
 
     // Get all the paid participants in an event regardless of their genres
     @GetMapping("/verified-participant/{eventName}")
     public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName){
         List<GetParticipantByEventDto> res = eventParticipantService.getAllParticipantsByEvent(eventName);
+        if(res == null){
+            return new ResponseEntity<>(res, HttpStatus.NOT_FOUND);
+        }
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 

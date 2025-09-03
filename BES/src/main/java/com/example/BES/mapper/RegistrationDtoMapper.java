@@ -6,19 +6,20 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import com.example.BES.dtos.ParticpantsDto;
+import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.parsers.GoogleSheetParser;
 
 @Component
 public class RegistrationDtoMapper {
-    public ParticpantsDto mapRow(List<String> row, 
+    public AddParticipantDto mapRow(List<String> row, 
                                         Map<String,Integer> colIndexMap, 
                                         List<Integer> categoriesCols, 
                                         List<String> genres){
-        ParticpantsDto dto = new ParticpantsDto();
-        dto.setName(row.get(colIndexMap.get(SheetHeader.NAME)));
-        dto.setEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));
+        // ParticpantsDto dto = new ParticpantsDto();
+        AddParticipantDto dto = new AddParticipantDto();
+        dto.setParticipantName(row.get(colIndexMap.get(SheetHeader.NAME)));
+        dto.setParticipantEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));
         dto.setResidency(row.get(colIndexMap.get(SheetHeader.LOCAL_OVERSEAS)));
         dto.setPaymentStatus(Boolean.parseBoolean(row.get(colIndexMap.get(SheetHeader.PAYMENT_STATUS))));
         List<String> categories = new ArrayList<>();
@@ -26,7 +27,7 @@ public class RegistrationDtoMapper {
             categories = GoogleSheetParser.normalizeGenre(row.get(i), genres);
             if(!categories.isEmpty()) break;
         }
-        dto.setCategories(categories);
+        dto.setGenres(categories);
         return dto;                                   
     }
 }

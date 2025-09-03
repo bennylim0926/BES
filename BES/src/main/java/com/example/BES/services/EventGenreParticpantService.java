@@ -38,8 +38,10 @@ public class EventGenreParticpantService {
     public void addParticipantToEventGenreService(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
         EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId,dto.genreId, dto.participantId);
+
         EventGenreParticipant participantInEventGenre = repo.findById(id).orElse(new EventGenreParticipant());
-        if(participantInEventGenre.getParticipant() != null){
+        // System.out.println(participantInEventGenre.getAuditionNumber());
+        if(participantInEventGenre.getParticipant() != null && participantInEventGenre.getAuditionNumber() == null){
             List<Integer> totalParticipantInGenre = repo.findAuditionNumberByEventAndGenre(dto.eventId, dto.genreId);
             List<Integer> randomPool = generateListFromOneToN(totalParticipantInGenre.size());
             randomPool.removeAll(totalParticipantInGenre);
@@ -49,6 +51,12 @@ public class EventGenreParticpantService {
             messagingTemplate.convertAndSend("/topic/audition/",
                 Map.of(
                     "auditionNumber", auditionNumber,
+                    "genre", participantInEventGenre.getGenre().getGenreName(),
+                    "name", participantInEventGenre.getParticipant().getParticipantName()));
+        }else{
+            messagingTemplate.convertAndSend("/topic/error/",
+                Map.of(
+                    "audition", participantInEventGenre.getAuditionNumber(),
                     "genre", participantInEventGenre.getGenre().getGenreName(),
                     "name", participantInEventGenre.getParticipant().getParticipantName()));
         }

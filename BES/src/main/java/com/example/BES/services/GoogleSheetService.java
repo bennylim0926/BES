@@ -19,7 +19,6 @@ import com.example.BES.config.GoogleSheetConfig;
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.GoogleSheetFileDto;
-import com.example.BES.dtos.ParticpantsDto;
 import com.example.BES.enums.Genre;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
@@ -45,12 +44,6 @@ public class GoogleSheetService {
 
     @Autowired
     GoogleSheetConfig config;
-
-    @Autowired
-    MailSenderService mailService;
-
-    @Autowired
-    EventParticpantService eventParticipantService;
 
     Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
     List<String> genres;
@@ -116,26 +109,6 @@ public class GoogleSheetService {
         }
     }
 
-    public void addParticpantToEvent(AddParticipantToEventDto dto) throws IOException, MessagingException, WriterException{ 
-        // List<ParticpantsDto> paidRegisteredParticipants = new ArrayList<>();    
-        Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
-        List<List<String>> resultString = getsheetAllRows(dto.fileId);
-        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
-        for(List<String> res : resultString){
-            ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
-            if(participants.getPaymentStatus()){
-                AddParticipantDto addParticipant = new AddParticipantDto();
-                addParticipant.setParticipantEmail(participants.getEmail());
-                addParticipant.setParticipantName(participants.getName());
-                addParticipant.setGenres(participants.getCategories());
-                addParticipant.setResidency(participants.getResidency());
-                eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
-                // paidRegisteredParticipants.add(mapper.mapRow(res, colIndexMap, categoriesColumn, genres));
-            }
-        }
-        // return paidRegisteredParticipants;
-    }
-
     public List<AddParticipantDto> getAllPaidParticipants(AddParticipantToEventDto dto)
         throws IOException, MessagingException, WriterException{
         List<AddParticipantDto> paidRegisteredParticipants = new ArrayList<>();    
@@ -143,19 +116,13 @@ public class GoogleSheetService {
         List<List<String>> resultString = getsheetAllRows(dto.fileId);
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
         for(List<String> res : resultString){
-            ParticpantsDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            AddParticipantDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
             if(participants.getPaymentStatus()){
-                AddParticipantDto addParticipant = new AddParticipantDto();
-                addParticipant.setParticipantEmail(participants.getEmail());
-                addParticipant.setParticipantName(participants.getName());
-                addParticipant.setGenres(participants.getCategories());
-                addParticipant.setResidency(participants.getResidency());
-                // eventParticipantService.AddPartipantToEventService(addParticipant, dto.eventName);
-                paidRegisteredParticipants.add(addParticipant);
+                paidRegisteredParticipants.add(participants);
             }
         }
         return paidRegisteredParticipants;
-        }
+    }
 
     /*
      * Helper functions region
@@ -180,11 +147,8 @@ public class GoogleSheetService {
     }
 
     private List<List<String>> getsheetAllRows(String fileId) throws IOException{
-        // Map<String, Integer> colIndexMap = new HashMap<>();
         List<String> headers = getHeaders(fileId);
         String range = "A2:"+colIndexToLetter(headers.size());
-        // List<Integer> categoriesColumn = getCategoriesColumns(fileId);
-        
         ValueRange results = new ValueRange();
         results = sheetClient.getRange(fileId, range);
         return results.getValues().stream()
@@ -205,7 +169,6 @@ public class GoogleSheetService {
     private List<Integer> getCategoriesColumns(String fileId) throws IOException{
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
-        // List<String> headers = readSheetHeader(fileId);
         List<Integer> matchingColumnIndices = new ArrayList<>();
         for(int i = 0; i < headers.size(); i++){
             if(headers.get(i).equalsIgnoreCase(CATEGORY_KEYWORD)){
@@ -219,7 +182,6 @@ public class GoogleSheetService {
     private void setDtoCategory(GoogleSheetFileDto dto, List<String> data){
         Set<String> categories = new HashSet<String>(data);
         for (String category: categories){
-            // List<String> normalizeCategories = normalizeGenre(category, genres);
             List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category, genres);
             for(String normalizeCategory: normalizeCategories){
                 actions.get(normalizeCategory).accept(dto, data);

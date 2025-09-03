@@ -64,16 +64,12 @@ public class RegistrationService {
             }
             Participant toAddpariticipant = participantService.addParticpantService(participant);
             Map<EventParticipant,List<EventGenreParticipantId>> mapping = eventParticipantService.getAlleventGenreParticipantIds(participant, event, toAddpariticipant);
-            // System.out.println("still alive 1");
             if(mapping == null){
                 continue;
             }
-            // System.out.println("still alive 2");
-            // System.out.println(toAddpariticipant.getParticipantName());
             EventParticipant eventParticipant = mapping.keySet().iterator().next();
             List<EventGenreParticipantId> ids =  mapping.get(eventParticipant);
             mailService.sendEmailWithAttachment(dto.eventName, toAddpariticipant, mapping.get(eventParticipant));
-            // // add to event_participant
             eventParticipantRepo.save(eventParticipant);
 
             for(EventGenreParticipantId id: ids){
