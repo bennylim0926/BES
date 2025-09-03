@@ -1,8 +1,26 @@
 <script setup>
 import {ref, onMounted, reactive} from 'vue';
 import { useRoute } from 'vue-router';
+import ActionDoneModal from './ActionDoneModal.vue';
 
-const route = useRoute();
+const modalTitle = ref("")
+const modalMessage = ref("")
+
+const openModal = (title, message) => {
+    getTitle(title)
+    modalMessage.value = message
+    showModal.value = true
+}
+
+const getTitle = (statusCode) =>{
+    if(statusCode >= 200 && statusCode <= 299){
+        modalTitle.value = "Success"
+    }else{
+        modalTitle.value = "Failed"
+    }
+}
+
+// const route = useRoute();
 
 const props = defineProps({
     eventName: String,
@@ -12,16 +30,26 @@ const props = defineProps({
 const tableExist = ref(true)
 const fileId = ref('')
 const eventName = ref(props.eventName.split(" ").join("%20"));
-const verifiedParticipants = ref(null)
+const verifiedParticipants = ref([])
 const participantsNumBreakdown = ref(null)
 
 const createTable = reactive({
     genres: []
 })
 
+const showModal = ref(false)
+
+const handleAccept = () => {
+  showModal.value = false
+}
+
 const genreOptions = ref(null)
 const onSubmit = async () =>{
     // insert payment-status column if not exist
+    if(createTable.genres.length == 0){
+        openModal(404 , "Need to add at least one genre/category")
+        return
+    }
     await fetch("http://localhost:5050/api/v1/sheets/payment-status", {
         method: 'POST',
         headers: {
@@ -57,13 +85,17 @@ const onSubmit = async () =>{
             genreName: createTable.genres
         })
     })
-    if(addGenreResponse.ok){
-        tableExist.value = true
-    }
+    addGenreResponse.json().then(result =>{
+        openModal(addGenreResponse.status , result)
+        if(addGenreResponse.ok){
+            tableExist.value = true
+        }
+    })
+    
 }
 
 const refreshParticipant = async() =>{
-    const createEventResponse = await fetch("http://localhost:5050/api/v1/sheets/participants/", {
+    const createEventResponse = await fetch("http://localhost:5050/api/v1/event/participants/", {
         method: 'POST',
         headers: {
         'Accept': 'application/json',
@@ -76,6 +108,13 @@ const refreshParticipant = async() =>{
     })
     if(createEventResponse.ok){
         getParticipantsByEvent()
+        createEventResponse.json().then(result=>[
+            openModal(createEventResponse.status , result)
+        ])
+    }else if(createEventResponse.status == 404){
+        createEventResponse.json().then(result=>[
+            openModal(createEventResponse.status , result)
+        ])
     }
 }
 
@@ -116,9 +155,14 @@ const getAllGenres = async()=>{
 const getParticipantsByEvent = async() =>{
     try{
         const res = await fetch(`http://localhost:5050/api/v1/event/verified-participant/${eventName.value}`)
-        res.json().then(result =>{
+        if(res.ok){
+            res.json().then(result =>{
             verifiedParticipants.value = result
-        })
+            // console.log(verifiedParticipants.value.length)
+            })
+        }else if (res.status === 404) {
+            console.log("404: event not exist");
+        }
     }catch(e){
         console.log(e)
     }
@@ -171,7 +215,7 @@ onMounted(()=>{
     @click="refreshParticipant">
         Refresh participants
     </button>
-    <div v-if="verifiedParticipants != null">
+    <div v-if="verifiedParticipants.length > 0 && tableExist">
         <div class="relative overflow-x-auto shadow-md">
         <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
             <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
@@ -197,13 +241,7 @@ onMounted(()=>{
 
 </div>
  <div v-else>
-    <form class="mx-auto relative overflow-x-auto" @submit.prevent="onSubmit">
-        <!-- <div>
-            <label for="small-input" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Event Name</label>
-            <input type="text" disabled :value="route.params.eventName" class="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"></input>
-        </div> -->
-        
-        
+    <form class="mx-auto relative overflow-x-auto" @submit.prevent="onSubmit">        
         <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
     Select genres
   </label>
@@ -232,11 +270,18 @@ onMounted(()=>{
       </label>
     </div>
   </div>
-  <p class="mt-2 text-sm mb-2">Selected: {{ createTable.genres.join(', ') }}</p>
   <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" type="submit" value="Submit">
             Create Table
         </button>
     </form>
 </div>
-
+<ActionDoneModal
+    :show="showModal"
+    :title="modalTitle"
+    @accept="handleAccept"
+  >
+    <p>
+      {{ modalMessage}}
+    </p>
+  </ActionDoneModal>
 </template>

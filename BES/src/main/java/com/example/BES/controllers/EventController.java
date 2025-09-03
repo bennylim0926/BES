@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import java.io.IOException;
 import java.util.List;
 
+import org.hibernate.internal.ExceptionConverterImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
@@ -26,6 +28,11 @@ import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
 import com.example.BES.services.GenreService;
 import com.example.BES.services.ParticipantService;
+import com.example.BES.services.RegistrationService;
+import com.google.gson.Gson;
+import com.google.zxing.WriterException;
+
+import jakarta.mail.MessagingException;
 
 @RestController
 @CrossOrigin
@@ -49,45 +56,76 @@ public class EventController {
     @Autowired
     GenreService genreService;
 
+    @Autowired
+    RegistrationService registerService;
+
+    private static final Gson gson = new Gson();
+
+    // Check is this event exist in table
     @GetMapping("/{eventName}")
     public ResponseEntity<Boolean> eventExistByName(@PathVariable String eventName){
         AddEventDto event = eventService.findEventbyNameSerivce(eventName);
         return new ResponseEntity<>(event != null, HttpStatus.OK);
     }
 
+    // Get all possible genres
     @GetMapping("/genre")
     public ResponseEntity<List<GetGenreDto>> getAllGenres(){
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
 
+    // Create a new entry in the event table
     @PostMapping
-    public ResponseEntity<Void> createNewEvent(@RequestBody AddEventDto dto){
+    public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto){
         eventService.createEventService(dto);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+        return new ResponseEntity<>(gson.toJson("Table created"), HttpStatus.CREATED);
     }
 
+    // Assign a genre to a existing event
     @PostMapping("/genre")
     public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto){
         try{
             eventGenreService.addGenreToEventService(dto);
-            return new ResponseEntity<>(String.format("create database"), HttpStatus.CREATED);
+            return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
         }catch(Exception e){
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
 
+    @PostMapping("/participants/")
+    public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)throws IOException, MessagingException, WriterException{
+        try{
+            registerService.addParticipantToEvent(dto);
+            return new ResponseEntity<>(gson.toJson( "Participants list updated!"), HttpStatus.CREATED);
+        }catch(NullPointerException e){
+            return new ResponseEntity<>(gson.toJson( "The record is empty, please verify the payment in the google sheet"), HttpStatus.NOT_FOUND);
+        }
+        
+    }
+
+    // Get all the paid participants in an event regardless of their genres
     @GetMapping("/verified-participant/{eventName}")
     public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName){
-        // System.out.println(eventName);
         List<GetParticipantByEventDto> res = eventParticipantService.getAllParticipantsByEvent(eventName);
+        if(res == null){
+            return new ResponseEntity<>(res, HttpStatus.NOT_FOUND);
+        }
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
-    @PostMapping("/register-participant")
-    public ResponseEntity<String> registerParticipantWithGenre(@RequestBody AddParticipantToEventGenreDto dto) throws IOException{ 
+    /*
+     * This is actually a POST method, and this link is send to the participants
+     * When organiser scan the QR, it will give the participant audition number based on genre
+     */
+    @GetMapping("/register-participant/{participantId}/{eventId}/{genreId}")
+    public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId, @PathVariable Long eventId, @PathVariable Long genreId) throws IOException{ 
         try{
+            AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
+            dto.participantId = participantId;
+            dto.eventId = eventId;
+            dto.genreId = genreId;
             eventGenreParticipantService.addParticipantToEventGenreService(dto);
-            return new ResponseEntity<>("", HttpStatus.CREATED);
+            return new ResponseEntity<>("registered", HttpStatus.CREATED);
         }catch(Exception e){
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
         }
