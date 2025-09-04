@@ -3,6 +3,7 @@ import MainMenu from "@/views/MainMenu.vue";
 import Event from "@/views/Events.vue"
 import EventDetails from "@/views/EventDetails.vue";
 import AuditionNumber from "@/views/AuditionNumber.vue";
+import UpdateEventDetails from "@/views/UpdateEventDetails.vue";
 
 const routes = [
     {
@@ -28,6 +29,11 @@ const routes = [
         path: '/event/audition-number',
         name: 'Audition Number',
         component: AuditionNumber
+    },
+    {
+        path: '/event/update-event-details',
+        name: 'Update Event Details',
+        component: UpdateEventDetails
     }
 ]
 

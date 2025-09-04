@@ -1,10 +1,16 @@
 <script setup>
-import {ref, onMounted, reactive} from 'vue';
+import {ref, onMounted, reactive, readonly} from 'vue';
 import { useRoute } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
+import DynamicInputs from '@/components/DynamicInputs.vue';
+import DynamicTable from '@/components/DynamicTable.vue';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
+
+const headers = ["Genre", "NO"]
+
+const inputs = ref([""]) // start with one textbox
 
 const openModal = (title, message) => {
     getTitle(title)
@@ -31,7 +37,7 @@ const tableExist = ref(true)
 const fileId = ref('')
 const eventName = ref(props.eventName.split(" ").join("%20"));
 const verifiedParticipants = ref([])
-const participantsNumBreakdown = ref(null)
+const participantsNumBreakdown = ref([])
 
 const createTable = reactive({
     genres: []
@@ -50,6 +56,23 @@ const onSubmit = async () =>{
         openModal(404 , "Need to add at least one genre/category")
         return
     }
+    for (let index = 0; index < inputs.value.length; index++) {
+        if(inputs.value[index] === ""){
+            console.log("cannot have empty value")
+            openModal(404 , "Cannot have empty value in Judges")
+            return
+        }
+    }
+    await fetch("http://localhost:5050/api/v1/event/judges", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            judges: inputs.value,
+        })
+    })
     await fetch("http://localhost:5050/api/v1/sheets/payment-status", {
         method: 'POST',
         headers: {
@@ -91,7 +114,6 @@ const onSubmit = async () =>{
             tableExist.value = true
         }
     })
-    
 }
 
 const refreshParticipant = async() =>{
@@ -158,7 +180,6 @@ const getParticipantsByEvent = async() =>{
         if(res.ok){
             res.json().then(result =>{
             verifiedParticipants.value = result
-            // console.log(verifiedParticipants.value.length)
             })
         }else if (res.status === 404) {
             console.log("404: event not exist");
@@ -193,95 +214,78 @@ onMounted(()=>{
         to create event with genre, need eventName and genreName
     once created, show verified and unverified participants
  -->
- <h1 class="text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
- <div class="relative overflow-x-auto sm:rounded-lg mb-3">
-    <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
-        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-        <tr>
-            <th scope="col" class="px-6 py-3">Genre</th>
-            <th scope="col" class="px-6 py-3">Number of participants</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200" v-for="(value, key) in participantsNumBreakdown" :key="key">
-            <td class="px-6 py-2">{{ key }}</td>
-            <td class="px-6 py-2 text-center">{{ value }}</td>
-        </tr>
-        </tbody>
-    </table>
-</div>
- <div v-if="tableExist">
-    <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3"
-    @click="refreshParticipant">
-        Refresh participants
-    </button>
-    <div v-if="verifiedParticipants.length > 0 && tableExist">
-        <div class="relative overflow-x-auto shadow-md">
-        <table class="text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 rounded-lg overflow-hidden">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-                <th scope="col" class="px-6 py-3"> no.</th>
-                <th scope="col" class="px-6 py-3"> Name</th>
-                <th scope="col" class="px-6 py-3"> Genre(s) participated</th>
-                <th scope="col" class="px-6 py-3"> Residency</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200" v-for="(row, i) in verifiedParticipants" :key="i">
-                <td class="px-6 py-2"> {{ i+1 }}</td>
-                <td class="px-6 py-2">{{ row.name }}</td>
-                <td class="px-6 py-2">{{ row.genre }}</td>
-                <td class="px-6 py-2">{{ row.residency }}</td>
-            </tr>
-            </tbody>
-        </table>
+    <h1 class="flex justify-center gap-2 text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
+    <DynamicTable
+        v-model:tableValue="participantsNumBreakdown"
+        :table-config="[
+            { key: 'key', label: 'Genre', type: 'text', readonly: true },
+            { key: 'value', label: 'Count', type: 'number', readonly:true }
+        ]"
+        />
+    <div v-if="tableExist">
+        <div class="flex justify-center">
+            <button class="row-span-2 bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3"
+            @click="refreshParticipant">
+                Refresh participants
+            </button>
+        </div>
+        <DynamicTable
+        v-if="verifiedParticipants.length > 0 && tableExist" 
+        v-model:tableValue="verifiedParticipants"
+        :table-config="[
+            { key: 'name', label: 'Name', type: 'text', readonly: true },
+            { key: 'genre', label: 'Genre', type: 'text', readonly:true },
+            { key: 'residency', label: 'Residency', type: 'text', readonly:true }
+        ]"
+        />
+        <div v-else class="flex justify-center"> Please check your response form and mark it if the participant paid</div>
     </div>
+    <div v-else class="flex items-center gap-2">
+        <form class="mx-auto relative overflow-x-auto " @submit.prevent="onSubmit">        
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                <h1 class="flex justify-center gap-2 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-2xl dark:text-white mb-3">
+                Genres</h1>
+            </label>
+
+            <div class="grid grid-cols-2 gap-3 w-fit mb-2">
+                <div
+                v-for="g in genreOptions"
+                :key="g.genreName"
+                class="flex items-center px-3 py-2 border border-gray-200 rounded-md 
+                        dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
+                >
+                    <input
+                        type="checkbox"
+                        :id="g.genreName"
+                        :value="g.genreName"
+                        v-model="createTable.genres"
+                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm
+                            focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800
+                            focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <label
+                        :for="g.genreName"
+                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                    >
+                        {{ g.genreName }}
+                    </label>
+                </div>
+            </div>
+            <DynamicInputs  v-model="inputs"></DynamicInputs>
+            <div class="flex justify-center">
+                <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" type="submit" value="Submit">
+                            Create Table
+                </button>
+            </div>
+        </form>
     </div>
-    <div v-else> Please check your response form and mark it if the participant paid</div>
-
-</div>
- <div v-else>
-    <form class="mx-auto relative overflow-x-auto" @submit.prevent="onSubmit">        
-        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-    Select genres
-  </label>
-
-  <div class="grid grid-cols-2 gap-3 w-fit mb-2">
-    <div
-      v-for="g in genreOptions"
-      :key="g.genreName"
-      class="flex items-center px-3 py-2 border border-gray-200 rounded-md 
-             dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
+    <ActionDoneModal
+        :show="showModal"
+        :title="modalTitle"
+        @accept="handleAccept"
     >
-      <input
-        type="checkbox"
-        :id="g.genreName"
-        :value="g.genreName"
-        v-model="createTable.genres"
-        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm
-               focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800
-               focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-      />
-      <label
-        :for="g.genreName"
-        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-      >
-        {{ g.genreName }}
-      </label>
-    </div>
-  </div>
-  <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" type="submit" value="Submit">
-            Create Table
-        </button>
-    </form>
-</div>
-<ActionDoneModal
-    :show="showModal"
-    :title="modalTitle"
-    @accept="handleAccept"
-  >
-    <p>
-      {{ modalMessage}}
-    </p>
-  </ActionDoneModal>
+        <p>
+        {{ modalMessage}}
+        </p>
+    </ActionDoneModal>
 </template>

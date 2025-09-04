@@ -14,7 +14,9 @@
   
         <!-- Body -->
         <div class="p-4 text-center space-y-4">
-          <slot />
+            <div class="whitespace-pre-line">
+          <slot/>
+        </div>
         </div>
   
         <!-- Footer -->

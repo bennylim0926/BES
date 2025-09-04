@@ -3,9 +3,9 @@ package com.example.BES.controllers;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-import org.hibernate.internal.ExceptionConverterImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,15 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
+import com.example.BES.dtos.GetEventGenreParticipantDto;
 import com.example.BES.dtos.GetGenreDto;
+import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
+import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
 import com.example.BES.services.GenreService;
+import com.example.BES.services.JudgeService;
 import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.google.gson.Gson;
@@ -58,6 +63,9 @@ public class EventController {
 
     @Autowired
     RegistrationService registerService;
+
+    @Autowired
+    JudgeService judgeService;
 
     private static final Gson gson = new Gson();
 
@@ -92,6 +100,25 @@ public class EventController {
         }
     }
 
+    @PostMapping("/judges")
+    public ResponseEntity<String> addJudge(@RequestBody AddJudgesDto dto){
+        try{
+            judgeService.addJudgesService(dto);
+            return new ResponseEntity<>(gson.toJson("Judges are added"), HttpStatus.CREATED);
+        }catch(Exception e){
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @GetMapping("/judges")
+    public ResponseEntity<List<GetJudgeDto>> getAllJudges(){
+        try{
+            return new ResponseEntity<>(judgeService.getAllJudges(), HttpStatus.OK);
+        }catch(Exception e){
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PostMapping("/participants/")
     public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)throws IOException, MessagingException, WriterException{
         try{
@@ -100,7 +127,20 @@ public class EventController {
         }catch(NullPointerException e){
             return new ResponseEntity<>(gson.toJson( "The record is empty, please verify the payment in the google sheet"), HttpStatus.NOT_FOUND);
         }
-        
+    }
+
+    @GetMapping("/participants/{eventName}")
+    public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(@PathVariable String eventName)throws IOException, MessagingException, WriterException{
+        try{
+            List<GetEventGenreParticipantDto> results = eventGenreParticipantService.getAllEventGenreParticipantByEventService(eventName);
+            if(results.size() > 0){
+                return new ResponseEntity<>(results, HttpStatus.OK);
+            }
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
+            
+        }catch(NullPointerException e){
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+        }
     }
 
     // Get all the paid participants in an event regardless of their genres
@@ -128,6 +168,17 @@ public class EventController {
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
         }catch(Exception e){
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/participants-judge/")
+    public ResponseEntity<String> updateParticipantJudge(@RequestBody UpdateParticipantJudgeDto dto){
+        try{
+            // eventGenreParticipantService.addParticipantToEventGenreService(dto);
+            eventGenreParticipantService.updateParticipantsJudgeService(dto);
+            return new ResponseEntity<>(gson.toJson("All updated"), HttpStatus.CREATED);
+        }catch(Exception e){
+            return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
         }
     }
 }

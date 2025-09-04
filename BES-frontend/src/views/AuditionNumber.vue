@@ -10,6 +10,7 @@ let intervalId = null
 let client = null
 const genre = ref(null)
 const participantName = ref(null)
+const judgeName = ref("")
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -55,10 +56,12 @@ onMounted(async () => {
         startSlotAnimation(updated.auditionNumber)
         genre.value = updated.genre
         participantName.value = updated.name
+        judgeName.value = updated.judge == "" ? "" : `Judge by: ${updated.judge}` 
       }),
       client.subscribe(`/topic/error/`, (msg) => {
         const updated = JSON.parse(msg.body)
-        openModal(`Hey ${updated.name}!`, `Your audition number is ${updated.genre} #${updated.audition}`)
+        judgeName.value = updated.judge == "" ? "" : `Judge by: ${updated.judge}` 
+        openModal(`Hey ${updated.name}!`, `Your audition number is ${updated.genre} #${updated.audition}\n ${judgeName.value}`)
       })
     },
   })
@@ -88,6 +91,7 @@ onBeforeUnmount(() => {
         <p class="mt-2 text-2xl font-mono font-bold text-gray-900">
           {{genre}} #{{ auditionNumber }}
         </p>
+        <p class="mt-2 text-md font-mono font-bold text-gray-900">{{ judgeName }}</p>
       </div>
     </div>
   </div>
