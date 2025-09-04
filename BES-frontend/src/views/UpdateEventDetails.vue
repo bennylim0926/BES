@@ -2,12 +2,26 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import { event } from '@primeuix/themes/aura/timeline';
 import { onMounted, ref, watch, computed} from 'vue';
+import ActionDoneModal from './ActionDoneModal.vue';
 
 const selectedEvent = ref("")
 const selectedGenre = ref("All")
 const allEvents = ref([])
 const participants = ref([])
 const allJudges = ref([])
+
+const modalTitle = ref("")
+const modalMessage = ref("")
+const showModal = ref(false)
+const openModal = (title, message) => {
+    modalTitle.value = title
+    modalMessage.value = message
+    showModal.value = true
+}
+const handleAccept = () => {
+  showModal.value = false
+}
+
 
 const uniqueGenres = computed(() => {
     const genres = participants.value.map(p => p.genreName);
@@ -40,7 +54,8 @@ const updateParticipantJudge = async()=>{
         })
     })
     const result = await updateResponse.json()
-    console.log(result)
+    openModal("Success", "Updated!")
+    
 }
 
 
@@ -130,4 +145,13 @@ v-model:tableValue="filteredParticipants"
 <div class="flex justify-center">
     <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" @click="updateParticipantJudge">Update Judges</button>
 </div>
+<ActionDoneModal
+        :show="showModal"
+        :title="modalTitle"
+        @accept="handleAccept"
+    >
+        <p>
+        {{ modalMessage}}
+        </p>
+    </ActionDoneModal>
 </template>

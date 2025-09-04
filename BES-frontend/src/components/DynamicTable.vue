@@ -71,9 +71,10 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 </script>
 
 <template>
-  <div class="flex justify-center overflow-x-auto sm:rounded-lg mb-3">
-    <table class="w-auto text-sm text-gray-500 border border-gray-200 rounded-lg overflow-hidden">
-      <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+  <div class="flex justify-center mb-3">
+  <div class="max-h-180 overflow-y-auto overflow-x-auto sm:rounded-lg border">
+    <table class="w-auto text-sm text-gray-500 border-collapse">
+      <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 dark:bg-gray-700 dark:text-gray-400">
         <tr>
           <th v-for="col in props.tableConfig" :key="col.key" class="px-30 py-3">
             {{ col.label }}
@@ -119,5 +120,6 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
         </tr>
       </tbody>
     </table>
+  </div>
   </div>
 </template>
