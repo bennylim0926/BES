@@ -1,10 +1,8 @@
 <script setup>
-import { Button } from 'primevue';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router'
-
-import Splitter from 'primevue/splitter';
-import SplitterPanel from 'primevue/splitterpanel';
+import {fetchAllEvents} from "@/utils/api"
+import ReusableButton from '@/components/ReusableButton.vue';
 
 const events = ref([])
 const router = useRouter()
@@ -17,43 +15,19 @@ function goToEventDetails(eventName, folderID) {
 });
 }
 
-const fetchAllEvents = async() =>{
-  try{
-    const res = await fetch('http://localhost:5050/api/v1/folders')
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    res.json().then(result =>{
-      events.value = result
-    })
-  }catch(err){
-    console.log(err)
-  }
-}
-
-onMounted(()=>{
-  fetchAllEvents()
+onMounted(async ()=>{
+  events.value = await fetchAllEvents()
 })
-
-function chunkArray(arr, size) {
-  const result = []
-  for (let i = 0; i < arr.length; i += size) {
-    result.push(arr.slice(i, i + size))
-  }
-  return result
-}
-
-const rows = computed(() => chunkArray(events.value, 7))
 </script>
 
 <template>
-  <div class="grid grid-cols-7 gap-4">
-    <div
-      v-for="event in events"
-      :key="event.folderID"
-      @click="goToEventDetails(event.folderName, event.folderID)"
-      class="flex items-center justify-center p-6 bg-gray-700 rounded-xl text-gray-200 shadow 
-             cursor-pointer hover:bg-gray-500 hover:shadow-lg transition"
-    >
-      {{ event.folderName }}
-    </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4 mt-10 px-4 sm:px-10">
+      <ReusableButton
+    v-for="event in events" 
+    :key="event.folderID"
+    :buttonName="event.folderName" @onClick="goToEventDetails(event.folderName, event.folderID)">
+    </ReusableButton>
+  
   </div>
+
 </template>

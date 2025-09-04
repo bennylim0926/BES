@@ -71,55 +71,82 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 </script>
 
 <template>
-  <div class="flex justify-center mb-3">
-  <div class="max-h-180 overflow-y-auto overflow-x-auto sm:rounded-lg border">
-    <table class="w-auto text-sm text-gray-500 border-collapse">
-      <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 dark:bg-gray-700 dark:text-gray-400">
-        <tr>
-          <th v-for="col in props.tableConfig" :key="col.key" class="px-30 py-3">
-            {{ col.label }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="(row, rowIndex) in rows"
-          :key="rowIndex"
-          class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-        >
-          <td v-for="col in props.tableConfig" :key="col.key" class="px-6 py-4 text-center">
-            
-            <!-- Read-only -->
-            <template v-if="col.readonly">
-              {{ capsFirst(row[col.key]) }}
-            </template>
-
-            <!-- Editable text -->
-            <template v-else-if="col.type === 'text'">
-              <input v-model="row[col.key]" type="text" class="border rounded p-1 w-full" />
-            </template>
-
-            <!-- Editable number -->
-            <template v-else-if="col.type === 'number'">
-              <input v-model.number="row[col.key]" type="number" class="border rounded p-1 w-full" />
-            </template>
-
-            <!-- Editable select -->
-            <template v-else-if="col.type === 'select'">
-              <select v-model="row[col.key]" class="border rounded p-1 w-full">
-                <option class="text-center" v-for="opt in col.options" :key="opt" :value="opt">{{ capsFirst(opt) }}</option>
-              </select>
-            </template>
-
-            <!-- fallback -->
-            <template v-else>
-              {{ row[col.key] }}
-            </template>
-
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  </div>
-</template>
+    <div class="flex justify-center mb-3">
+      <!-- Outer wrapper makes table scrollable on small devices -->
+      <div class="w-full overflow-x-auto max-h-180 sm:rounded-lg border">
+        <table class="min-w-full sm:w-auto text-sm text-gray-500 border-collapse">
+          <thead
+            class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 
+                   dark:bg-gray-700 dark:text-gray-400"
+          >
+            <tr>
+              <th
+                v-for="col in props.tableConfig"
+                :key="col.key"
+                class="px-4 sm:px-6 py-3 text-center whitespace-nowrap"
+              >
+                {{ col.label }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, rowIndex) in rows"
+              :key="rowIndex"
+              class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 
+                     hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              <td
+                v-for="col in props.tableConfig"
+                :key="col.key"
+                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap"
+              >
+                <!-- Read-only -->
+                <template v-if="col.readonly">
+                  {{ capsFirst(row[col.key]) }}
+                </template>
+  
+                <!-- Editable text -->
+                <template v-else-if="col.type === 'text'">
+                  <input
+                    v-model="row[col.key]"
+                    type="text"
+                    class="border rounded p-1 w-full"
+                  />
+                </template>
+  
+                <!-- Editable number -->
+                <template v-else-if="col.type === 'number'">
+                  <input
+                    v-model.number="row[col.key]"
+                    type="number"
+                    class="border rounded p-1 w-full"
+                  />
+                </template>
+  
+                <!-- Editable select -->
+                <template v-else-if="col.type === 'select'">
+                  <select v-model="row[col.key]" class="border rounded p-1 w-full">
+                    <option
+                      class="text-center"
+                      v-for="opt in col.options"
+                      :key="opt"
+                      :value="opt"
+                    >
+                      {{ capsFirst(opt) }}
+                    </option>
+                  </select>
+                </template>
+  
+                <!-- fallback -->
+                <template v-else>
+                  {{ row[col.key] }}
+                </template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+  
