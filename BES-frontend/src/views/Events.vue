@@ -22,12 +22,12 @@ onMounted(async ()=>{
 
 <template>
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4 mt-10 px-4 sm:px-10">
-      <ReusableButton
-    v-for="event in events" 
-    :key="event.folderID"
-    :buttonName="event.folderName" @onClick="goToEventDetails(event.folderName, event.folderID)">
+    <ReusableButton
+      v-for="event in events" 
+      :key="event.folderID"
+      :buttonName="event.folderName" @onClick="goToEventDetails(event.folderName, event.folderID)">
     </ReusableButton>
-  
+
   </div>
 
 </template>

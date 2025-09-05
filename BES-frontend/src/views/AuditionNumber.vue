@@ -1,13 +1,13 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue"
-import { Client } from "@stomp/stompjs"
 import ActionDoneModal from './ActionDoneModal.vue';
+import { createClient, deactivateClient, subscribeToChannel } from "@/utils/websocket";
 
 const loading = ref(true)
 const auditionNumber = ref(null)
 const fakeNumber = ref(null)
 let intervalId = null
-let client = null
+let client = ref(null)
 const genre = ref(null)
 const participantName = ref(null)
 const judgeName = ref("")
@@ -15,17 +15,12 @@ const judgeName = ref("")
 const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
+
 const openModal = (title, message) => {
     modalTitle.value = title
     modalMessage.value = message
     showModal.value = true
 }
-
-const handleAccept = () => {
-  showModal.value = false
-}
-
-const WS_URL = "ws://localhost:5050/ws"
 
 function startSlotAnimation(finalNumber = null) {
   loading.value = true
@@ -44,33 +39,27 @@ function startSlotAnimation(finalNumber = null) {
   }, 2000)
 }
 
+const onReceiveAuditionNumber = (msg)=>{
+    startSlotAnimation(msg.auditionNumber)
+    genre.value = msg.genre
+    participantName.value = msg.name
+    judgeName.value = msg.judge == "" ? "" : `Judge by: ${msg.judge}` 
+}
+
+const onRepeatAudition = (msg) =>{
+    judgeName.value = msg.judge == "" ? "" : `Judge by: ${msg.judge}` 
+        openModal(`Hey ${msg.name}!`, `Your audition number is ${msg.genre} #${msg.audition}\n ${judgeName.value}`)
+}
+
 onMounted(async () => {
-  // 🛰️ Connect to WebSocket and listen for updates
-  client = new Client({
-    brokerURL: WS_URL,
-    reconnectDelay: 5000,
-    onConnect: () => {
-      client.subscribe(`/topic/audition/`, (msg) => {
-        const updated = JSON.parse(msg.body)
-        // trigger slot animation again on update
-        startSlotAnimation(updated.auditionNumber)
-        genre.value = updated.genre
-        participantName.value = updated.name
-        judgeName.value = updated.judge == "" ? "" : `Judge by: ${updated.judge}` 
-      }),
-      client.subscribe(`/topic/error/`, (msg) => {
-        const updated = JSON.parse(msg.body)
-        judgeName.value = updated.judge == "" ? "" : `Judge by: ${updated.judge}` 
-        openModal(`Hey ${updated.name}!`, `Your audition number is ${updated.genre} #${updated.audition}\n ${judgeName.value}`)
-      })
-    },
-  })
-  client.activate()
+    client.value = createClient()
+    subscribeToChannel(client.value, "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
+    subscribeToChannel(client.value, "/topic/error/", (msg) => onRepeatAudition(msg))
 })
 
 onBeforeUnmount(() => {
   if (intervalId) clearInterval(intervalId)
-  if (client) client.deactivate()
+  deactivateClient(client.value)
 })
 </script>
 
@@ -98,7 +87,7 @@ onBeforeUnmount(() => {
   <ActionDoneModal
     :show="showModal"
     :title="modalTitle"
-    @accept="handleAccept"
+    @accept="()=>{showModal = false}"
   >
     <p>
       {{ modalMessage}}

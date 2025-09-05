@@ -38,7 +38,6 @@ watch(inputs, (newVal) => {
         ✕
       </button>
     </div>
-
     <button
       type="button"
       class="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-500 w-full"

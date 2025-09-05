@@ -1,16 +1,34 @@
 <script setup>
-import {ref, onMounted, reactive, readonly} from 'vue';
-import { useRoute } from 'vue-router';
+import {ref, onMounted, reactive, watch} from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem} from '@/utils/api';
+import ReusableButton from '@/components/ReusableButton.vue';
 
+const fileId = ref('')
 const modalTitle = ref("")
 const modalMessage = ref("")
+const inputs = ref([""]) 
+const genreOptions = ref(null)
+const tableExist = ref(true)
 
-const headers = ["Genre", "NO"]
+const verifiedParticipants = ref([])
+const participantsNumBreakdown = ref([])
+const props = defineProps({
+    eventName: String,
+    folderID: String,
+})
+const eventName = ref(props.eventName.split(" ").join("%20"));
 
-const inputs = ref([""]) // start with one textbox
+const createTable = reactive({
+    genres: []
+})
+
+const showModal = ref(false)
+const handleAccept = () => {
+  showModal.value = false
+}
 
 const openModal = (title, message) => {
     getTitle(title)
@@ -26,30 +44,7 @@ const getTitle = (statusCode) =>{
     }
 }
 
-// const route = useRoute();
 
-const props = defineProps({
-    eventName: String,
-    folderID: String,
-})
-
-const tableExist = ref(true)
-const fileId = ref('')
-const eventName = ref(props.eventName.split(" ").join("%20"));
-const verifiedParticipants = ref([])
-const participantsNumBreakdown = ref([])
-
-const createTable = reactive({
-    genres: []
-})
-
-const showModal = ref(false)
-
-const handleAccept = () => {
-  showModal.value = false
-}
-
-const genreOptions = ref(null)
 const onSubmit = async () =>{
     // insert payment-status column if not exist
     if(createTable.genres.length == 0){
@@ -63,73 +58,25 @@ const onSubmit = async () =>{
             return
         }
     }
-    await fetch("http://localhost:5050/api/v1/event/judges", {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            judges: inputs.value,
-        })
-    })
-    await fetch("http://localhost:5050/api/v1/sheets/payment-status", {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fileId: fileId.value,
-        })
-    })
+    await addJudges(inputs.value)
+    await insertPaymenColumnInSheet(fileId.value)
     
     // create table with eventName
-    await fetch("http://localhost:5050/api/v1/event", {
-        method: 'POST',
-        headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            eventName: props.eventName,
-        })
-    })
+    await insertEventInTable(props.eventName)
 
     // link table to selected genres
-    const addGenreResponse = await fetch("http://localhost:5050/api/v1/event/genre", {
-        method: 'POST',
-        headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            eventName: props.eventName,
-            genreName: createTable.genres
-        })
+    const resp = await linkGenreToEvent(props.eventName, createTable.genres)
+    resp.json().then(result=>{
+        openModal(resp.status , result)
+        tableExist.value = true
     })
-    addGenreResponse.json().then(result =>{
-        openModal(addGenreResponse.status , result)
-        if(addGenreResponse.ok){
-            tableExist.value = true
-        }
-    })
+    
 }
 
 const refreshParticipant = async() =>{
-    const createEventResponse = await fetch("http://localhost:5050/api/v1/event/participants/", {
-        method: 'POST',
-        headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fileId: fileId.value,
-            eventName: props.eventName,
-        })
-    })
+    const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
     if(createEventResponse.ok){
-        getParticipantsByEvent()
+        verifiedParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
         createEventResponse.json().then(result=>[
             openModal(createEventResponse.status , result)
         ])
@@ -140,70 +87,18 @@ const refreshParticipant = async() =>{
     }
 }
 
-const checkTableExist = async()=>{
-    try{
-        const res = await fetch(`http://localhost:5050/api/v1/event/${eventName.value}`)
-        res.json().then(result =>{
-            tableExist.value = result
-        })
-    }catch(e){
-        console.log(e)
+watch(
+    fileId,
+    async () =>{
+        participantsNumBreakdown.value = await getResponseDetails(fileId.value)
     }
-}
+)
 
-const getFileId = async ()=>{
-    try{
-        const res = await fetch(`http://localhost:5050/api/v1/files/${props.folderID}`)
-        res.json().then(result =>{
-            fileId.value = result[0].fileId
-            getResponseDetails(fileId.value)
-        })
-    }catch(e){
-        console.log(e)
-    }
-}
-
-const getAllGenres = async()=>{
-    try{
-        const res = await fetch(`http://localhost:5050/api/v1/event/genre`)
-        res.json().then(result =>{
-            genreOptions.value = result
-        })
-    }catch(e){
-        console.log(e)
-    }
-}
-
-const getParticipantsByEvent = async() =>{
-    try{
-        const res = await fetch(`http://localhost:5050/api/v1/event/verified-participant/${eventName.value}`)
-        if(res.ok){
-            res.json().then(result =>{
-            verifiedParticipants.value = result
-            })
-        }else if (res.status === 404) {
-            console.log("404: event not exist");
-        }
-    }catch(e){
-        console.log(e)
-    }
-}
-
-const getResponseDetails = async(fileId) =>{
-    try{
-        const res = await fetch(`http://localhost:5050/api/v1/sheets/participants/breakdown/${fileId}`)
-        if (!res.ok) throw new Error('Failed to read')
-        res.json().then(result =>{
-            participantsNumBreakdown.value = result}) 
-    }catch(err){
-    }
-}
-
-onMounted(()=>{
-    checkTableExist()
-    getFileId()
-    getAllGenres()
-    getParticipantsByEvent()
+onMounted( async () =>{
+    tableExist.value = checkTableExist(eventName, tableExist)
+    fileId.value = await getFileId(props.folderID)
+    genreOptions.value = await fetchAllGenres()
+    verifiedParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
 })
 </script>
 
@@ -224,10 +119,7 @@ onMounted(()=>{
         />
     <div v-if="tableExist">
         <div class="flex justify-center">
-            <button class="row-span-2 bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3"
-            @click="refreshParticipant">
-                Refresh participants
-            </button>
+            <ReusableButton @onClick="refreshParticipant" buttonName="Refresh"></ReusableButton>
         </div>
         <DynamicTable
         v-if="verifiedParticipants.length > 0 && tableExist" 

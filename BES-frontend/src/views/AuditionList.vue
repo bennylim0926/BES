@@ -1,7 +1,9 @@
 <script setup>
 import DynamicTable from '@/components/DynamicTable.vue';
+import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { event } from '@primeuix/themes/aura/timeline';
+import SwipeableCards from '@/components/SwipeableCards.vue';
+import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent } from '@/utils/api';
 import { ref, computed, onMounted, watch } from 'vue';
 
 const roles = ref(["Emcee", "Judge"])
@@ -14,11 +16,31 @@ const allJudges = ref([])
 const allEvents = ref([])
 const participants = ref([])
 
-const capsFirst = (text) =>{
-    return String(text).charAt(0).toUpperCase() + String(text).slice(1);
-}
+const filteredParticipantsForJudge = computed({
+  get() {
+    return participants.value
+    //   .map( p=>({
+    //     ...p,
+    //     score: p.score ?? 0
+    // }))
+      .filter(p =>
+        p.genreName === selectedGenre.value &&
+        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value)
+      )
+      .sort((a, b) => a.auditionNumber - b.auditionNumber)
+  },
+  set(updatedList) {
+    // sync changes back into participants
+    updatedList.forEach(updated => {
+      const idx = participants.value.findIndex(p => p.auditionNumber === updated.auditionNumber)
+      if (idx !== -1) {
+        participants.value[idx] = { ...participants.value[idx], ...updated }
+      }
+    })
+  }
+})
 
-const filteredParticipants = computed({
+const filteredParticipantsForEmcee = computed({
     get(){
         if (selectedGenre.value === "All" && filteredJudge.value === "") return transformForTable(participants.value);
         if (selectedGenre.value === "All") return transformForTable(participants.value.filter(p =>  p.judgeName === filteredJudge.value));
@@ -26,64 +48,29 @@ const filteredParticipants = computed({
         return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value));
     },
     set(updatedSubset){
-            const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
-            participants.value = participants.value.map(org => {
-                const updated = byId.get(org.rowId)
-                return updated ? {...org, ...updated}: org
-            })
-        }
+        const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
+        participants.value = participants.value.map(org => {
+            const updated = byId.get(org.rowId)
+            return updated ? {...org, ...updated}: org
+        })
+    }
 });
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
-    await fetchAllParticipantInEvent(newVal)
+    const res = await getRegisteredParticipantsByEvent(newVal)
+    participants.value = res.map((r,i)=>({
+        ...r,
+        rowId: r.rowId ?? i,
+        score: 0
+    }))
   }
 });
-
-const fetchAllParticipantInEvent = async(eventName) =>{
-  try{
-    console.log(eventName)
-    const res = await fetch(`http://localhost:5050/api/v1/event/participants/${eventName}`)
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    const result = await res.json()
-    participants.value = result.map((r, i) => ({
-        ...r,
-        rowId: r.rowId ?? i
-    }))
-    console.log(participants.value)
-  }catch(err){
-    console.log(err)
-  }
-}
 
 const uniqueGenres = computed(() => {
     const genres = participants.value.map(p => p.genreName);
     return [...new Set(genres)].sort();
 })
-
-const getEvents = async () =>{
-    try{
-    const res = await fetch('http://localhost:5050/api/v1/folders')
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    res.json().then(result =>{
-        allEvents.value = result
-        selectedEvent.value = allEvents.value[0].folderName
-    })
-  }catch(err){
-    console.log(err)
-  }
-}
-const getJudges = async()=>{
-    try{
-    const res = await fetch('http://localhost:5050/api/v1/event/judges')
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    res.json().then(result =>{
-        allJudges.value = ["", ...Object.values(result).map(item => item.judgeName)];
-    })
-  }catch(err){
-    console.log(err)
-  }
-}
 
 function transformForTable(data) {
   const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))];
@@ -137,12 +124,12 @@ function transformForTable(data) {
 
 const showFilters = ref(true)
 
-onMounted(() => {
-    getEvents()
-    getJudges()
+onMounted(async () => {
+    allEvents.value = await fetchAllEvents()
+    selectedEvent.value = allEvents.value[0].folderName
+    const res = await getAllJudges()
+    allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
 })
-
-
 </script>
 
 <!-- Choose whether you are emcee or judge -->
@@ -153,17 +140,8 @@ onMounted(() => {
 
 <template>
     <div class="max-w-5xl mx-auto mb-3">
-    <!-- Header with toggle button -->
     <div class="flex justify-end items-center mb-3">
-      <!-- <h1 class="text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-2xl lg:text-4xl dark:text-white">
-        FILTER
-      </h1> -->
-      <button
-        @click="showFilters = !showFilters"
-        class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-      >
-        {{ showFilters ? "Hide filter" : "Show filter" }}
-      </button>
+      <ReusableButton @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
     </div>
 
     <!-- Collapsible content -->
@@ -184,14 +162,16 @@ onMounted(() => {
     </div>
   </div>
 
-<div class="m-3" v-if="selectedRole==='Emcee'">
+<div class="m-3" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
     <DynamicTable 
-        v-if="participants.length > 0"
-        v-model:tableValue="filteredParticipants.rows"
-        :tableConfig="filteredParticipants.columns"></DynamicTable>
+        v-model:tableValue="filteredParticipantsForEmcee.rows"
+        :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
+</div>
+<div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0">
+    <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards>
 </div>
 
-
+<!-- </div> -->
 </template>
 
 <style>
