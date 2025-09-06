@@ -167,3 +167,23 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
     console.log(e)
   }
 }
+
+export const submitParticipantScore = async (eventName, genreName, judgeName, participants) =>{
+  try{
+    return await fetch(`${domain}/api/v1/event/scores`,{
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        eventName: eventName,
+        genreName: genreName,
+        judgeName : judgeName,
+        participantScore: participants
+      })
+    })
+  }catch(e){
+    console.log(e)
+  }
+}

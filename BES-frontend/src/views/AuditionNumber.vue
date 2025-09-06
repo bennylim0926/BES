@@ -40,6 +40,7 @@ function startSlotAnimation(finalNumber = null) {
 }
 
 const onReceiveAuditionNumber = (msg)=>{
+    console.log("audition number")
     startSlotAnimation(msg.auditionNumber)
     genre.value = msg.genre
     participantName.value = msg.name
@@ -51,10 +52,9 @@ const onRepeatAudition = (msg) =>{
         openModal(`Hey ${msg.name}!`, `Your audition number is ${msg.genre} #${msg.audition}\n ${judgeName.value}`)
 }
 
-onMounted(async () => {
-    client.value = createClient()
-    subscribeToChannel(client.value, "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
-    subscribeToChannel(client.value, "/topic/error/", (msg) => onRepeatAudition(msg))
+onMounted( () => {
+    subscribeToChannel(createClient(), "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
+    subscribeToChannel(createClient(), "/topic/error/", (msg) => onRepeatAudition(msg))
 })
 
 onBeforeUnmount(() => {

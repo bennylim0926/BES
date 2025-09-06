@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.checkerframework.checker.units.qual.g;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -26,6 +27,7 @@ import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
+import com.example.BES.dtos.UpdateParticipantScoreDto;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
@@ -34,6 +36,7 @@ import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
+import com.example.BES.services.ScoreService;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
@@ -66,6 +69,9 @@ public class EventController {
 
     @Autowired
     JudgeService judgeService;
+
+    @Autowired
+    ScoreService scoreService;
 
     private static final Gson gson = new Gson();
 
@@ -178,7 +184,18 @@ public class EventController {
             eventGenreParticipantService.updateParticipantsJudgeService(dto);
             return new ResponseEntity<>(gson.toJson("All updated"), HttpStatus.CREATED);
         }catch(Exception e){
-            return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(gson.toJson("Failed to update"), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/scores")
+    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantScoreDto dto){
+        try{
+            // score service here
+            scoreService.updateParticipantScoreService(dto);
+            return new ResponseEntity<>(gson.toJson("Score updated!"), HttpStatus.ACCEPTED);
+        }catch(Exception e){
+            return new ResponseEntity<>(gson.toJson("Failed to update score"), HttpStatus.BAD_REQUEST);
         }
     }
 }

@@ -5,16 +5,10 @@ const props = defineProps({
   cards: {
     type: Array,
     required: true,
-    // Example: [{ participantName: "Alice", genreName: "Hip-Hop" }, ...]
   }
 })
 
 const emit = defineEmits(["update:cards"])
-const updateScore = (idx, val) => {
-  const updated = [...props.cards]
-  updated[idx] = { ...updated[idx], score: Number(val) }
-  emit("update:cards", updated) // ✅ send back to parent
-}
 </script>
 
 <template>

@@ -3,8 +3,10 @@ import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import SwipeableCards from '@/components/SwipeableCards.vue';
-import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent } from '@/utils/api';
+import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore } from '@/utils/api';
+import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch } from 'vue';
+import ActionDoneModal from './ActionDoneModal.vue';
 
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref("")
@@ -16,16 +18,24 @@ const allJudges = ref([])
 const allEvents = ref([])
 const participants = ref([])
 
+const modalTitle = ref("")
+const modalMessage = ref("")
+const showModal = ref(false)
+
+const openModal = (title, message) => {
+    modalTitle.value = title
+    modalMessage.value = message
+    showModal.value = true
+}
+
 const filteredParticipantsForJudge = computed({
   get() {
     return participants.value
-    //   .map( p=>({
-    //     ...p,
-    //     score: p.score ?? 0
-    // }))
       .filter(p =>
         p.genreName === selectedGenre.value &&
-        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value)
+        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value
+        )
+        && p.auditionNumber !== null
       )
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
@@ -44,8 +54,8 @@ const filteredParticipantsForEmcee = computed({
     get(){
         if (selectedGenre.value === "All" && filteredJudge.value === "") return transformForTable(participants.value);
         if (selectedGenre.value === "All") return transformForTable(participants.value.filter(p =>  p.judgeName === filteredJudge.value));
-        if (filteredJudge.value === "") return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value));
-        return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value));
+        if (filteredJudge.value === "") return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null));
+        return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value &&p.auditionNumber !== null));
     },
     set(updatedSubset){
         const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
@@ -122,6 +132,17 @@ function transformForTable(data) {
   };
 }
 
+const submitScore = async(eventName,genreName, judgeName, participants) =>{
+  const p = participants.map( obj=>({
+    ...obj,
+    score: parseFloat(obj.score)
+  }))
+  const res = await submitParticipantScore(eventName, genreName, judgeName, p)
+  if(res.ok){
+    openModal("Success", "Score updated!")
+  }
+}
+
 const showFilters = ref(true)
 
 onMounted(async () => {
@@ -129,6 +150,19 @@ onMounted(async () => {
     selectedEvent.value = allEvents.value[0].folderName
     const res = await getAllJudges()
     allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
+    subscribeToChannel(createClient(), "/topic/audition/",
+     (msg) => {
+        console.log(msg.name, msg.genre, msg.judge)
+        const idx = participants.value
+                            .findIndex(
+                                p => p.participantName === msg.name 
+                            && p.genreName === msg.genre
+                            && (p.judgeName === null ? 1 : p.judgeName === msg.judge))
+        if (idx !== -1){
+            console.log({...participants.value[idx], ...{auditionNumber: msg.auditionNumber}})
+            participants.value[idx] = {...participants.value[idx], ...{auditionNumber: msg.auditionNumber} }
+        }      
+     })
 })
 </script>
 
@@ -169,7 +203,20 @@ onMounted(async () => {
 </div>
 <div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0">
     <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards>
+    <div class="flex justify-center my-3">
+        <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
+        buttonName="Submit"></ReusableButton>
+    </div>
 </div>
+<ActionDoneModal
+    :show="showModal"
+    :title="modalTitle"
+    @accept="()=>{showModal = false}"
+  >
+    <p>
+      {{ modalMessage}}
+    </p>
+  </ActionDoneModal>
 
 <!-- </div> -->
 </template>
