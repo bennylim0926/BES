@@ -5,6 +5,7 @@ import EventDetails from "@/views/EventDetails.vue";
 import AuditionNumber from "@/views/AuditionNumber.vue";
 import UpdateEventDetails from "@/views/UpdateEventDetails.vue";
 import AuditionList from "@/views/AuditionList.vue";
+import Score from "@/views/Score.vue";
 
 const routes = [
     {
@@ -40,6 +41,11 @@ const routes = [
         path: '/event/audition-list',
         name: 'Audition List',
         component: AuditionList
+    },
+    {
+        path: '/event/score',
+        name: 'Score',
+        component: Score
     }
 ]
 

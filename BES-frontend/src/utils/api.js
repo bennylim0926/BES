@@ -168,6 +168,26 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
   }
 }
 
+export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName)=>{
+  try{
+  return await fetch(`${domain}/api/v1/event/walkins/`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        name: participantName,
+        eventName: eventName,
+        genre: genreName,
+        judgeName: judgeName
+    })
+  })
+  }catch(e){
+    console.log(e)
+  }
+}
+
 export const submitParticipantScore = async (eventName, genreName, judgeName, participants) =>{
   try{
     return await fetch(`${domain}/api/v1/event/scores`,{
@@ -186,4 +206,17 @@ export const submitParticipantScore = async (eventName, genreName, judgeName, pa
   }catch(e){
     console.log(e)
   }
+}
+
+export const getParticipantScore = async(eventName) =>{
+    try{
+      const res = await fetch(`${domain}/api/v1/event/scores/${eventName}`)
+      if(res.ok){
+          return await res.json()
+      }else if (res.status === 404) {
+          return []
+      }
+    }catch(e){
+        console.log(e)
+    }
 }

@@ -18,7 +18,10 @@ import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
+import com.example.BES.models.EventParticipant;
+import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
+import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
@@ -45,7 +48,25 @@ public class EventGenreParticpantService {
     @Autowired
     JudgeRepo judgeRepo;
 
-    public void addParticipantToEventGenreService(AddParticipantToEventGenreDto dto){
+    public EventGenreParticipant addWalkInToEventGenreParticipant(Participant p, String genre, EventParticipant ep, String judge){
+        
+        Genre g = genreRepo.findByGenreName(genre).orElse(null);
+        Judge j = judgeRepo.findByName(judge).orElse(null);
+        EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
+        EventGenreParticipant egp = repo.findById(id).orElse(null);
+        if(egp == null){
+            System.out.println("Have id");
+            egp = new EventGenreParticipant();
+            egp.setId(id);
+            egp.setJudge(j);
+            egp.setEvent(ep.getEvent());
+            egp.setParticipant(p);
+            egp.setGenre(g);
+        }
+        return repo.save(egp);
+    }
+
+    public void getAuditionNumViaQR(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
         EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId,dto.genreId, dto.participantId);
 
@@ -63,7 +84,6 @@ public class EventGenreParticpantService {
                     repo.findAuditionNumberByEventAndGenre(dto.eventId, dto.genreId);
             }
            
-            System.out.println(totalParticipantInGenre);
             List<Integer> randomPool = generateListFromOneToN(totalParticipantInGenre.size());
             randomPool.removeAll(totalParticipantInGenre);
             auditionNumber = randomPool.get(new Random().nextInt(randomPool.size()));

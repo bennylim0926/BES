@@ -57,7 +57,6 @@ public class RegistrationService {
     throws IOException, MessagingException, WriterException{
         List<AddParticipantDto> paidParticipants = sheetService.getAllPaidParticipants(dto);
         for(AddParticipantDto participant: paidParticipants){
-            // eventParticipantService.AddPartipantToEventService(participant, dto.eventName);
             Event event = eventRepo.findByEventName(dto.eventName).orElse(null);
             if(event == null){
                 throw new NullPointerException();

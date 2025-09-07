@@ -3,10 +3,12 @@ import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import SwipeableCards from '@/components/SwipeableCards.vue';
+import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
 import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
+import { row } from '@primeuix/themes/aura/datatable';
 
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref("")
@@ -21,6 +23,7 @@ const participants = ref([])
 const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
+const showCreateNewEntry = ref(false)
 
 const openModal = (title, message) => {
     modalTitle.value = title
@@ -109,7 +112,6 @@ function transformForTable(data) {
     }
     auditions[d.auditionNumber][d.judgeName] = d.participantName;
   });
-
   // Clean rows → drop if all judges undefined, else replace missing with ""
   const rows = Object.values(auditions)
     .map(row => {
@@ -122,7 +124,7 @@ function transformForTable(data) {
     })
     .filter(Boolean) // remove dropped rows
     .sort((a, b) => a.auditionNumber - b.auditionNumber);
-
+  console.log(rows)
   return {
     columns: [
       { key: 'auditionNumber', label: 'Audition', type: 'text', readonly: true },
@@ -175,7 +177,8 @@ onMounted(async () => {
 <template>
     <div class="max-w-5xl mx-auto mb-3">
     <div class="flex justify-end items-center mb-3">
-      <ReusableButton @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
+      <ReusableButton class="mx-2" @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
+      <ReusableButton @onClick="showCreateNewEntry = !showCreateNewEntry" buttonName="Add participant"></ReusableButton>
     </div>
 
     <!-- Collapsible content -->
@@ -212,11 +215,19 @@ onMounted(async () => {
     :show="showModal"
     :title="modalTitle"
     @accept="()=>{showModal = false}"
+    @close="()=>{showModal = false}"
   >
     <p>
       {{ modalMessage}}
     </p>
   </ActionDoneModal>
+  <CreateParticipantForm
+    :event="selectedEvent"
+    :show="showCreateNewEntry" 
+    title="New participant entry"
+    @createNewEntry="()=>{showCreateNewEntry = !showCreateNewEntry}"
+    @close="()=>{showCreateNewEntry = !showCreateNewEntry}"
+    ></CreateParticipantForm>
 
 <!-- </div> -->
 </template>

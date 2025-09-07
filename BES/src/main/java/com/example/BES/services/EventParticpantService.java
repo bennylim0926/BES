@@ -64,4 +64,18 @@ public class EventParticpantService {
         List<GetParticipantByEventDto> res =  eventParticipantDtoMapper.mapRow(results);
         return res;
     }
+
+    public EventParticipant addNewWalkInInEventService(Participant p, String eventName, String genre){
+        Event event = eventRepo.findByEventName(eventName).orElse(null);
+        if(event == null){
+            return null;
+        }
+        EventParticipant e = eventParticipantRepo.findByEventAndParticipant(event, p).orElse(null);
+        if(e == null){
+            e = new EventParticipant();
+            e.setEvent(event);
+            e.setParticipant(p);
+        }
+        return eventParticipantRepo.save(e);
+    }
 }

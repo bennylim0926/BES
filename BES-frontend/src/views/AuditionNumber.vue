@@ -88,6 +88,7 @@ onBeforeUnmount(() => {
     :show="showModal"
     :title="modalTitle"
     @accept="()=>{showModal = false}"
+    @close="()=>{showModal = false}"
   >
     <p>
       {{ modalMessage}}

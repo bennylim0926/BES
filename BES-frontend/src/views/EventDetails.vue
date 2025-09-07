@@ -175,6 +175,7 @@ onMounted( async () =>{
         :show="showModal"
         :title="modalTitle"
         @accept="handleAccept"
+        @close="()=>{showModal = false}"
     >
         <p>
         {{ modalMessage}}
