@@ -1,9 +1,15 @@
 package com.example.BES.models;
 
+import java.util.List;
+
+import org.hibernate.annotations.ManyToAny;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,9 +18,14 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class Category {
+public class Judge {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long categoryId;
-    private String categoryName;
+    private Long judgeId;
+    private String name;
+
+    @ManyToMany(mappedBy = "judges")
+    private List<Event> events;
+
 }
