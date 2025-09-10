@@ -3,9 +3,9 @@ import { ref, computed, onMounted, watch, readonly } from 'vue';
 import { fetchAllEvents, getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-const selectedEvent = ref("")
-const selectedGenre = ref("")
-const selectedTabulation = ref("")
+const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
+const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const allEvents = ref([])
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
@@ -17,13 +17,27 @@ const uniqueGenres = computed(() => {
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
+    localStorage.setItem("selectedEvent", newVal);
     const res = await getParticipantScore(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
         rowId: r.rowId ?? i
     }))
   }
-});
+}, {immediate: true});
+
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal);
+  }
+},{immediate: true});
+
+watch(selectedTabulation, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedTabMethod", newVal);
+  }
+},{immediate: true});
+
 
 const filteredParticipantsForScore = computed({
     get(){
@@ -33,9 +47,14 @@ const filteredParticipantsForScore = computed({
     }
 })
 
-onMounted(async () => {
+const fetchEventsAndInit = async()=>{
     allEvents.value = await fetchAllEvents()
-    selectedEvent.value = allEvents.value[0].folderName
+    const savedEvent = localStorage.getItem("selectedEvent")
+    selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
+}
+
+onMounted(async () => {
+    await fetchEventsAndInit()
 })
 
 function transformForScore(data){
@@ -49,7 +68,12 @@ function transformForScore(data){
             byTotal[d.participantName][d.judgeName] = d.score
             byTotal[d.participantName].totalScore += d.score;
         });
-        const rows = Object.values(byTotal).sort((a,b)=> b.totalScore - a.totalScore)
+        const rows = Object.values(byTotal)
+                    .map(r => ({
+                        ...r,
+                        totalScore: Number(r.totalScore.toFixed(1))
+                    }))
+                    .sort((a,b)=> b.totalScore - a.totalScore)
         return {
             columns :[
             { key: 'participantName', label: 'Participant', type: 'text', readonly: true },

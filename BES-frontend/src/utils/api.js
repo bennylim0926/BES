@@ -1,4 +1,5 @@
-const domain = "http://localhost:5050"
+// const domain = "http://localhost:5050"
+const domain = ""
 export const fetchAllEvents = async () =>{
     try{
         const res = await fetch(`${domain}/api/v1/folders`)
@@ -74,7 +75,7 @@ export const getRegisteredParticipantsByEvent = async(eventName) =>{
 
 export const getAllJudges = async() =>{
   try{
-    const res = await fetch('http://localhost:5050/api/v1/event/judges')
+    const res = await fetch(`${domain}/api/v1/event/judges`)
     return await res.json()
   }catch(err){
     console.log(err)

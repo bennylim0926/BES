@@ -11,9 +11,9 @@ import ActionDoneModal from './ActionDoneModal.vue';
 import { row } from '@primeuix/themes/aura/datatable';
 
 const roles = ref(["Emcee", "Judge"])
-const selectedEvent = ref("")
-const selectedRole = ref("")
-const selectedGenre = ref("")
+const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedRole = ref(localStorage.getItem("selectedRole") || "")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const filteredJudge = ref("")
 const currentJudge = ref("")
 const allJudges = ref([])
@@ -71,6 +71,7 @@ const filteredParticipantsForEmcee = computed({
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
+    localStorage.setItem("selectedEvent", newVal);
     const res = await getRegisteredParticipantsByEvent(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
@@ -78,7 +79,19 @@ watch(selectedEvent, async (newVal) => {
         score: 0
     }))
   }
-});
+},{ immediate: true });
+
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal);
+  }
+},{immediate: true});
+
+watch(selectedRole, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedRole", newVal);
+  }
+},{immediate: true});
 
 const uniqueGenres = computed(() => {
     const genres = participants.value.map(p => p.genreName);
@@ -147,9 +160,15 @@ const submitScore = async(eventName,genreName, judgeName, participants) =>{
 
 const showFilters = ref(true)
 
-onMounted(async () => {
+const fetchEventsAndInit = async()=>{
     allEvents.value = await fetchAllEvents()
-    selectedEvent.value = allEvents.value[0].folderName
+    const savedEvent = localStorage.getItem("selectedEvent")
+    selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
+}
+
+onMounted(async () => {
+    await fetchEventsAndInit()
+    
     const res = await getAllJudges()
     allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
     subscribeToChannel(createClient(), "/topic/audition/",

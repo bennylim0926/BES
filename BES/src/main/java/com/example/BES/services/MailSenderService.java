@@ -41,7 +41,8 @@ public class MailSenderService {
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
         for(EventGenreParticipantId id : ids){
-            String registerLink = String.format("https://%s/api/v1/event/register-participant/%d/%d/%d",Constant.DOMAIN.getLabel(),id.getParticipantId(),id.getEventId(), id.getGenreId());
+            // insert real domain here
+            String registerLink = String.format("http://blim.local/api/v1/event/register-participant/%d/%d/%d",id.getParticipantId(),id.getEventId(), id.getGenreId());
             byte[] sourceBytes = qrService.generateQrCode(registerLink, 150, 150);
             DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
             MimeBodyPart attachmentPart = new MimeBodyPart();

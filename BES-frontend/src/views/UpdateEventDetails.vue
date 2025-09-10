@@ -6,8 +6,8 @@ import ActionDoneModal from './ActionDoneModal.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 
-const selectedEvent = ref("")
-const selectedGenre = ref("All")
+const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const allEvents = ref([])
 const participants = ref([])
 const allJudges = ref([])
@@ -45,7 +45,7 @@ const filteredParticipants = computed({
 });
 
 const updateParticipantJudge = async()=>{
-    const updateResponse = await fetch("http://localhost:5050/api/v1/event/participants-judge/", {
+    const updateResponse = await fetch("/api/v1/event/participants-judge/", {
         method: 'POST',
         headers: {
         'Accept': 'application/json',
@@ -63,13 +63,21 @@ const updateParticipantJudge = async()=>{
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
+    localStorage.setItem("selectedEvent", newVal);
     await fetchAllParticipantInEvent(newVal)
   }
-});
+},
+{immediate: true});
+
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal);
+  }
+},{immediate: true});
 
 const fetchAllParticipantInEvent = async(eventName) =>{
   try{
-    const res = await fetch(`http://localhost:5050/api/v1/event/participants/${eventName}`)
+    const res = await fetch(`/api/v1/event/participants/${eventName}`)
     if(!res.ok) throw new Error('Failed to fetch event data')
     const result = await res.json()
     participants.value = result.map((r, i) => ({
@@ -80,27 +88,30 @@ const fetchAllParticipantInEvent = async(eventName) =>{
     console.log(err)
   }
 }
-const capsFirst = (text) =>{
-    return String(text).charAt(0).toUpperCase() + String(text).slice(1);
-}
 
+const fetchAllEvents = async () => {
+  try {
+    const res = await fetch('/api/v1/folders');
+    if (!res.ok) throw new Error('Failed to fetch event data');
+    const result = await res.json();
+    allEvents.value = result;
 
-const fetchAllEvents = async() =>{
-  try{
-    const res = await fetch('http://localhost:5050/api/v1/folders')
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    res.json().then(result =>{
-        allEvents.value = result
-        selectedEvent.value = allEvents.value[0].folderName
-    })
-  }catch(err){
-    console.log(err)
+    // if no saved event, pick the first
+    if (!selectedEvent.value && allEvents.value.length > 0) {
+      selectedEvent.value = allEvents.value[0].folderName;
+    }
+    // manually trigger once here, ensures participants load
+    if (selectedEvent.value) {
+      await fetchAllParticipantInEvent(selectedEvent.value);
+    }
+  } catch (err) {
+    console.log(err);
   }
-}
+};
 
 const fetchAllJudges = async() =>{
   try{
-    const res = await fetch('http://localhost:5050/api/v1/event/judges')
+    const res = await fetch('/api/v1/event/judges')
     if(!res.ok) throw new Error('Failed to fetch event data')
     res.json().then(result =>{
         allJudges.value = Object.values(result).map(item => item.judgeName);
