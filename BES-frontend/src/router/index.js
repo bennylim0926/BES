@@ -16,10 +16,13 @@ const routes = [
     {
         path: '/events',
         name: 'Event',
-        component: Event
+        component: Event,
+        children: [
+            { path: ':eventName', component: EventDetails } // /events/something
+          ]
     },
     {
-        path: '/event/:eventName',
+        path: '/events/:eventName',
         name: 'Event Details',
         component: EventDetails,
         props: route =>({

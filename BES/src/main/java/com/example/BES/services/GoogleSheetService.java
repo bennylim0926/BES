@@ -33,7 +33,7 @@ import jakarta.mail.MessagingException;
 public class GoogleSheetService {
     // if any new category just add here and update the constructor to map the function
     // need to update dto as well
-    private static final String CATEGORY_KEYWORD = "Categories";
+    private static final String CATEGORY_KEYWORD = "categor";
     private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL,SheetHeader.NAME,SheetHeader.PAYMENT_STATUS,SheetHeader.CATEGORIES,SheetHeader.LOCAL_OVERSEAS));    
     
     @Autowired
@@ -84,9 +84,12 @@ public class GoogleSheetService {
         // usually there will be only two which are local and overseas 
         BatchGetValuesResponse response = sheetClient.batchGet(fileId, matchingColumnAlphabet);
         List<ValueRange> valueRanges = response.getValueRanges();
-
         List<List<Object>> localGenre = valueRanges.get(0).getValues();
-        List<List<Object>> overseasGenre = valueRanges.get(1).getValues();
+        List<List<Object>> overseasGenre = new ArrayList<>();
+        if(valueRanges.size()>1){
+            overseasGenre = valueRanges.get(1).getValues();
+        }
+        
         List<String> combined = new ArrayList<>();
         for(int i = 1; i < localGenre.size(); i++){
             if(localGenre.get(i).size() == 0){
@@ -171,7 +174,7 @@ public class GoogleSheetService {
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         List<Integer> matchingColumnIndices = new ArrayList<>();
         for(int i = 0; i < headers.size(); i++){
-            if(headers.get(i).equalsIgnoreCase(CATEGORY_KEYWORD)){
+            if(headers.get(i).toLowerCase().contains(CATEGORY_KEYWORD.toLowerCase())){
                 matchingColumnIndices.add(i);
             }
         }     
@@ -182,7 +185,7 @@ public class GoogleSheetService {
     private void setDtoCategory(GoogleSheetFileDto dto, List<String> data){
         Set<String> categories = new HashSet<String>(data);
         for (String category: categories){
-            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category, genres);
+            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category.toLowerCase(), genres);
             for(String normalizeCategory: normalizeCategories){
                 actions.get(normalizeCategory).accept(dto, data);
             }

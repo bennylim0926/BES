@@ -8,7 +8,7 @@ const isOpen = ref(false);
   <nav class="bg-white border-gray-200 dark:bg-gray-900">
     <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
       <!-- Logo -->
-      <router-link to="/" class="text-xl font-bold text-blue-600 dark:text-white">
+      <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
         BES
       </router-link>
 
@@ -37,38 +37,68 @@ const isOpen = ref(false);
         >
           <li>
             <router-link @click="isOpen = !isOpen" to="/"
-              class="block py-2 px-3 text-white bg-blue-700 rounded-sm md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500">
-              Home
+            v-slot="{ isActive }">
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Home
+                  </span>
             </router-link>
           </li>
           <li>
             <router-link @click="isOpen = !isOpen" to="/events"
-              class="block py-2 px-3 text-gray-900 rounded-sm hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">
-              Events
+             v-slot="{ isActive, isExactActive }">
+                  <span :class="isActive || isExactActive? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Events
+                  </span>
             </router-link>
           </li>
           <li>
             <router-link @click="isOpen = !isOpen" to="/event/audition-number"
-              class="block py-2 px-3 text-gray-900 rounded-sm hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">
-              Audition Number
+            v-slot="{ isActive }">
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Audtion Number
+                  </span>
             </router-link>
           </li>
           <li>
             <router-link @click="isOpen = !isOpen" to="/event/update-event-details"
-              class="block py-2 px-3 text-gray-900 rounded-sm hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">
-              Update Event Details
+            v-slot="{ isActive }">
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Update Event Details
+                  </span>
             </router-link>
           </li>
           <li>
             <router-link @click="isOpen = !isOpen" to="/event/audition-list"
-              class="block py-2 px-3 text-gray-900 rounded-sm hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">
-              Audition List
+            v-slot="{ isActive }">
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Audition List
+                  </span>
             </router-link>
           </li>
           <li>
             <router-link @click="isOpen = !isOpen" to="/event/score"
-              class="block py-2 px-3 text-gray-900 rounded-sm hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">
-              Score
+            v-slot="{ isExactActive }">
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Score
+                  </span>
             </router-link>
           </li>
         </ul>

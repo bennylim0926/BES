@@ -59,7 +59,7 @@ public class RegistrationService {
         for(AddParticipantDto participant: paidParticipants){
             Event event = eventRepo.findByEventName(dto.eventName).orElse(null);
             if(event == null){
-                throw new NullPointerException();
+                throw new NullPointerException("event is null");
             }
             Participant toAddpariticipant = participantService.addParticpantService(participant);
             Map<EventParticipant,List<EventGenreParticipantId>> mapping = eventParticipantService.getAlleventGenreParticipantIds(participant, event, toAddpariticipant);

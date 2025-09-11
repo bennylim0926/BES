@@ -73,17 +73,17 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 <template>
     <div class="flex justify-center mb-3">
       <!-- Outer wrapper makes table scrollable on small devices -->
-      <div class="w-full overflow-x-auto max-h-180 sm:rounded-lg border">
+      <div class="w-full overflow-x-auto max-h-180 rounded-lg border">
         <table class="min-w-full sm:w-auto text-sm text-gray-500 border-collapse">
           <thead
-            class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 
-                   dark:bg-gray-700 dark:text-gray-400"
+            class="text-xs text-gray-700 uppercase bg-orange-300 sticky top-0 
+                   dark:bg-orange-300 dark:text-gray-400"
           >
             <tr>
               <th
                 v-for="col in props.tableConfig"
                 :key="col.key"
-                class="px-4 sm:px-6 py-3 text-center whitespace-nowrap"
+                class="px-4 sm:px-6 py-3 text-center whitespace-nowrap text-gray-700"
               >
                 {{ col.label }}
               </th>
@@ -99,7 +99,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
               <td
                 v-for="col in props.tableConfig"
                 :key="col.key"
-                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap"
+                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap text-gray-700 dark:text-gray-100"
               >
                 <!-- Read-only -->
                 <template v-if="col.readonly">

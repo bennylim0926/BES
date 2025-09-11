@@ -194,7 +194,7 @@ onMounted(async () => {
 -->
 
 <template>
-    <div class="max-w-5xl mx-auto mb-3">
+    <div class="m-10">
     <div class="flex justify-end items-center mb-3">
       <ReusableButton class="mx-2" @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
       <ReusableButton @onClick="showCreateNewEntry = !showCreateNewEntry" buttonName="Add participant"></ReusableButton>
@@ -227,7 +227,7 @@ onMounted(async () => {
     <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards>
     <div class="flex justify-center my-3">
         <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
-        buttonName="Submit"></ReusableButton>
+        buttonName="Submit Scores"></ReusableButton>
     </div>
 </div>
 <ActionDoneModal

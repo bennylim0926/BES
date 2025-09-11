@@ -131,6 +131,7 @@ onMounted(()=>{
         <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
     </form>
+    <div class="mx-5">
     <DynamicTable 
     v-if="participants.length > 0"
     v-model:tableValue="filteredParticipants"
@@ -140,6 +141,7 @@ onMounted(()=>{
         { key: 'genreName', label: 'Genre', type: 'text', readonly:true },
         { key: 'judgeName', label: 'Judge', type: 'select', options: ['', ...allJudges]}
     ]"></DynamicTable>
+    </div>
 
     <div class="flex justify-center">
         <ReusableButton

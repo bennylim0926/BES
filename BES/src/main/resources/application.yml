@@ -14,5 +14,13 @@ emails:
 
         Thanks for registering for Funk Battle.
         Please show this QR code during registration to get audition number.
+
+    "Mock_Street_Element":
+      subject: "Confirmation email for Mock Street Element"
+      body: |
+        Hello {name},
+
+        Thanks for registering for Mock Street Element.
+        Please show this QR code during registration to get audition number.
         
     
