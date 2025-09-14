@@ -73,7 +73,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 <template>
     <div class="flex justify-center mb-3">
       <!-- Outer wrapper makes table scrollable on small devices -->
-      <div class="w-full overflow-x-auto max-h-180 rounded-lg border">
+      <div class="w-full overflow-x-auto max-h-130 rounded-lg border">
         <table class="min-w-full sm:w-auto text-sm text-gray-500 border-collapse">
           <thead
             class="text-xs text-gray-700 uppercase bg-orange-300 sticky top-0 
@@ -136,6 +136,14 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
                       {{ capsFirst(opt) }}
                     </option>
                   </select>
+                </template>
+
+                <template v-else-if="col.type === 'boolean'">
+                  <div
+                    @click="row[col.key] = !row[col.key]"
+                    class="w-12 h-12 mx-auto rounded-full active:border-4 active:border-green-500 active:bg-green-300"
+                    :class="row[col.key] ? 'bg-green-500' : 'bg-gray-50'"
+                  ></div>
                 </template>
   
                 <!-- fallback -->

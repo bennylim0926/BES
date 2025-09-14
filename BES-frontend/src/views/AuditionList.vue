@@ -9,6 +9,7 @@ import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { row } from '@primeuix/themes/aura/datatable';
+import Timer from '@/components/Timer.vue';
 
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
@@ -105,14 +106,16 @@ function transformForTable(data) {
   if (judges.length === 0) {
     return {
       columns: [
-        { key: 'auditionNumber', label: 'Audition', type: 'text', readonly: true },
-        { key: 'participantName', label: 'Name', type: 'text', readonly: true }
+        { key: 'auditionNumber', label: 'Number', type: 'text', readonly: true },
+        { key: 'participantName', label: 'Name', type: 'text', readonly: true },
+        { key: 'marked', label: 'Done', type: 'boolean'}
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
         .map(d => ({
           auditionNumber: d.auditionNumber,
-          participantName: d.participantName
+          participantName: d.participantName,
+          marked: false
         }))
     };
   }
@@ -148,6 +151,10 @@ function transformForTable(data) {
 }
 
 const submitScore = async(eventName,genreName, judgeName, participants) =>{
+  if(judgeName === ""){
+    openModal("Failed", "Must assign a judge to this audition")
+    return 
+  }
   const p = participants.map( obj=>({
     ...obj,
     score: parseFloat(obj.score)
@@ -218,7 +225,8 @@ onMounted(async () => {
     </div>
   </div>
 
-<div class="m-3" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+<div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+    <Timer class="sticky top-0 m-5 z-50 border-2"></Timer>
     <DynamicTable 
         v-model:tableValue="filteredParticipantsForEmcee.rows"
         :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>

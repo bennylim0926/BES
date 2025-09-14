@@ -66,18 +66,18 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-6">
     <div class="flex flex-col bg-orange-50 shadow-lg rounded-2xl p-6 w-full max-w-md items-center text-center justify-center h-[50vh]">
-      <div v-if="loading" class="animate-pulse text-orange-500">
+      <div v-if="loading" class="animate-pulse text-orange-500 text-2xl">
         Drawing audition number...  
         <p class="mt-2 text-2xl font-mono font-bold text-gray-700">
           {{ fakeNumber }}
         </p>
       </div>
       <div v-else>
-        <p class="text-5xl text-gray-800">Good Luck</p>
-        <p class="mt-2 text-6xl font-mono font-bold text-gray-800">
+        <p class="text-3xl text-gray-800">Good Luck</p>
+        <p class="mt-2 text-4xl font-mono font-bold text-gray-800">
             {{ participantName }}
         </p>
-        <p class="mt-2 text-6xl font-mono font-bold text-gray-900">
+        <p class="mt-2 text-4xl font-mono font-bold text-gray-900">
           {{genre}} #<span class="text-orange-500"> {{ auditionNumber }} </span>
         </p>
         <p class="mt-2 text-5xl font-mono font-bold text-gray-800">{{ judgeName }}</p>

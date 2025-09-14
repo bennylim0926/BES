@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { capsFirstLetter } from '@/utils/utils';
+
 const props = defineProps({
   cards: {
     type: Array,
@@ -8,7 +9,11 @@ const props = defineProps({
   }
 })
 
+const colors = ref(['bg-red-100', 'bg-orange-100', 'bg-amber-100', 'bg-yellow-100', 'bg-lime-100', 'bg-green-100', 'bg-emerald-100', 'bg-teal-100', 'bg-cyan-100',
+    'bg-sky-100', 'bg-blue-100', 'bg-indigo-100', 'bg-violet-100', 'bg-purple-100', 'bg-fuchsia-100', 'bg-pink-100', 'bg-rose-100'])
+
 const emit = defineEmits(["update:cards"])
+
 </script>
 
 <template>
@@ -22,7 +27,8 @@ const emit = defineEmits(["update:cards"])
         :key="idx"
         class="flex-shrink-0 w-full snap-center px-4 flex items-center justify-center"
       >
-        <div class="w-full h-[85%] bg-orange-50 rounded-2xl shadow-lg flex flex-col items-center justify-center p-8">
+        <div class="w-full h-[85%] rounded-2xl shadow-lg flex flex-col items-center justify-center p-8"
+              :class="`${colors[idx % colors.length]}`">
           <h2 class="text-3xl font-bold text-gray-900">
             {{ card.participantName }}
           </h2>
@@ -30,7 +36,7 @@ const emit = defineEmits(["update:cards"])
             Category: {{ capsFirstLetter(card.genreName) }}
           </p>
           <p class="text-2xl text-gray-700 mt-2">
-            Number: {{ capsFirstLetter(card.auditionNumber) }}
+            Number: <span class="text-4xl font-bold">#{{ capsFirstLetter(card.auditionNumber) }}</span> 
           </p>
 
 
