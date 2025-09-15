@@ -1,6 +1,7 @@
 import { Client } from "@stomp/stompjs"
 
-const WS_URL = "ws://localhost:5050/ws"
+// const WS_URL = "ws://localhost/ws"
+const WS_URL = `${window.location.origin.replace(/^http/, "ws")}/ws`;
 
 export const createClient = () =>{
     return new Client({

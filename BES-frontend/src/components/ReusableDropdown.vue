@@ -45,7 +45,8 @@ if (!currentSelected.value && props.options.length > 0) {
             v-for="option in props.options"
             :key="option"
             :value="option"
-            class="cursor-pointer px-4 py-2 hover:bg-blue-100 dark:hover:bg-gray-600"
+            class="cursor-pointer px-4 py-2 hover:bg-blue-100 dark:hover:bg-gray-600
+            hover:text-orange-400 "
           >
             {{ option }}
           </ListboxOption>

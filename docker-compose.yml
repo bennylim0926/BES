@@ -1,0 +1,41 @@
+services:
+  backend:
+    image: 'docker-spring-boot-postgres:latest'
+    build:
+      context: .
+    container_name: bes_backend
+    depends_on:
+      - postgres
+    environment:
+      - EMAIL=${EMAIL}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+    volumes:
+    - ./credentials.json:/credentials.json:ro
+
+  frontend:
+    build:
+      context: ./BES-frontend
+    image: vue-frontend-latest
+    container_name: bes_frontend
+    ports:
+     - "80:80"
+    depends_on:
+      - backend
+  
+  postgres:
+    image: 'postgres:15.2'
+    ports:
+    - '5433:5432'
+    environment:
+    - POSTGRES_USER=${SPRING_DATASOURCE_USERNAME}
+    - POSTGRES_DB=${SPRING_DATASOURCE_DBNAME}
+    - POSTGRES_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+    volumes:
+    - postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres:

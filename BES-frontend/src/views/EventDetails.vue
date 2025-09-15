@@ -1,5 +1,5 @@
 <script setup>
-import {ref, onMounted, reactive, watch} from 'vue';
+import {ref, onMounted, reactive, watch, computed} from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
@@ -87,6 +87,18 @@ const refreshParticipant = async() =>{
     }
 }
 
+const tableConfig = computed(()=>{
+    const base = [
+        { key: 'name', label: 'Name', type: 'text', readonly: true },
+        { key: 'genre', label: 'Genre', type: 'text', readonly: true }
+    ]
+    const hasResidency = verifiedParticipants.value.some(p => p.residency)
+    if(hasResidency){
+        base.push({ key: 'residency', label: 'Residency', type: 'text', readonly: true })
+    }
+    return base
+})
+
 watch(
     fileId,
     async () =>{
@@ -110,6 +122,7 @@ onMounted( async () =>{
     once created, show verified and unverified participants
  -->
     <h1 class="flex justify-center gap-2 text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
+    <div class="mx-10">
     <DynamicTable
         v-model:tableValue="participantsNumBreakdown"
         :table-config="[
@@ -117,20 +130,19 @@ onMounted( async () =>{
             { key: 'value', label: 'Count', type: 'number', readonly:true }
         ]"
         />
+    </div>
     <div v-if="tableExist">
         <div class="flex justify-center">
             <ReusableButton @onClick="refreshParticipant" buttonName="Refresh"></ReusableButton>
         </div>
+        <div class="mx-10">
         <DynamicTable
         v-if="verifiedParticipants.length > 0 && tableExist" 
         v-model:tableValue="verifiedParticipants"
-        :table-config="[
-            { key: 'name', label: 'Name', type: 'text', readonly: true },
-            { key: 'genre', label: 'Genre', type: 'text', readonly:true },
-            { key: 'residency', label: 'Residency', type: 'text', readonly:true }
-        ]"
+        :table-config="tableConfig"
         />
         <div v-else class="flex justify-center"> Please check your response form and mark it if the participant paid</div>
+    </div>
     </div>
     <div v-else class="flex items-center gap-2">
         <form class="mx-auto relative overflow-x-auto " @submit.prevent="onSubmit">        

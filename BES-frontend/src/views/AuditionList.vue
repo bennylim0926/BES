@@ -9,11 +9,12 @@ import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { row } from '@primeuix/themes/aura/datatable';
+import Timer from '@/components/Timer.vue';
 
 const roles = ref(["Emcee", "Judge"])
-const selectedEvent = ref("")
-const selectedRole = ref("")
-const selectedGenre = ref("")
+const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedRole = ref(localStorage.getItem("selectedRole") || "")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const filteredJudge = ref("")
 const currentJudge = ref("")
 const allJudges = ref([])
@@ -71,6 +72,7 @@ const filteredParticipantsForEmcee = computed({
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
+    localStorage.setItem("selectedEvent", newVal);
     const res = await getRegisteredParticipantsByEvent(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
@@ -78,7 +80,19 @@ watch(selectedEvent, async (newVal) => {
         score: 0
     }))
   }
-});
+},{ immediate: true });
+
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal);
+  }
+},{immediate: true});
+
+watch(selectedRole, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedRole", newVal);
+  }
+},{immediate: true});
 
 const uniqueGenres = computed(() => {
     const genres = participants.value.map(p => p.genreName);
@@ -92,14 +106,16 @@ function transformForTable(data) {
   if (judges.length === 0) {
     return {
       columns: [
-        { key: 'auditionNumber', label: 'Audition', type: 'text', readonly: true },
-        { key: 'participantName', label: 'Name', type: 'text', readonly: true }
+        { key: 'auditionNumber', label: 'Number', type: 'text', readonly: true },
+        { key: 'participantName', label: 'Name', type: 'text', readonly: true },
+        { key: 'marked', label: 'Done', type: 'boolean'}
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
         .map(d => ({
           auditionNumber: d.auditionNumber,
-          participantName: d.participantName
+          participantName: d.participantName,
+          marked: false
         }))
     };
   }
@@ -135,6 +151,10 @@ function transformForTable(data) {
 }
 
 const submitScore = async(eventName,genreName, judgeName, participants) =>{
+  if(judgeName === ""){
+    openModal("Failed", "Must assign a judge to this audition")
+    return 
+  }
   const p = participants.map( obj=>({
     ...obj,
     score: parseFloat(obj.score)
@@ -147,9 +167,15 @@ const submitScore = async(eventName,genreName, judgeName, participants) =>{
 
 const showFilters = ref(true)
 
-onMounted(async () => {
+const fetchEventsAndInit = async()=>{
     allEvents.value = await fetchAllEvents()
-    selectedEvent.value = allEvents.value[0].folderName
+    const savedEvent = localStorage.getItem("selectedEvent")
+    selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
+}
+
+onMounted(async () => {
+    await fetchEventsAndInit()
+    
     const res = await getAllJudges()
     allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
     subscribeToChannel(createClient(), "/topic/audition/",
@@ -175,7 +201,7 @@ onMounted(async () => {
 -->
 
 <template>
-    <div class="max-w-5xl mx-auto mb-3">
+    <div class="m-10">
     <div class="flex justify-end items-center mb-3">
       <ReusableButton class="mx-2" @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
       <ReusableButton @onClick="showCreateNewEntry = !showCreateNewEntry" buttonName="Add participant"></ReusableButton>
@@ -199,7 +225,8 @@ onMounted(async () => {
     </div>
   </div>
 
-<div class="m-3" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+<div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+    <Timer class="sticky top-0 m-5 z-50 border-2"></Timer>
     <DynamicTable 
         v-model:tableValue="filteredParticipantsForEmcee.rows"
         :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
@@ -208,7 +235,7 @@ onMounted(async () => {
     <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards>
     <div class="flex justify-center my-3">
         <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
-        buttonName="Submit"></ReusableButton>
+        buttonName="Submit Scores"></ReusableButton>
     </div>
 </div>
 <ActionDoneModal

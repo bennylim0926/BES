@@ -3,9 +3,9 @@ import { ref, computed, onMounted, watch, readonly } from 'vue';
 import { fetchAllEvents, getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-const selectedEvent = ref("")
-const selectedGenre = ref("")
-const selectedTabulation = ref("")
+const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
+const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const allEvents = ref([])
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
@@ -17,13 +17,27 @@ const uniqueGenres = computed(() => {
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
+    localStorage.setItem("selectedEvent", newVal);
     const res = await getParticipantScore(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
         rowId: r.rowId ?? i
     }))
   }
-});
+}, {immediate: true});
+
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal);
+  }
+},{immediate: true});
+
+watch(selectedTabulation, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedTabMethod", newVal);
+  }
+},{immediate: true});
+
 
 const filteredParticipantsForScore = computed({
     get(){
@@ -33,9 +47,14 @@ const filteredParticipantsForScore = computed({
     }
 })
 
-onMounted(async () => {
+const fetchEventsAndInit = async()=>{
     allEvents.value = await fetchAllEvents()
-    selectedEvent.value = allEvents.value[0].folderName
+    const savedEvent = localStorage.getItem("selectedEvent")
+    selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
+}
+
+onMounted(async () => {
+    await fetchEventsAndInit()
 })
 
 function transformForScore(data){
@@ -49,7 +68,12 @@ function transformForScore(data){
             byTotal[d.participantName][d.judgeName] = d.score
             byTotal[d.participantName].totalScore += d.score;
         });
-        const rows = Object.values(byTotal).sort((a,b)=> b.totalScore - a.totalScore)
+        const rows = Object.values(byTotal)
+                    .map(r => ({
+                        ...r,
+                        totalScore: Number(r.totalScore.toFixed(1))
+                    }))
+                    .sort((a,b)=> b.totalScore - a.totalScore)
         return {
             columns :[
             { key: 'participantName', label: 'Participant', type: 'text', readonly: true },
@@ -86,15 +110,14 @@ function transformForScore(data){
 
 
 <template>
-    <div class="flex justify-center items-center mb-3">
-    <form class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-10">
+    <div class="m-10">
+    <form class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-5">
         <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
         <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
       </form>
-      
-    </div>
 
+      <div class="m-10">
     <DynamicTable 
         v-if="selectedTabulation == 'By Total' && filteredParticipantsForScore.rows.length>0"
         v-model:tableValue="filteredParticipantsForScore.rows"
@@ -108,5 +131,7 @@ function transformForScore(data){
         :tableConfig="group.columns">
         </DynamicTable>
     </div>
+</div>
+</div>
 </div>
 </template>
