@@ -39,7 +39,7 @@ if (!currentSelected.value && props.options.length > 0) {
 
         <!-- Options -->
         <ListboxOptions
-          class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-300 bg-white shadow-lg text-sm dark:bg-gray-700 dark:text-white"
+          class="absolute z-51 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-300 bg-white shadow-lg text-sm dark:bg-gray-700 dark:text-white"
         >
           <ListboxOption
             v-for="option in props.options"
