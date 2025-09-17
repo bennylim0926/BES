@@ -116,6 +116,7 @@ public class GoogleSheetService {
         throws IOException, MessagingException, WriterException{
         List<AddParticipantDto> paidRegisteredParticipants = new ArrayList<>();    
         Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
+        System.out.println(colIndexMap);
         List<List<String>> resultString = getsheetAllRows(dto.fileId);
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
         for(List<String> res : resultString){
@@ -131,8 +132,17 @@ public class GoogleSheetService {
      * Helper functions region
      */
     private Map<String,Integer> getColumnIndexMap(String fileId) throws IOException{
+        // email has no problem
+        // categories are handled differently
+        // local/overseas should be handled more nicely
+        // name may have multiple names for team
         Map<String, Integer> colIndexMap = new HashMap<>();
         List<String> headers = getHeaders(fileId);
+        // check how many contain name, if more than one, take team name
+        Integer nameCount = getNameHeaderCount(headers);
+        if(nameCount > 1){
+            headers = removeExtraName(headers);
+        }
         for(Integer i = 0; i< headers.size(); i ++){
             for(String keyword: PAYMENT_KEYWORDS){
                 if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
@@ -141,6 +151,29 @@ public class GoogleSheetService {
             }
         }
         return colIndexMap;
+    }
+
+    private Integer getNameHeaderCount(List<String> headers){
+        Integer count = 0;
+        for(String h : headers){
+            if(h.toLowerCase().contains("name")){
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    // This is because Team battle form will consist of multiple name columns
+    // We only need to keep Team name
+    private List<String> removeExtraName(List<String> headers){
+        List<String> mutableHeaders = new ArrayList<>(headers);
+        for(int i = mutableHeaders.size()-1 ; i >= 0; i--){
+            if(mutableHeaders.get(i).toLowerCase().contains("name") && 
+            !mutableHeaders.get(i).toLowerCase().contains("team name")){
+                mutableHeaders.set(i, "ignore");
+            }
+        }
+        return mutableHeaders;
     }
 
     private List<String> getHeaders(String fileId) throws IOException{
