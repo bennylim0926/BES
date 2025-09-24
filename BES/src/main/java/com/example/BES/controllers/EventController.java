@@ -134,12 +134,8 @@ public class EventController {
     public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto){
         try{
             Participant p = participantService.addWalkInService(dto);
-            // System.out.println(dto.genre);
-            // System.out.println(dto.judgeName);
             EventParticipant ep =  eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre);
             EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep, dto.judgeName);
-            // Give audition number
-            // registerService.getAuditionNumViaQR()
             AddParticipantToEventGenreDto auditionDto = new AddParticipantToEventGenreDto();
             auditionDto.eventId = egp.getEvent().getEventId();
             auditionDto.genreId = egp.getGenre().getGenreId();

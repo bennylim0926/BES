@@ -22,5 +22,13 @@ emails:
 
         Thanks for registering for Mock Street Element.
         Please show this QR code during registration to get audition number.
+    
+    "PopEvent":
+      subject: "Confirmation email for Pop Event"
+      body: |
+        Hello {name},
+
+        Thanks for registering for Pop Event.
+        Please show this QR code during registration to get audition number.
         
     

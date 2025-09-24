@@ -103,7 +103,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
               >
                 <!-- Read-only -->
                 <template v-if="col.readonly">
-                  {{ capsFirst(row[col.key]) }}
+                  {{ row[col.key] ? capsFirst(row[col.key]) : "-" }}
                 </template>
   
                 <!-- Editable text -->
