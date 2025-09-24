@@ -6,8 +6,6 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import com.example.BES.dtos.GetParticipantByEventDto;
-import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventParticipant;
 
 @Component
