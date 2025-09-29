@@ -52,7 +52,8 @@ public class GoogleSheetService {
         genres = new ArrayList<>(Arrays.asList(Genre.POPPING.getLabel(), Genre.WAACKING.getLabel(), 
                                                 Genre.LOCKING.getLabel(), Genre.BREAKING.getLabel(), 
                                                 Genre.HIPHOP.getLabel(), Genre.OPEN.getLabel(),
-                                                Genre.AUDIENCE.getLabel(), Genre.ROOKIE.getLabel()));
+                                                Genre.AUDIENCE.getLabel(), Genre.ROOKIE.getLabel(),
+                                                Genre.SMOKE.getLabel()));
         actions = new HashMap<>();
         actions.put(Genre.POPPING.getLabel(), (dto,list) -> dto.setPopping(categoriesCount(list, Genre.POPPING.getLabel())));
         actions.put(Genre.WAACKING.getLabel(), (dto,list) -> dto.setWaacking(categoriesCount(list, Genre.WAACKING.getLabel())));
@@ -62,6 +63,7 @@ public class GoogleSheetService {
         actions.put(Genre.OPEN.getLabel(), (dto,list) -> dto.setOpen(categoriesCount(list, Genre.OPEN.getLabel())));
         actions.put(Genre.AUDIENCE.getLabel(), (dto,list) -> dto.setAudience(categoriesCount(list, Genre.AUDIENCE.getLabel())));
         actions.put(Genre.ROOKIE.getLabel(), (dto,list) -> dto.setRookie(categoriesCount(list, Genre.ROOKIE.getLabel())));
+        actions.put(Genre.SMOKE.getLabel(), (dto,list) -> dto.setSmoke(categoriesCount(list, Genre.SMOKE.getLabel())));
     }
 
     /* Correct order should be: 

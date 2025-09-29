@@ -5,6 +5,7 @@ import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem} from '@/utils/api';
 import ReusableButton from '@/components/ReusableButton.vue';
+import { file } from '@primeuix/themes/aura/fileupload';
 
 const fileId = ref('')
 const modalTitle = ref("")

@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from "vue";
 import { logout, whoami } from "./utils/api";
 import { useAuthStore } from "./utils/auth";
 import ActionDoneModal from "./views/ActionDoneModal.vue";
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 const openModal = (title, message) => {
     modalTitle.value = title
     modalMessage.value = message
@@ -12,6 +15,9 @@ const openModal = (title, message) => {
 const handleAccept = () => {
   showModal.value = false
   logoutNow(isOpen.value)
+  router.push({
+    name: 'Login'
+  });
 }
 
 const modalTitle = ref("")
@@ -52,6 +58,7 @@ onMounted( async () =>{
       <!-- Logo -->
       <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
         BES
+        {{ isAuthenticated }}
       </router-link>
 
       <!-- Mobile Hamburger -->
@@ -144,7 +151,7 @@ onMounted( async () =>{
             </router-link>
           </li>
 
-          <li v-if="authStore.isAuthenticated===false">
+          <li v-if="!isAuthenticated">
             <router-link @click="isOpen = !isOpen" to="/login"
             v-slot="{ isExactActive }">
                   <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -155,16 +162,14 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-          <li v-if="authStore.isAuthenticated === true">
-            <router-link @click="openModal('Warning','Are you sure you want to Logout?')" to="/login"
-            v-slot="{ isExactActive }">
-                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
-                        class="block py-2 px-3 rounded-sm 
+          <li v-if="isAuthenticated">
+            <a @click="openModal('Warning','Are you sure you want to Logout?')">
+                  <span class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
                     Logout
                   </span>
-            </router-link>
+                </a>
           </li>
         </ul>
       </div>

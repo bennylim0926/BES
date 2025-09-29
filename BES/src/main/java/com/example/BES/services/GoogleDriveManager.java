@@ -33,17 +33,31 @@ public class GoogleDriveManager {
     public List<File> findAllFilesInFolderById(String folderId) {
         try {
             folderId = folderId == null ? "root" : folderId;
-            String query = "'" + folderId + "' in parents";
+            String query = "'" + folderId + "' in parents and trashed = false";
             FileList result = config.getDrive()
                     .files()
                     .list()
                     .setQ(query)
                     .setPageSize(10)
-                    .setFields("nextPageToken, files(id, name, size, thumbnailLink, mimeType)")
+                    .setFields("nextPageToken, files(id, name, size, thumbnailLink, mimeType, shortcutDetails)")
                     .execute();
             return result.getFiles();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public File findByTargetId(String targetId){
+        try{
+            File target = config.getDrive()
+                .files()
+                .get(targetId)
+                .setFields("id, name, mimeType, size, thumbnailLink")
+                .execute();
+            return target;
+        }catch(IOException e){
+            throw new RuntimeException(e);
+        }
+        
     }
 }

@@ -14,4 +14,5 @@ public class GoogleSheetFileDto {
     private int hiphop;
     private int audience;
     private int rookie;
+    private int smoke;
 }
