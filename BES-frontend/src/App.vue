@@ -1,7 +1,49 @@
 <script setup>
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { logout, whoami } from "./utils/api";
+import { useAuthStore } from "./utils/auth";
+import ActionDoneModal from "./views/ActionDoneModal.vue";
+const openModal = (title, message) => {
+    modalTitle.value = title
+    modalMessage.value = message
+    showModal.value = true
+}
+
+const handleAccept = () => {
+  showModal.value = false
+  logoutNow(isOpen.value)
+}
+
+const modalTitle = ref("")
+const modalMessage = ref("")
+const showModal = ref(false)
+
+const authStore = useAuthStore();
 
 const isOpen = ref(false);
+
+const role = computed(()=>{
+  return authStore.user ? authStore.user["role"][0]["authority"] : ''
+})
+
+const isAuthenticated = computed(()=>{
+  return authStore.isAuthenticated
+})
+
+const whoaminow = async ()=>{
+  const res = await whoami()
+  role.value = res.principal
+  authenticated.value = res.authenticated
+}
+
+const logoutNow = async(isOpen)=>{
+  isOpen = !isOpen
+  await logout()
+  authStore.logout()
+}
+onMounted( async () =>{
+  await whoaminow()
+})
 </script>
 
 <template>
@@ -46,7 +88,7 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
-          <li>
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/events"
              v-slot="{ isActive, isExactActive }">
                   <span :class="isActive || isExactActive? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -57,7 +99,7 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
-          <li>
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/audition-number"
             v-slot="{ isActive }">
                   <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -68,7 +110,7 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
-          <li>
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/update-event-details"
             v-slot="{ isActive }">
                   <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -79,7 +121,7 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
-          <li>
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'">
             <router-link @click="isOpen = !isOpen" to="/event/audition-list"
             v-slot="{ isActive }">
                   <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -90,7 +132,7 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
-          <li>
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'organiser'">
             <router-link @click="isOpen = !isOpen" to="/event/score"
             v-slot="{ isExactActive }">
                   <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -101,10 +143,43 @@ const isOpen = ref(false);
                   </span>
             </router-link>
           </li>
+
+          <li v-if="authStore.isAuthenticated===false">
+            <router-link @click="isOpen = !isOpen" to="/login"
+            v-slot="{ isExactActive }">
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Login
+                  </span>
+            </router-link>
+          </li>
+          <li v-if="authStore.isAuthenticated === true">
+            <router-link @click="openModal('Warning','Are you sure you want to Logout?')" to="/login"
+            v-slot="{ isExactActive }">
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Logout
+                  </span>
+            </router-link>
+          </li>
         </ul>
       </div>
     </div>
   </nav>
+  <ActionDoneModal
+    :show="showModal"
+    :title="modalTitle"
+    @accept="handleAccept"
+    @close="()=>{showModal=false}"
+    >
+        <p>
+        {{ modalMessage}}
+        </p>
+    </ActionDoneModal>
 
   <router-view />
 </template>

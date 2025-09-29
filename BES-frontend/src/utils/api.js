@@ -1,8 +1,54 @@
 // const domain = "http://localhost:5050"
 const domain = ""
+
+export const login = async (username, password) =>{
+  try{
+    return await fetch(`${domain}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+          username: username,
+          password: password,
+      })
+    })
+  }catch(err){
+    console.log(err)
+  }
+}
+
+export const logout = async () =>{
+  try{
+    return await fetch(`${domain}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+  }catch(err){
+    console.log(err)
+  }
+}
+
+export const whoami = async () =>{
+  try{
+    const res =  await fetch(`${domain}/api/v1/auth/me`)
+    return await res.json()
+
+  }catch(err){
+    console.log(err)
+  }
+}
+
 export const fetchAllEvents = async () =>{
     try{
-        const res = await fetch(`${domain}/api/v1/folders`)
+        const res = await fetch(`${domain}/api/v1/folders`,{
+          method: 'GET',
+          credentials: 'include'
+        })
         return await res.json()
       }catch(err){
         console.log(err)
@@ -11,7 +57,10 @@ export const fetchAllEvents = async () =>{
 
 export const fetchAllGenres = async () =>{
   try{
-    const res = await fetch(`${domain}/api/v1/event/genre`)
+    const res = await fetch(`${domain}/api/v1/event/genre`,{
+      method: 'GET',
+      credentials: 'include'
+    })
     return await res.json()
   }catch(e){
       console.log(e)
