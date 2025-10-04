@@ -3,9 +3,11 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router'
 import {fetchAllEvents} from "@/utils/api"
 import ReusableButton from '@/components/ReusableButton.vue';
+import { checkAuthStatus, useAuthStore } from '@/utils/auth';
 
 const events = ref([])
 const router = useRouter()
+const authStore = useAuthStore()
 
 function goToEventDetails(eventName, folderID) {
   router.push({
@@ -16,6 +18,8 @@ function goToEventDetails(eventName, folderID) {
 }
 
 onMounted(async ()=>{
+  const ok = await checkAuthStatus(["admin","organiser"])
+  if(!ok) return
   events.value = await fetchAllEvents()
 })
 </script>
@@ -27,7 +31,5 @@ onMounted(async ()=>{
       :key="event.folderID"
       :buttonName="event.folderName" @onClick="goToEventDetails(event.folderName, event.folderID)">
     </ReusableButton>
-
   </div>
-
 </template>

@@ -13,7 +13,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(["update:tableValue"]);
+const emit = defineEmits(["update:tableValue", "onClick"]);
 
 const rows = ref([]);
 
@@ -104,6 +104,10 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
                 <!-- Read-only -->
                 <template v-if="col.readonly">
                   {{ row[col.key] ? capsFirst(row[col.key]) : "-" }}
+                </template>
+
+                <template v-else-if="col.type === 'link'">
+                  <div @click="emit('onClick', row[col.key])"> {{ row[col.key] }}</div>
                 </template>
   
                 <!-- Editable text -->

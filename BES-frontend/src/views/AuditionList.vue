@@ -4,12 +4,14 @@ import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import SwipeableCards from '@/components/SwipeableCards.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
-import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore } from '@/utils/api';
+import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { row } from '@primeuix/themes/aura/datatable';
 import Timer from '@/components/Timer.vue';
+import { checkAuthStatus } from '@/utils/auth';
+import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
+import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
@@ -24,13 +26,33 @@ const participants = ref([])
 const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
-const showCreateNewEntry = ref(false)
+// const showCreateNewEntry = ref(false)
+const showMiniMenu = ref(false)
+
+const dynamicRole = async ()=>{
+  const res = await whoami()
+  if(res.username === "emcee"){
+    roles.value = ["Emcee"]
+    selectedRole.value = "Emcee"
+  }else if (res.username === "judge"){
+    roles.value = ["Judge"]
+    selectedRole.value = "Judge"
+  }else if (res.username === "admin"){
+    roles.value = ["Emcee", "Judge"]
+    selectedRole.value = localStorage.getItem("selectedRole") || ""
+  }
+}
+
+const hasJudge = computed(()=>{
+  return participants.value.some(item => item.judgeName !== null)
+})
 
 const openModal = (title, message) => {
     modalTitle.value = title
     modalMessage.value = message
     showModal.value = true
 }
+
 
 const filteredParticipantsForJudge = computed({
   get() {
@@ -140,7 +162,6 @@ function transformForTable(data) {
     })
     .filter(Boolean) // remove dropped rows
     .sort((a, b) => a.auditionNumber - b.auditionNumber);
-  console.log(rows)
   return {
     columns: [
       { key: 'auditionNumber', label: 'Audition', type: 'text', readonly: true },
@@ -174,20 +195,23 @@ const fetchEventsAndInit = async()=>{
 }
 
 onMounted(async () => {
+    const ok = await checkAuthStatus(["admin","emcee", "judge"])
+    if(!ok) return
+    await dynamicRole()
     await fetchEventsAndInit()
     
     const res = await getAllJudges()
     allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
     subscribeToChannel(createClient(), "/topic/audition/",
      (msg) => {
-        console.log(msg.name, msg.genre, msg.judge)
+        // console.log(msg.name, msg.genre, msg.judge)
         const idx = participants.value
                             .findIndex(
                                 p => p.participantName === msg.name 
                             && p.genreName === msg.genre
                             && (p.judgeName === null ? 1 : p.judgeName === msg.judge))
         if (idx !== -1){
-            console.log({...participants.value[idx], ...{auditionNumber: msg.auditionNumber}})
+            // console.log({...participants.value[idx], ...{auditionNumber: msg.auditionNumber}})
             participants.value[idx] = {...participants.value[idx], ...{auditionNumber: msg.auditionNumber} }
         }      
      })
@@ -204,7 +228,7 @@ onMounted(async () => {
     <div class="m-10">
     <div class="flex justify-end items-center mb-3">
       <ReusableButton class="mx-2" @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
-      <ReusableButton @onClick="showCreateNewEntry = !showCreateNewEntry" buttonName="Add participant"></ReusableButton>
+      <ReusableButton class="mx-2" @onClick="showMiniMenu = !showMiniMenu" buttonName="Score Menu"></ReusableButton>
     </div>
 
     <!-- Collapsible content -->
@@ -213,7 +237,7 @@ onMounted(async () => {
         <ReusableDropdown v-model="selectedRole" labelId="Role" :options="roles" />
         <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-        <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+        <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
       </form>
     </transition>
 
@@ -232,7 +256,14 @@ onMounted(async () => {
         :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
 </div>
 <div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0">
-    <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards>
+    <!-- <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards> -->
+     <MiniScoreMenu 
+     :cards="filteredParticipantsForJudge"
+     :show="showMiniMenu"
+     :title="'Move to'"
+     @close="showMiniMenu = !showMiniMenu"></MiniScoreMenu>
+     <SwipeableCardsV2 
+     :cards="filteredParticipantsForJudge"></SwipeableCardsV2>
     <div class="flex justify-center my-3">
         <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
         buttonName="Submit Scores"></ReusableButton>
@@ -248,15 +279,6 @@ onMounted(async () => {
       {{ modalMessage}}
     </p>
   </ActionDoneModal>
-  <CreateParticipantForm
-    :event="selectedEvent"
-    :show="showCreateNewEntry" 
-    title="New participant entry"
-    @createNewEntry="()=>{showCreateNewEntry = !showCreateNewEntry}"
-    @close="()=>{showCreateNewEntry = !showCreateNewEntry}"
-    ></CreateParticipantForm>
-
-<!-- </div> -->
 </template>
 
 <style>

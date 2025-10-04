@@ -33,6 +33,11 @@ public class GoogleSheetsController {
         return ResponseEntity.ok(service.getParticipantsBreakDown(fileId));
     }
 
+    @GetMapping("/participants/size/{fileId}")
+    public ResponseEntity<Integer> getSheetSize(@PathVariable String fileId) throws IOException{
+        return ResponseEntity.ok(service.getSheetSizeService(fileId));
+    }
+
     // When user create database, insert this as well
     @PostMapping("/payment-status")
     public ResponseEntity<Void> insertPaymentColumn(@RequestBody PaymentColumnRequestDto dto) throws IOException{

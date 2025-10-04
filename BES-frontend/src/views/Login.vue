@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue';
-import { login } from '@/utils/api';
-import { ref } from 'vue';
+import { login, whoami } from '@/utils/api';
+import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth';

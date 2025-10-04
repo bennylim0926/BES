@@ -130,6 +130,10 @@ public class GoogleSheetService {
         return paidRegisteredParticipants;
     }
 
+    public Integer getSheetSizeService(String fileId) throws IOException{
+        return sheetClient.getSheetSize(fileId) - 1;
+    }
+
     /*
      * Helper functions region
      */

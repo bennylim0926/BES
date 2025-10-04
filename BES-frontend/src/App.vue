@@ -36,19 +36,14 @@ const isAuthenticated = computed(()=>{
   return authStore.isAuthenticated
 })
 
-const whoaminow = async ()=>{
-  const res = await whoami()
-  role.value = res.principal
-  authenticated.value = res.authenticated
-}
-
 const logoutNow = async(isOpen)=>{
   isOpen = !isOpen
   await logout()
   authStore.logout()
 }
 onMounted( async () =>{
-  await whoaminow()
+  const res = await whoami()
+  authStore.login(res)
 })
 </script>
 
@@ -57,8 +52,7 @@ onMounted( async () =>{
     <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
       <!-- Logo -->
       <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
-        BES
-        {{ isAuthenticated }}
+        BES 
       </router-link>
 
       <!-- Mobile Hamburger -->
@@ -124,7 +118,7 @@ onMounted( async () =>{
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
-                    Update Event Details
+                    Participant Details
                   </span>
             </router-link>
           </li>
@@ -139,7 +133,7 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'organiser'">
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/score"
             v-slot="{ isExactActive }">
                   <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -151,7 +145,7 @@ onMounted( async () =>{
             </router-link>
           </li>
 
-          <li v-if="!isAuthenticated">
+          <li v-if="isAuthenticated === false">
             <router-link @click="isOpen = !isOpen" to="/login"
             v-slot="{ isExactActive }">
                   <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
@@ -162,7 +156,7 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-          <li v-if="isAuthenticated">
+          <li v-if="isAuthenticated === true">
             <a @click="openModal('Warning','Are you sure you want to Logout?')">
                   <span class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 

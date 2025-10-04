@@ -34,6 +34,14 @@ public class AuthController {
     @Autowired
     SecurityConfig config;
 
+    @GetMapping("/debug-session")
+    public Map<String, Object> debugSession(HttpSession session) {
+        return Map.of(
+            "id", session.getId(),
+            "auth", SecurityContextHolder.getContext().getAuthentication()
+        );
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -42,8 +50,9 @@ public class AuthController {
         && !(auth instanceof AnonymousAuthenticationToken);
 
     return ResponseEntity.ok(Map.of(
-        "authenticated", isAuthenticated,
-        "principal", auth != null ? auth.getName() : "anonymous"
+            "authenticated", isAuthenticated,
+            "username", auth.getName(),
+            "role", auth.getAuthorities()
     ));
     }
 
@@ -61,6 +70,7 @@ public class AuthController {
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
         return ResponseEntity.ok(Map.of(
             "message", "Login Successfully",
+            "authenticated", true,
             "username", authentication.getName(),
             "role", authentication.getAuthorities()
         ));

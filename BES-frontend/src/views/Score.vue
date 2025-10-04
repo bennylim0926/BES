@@ -3,12 +3,21 @@ import { ref, computed, onMounted, watch, readonly } from 'vue';
 import { fetchAllEvents, getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
+import { checkAuthStatus } from '@/utils/auth';
+import UpdateScoreForm from '@/components/UpdateScoreForm.vue';
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const allEvents = ref([])
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
+const selectedParticipant = ref("")
+const showSubmitScore = ref(false)
+
+const editScore = (name) =>{
+    selectedParticipant.value = name
+    showSubmitScore.value = !showSubmitScore.value
+}
 
 const uniqueGenres = computed(() => {
     const genres = participants.value.map(p => p.genreName);
@@ -54,6 +63,8 @@ const fetchEventsAndInit = async()=>{
 }
 
 onMounted(async () => {
+    const ok = await checkAuthStatus(["admin","emcee","organiser"])
+    if(!ok) return
     await fetchEventsAndInit()
 })
 
@@ -76,8 +87,8 @@ function transformForScore(data){
                     .sort((a,b)=> b.totalScore - a.totalScore)
         return {
             columns :[
-            { key: 'participantName', label: 'Participant', type: 'text', readonly: true },
-            { key: 'totalScore', label: 'Tota Score', type: 'text', readonly: true },
+            { key: 'participantName', label: 'Participant', type: 'link'},
+            { key: 'totalScore', label: 'Total Score', type: 'text', readonly: true },
         ...judges.map(j => ({ key: j, label: j, type: 'text', readonly: true }))
             ],
             rows
@@ -88,7 +99,7 @@ function transformForScore(data){
             if(!byJudge[d.judgeName]){
                 byJudge[d.judgeName] = {
                     columns: [
-                        { key: 'participantName', label: 'Participant', type: 'text', readonly: true },
+                        { key: 'participantName', label: 'Participant', type: 'link'},
                         { key: 'score', label: 'Score', type: 'text', readonly: true },
                         ],
                     rows : []}
@@ -120,6 +131,7 @@ function transformForScore(data){
       <div class="m-10">
     <DynamicTable 
         v-if="selectedTabulation == 'By Total' && filteredParticipantsForScore.rows.length>0"
+        @onClick="editScore"
         v-model:tableValue="filteredParticipantsForScore.rows"
         :tableConfig="filteredParticipantsForScore.columns">
     </DynamicTable>
@@ -127,6 +139,7 @@ function transformForScore(data){
     <div v-for="(group, judge) in filteredParticipantsForScore.byJudge" :key="judge" class="mb-8">
         <h2 class="text-lg font-bold mb-2">{{ judge }}</h2>
         <DynamicTable 
+        @onClick="editScore"
         v-model:tableValue="group.rows"
         :tableConfig="group.columns">
         </DynamicTable>
@@ -134,4 +147,13 @@ function transformForScore(data){
 </div>
 </div>
 </div>
+<UpdateScoreForm
+    :event="selectedEvent"
+    :show="showSubmitScore" 
+    title="Update Score"
+    :genre="selectedGenre"
+    :name="selectedParticipant"
+    @updateScore="()=>{showSubmitScore = !showSubmitScore}"
+    @close="()=>{showSubmitScore = !showSubmitScore}"
+    ></UpdateScoreForm>
 </template>

@@ -29,7 +29,7 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
-import com.example.BES.dtos.UpdateParticipantScoreDto;
+import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
@@ -213,7 +213,7 @@ public class EventController {
     }
 
     @PostMapping("/scores")
-    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantScoreDto dto){
+    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantsScoreDto dto){
         try{
             // score service here
             scoreService.updateParticipantScoreService(dto);

@@ -78,8 +78,9 @@ public class SecurityConfig {
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setSameSite("Lax"); // "None" requires HTTPS, "Lax" works locally
-        serializer.setUseSecureCookie(false); // true only if you're on HTTPS
+        serializer.setSameSite("None"); // "None" requires HTTPS, "Lax" works locally
+        serializer.setUseSecureCookie(true); // true only if you're on HTTPS
+        serializer.setDomainName("localhost");
         return serializer;
     }
 }

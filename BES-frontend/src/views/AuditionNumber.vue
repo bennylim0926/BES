@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from "vue"
 import ActionDoneModal from './ActionDoneModal.vue';
 import { createClient, deactivateClient, subscribeToChannel } from "@/utils/websocket";
+import { checkAuthStatus } from "@/utils/auth";
 
 const loading = ref(true)
 const auditionNumber = ref(null)
@@ -40,7 +41,6 @@ function startSlotAnimation(finalNumber = null) {
 }
 
 const onReceiveAuditionNumber = (msg)=>{
-    console.log("audition number")
     startSlotAnimation(msg.auditionNumber)
     genre.value = msg.genre
     participantName.value = msg.name
@@ -52,7 +52,9 @@ const onRepeatAudition = (msg) =>{
         openModal(`Hey ${msg.name}!`, `Your audition number is ${msg.genre} #${msg.audition}\n ${judgeName.value}`)
 }
 
-onMounted( () => {
+onMounted( async() => {
+    const ok = await checkAuthStatus(["admin","organiser"])
+    if(!ok) return
     subscribeToChannel(createClient(), "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
     subscribeToChannel(createClient(), "/topic/error/", (msg) => onRepeatAudition(msg))
 })
@@ -65,7 +67,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-6">
-    <div class="flex flex-col bg-orange-50 shadow-lg rounded-2xl p-6 w-full max-w-md items-center text-center justify-center h-[50vh]">
+    <div class="flex flex-col bg-orange-50 shadow-lg rounded-2xl p-6 w-[80vh] items-center text-center justify-center h-[50vh]">
       <div v-if="loading" class="animate-pulse text-orange-500 text-2xl">
         Drawing audition number...  
         <p class="mt-2 text-2xl font-mono font-bold text-gray-700">
