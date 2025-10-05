@@ -21,6 +21,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.util.ByteArrayDataSource;
+import org.springframework.core.env.Environment;
 
 @Service
 public class MailSenderService {
@@ -36,13 +37,17 @@ public class MailSenderService {
     @Autowired
     GenreRepo genreRepo;
 
+    @Autowired
+    private Environment env;
+
+
     public void sendEmailWithAttachment(String eventName, Participant receiver, List<EventGenreParticipantId> ids) throws MessagingException, WriterException, IOException{
         EmailTemplates.Template template = emailTemplates.getEvents().get(normalizeKey(eventName)); 
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
         for(EventGenreParticipantId id : ids){
             // insert real domain here
-            String registerLink = String.format("http://blim.local/api/v1/event/register-participant/%d/%d/%d",id.getParticipantId(),id.getEventId(), id.getGenreId());
+            String registerLink = String.format("%s/api/v1/event/register-participant/%d/%d/%d",env.getProperty("DOMAIN") ,id.getParticipantId(),id.getEventId(), id.getGenreId());
             byte[] sourceBytes = qrService.generateQrCode(registerLink, 350, 350);
             DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
             MimeBodyPart attachmentPart = new MimeBodyPart();
