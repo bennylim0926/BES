@@ -3,10 +3,9 @@ import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import SwipeableCards from '@/components/SwipeableCards.vue';
-import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
 import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, toRaw } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import Timer from '@/components/Timer.vue';
 import { checkAuthStatus } from '@/utils/auth';
@@ -18,7 +17,7 @@ const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const filteredJudge = ref("")
-const currentJudge = ref("")
+const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
 const allEvents = ref([])
 const participants = ref([])
@@ -53,15 +52,13 @@ const openModal = (title, message) => {
     showModal.value = true
 }
 
-
 const filteredParticipantsForJudge = computed({
   get() {
     return participants.value
       .filter(p =>
         p.genreName === selectedGenre.value &&
-        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value
-        )
-        && p.auditionNumber !== null
+        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value) &&
+        p.auditionNumber !== null
       )
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
@@ -75,6 +72,10 @@ const filteredParticipantsForJudge = computed({
     })
   }
 })
+
+watch(filteredParticipantsForJudge, (newVal) => {
+    localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+}, { deep: true });
 
 const filteredParticipantsForEmcee = computed({
     get(){
@@ -101,6 +102,14 @@ watch(selectedEvent, async (newVal) => {
         rowId: r.rowId ?? i,
         score: 0
     }))
+    const stored = localStorage.getItem("currentScore")
+    if (stored) {
+      const cached = JSON.parse(stored)
+      participants.value = participants.value.map(p => {
+        const found = cached.find(c => c.rowId === p.rowId)
+        return found ? { ...p, ...found } : p
+      })
+    }
   }
 },{ immediate: true });
 
@@ -113,6 +122,13 @@ watch(selectedGenre, async (newVal) => {
 watch(selectedRole, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedRole", newVal);
+  }
+},{immediate: true});
+
+watch(currentJudge, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("currentJudge", newVal);
+    
   }
 },{immediate: true});
 
@@ -183,6 +199,7 @@ const submitScore = async(eventName,genreName, judgeName, participants) =>{
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
   if(res.ok){
     openModal("Success", "Score updated!")
+    localStorage.removeItem("currentScore");
   }
 }
 

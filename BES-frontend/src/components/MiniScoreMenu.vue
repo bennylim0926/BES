@@ -33,11 +33,11 @@ const moveTo = async (index) => {
                 v-for="(card, idx) in props.cards"
                 :key="idx"
                 @click="moveTo(idx)"
-                class="p-2 m-1 border border-orange-400 text-gray-100 cursor-pointer min-w-[150px] text-left rounded hover:bg-orange-500 transition"
+                class="p-2 m-1 border border-orange-400 text-gray-900 dark:text-gray-100 cursor-pointer min-w-[150px] text-left rounded hover:bg-orange-500 transition"
             >
                 <div>{{ card.auditionNumber }}. <span class="font-bold">{{ card.participantName }}</span></div>
                 <div v-if="card.score===0" class="text-red-500 flex justify-center items-center">UNSCORED</div>
-                <div v-else class="text-gray-100 flex justify-center items-center">{{card.score}}</div>
+                <div v-else class="text-gray-900 dark:text-gray-100 flex justify-center items-center">{{card.score}}</div>
             </div>
             </div>
     </ActionDoneModal>
