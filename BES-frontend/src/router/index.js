@@ -6,6 +6,8 @@ import AuditionNumber from "@/views/AuditionNumber.vue";
 import UpdateEventDetails from "@/views/UpdateEventDetails.vue";
 import AuditionList from "@/views/AuditionList.vue";
 import Score from "@/views/Score.vue";
+import Login from "@/views/Login.vue";
+import ForbiddenPage from "@/components/ForbiddenPage.vue";
 
 const routes = [
     {
@@ -49,6 +51,16 @@ const routes = [
         path: '/event/score',
         name: 'Score',
         component: Score
+    },
+    {
+        path: '/login',
+        name: 'Login',
+        component: Login
+    },
+    {
+        path: '/403',
+        name: 'Forbidden',
+        component: ForbiddenPage    
     }
 ]
 

@@ -3,8 +3,9 @@ import {ref, onMounted, reactive, watch, computed} from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem} from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize} from '@/utils/api';
 import ReusableButton from '@/components/ReusableButton.vue';
+import { filterObject } from '@/utils/utils';
 
 const fileId = ref('')
 const modalTitle = ref("")
@@ -15,6 +16,7 @@ const tableExist = ref(true)
 
 const verifiedParticipants = ref([])
 const participantsNumBreakdown = ref([])
+const totalParticipants = ref(0)
 const props = defineProps({
     eventName: String,
     folderID: String,
@@ -44,6 +46,13 @@ const getTitle = (statusCode) =>{
     }
 }
 
+const filteredBreakdown = computed(()=>{
+    return filterObject(participantsNumBreakdown.value, value => value>0)
+})
+
+const sumBreakdown = computed(()=>{
+    return [verifiedParticipants.value.length ,totalParticipants.value]
+})
 
 const onSubmit = async () =>{
     // insert payment-status column if not exist
@@ -103,6 +112,7 @@ watch(
     fileId,
     async () =>{
         participantsNumBreakdown.value = await getResponseDetails(fileId.value)
+        totalParticipants.value = await getSheetSize(fileId.value)
     }
 )
 
@@ -121,10 +131,13 @@ onMounted( async () =>{
         to create event with genre, need eventName and genreName
     once created, show verified and unverified participants
  -->
-    <h1 class="flex justify-center gap-2 text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-6xl dark:text-white mb-3">{{ props.eventName }}</h1>
+    <h1 class="flex justify-center gap-2 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-3xl lg:text-4xl dark:text-white mb-3">{{ props.eventName }}</h1>
     <div class="mx-10">
+        <h1 class="flex justify-center gap-2 text-xl font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-xl dark:text-white mb-3">
+            Email Received: {{ sumBreakdown[0] }}/{{ sumBreakdown[1] }}
+        </h1>
     <DynamicTable
-        v-model:tableValue="participantsNumBreakdown"
+        v-model:tableValue="filteredBreakdown"
         :table-config="[
             { key: 'key', label: 'Genre', type: 'text', readonly: true },
             { key: 'value', label: 'Count', type: 'number', readonly:true }

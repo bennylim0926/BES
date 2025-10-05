@@ -12,7 +12,8 @@ title: { type: String, default: "Modal Title" }
         v-if="show"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
     >
-        <div class="relative w-full max-w-sm p-4 bg-white rounded-lg shadow dark:bg-gray-700">
+        <div class="relative w-auto max-w-[90vw] max-h-[90vh]
+        overflow-y-auto p-4 bg-white rounded-lg shadow dark:bg-gray-700">
             <div class="flex justify-end">
             <button
             @click="$emit('close')"

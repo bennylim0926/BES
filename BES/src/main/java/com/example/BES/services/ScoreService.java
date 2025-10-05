@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.ParticipantScoreDto;
-import com.example.BES.dtos.UpdateParticipantScoreDto;
+import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
@@ -43,7 +43,7 @@ public class ScoreService {
         return scoreListDto;
     }
 
-    public void updateParticipantScoreService(UpdateParticipantScoreDto dto){
+    public void updateParticipantScoreService(UpdateParticipantsScoreDto dto){
         for(ParticipantScoreDto d : dto.participantScore){
             EventGenreParticipant record = eventGenreParticpantRepo.findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName).orElse(null);
             Judge judge = judgeRepo.findByName(dto.judgeName).orElse(null);
