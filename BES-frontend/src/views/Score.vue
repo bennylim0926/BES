@@ -30,7 +30,7 @@ watch(selectedEvent, async (newVal) => {
     const res = await getParticipantScore(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
-        rowId: r.rowId ?? i
+        id: i+1
     }))
   }
 }, {immediate: true});
@@ -85,8 +85,13 @@ function transformForScore(data){
                         totalScore: Number(r.totalScore.toFixed(1))
                     }))
                     .sort((a,b)=> b.totalScore - a.totalScore)
+                    .map((r,i)=>({
+                        ...r,
+                        id: i+1
+                    }))
         return {
             columns :[
+            { key: 'id', label: 'Top', type: 'text', readonly:true},
             { key: 'participantName', label: 'Participant', type: 'link'},
             { key: 'totalScore', label: 'Total Score', type: 'text', readonly: true },
         ...judges.map(j => ({ key: j, label: j, type: 'text', readonly: true }))
@@ -99,6 +104,7 @@ function transformForScore(data){
             if(!byJudge[d.judgeName]){
                 byJudge[d.judgeName] = {
                     columns: [
+                        { key: 'id', label: 'Top', type: 'text', readonly:true},
                         { key: 'participantName', label: 'Participant', type: 'link'},
                         { key: 'score', label: 'Score', type: 'text', readonly: true },
                         ],
@@ -110,7 +116,12 @@ function transformForScore(data){
             });
         });
         Object.values(byJudge).forEach(group => {
-            group.rows.sort((a, b) => b.score - a.score)
+            group.rows = group.rows
+                .sort((a, b) => b.score - a.score)
+                .map((r,i)=>({
+                        ...r,
+                        id: i+1
+                    }))
         })
         return {
             byJudge
