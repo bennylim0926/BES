@@ -58,6 +58,7 @@ public class RegistrationService {
         List<AddParticipantDto> paidParticipants = sheetService.getAllPaidParticipants(dto);
         for(AddParticipantDto participant: paidParticipants){
             Event event = eventRepo.findByEventName(dto.eventName).orElse(null);
+            System.out.println("Alive here 1");
             if(event == null){
                 throw new NullPointerException("event is null");
             }
@@ -70,7 +71,6 @@ public class RegistrationService {
             List<EventGenreParticipantId> ids =  mapping.get(eventParticipant);
             mailService.sendEmailWithAttachment(dto.eventName, toAddpariticipant, mapping.get(eventParticipant));
             eventParticipantRepo.save(eventParticipant);
-
             for(EventGenreParticipantId id: ids){
                 EventGenreParticipant p = new EventGenreParticipant();
                 p.setId(id);

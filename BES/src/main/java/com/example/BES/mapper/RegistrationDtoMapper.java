@@ -15,21 +15,21 @@ public class RegistrationDtoMapper {
     public AddParticipantDto mapRow(List<String> row, 
                                         Map<String,Integer> colIndexMap, 
                                         List<Integer> categoriesCols, 
-                                        List<String> genres){
-        // ParticpantsDto dto = new ParticpantsDto();
-        AddParticipantDto dto = new AddParticipantDto();
-        dto.setParticipantName(row.get(colIndexMap.get(SheetHeader.NAME)));
-        dto.setParticipantEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));
+                                        List<String> genres){ 
+        AddParticipantDto dto = new AddParticipantDto();   
+        System.out.println(colIndexMap);         
+        dto.setParticipantName(row.get(colIndexMap.get(SheetHeader.NAME)));        
+        dto.setParticipantEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));       
         if(colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)){
             dto.setResidency(row.get(colIndexMap.get(SheetHeader.LOCAL_OVERSEAS)));
-        }
-        dto.setPaymentStatus(Boolean.parseBoolean(row.get(colIndexMap.get(SheetHeader.PAYMENT_STATUS))));
+        }        
+        dto.setPaymentStatus(Boolean.parseBoolean(row.get(colIndexMap.get(SheetHeader.PAYMENT_STATUS))));     
         List<String> categories = new ArrayList<>();
         for (Integer i : categoriesCols){
             categories = GoogleSheetParser.normalizeGenre(row.get(i).toLowerCase(), genres);
             if(!categories.isEmpty()) break;
-        }
-        dto.setGenres(categories);
+        }       
+        dto.setGenres(categories);       
         return dto;                                   
     }
 }

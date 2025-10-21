@@ -118,15 +118,14 @@ public class GoogleSheetService {
         throws IOException, MessagingException, WriterException{
         List<AddParticipantDto> paidRegisteredParticipants = new ArrayList<>();    
         Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
-        System.out.println(colIndexMap);
         List<List<String>> resultString = getsheetAllRows(dto.fileId);
-        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                        
+        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                   
         for(List<String> res : resultString){
             AddParticipantDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
             if(participants.getPaymentStatus()){
                 paidRegisteredParticipants.add(participants);
             }
-        }
+        }                   
         return paidRegisteredParticipants;
     }
 
@@ -171,12 +170,33 @@ public class GoogleSheetService {
 
     // This is because Team battle form will consist of multiple name columns
     // We only need to keep Team name
-    private List<String> removeExtraName(List<String> headers){
+    private List<String> removeExtraName(List<String> headers) {
         List<String> mutableHeaders = new ArrayList<>(headers);
-        for(int i = mutableHeaders.size()-1 ; i >= 0; i--){
-            if(mutableHeaders.get(i).toLowerCase().contains("name") && 
-            !mutableHeaders.get(i).toLowerCase().contains("team name")){
-                mutableHeaders.set(i, "ignore");
+    
+        // Step 1: check if "team name" exists
+        boolean hasTeamName = headers.stream()
+            .anyMatch(h -> h.toLowerCase().contains("team name"));
+    
+        boolean foundFirstName = false;
+    
+        // Step 2: iterate and mark extra "name" columns as "ignore"
+        for (int i = 0; i < mutableHeaders.size(); i++) {
+            String value = mutableHeaders.get(i).toLowerCase();
+    
+            if (value.contains("name")) {
+                if (hasTeamName) {
+                    // Case A: "team name" exists → ignore all other "name" columns
+                    if (!value.contains("team name")) {
+                        mutableHeaders.set(i, "ignore");
+                    }
+                } else {
+                    // Case B: no "team name" → keep first "name" only
+                    if (!foundFirstName) {
+                        foundFirstName = true; // keep this one
+                    } else {
+                        mutableHeaders.set(i, "ignore"); // ignore subsequent ones
+                    }
+                }
             }
         }
         return mutableHeaders;

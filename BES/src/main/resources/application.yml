@@ -31,7 +31,7 @@ emails:
         Thanks for registering for Pop Event.
         Please show this QR code during registration to get audition number.
     
-    "Street_Element_Vol_5":
+    "Street_Elements_Vol__5":
       subject: "Confirmation email for Street Element Vol.5"
       body: |
         Hello {name},
