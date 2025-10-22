@@ -63,26 +63,31 @@ const darkColors = ['dark:bg-gray-800', 'dark:bg-slate-800'];
             
             <div class="flex-1 flex flex-col items-center justify-end text-center mb-5">
             <div class="flex flex-wrap w-full gap-10 justify-center items-center mt-2">
-              <p class="text-xl text-gray-700 dark:text-gray-100">
+              <p class="text-xl text-gray-700 dark:text-gray-300">
                 Name:
-                <span class="text-4xl font-bold text-gray-900 dark:text-gray-100">
-                  {{ card.participantName }}
+                <span class="text-6xl font-bold text-gray-900 dark:text-gray-100">
+                  {{ card.participantName }} (#{{ capsFirstLetter(card.auditionNumber) }})
                 </span>
               </p>
-              <p class="text-xl text-gray-700 dark:text-gray-100">
+              <!-- <p class="text-3lg text-gray-700 dark:text-gray-300">
                 Number:
                 <span class="text-4xl font-bold text-gray-900 dark:text-gray-100">
                   #{{ capsFirstLetter(card.auditionNumber) }}
                 </span>
+              </p> -->
+            </div>
+        </div>
+        
+        <div class="flex-1 flex flex-col items-center justify-end text-center mb-5">
+            <p class="text-xl text-gray-700 dark:text-gray-300">
+                Score:
+                <span class="text-6xl font-bold text-gray-900 dark:text-gray-100">
+                  {{ card.score }}
+                </span>
               </p>
             </div>
         </div>
-        <div class="flex-1 flex flex-col items-center justify-end text-center mb-5">
-                <p class="mt-2 text-4xl text-gray-900 dark:text-gray-100 font-bold">
-                Score: {{ card.score }}
-                </p>
-            </div>
-        </div>
+        <hr class="h-px mb-5 bg-gray-900 border-0 dark:bg-gray-500">
         <div class="flex w-full gap-3 text-5xl font-bold mb-2 justify-center items-center">
             <!-- <div
             class="flex-1 min-h-[100px] bg-orange-300 dark:bg-transparent text-gray-700 dark:text-gray-100 text-2xl rounded flex items-center justify-center border border-orange-400
@@ -117,8 +122,8 @@ const darkColors = ['dark:bg-gray-800', 'dark:bg-slate-800'];
                 <ReusableButton
                     v-for="value in 9"
                     :key="value"
-                    :buttonName="value"
-                    class="text-3xl bg-orange-300 dark:bg-transparent rounded"
+                    :buttonName="'.'+value"
+                    class="text-2xl bg-orange-300 dark:bg-transparent rounded"
                     @onClick="()=>{card.score = updateDecimal(card.score, value)}"
                 />
                 </div>
