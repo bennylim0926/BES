@@ -1,12 +1,12 @@
 <template>
     <div class="flex flex-col items-center space-y-4 h-50 w-auto bg-orange-50 dark:bg-gray-900 p-10 rounded-lg">
       <!-- Countdown -->
-      <div v-if="timeLeft > 0">
+      <div v-if="timeLeft < selectedTime">
         <div class="text-2xl ">
-            Timer:
+            Timer ({{ selectedTime }}):
         <div
           class="text-5xl font-bold flex items-center justify-center"
-          :class="{ 'animate-last10': timeLeft <= 10 }"
+          :class="{ 'animate-last10': selectedTime - timeLeft <= 5 }"
           :key="timeLeft" 
         >
           {{ timeLeft }}
@@ -32,18 +32,18 @@
   <script setup>
   import { ref, onBeforeUnmount } from "vue";
 import ReusableButton from "./ReusableButton.vue";
-  
+  const selectedTime = ref(0)
   const timeLeft = ref(0);
   let timer = null;
   
   function startTimer(seconds) {
     if (timer) clearInterval(timer);
-  
-    timeLeft.value = seconds;
+    selectedTime.value = seconds
+    timeLeft.value = 0;
   
     timer = setInterval(() => {
-      if (timeLeft.value > 0) {
-        timeLeft.value--;
+      if (timeLeft.value < seconds) {
+        timeLeft.value++;
       } else {
         clearInterval(timer);
         timer = null;
