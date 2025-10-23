@@ -56,7 +56,6 @@ public class EventGenreParticpantService {
         EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if(egp == null){
-            System.out.println("Have id");
             egp = new EventGenreParticipant();
             egp.setId(id);
             egp.setJudge(j);

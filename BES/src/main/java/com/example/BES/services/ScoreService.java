@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.ParticipantScoreDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
+import com.example.BES.dtos.admin.DeleteScoreByEventDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
@@ -39,7 +40,6 @@ public class ScoreService {
             dto.score = s.getValue();
             scoreListDto.add(dto);
         }
-        System.out.println("hiii");
         return scoreListDto;
     }
 
@@ -60,5 +60,9 @@ public class ScoreService {
                 repo.save(score);
             }
         }
+    }
+
+    public Integer deleteScoreByEventService(DeleteScoreByEventDto dto){
+        return repo.deleteByEventIdAndGenreId(dto.getEvent_id(), dto.getGenre_id());
     }
 }
