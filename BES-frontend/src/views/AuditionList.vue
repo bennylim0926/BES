@@ -265,7 +265,6 @@ onMounted(async () => {
       </div>
     </div>
   </div>
-
 <div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
     <Timer class="sticky top-0 m-5 z-50 border-2"></Timer>
     <DynamicTable 
