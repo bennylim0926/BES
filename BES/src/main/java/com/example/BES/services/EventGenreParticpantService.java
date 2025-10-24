@@ -115,6 +115,7 @@ public class EventGenreParticpantService {
             dto.participantName = res.getParticipant().getParticipantName();
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
+            dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false; 
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();

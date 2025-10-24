@@ -6,4 +6,5 @@ public class GetEventGenreParticipantDto {
     public String genreName;
     public String judgeName;
     public Integer auditionNumber;
+    public Boolean walkin;
 }
