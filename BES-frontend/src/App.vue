@@ -144,7 +144,17 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-
+          <li v-if="role === 'ROLE_ADMIN'">
+            <router-link @click="isOpen = !isOpen" to="/battle/overlay"
+            v-slot="{ isExactActive }">
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    BattleOverlay
+                  </span>
+            </router-link>
+          </li>
           <li v-if="isAuthenticated === false">
             <router-link @click="isOpen = !isOpen" to="/login"
             v-slot="{ isExactActive }">
@@ -156,6 +166,7 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
+          
           <li v-if="isAuthenticated === true">
             <a @click="openModal('Warning','Are you sure you want to Logout?')">
                   <span class="block py-2 px-3 rounded-sm 

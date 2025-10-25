@@ -306,3 +306,29 @@ export const getParticipantScore = async(eventName) =>{
         console.log(e)
     }
 }
+
+export const getBattleJudges = async() =>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/judges`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+      return await res.json()
+    }
+  }catch(e){
+    console.log(e)
+  }
+}
+
+export const getCurrentBattlePair = async()=>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/battle-pair`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+      return await res.json()
+    }
+  }catch(e){
+
+  }
+}

@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.battle.SetBattleModeDto;
@@ -19,6 +21,9 @@ import com.example.BES.models.Judge;
 public class BattleService {
     @Autowired
     JudgeService judgeService;
+
+    @Autowired
+    SimpMessagingTemplate messagingTemplate;
 
     // top 32, top 16 or 7ts
     private List<String> modes = Arrays.asList("Top32", "Top16", "7-to-Smoke");
@@ -46,29 +51,49 @@ public class BattleService {
         getCurrentPair().leftBattler.setScore(0);
         getCurrentPair().rightBattler.setName(dto.getRightBattler());
         getCurrentPair().rightBattler.setScore(0);
+        messagingTemplate.convertAndSend("/topic/battle/battle-pair",
+            Map.of(
+                "left", currentPair.getLeftBattler().getName(),
+                "leftScore", currentPair.getLeftBattler().getScore(),
+                "right", currentPair.getRightBattler().getName(),
+                "rightScore", currentPair.getRightBattler().getScore()
+            ));
     }
 
     public Integer setScoreService(){
+        // Broadcast the score here
+        // This is where we reveal the judge decision on the screen
+        // After that we add the point
         List<Integer> score = new ArrayList<>();
+        Integer res = -100;
         if(judges.size() == 0){
-            return -2;
+            res = -2;
         }
         for (BattleJudge judge : judges) {
             score.add(judge.getVote());
         }
         if(Collections.frequency(score, 0) == Collections.frequency(score, 1)){
-            return -1;
+            res = -1;
         }else if(Collections.frequency(score, 0) > Collections.frequency(score, 1)){
             currentPair.getLeftBattler().setScore(currentPair.leftBattler.getScore() + 1);
-            return 0;
+            res = 0;
         }else{
             currentPair.getRightBattler().setScore(currentPair.rightBattler.getScore() + 1);
-            return 1;
+            res = 1;
         }
+        messagingTemplate.convertAndSend("/topic/battle/score",
+            Map.of(
+                "message", res,
+                "left", currentPair.getLeftBattler().getScore(),
+                "right", currentPair.getRightBattler().getScore()
+            ));
+        return res;
     }
 
     public Integer setBattleJudgeService(SetJudgeDto dto){
+        // Need to broadcast this as well, before the battle starts the judge decision overlay will be shown to verify the name
         Judge judge = judgeService.getJudgeById(dto.getId());
+        Integer code = -50;
         if(judge != null){
             Boolean exists = judges.stream().anyMatch(j -> j.getName().equals(judge.getName()));
             if(exists) return 0;
@@ -77,22 +102,38 @@ public class BattleService {
             battleJudge.setVote(-1);
             battleJudge.setId(dto.getId());
             judges.add(battleJudge);
-            return dto.getId().intValue();
+            code = dto.getId().intValue();
+        }else{
+            return -1;
         }
-        return -1;
+        // send all three judges to update
+        messagingTemplate.convertAndSend("/topic/battle/judges",
+            Map.of(
+                "judges", judges
+            ));
+        return code;
     }
 
+    // Might need to have an option to remove judge
     public Integer setVoteService(SetVoteDto dto){
+        // This need to broadcast as well
+        // To reflect on the overlay screen
+        Integer code = -50;
         Optional<BattleJudge> battleJude = judges.stream()
             .filter(j -> j.getId().equals(dto.getId())).findFirst();
-        System.out.println(dto.getId());
-        System.out.println(battleJude.isPresent());
         if(battleJude.isPresent()){
             battleJude.get().setVote(dto.getVote());
         }else{
             return -2;
         }
-        return dto.getVote();
+        code = dto.getVote();
+        // need to include the judge id
+        messagingTemplate.convertAndSend(String.format("/topic/battle/vote/%d", dto.getId()),
+            Map.of(
+                "vote", code,
+                "judge", dto.getId()
+            ));
+        return code;
     }
 
     public String getSelectedMode() {

@@ -8,6 +8,8 @@ import AuditionList from "@/views/AuditionList.vue";
 import Score from "@/views/Score.vue";
 import Login from "@/views/Login.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
+import { component } from "vue-fullscreen";
+import BattleOverlay from "@/views/BattleOverlay.vue";
 
 const routes = [
     {
@@ -61,6 +63,11 @@ const routes = [
         path: '/403',
         name: 'Forbidden',
         component: ForbiddenPage    
+    },
+    {
+        path: '/battle/overlay',
+        name: "StreamOverlay",
+        component: BattleOverlay
     }
 ]
 
