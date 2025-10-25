@@ -16,8 +16,7 @@ public class RegistrationDtoMapper {
                                         Map<String,Integer> colIndexMap, 
                                         List<Integer> categoriesCols, 
                                         List<String> genres){ 
-        AddParticipantDto dto = new AddParticipantDto();   
-        System.out.println(colIndexMap);         
+        AddParticipantDto dto = new AddParticipantDto();         
         dto.setParticipantName(row.get(colIndexMap.get(SheetHeader.NAME)));        
         dto.setParticipantEmail(row.get(colIndexMap.get(SheetHeader.EMAIL)));       
         if(colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)){

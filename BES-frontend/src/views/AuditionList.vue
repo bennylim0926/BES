@@ -25,7 +25,6 @@ const participants = ref([])
 const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
-// const showCreateNewEntry = ref(false)
 const showMiniMenu = ref(false)
 
 const dynamicRole = async ()=>{
@@ -96,6 +95,7 @@ const filteredParticipantsForEmcee = computed({
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
+    participants.value = []
     const res = await getRegisteredParticipantsByEvent(newVal)
     participants.value = res.map((r,i)=>({
         ...r,
@@ -265,7 +265,6 @@ onMounted(async () => {
       </div>
     </div>
   </div>
-
 <div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
     <Timer class="sticky top-0 m-5 z-50 border-2"></Timer>
     <DynamicTable 

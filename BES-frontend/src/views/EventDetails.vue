@@ -3,7 +3,7 @@ import {ref, onMounted, reactive, watch, computed} from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize} from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent} from '@/utils/api';
 import ReusableButton from '@/components/ReusableButton.vue';
 import { filterObject } from '@/utils/utils';
 
@@ -14,7 +14,8 @@ const inputs = ref([""])
 const genreOptions = ref(null)
 const tableExist = ref(true)
 
-const verifiedParticipants = ref([])
+const verifiedFormParticipants = ref([])
+const verifiedDbParticipants = ref([])
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
 const props = defineProps({
@@ -26,6 +27,19 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const createTable = reactive({
     genres: []
 })
+
+const openCategoryDetails = (genre) =>{
+    const res = getUnregistered(genre)
+    showModal.value = true
+    if(res.unregistered.length === 0){
+        modalTitle.value = "All participants registered"
+        modalMessage.value = ""
+    }
+    else{
+        modalTitle.value = "Unregistered participants"
+        modalMessage.value = res.unregistered.map(p => p.participantName).join(", ")
+    }
+}
 
 const showModal = ref(false)
 const handleAccept = () => {
@@ -50,8 +64,83 @@ const filteredBreakdown = computed(()=>{
     return filterObject(participantsNumBreakdown.value, value => value>0)
 })
 
+const totalWalkIn = computed(()=>{
+    const uniqueParticipants = [
+    ...new Map(
+      verifiedDbParticipants.value.map(p => [p.participantName, p])
+    ).values()
+    ]
+    return uniqueParticipants.filter(p => p.walkin == true).length
+})
+
+const totalDbRegistered = computed(()=>{
+    const uniqueParticipants = [
+    ...new Map(
+      verifiedDbParticipants.value.map(p => [p.participantName, p])
+    ).values()
+  ]
+  // Step 2: Filter by those who have an auditionNumber
+  return uniqueParticipants.filter(p => p.auditionNumber !== null)
+})
+
 const sumBreakdown = computed(()=>{
-    return [verifiedParticipants.value.length ,totalParticipants.value]
+    return [verifiedFormParticipants.value.length ,totalParticipants.value]
+})
+
+function normalizeGenreName(name) {
+    const normalized = name.trim().toLowerCase().replace(/\s+/g, '');
+    if (normalized.includes('7tosmoke')) return 'smoke';
+    return normalized
+  
+}
+
+const getUnregistered = (genre) =>{
+    // const g = normalizeGenreName(genre)
+    const participants = 
+        verifiedDbParticipants.value
+        .map(
+            p => ({
+                ...p,
+                genreName: normalizeGenreName(p.genreName)
+            })
+        )
+    return {
+        "registered": participants
+                        .filter(p => p.genreName === genre && p.auditionNumber !== null && p.walkin === false)
+                        .sort((a,b)=> a.auditionNumber - b.auditionNumber),
+        "unregistered": participants.filter(p => p.genreName === genre && p.auditionNumber === null && p.walkin === false)
+
+        
+    }
+}
+
+const completeBreakdown = computed(()=>{
+    const genreStats = {};
+
+    for (const item of verifiedDbParticipants.value) {
+        if(item.walkin) continue
+        const genre = normalizeGenreName(item.genreName);
+        if (!genreStats[genre]) {
+            genreStats[genre] = { registered: 0, unregistered: 0 };
+        }
+
+        if (item.auditionNumber !== null) {
+            genreStats[genre].registered++;
+        } else {
+            genreStats[genre].unregistered++;
+        }
+    }
+
+    const result = Object.entries(filteredBreakdown.value).map(([genre, total]) => {
+    const stats = genreStats[genre] || { registered: 0, unregistered: 0 };
+    return {
+        genre,
+        total,
+        registered: stats.registered,
+        unregistered: stats.unregistered
+    };
+    });
+    return result
 })
 
 const onSubmit = async () =>{
@@ -85,7 +174,7 @@ const onSubmit = async () =>{
 const refreshParticipant = async() =>{
     const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
     if(createEventResponse.ok){
-        verifiedParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+        verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
         createEventResponse.json().then(result=>[
             openModal(createEventResponse.status , result)
         ])
@@ -101,7 +190,7 @@ const tableConfig = computed(()=>{
         { key: 'name', label: 'Name', type: 'text', readonly: true },
         { key: 'genre', label: 'Genre', type: 'text', readonly: true }
     ]
-    const hasResidency = verifiedParticipants.value.some(p => p.residency)
+    const hasResidency = verifiedFormParticipants.value.some(p => p.residency)
     if(hasResidency){
         base.push({ key: 'residency', label: 'Residency', type: 'text', readonly: true })
     }
@@ -120,7 +209,8 @@ onMounted( async () =>{
     tableExist.value = checkTableExist(eventName, tableExist)
     fileId.value = await getFileId(props.folderID)
     genreOptions.value = await fetchAllGenres()
-    verifiedParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+    verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+    verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
 })
 </script>
 
@@ -134,13 +224,26 @@ onMounted( async () =>{
     <h1 class="flex justify-center gap-2 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-3xl lg:text-4xl dark:text-white mb-3">{{ props.eventName }}</h1>
     <div class="mx-10">
         <h1 class="flex justify-center gap-2 text-xl font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-xl dark:text-white mb-3">
-            Email Received: {{ sumBreakdown[0] }}/{{ sumBreakdown[1] }}
+            <!-- Email Received: {{ sumBreakdown[0] }}/{{ sumBreakdown[1] }} -->
+            Total Participants: {{ totalParticipants + totalWalkIn}}
+            <br></br>
+            Total Form Sign Up: {{ totalParticipants }}
+            <br></br>
+            Total Walk In: {{ totalWalkIn }}
+            <br></br>
+            Total Form Sign Up (Verified): {{ verifiedFormParticipants.length - totalWalkIn}}
+            <br></br>
+            Total Registered (With Audition Number): {{ totalDbRegistered.length }}
+            <br></br>
         </h1>
     <DynamicTable
-        v-model:tableValue="filteredBreakdown"
+        @onClick="openCategoryDetails"
+        v-model:tableValue="completeBreakdown"
         :table-config="[
-            { key: 'key', label: 'Genre', type: 'text', readonly: true },
-            { key: 'value', label: 'Count', type: 'number', readonly:true }
+            { key: 'genre', label: 'Genre', type: 'link'},
+            { key: 'total', label: 'Total Form Sign Up', type: 'number', readonly:true },
+            { key: 'unregistered', label: 'Unregistered', type: 'number', readonly:true },
+            { key: 'registered', label: 'Registered', type: 'number', readonly:true }
         ]"
         />
     </div>
@@ -148,14 +251,14 @@ onMounted( async () =>{
         <div class="flex justify-center">
             <ReusableButton @onClick="refreshParticipant" buttonName="Refresh"></ReusableButton>
         </div>
-        <div class="mx-10">
+        <!-- <div class="mx-10">
         <DynamicTable
-        v-if="verifiedParticipants.length > 0 && tableExist" 
-        v-model:tableValue="verifiedParticipants"
+        v-if="verifiedFormParticipants.length > 0 && tableExist" 
+        v-model:tableValue="verifiedFormParticipants"
         :table-config="tableConfig"
         />
         <div v-else class="flex justify-center"> Please check your response form and mark it if the participant paid</div>
-    </div>
+    </div> -->
     </div>
     <div v-else class="flex items-center gap-2">
         <form class="mx-auto relative overflow-x-auto " @submit.prevent="onSubmit">        

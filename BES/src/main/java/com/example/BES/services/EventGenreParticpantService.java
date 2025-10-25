@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -55,7 +56,6 @@ public class EventGenreParticpantService {
         EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if(egp == null){
-            System.out.println("Have id");
             egp = new EventGenreParticipant();
             egp.setId(id);
             egp.setJudge(j);
@@ -86,7 +86,7 @@ public class EventGenreParticpantService {
            
             List<Integer> randomPool = generateListFromOneToN(totalParticipantInGenre.size());
             randomPool.removeAll(totalParticipantInGenre);
-            auditionNumber = randomPool.get(new Random().nextInt(randomPool.size()));
+            auditionNumber = randomPool.get(ThreadLocalRandom.current().nextInt(randomPool.size()));
             participantInEventGenre.setAuditionNumber(auditionNumber);
             repo.save(participantInEventGenre);
             messagingTemplate.convertAndSend("/topic/audition/",
@@ -115,6 +115,7 @@ public class EventGenreParticpantService {
             dto.participantName = res.getParticipant().getParticipantName();
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
+            dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false; 
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();

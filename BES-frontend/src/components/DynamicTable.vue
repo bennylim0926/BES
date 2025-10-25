@@ -103,7 +103,9 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
               >
                 <!-- Read-only -->
                 <template v-if="col.readonly">
-                  {{ row[col.key] ? capsFirst(row[col.key]) : "-" }}
+                  {{ row[col.key] !== null && row[col.key] !== undefined && row[col.key] !== '' 
+                    ? capsFirst(row[col.key]) 
+                    : '-' }}
                 </template>
 
                 <template v-else-if="col.type === 'link'">
