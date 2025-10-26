@@ -332,3 +332,22 @@ export const getCurrentBattlePair = async()=>{
 
   }
 }
+
+export const battleJudgeVote = async(id, vote) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/vote`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+        vote: Number(vote)
+      })
+    })
+  }catch(e){
+
+  }
+}

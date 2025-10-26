@@ -10,6 +10,7 @@ import Login from "@/views/Login.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
 import { component } from "vue-fullscreen";
 import BattleOverlay from "@/views/BattleOverlay.vue";
+import BattleJudge from "@/views/BattleJudge.vue";
 
 const routes = [
     {
@@ -68,6 +69,11 @@ const routes = [
         path: '/battle/overlay',
         name: "StreamOverlay",
         component: BattleOverlay
+    },
+    {
+        path: '/battle/judge',
+        name: "Battle Judge",
+        component: BattleJudge
     }
 ]
 

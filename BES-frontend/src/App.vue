@@ -50,7 +50,7 @@ onMounted( async () =>{
 
 <template>
   <nav class="bg-white border-gray-200 dark:bg-gray-900">
-    <div v-if="route.fullPath != '/battle/overlay' " class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
+    <div v-if="route.fullPath != '/battle/overlay' && route.fullPath != '/battle/judge'" class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
       <!-- Logo -->
       <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
         BES
