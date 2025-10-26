@@ -3,9 +3,10 @@ import { computed, onMounted, ref } from "vue";
 import { logout, whoami } from "./utils/api";
 import { useAuthStore } from "./utils/auth";
 import ActionDoneModal from "./views/ActionDoneModal.vue";
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const openModal = (title, message) => {
     modalTitle.value = title
     modalMessage.value = message
@@ -49,10 +50,10 @@ onMounted( async () =>{
 
 <template>
   <nav class="bg-white border-gray-200 dark:bg-gray-900">
-    <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
+    <div v-if="route.fullPath != '/battle/overlay' " class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
       <!-- Logo -->
       <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
-        BES 
+        BES
       </router-link>
 
       <!-- Mobile Hamburger -->
@@ -151,7 +152,7 @@ onMounted( async () =>{
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
-                    BattleOverlay
+                    Battle Overlay
                   </span>
             </router-link>
           </li>

@@ -51,12 +51,10 @@ const updateScore = (msg) => {
     leftScore.value = msg.left
 }
 
-const updateJudgeVote = (msg) => {
-    console.log(msg)
+const updateJudgeVote = (msg) => {  
     const updatedJudges = battleJudges.value.judges.map(j =>
         j.id === msg.judge ? { ...j, vote: msg.vote } : j
     );
-    console.log(updatedJudges)
     battleJudges.value = {
         ...battleJudges.value,
         judges: updatedJudges
@@ -98,21 +96,47 @@ onUnmounted(() => {
 
 
 <template>
-<div class="font-bold text-gray-900 text-3xl">
-Right side: {{ rightName }}
-Left side: {{ leftName }}
-<br></br>
+  <div class="flex justify-center">
+  <div
+    class="flex justify-center items-center gap-8 mb-8 
+           bg-white/80 backdrop-blur-sm px-8 py-4 rounded-2xl shadow-lg"
+  >
+    <div
+      v-for="(j, index) in battleJudges?.judges || []"
+      :key="index"
+      class="flex flex-col items-center"
+    >
+      <!-- Judge Name -->
+      <div class="font-bold text-2xl text-gray-900">
+        {{ j.name }}
+      </div>
 
-Right Score: {{ rightScore }}
-Left Score: {{ leftScore }}
-<br></br>
-
-<!-- Vote: {{ battleJudges }} -->
-
-<br></br>
-{{ judgeDecision }}
+      <!-- Colored Indicator -->
+      <div
+        class="w-8 h-2 rounded-full mt-1"
+        :class="{
+          'bg-blue-500': j.vote === 1,
+          'bg-red-500': j.vote === 0,
+          'bg-gray-400': j.vote === -1 || j.vote === null
+        }"
+      ></div>
+    </div>
+  </div>
 </div>
 
+  <!-- The rest of your existing bottom section -->
+  <div class="font-bold text-gray-900 text-3xl">
+    <div class="relative min-h-[20vh]">
+      <!-- Bottom Left -->
+      <div class="fixed bottom-8 left-6 bg-red-500 text-white p-3 rounded-xl shadow-lg">
+        {{ leftName }} ({{ leftScore }})
+      </div>
 
-
+      <!-- Bottom Right -->
+      <div class="fixed bottom-8 right-6 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
+        {{ rightName }} ({{ rightScore }})
+      </div>
+    </div>
+  </div>
 </template>
+
