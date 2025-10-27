@@ -107,13 +107,13 @@ onUnmounted(() => {
       class="flex flex-col items-center"
     >
       <!-- Judge Name -->
-      <div class="font-bold text-2xl text-gray-900">
+      <div class="font-anton font-bold text-2xl text-gray-900">
         {{ j.name }}
       </div>
 
       <!-- Colored Indicator -->
       <div
-        class="w-8 h-2 rounded-full mt-1"
+        class="w-15 h-4 rounded-full mt-1"
         :class="{
           'bg-blue-500': j.vote === 1,
           'bg-red-500': j.vote === 0,
@@ -128,12 +128,12 @@ onUnmounted(() => {
   <div class="font-bold text-gray-900 text-3xl">
     <div class="relative min-h-[20vh]">
       <!-- Bottom Left -->
-      <div class="fixed bottom-8 left-6 bg-red-500 text-white p-3 rounded-xl shadow-lg">
+      <div class="font-anton fixed bottom-8 left-6 bg-red-500 text-white p-3 rounded-xl shadow-lg">
         {{ leftName }} ({{ leftScore }})
       </div>
 
       <!-- Bottom Right -->
-      <div class="fixed bottom-8 right-6 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
+      <div class="font-anton fixed bottom-8 right-6 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
         {{ rightName }} ({{ rightScore }})
       </div>
     </div>

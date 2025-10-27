@@ -351,3 +351,72 @@ export const battleJudgeVote = async(id, vote) =>{
 
   }
 }
+
+export const addBattleJudge = async(id) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/judge`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+      })
+    })
+  }catch(e){
+
+  }
+}
+
+export const removeBattleJudge = async(id) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/judge`,{
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+      })
+    })
+  }catch(e){
+
+  }
+}
+export const setBattlePair = async(leftBattler, rightBattler) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/battle-pair`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        leftBattler: leftBattler,
+        rightBattler: rightBattler
+      })
+    })
+  }catch(e){
+
+  }
+}
+
+export const setBattleScore = async() =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/score`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+  }catch(e){
+
+  }
+}

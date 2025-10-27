@@ -1,5 +1,28 @@
 /* color palette from <https://github.com/vuejs/theme> */
 @import "tailwindcss";
+
+@font-face {
+  font-family: 'EagleHorizonP';
+  src: url('./fonts/EagleHorizonP.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* anton-sc-regular - latin */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: 'Anton SC';
+  font-style: normal;
+  font-weight: 400;
+  src: url('./fonts/anton-sc-v1-latin-regular.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+@theme {
+  --font-eagle: "EagleHorizonP", "sans-serif";
+  --font-anton: "Anton SC", "sans-serif";
+}
+
+
 :root {
   --vt-c-white: #ffffff;
   --vt-c-white-soft: #f8f8f8;
@@ -79,6 +102,8 @@ body {
     'Fira Sans',
     'Droid Sans',
     'Helvetica Neue',
+    'EagleHorizonP',
+    'Anton SC',
     sans-serif;
   font-size: 15px;
   text-rendering: optimizeLegibility;

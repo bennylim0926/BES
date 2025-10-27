@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -92,13 +93,15 @@ public class BattleController {
             );
         }else if(code == -1){
             return ResponseEntity.ok(
-                Map.of("message", "Its a tie")
+                Map.of("message", "Its a tie",
+                "winner", -1)
             );
         }
         else if(code == 0){
             return ResponseEntity.ok(
                 Map.of(
                     "message", "Left side get one point",
+                    "winner", 0,
                     "current score", battleService.getCurrentPair().getLeftBattler().getScore()
                 )
             );
@@ -107,6 +110,7 @@ public class BattleController {
             return ResponseEntity.ok(
                 Map.of(
                     "message", "Right side get one point",
+                    "winner", 1,
                     "current score", battleService.getCurrentPair().getRightBattler().getScore())
             );
         }
@@ -116,6 +120,13 @@ public class BattleController {
     public ResponseEntity<?> getAllBattleJudges(){
         return ResponseEntity.ok(Map.of(
             "judges",battleService.getJudges()
+        ));
+    }
+    
+    @DeleteMapping("/judge")
+    public ResponseEntity<?> removeBattleJudge(@RequestBody SetJudgeDto dto){
+        return ResponseEntity.ok(Map.of(
+            "judge removed",battleService.removeBattleJudgeService(dto)
         ));
     }
 

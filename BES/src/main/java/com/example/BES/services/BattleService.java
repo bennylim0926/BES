@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,6 +89,15 @@ public class BattleService {
                 "right", currentPair.getRightBattler().getScore()
             ));
         return res;
+    }
+
+    public Integer removeBattleJudgeService(SetJudgeDto dto){
+        judges.removeIf(judge -> Objects.equals(judge.getId(), dto.getId()));
+        messagingTemplate.convertAndSend("/topic/battle/judges",
+            Map.of(
+                "judges", judges
+            ));
+        return dto.getId().intValue();
     }
 
     public Integer setBattleJudgeService(SetJudgeDto dto){

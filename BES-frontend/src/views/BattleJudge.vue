@@ -13,7 +13,8 @@
         ]"
         @click="handleClick(0)"
       >
-        <span class="text-white text-4xl font-bold">Left</span>
+        <!-- <span class="text-white text-4xl font-bold">Left</span> -->
+        <img :src="leftHand" alt="left Hand logo" class="w-128 h-128 rotate-315" />
       </div>
   
       <!-- Middle (Gray) -->
@@ -26,7 +27,8 @@
         ]"
         @click="handleClick(-1)"
       >
-        <span class="text-white text-4xl font-bold">Middle</span>
+        <!-- <span class="text-white text-4xl font-bold">Tie</span> -->
+        <img :src="tie" alt="Tie logo" class="w-128 h-128" />
       </div>
   
       <!-- Right (Blue) -->
@@ -39,12 +41,16 @@
         ]"
         @click="handleClick(1)"
       >
-        <span class="text-white text-4xl font-bold">Right</span>
+        <!-- <span class="text-white text-4xl font-bold">Right</span> -->
+        <img :src="rightHand" alt="right Hand logo" class="w-128 h-128 rotate-45" />
       </div>
     </div>
   </template>
   
   <script setup>
+  import leftHand from '@/assets/lefthand.png'
+  import rightHand from '@/assets/righthand.png'
+  import tie from '@/assets/no.png'
   import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { battleJudgeVote, getBattleJudges } from '@/utils/api'
 import { computed, onMounted, ref } from 'vue'

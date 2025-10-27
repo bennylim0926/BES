@@ -11,6 +11,7 @@ import ForbiddenPage from "@/components/ForbiddenPage.vue";
 import { component } from "vue-fullscreen";
 import BattleOverlay from "@/views/BattleOverlay.vue";
 import BattleJudge from "@/views/BattleJudge.vue";
+import BattleControl from "@/views/BattleControl.vue";
 
 const routes = [
     {
@@ -74,6 +75,11 @@ const routes = [
         path: '/battle/judge',
         name: "Battle Judge",
         component: BattleJudge
+    },
+    {
+        path: '/battle/control',
+        name: "Battle Control",
+        component: BattleControl
     }
 ]
 
