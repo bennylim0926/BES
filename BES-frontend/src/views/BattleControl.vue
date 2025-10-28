@@ -18,16 +18,23 @@ const battleJudges = ref([])
 const currentBattle = ref([])
 const currentWinner = ref(-2)
 
+const currentRound = ref(0)
+const currentTop = ref('')
+
 const winnerAnnouncement = computed(()=>{
     if(currentWinner.value === -1){
         return "Its a tie"
     }else if(currentWinner.value === 0){
-        return `${currentBattlePair?.value[currentWinner.value]} gets a points`
+        setWinner(currentTop.value, currentRound.value, 0)
+        return `${currentBattlePair?.value[currentWinner.value]} takes it`
     }
     else if(currentWinner.value === 1){
-        return `${currentBattlePair?.value[currentWinner.value]} gets a points`
+        setWinner(currentTop.value, currentRound.value, 1)
+        return `${currentBattlePair?.value[currentWinner.value]} takes it`
     }
 })
+
+
 
 const previousBattlePair = computed(()=>{
     if(currentBattle.value.length !== 0 && currentBattle?.value[0]>0){
@@ -53,11 +60,13 @@ const currentBattlePair = computed(()=>{
     }
 })
 
-const initiateBattlePair = async(pairList) =>{
+const initiateBattlePair = async(top, pairList) =>{
     currentBattle.value = [0, pairList]
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
     await setBattlePair(left, right)
+    currentRound.value = 0
+    currentTop.value = top
 }
 
 const prevPair = async () =>{
@@ -67,6 +76,7 @@ const prevPair = async () =>{
         const right = currentBattle?.value[1][currentBattle?.value[0]][1]
         await setBattlePair(left, right)
         currentWinner.value = -2;
+        currentRound.value -= 1
     }
 }
 
@@ -77,6 +87,7 @@ const nextPair = async () =>{
         const right = currentBattle?.value[1][currentBattle?.value[0]][1]
         await setBattlePair(left, right)
         currentWinner.value = -2;
+        currentRound.value += 1
     }
 }
 
@@ -225,6 +236,7 @@ onMounted(async ()=>{
 </script>
 
 <template>
+    <!-- {{ currentRound }} -->
     <div class="flex justify-center items-center">
         <form class="grid grid-cols-3 gap-2">
             <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
@@ -232,6 +244,7 @@ onMounted(async ()=>{
             <ReusableDropdown v-model="topSize" labelId="Format" :options="sizes" />
         </form>
     </div>
+    {{ currentRound }}
     <div class="flex justify-center items-end mt-2">
       <div class="grid grid-cols-2 gap-2 items-end ">
         <ReusableDropdown  v-model="filteredJudge" labelId="Judge" :options="allJudgeOptions" />
@@ -314,7 +327,7 @@ onMounted(async ()=>{
           />
         </div>
       </div>
-      <ReusableButton @onClick="()=>{initiateBattlePair(rounds[`Top${size}`])}" buttonName="Start Round"></ReusableButton>
+      <ReusableButton @onClick="()=>{initiateBattlePair(`Top${size}`, rounds[`Top${size}`])}" buttonName="Start Round"></ReusableButton>
     </div>
   </div>
 

@@ -14,7 +14,7 @@
         @click="handleClick(0)"
       >
         <!-- <span class="text-white text-4xl font-bold">Left</span> -->
-        <img :src="leftHand" alt="left Hand logo" class="w-128 h-128 rotate-315" />
+        <img :src="leftHand" alt="left Hand logo" class="w-80 h-80 rotate-315" />
       </div>
   
       <!-- Middle (Gray) -->
@@ -28,7 +28,7 @@
         @click="handleClick(-1)"
       >
         <!-- <span class="text-white text-4xl font-bold">Tie</span> -->
-        <img :src="tie" alt="Tie logo" class="w-128 h-128" />
+        <img :src="tie" alt="Tie logo" class="w-80 h-80" />
       </div>
   
       <!-- Right (Blue) -->
@@ -42,7 +42,7 @@
         @click="handleClick(1)"
       >
         <!-- <span class="text-white text-4xl font-bold">Right</span> -->
-        <img :src="rightHand" alt="right Hand logo" class="w-128 h-128 rotate-45" />
+        <img :src="rightHand" alt="right Hand logo" class="w-80 h-80 rotate-45" />
       </div>
     </div>
   </template>
