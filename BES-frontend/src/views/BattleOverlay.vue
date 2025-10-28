@@ -1,8 +1,7 @@
 <script setup>
 import { getBattleJudges, getCurrentBattlePair } from '@/utils/api';
-import { checkAuthStatus } from '@/utils/auth';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 
 let client = createClient()
 const subscribedTopics = new Set();
@@ -34,17 +33,6 @@ const updateBattleJudge = (msg) => {
     }
   });
 };
-
-const judgeDecision = computed(() => {
-  const judges = battleJudges.value?.judges ?? [];
-  return judges
-    .map(j => {
-      const colorName =
-        j.vote === -1 ? "grey" : color.value[j.vote] ?? "grey";
-      return `${j.name}(${colorName})`;
-    })
-    .join(", ");
-});
 
 const updateScore = (msg) => {
     rightScore.value = msg.right
@@ -107,13 +95,13 @@ onUnmounted(() => {
       class="flex flex-col items-center"
     >
       <!-- Judge Name -->
-      <div class="font-anton font-bold text-2xl text-gray-900">
+      <div class="font-anton font-bold text-4xl text-gray-900">
         {{ j.name }}
       </div>
 
       <!-- Colored Indicator -->
       <div
-        class="w-15 h-4 rounded-full mt-1"
+        class="w-20 h-6 rounded mt-1"
         :class="{
           'bg-blue-500': j.vote === 1,
           'bg-red-500': j.vote === 0,
@@ -125,16 +113,23 @@ onUnmounted(() => {
 </div>
 
   <!-- The rest of your existing bottom section -->
-  <div class="font-bold text-gray-900 text-3xl">
-    <div class="relative min-h-[20vh]">
+  <div class="font-bold text-gray-900 text-7xl">
+    
+    <div class="relative min-h-[60vh]">
       <!-- Bottom Left -->
-      <div class="font-anton fixed bottom-8 left-6 bg-red-500 text-white p-3 rounded-xl shadow-lg">
+      <!-- <img :src=imge alt="example" class="fixed -left-30"></img> -->
+      <div class="font-anton min-w-[55vh] fixed bottom-15 left-12 bg-red-500 text-white p-3 rounded-xl shadow-lg">
+        <div class="flex items-center justify-center">
         {{ leftName }} ({{ leftScore }})
+      </div>
       </div>
 
       <!-- Bottom Right -->
-      <div class="font-anton fixed bottom-8 right-6 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
+      <!-- <img :src=imgee alt="example" class="fixed -right-30"></img> -->
+      <div class="font-anton min-w-[55vh] fixed bottom-15 right-12 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
+        <div class="flex items-center justify-center">
         {{ rightName }} ({{ rightScore }})
+      </div>
       </div>
     </div>
   </div>

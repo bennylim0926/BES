@@ -236,7 +236,6 @@ onMounted(async ()=>{
 </script>
 
 <template>
-    <!-- {{ currentRound }} -->
     <div class="flex justify-center items-center">
         <form class="grid grid-cols-3 gap-2">
             <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
@@ -244,7 +243,6 @@ onMounted(async ()=>{
             <ReusableDropdown v-model="topSize" labelId="Format" :options="sizes" />
         </form>
     </div>
-    {{ currentRound }}
     <div class="flex justify-center items-end mt-2">
       <div class="grid grid-cols-2 gap-2 items-end ">
         <ReusableDropdown  v-model="filteredJudge" labelId="Judge" :options="allJudgeOptions" />

@@ -7,11 +7,11 @@
       <div
         class="flex-1 flex items-center justify-center transition-all duration-500 cursor-pointer"
         :class="[
-          active === 0
-            ? 'bg-red-500 scale-105 brightness-110'
-            : 'bg-red-700 scale-95 brightness-75'
+          active === 1
+            ? 'bg-blue-500 scale-105 brightness-110'
+            : 'bg-blue-700 scale-95 brightness-75'
         ]"
-        @click="handleClick(0)"
+        @click="handleClick(1)"
       >
         <!-- <span class="text-white text-4xl font-bold">Left</span> -->
         <img :src="leftHand" alt="left Hand logo" class="w-80 h-80 rotate-315" />
@@ -28,18 +28,18 @@
         @click="handleClick(-1)"
       >
         <!-- <span class="text-white text-4xl font-bold">Tie</span> -->
-        <img :src="tie" alt="Tie logo" class="w-80 h-80" />
+        <img :src="tie" alt="Tie logo" class="w-60 h-60" />
       </div>
   
       <!-- Right (Blue) -->
       <div
         class="flex-1 flex items-center justify-center transition-all duration-500 cursor-pointer"
         :class="[
-          active === 1
-            ? 'bg-blue-500 scale-105 brightness-110'
-            : 'bg-blue-700 scale-95 brightness-75'
+          active === 0
+            ? 'bg-red-500 scale-105 brightness-110'
+            : 'bg-red-700 scale-95 brightness-75'
         ]"
-        @click="handleClick(1)"
+        @click="handleClick(0)"
       >
         <!-- <span class="text-white text-4xl font-bold">Right</span> -->
         <img :src="rightHand" alt="right Hand logo" class="w-80 h-80 rotate-45" />
