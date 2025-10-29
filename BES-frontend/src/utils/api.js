@@ -1,3 +1,5 @@
+import { file } from "@primeuix/themes/aura/fileupload"
+
 // const domain = "http://localhost:5050"
 const domain = ""
 
@@ -420,3 +422,41 @@ export const setBattleScore = async() =>{
 
   }
 }
+
+export const uploadImage = async(file)=>{
+  try{
+    const formData = new FormData();
+    formData.append("file", file);
+    return await fetch(`${domain}/api/v1/battle/upload`,{
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    })
+  }catch(e){
+
+  }
+}
+
+export const getImage = async (filename) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/uploads/${filename}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch image: ${res.status}`);
+    }
+
+    // Convert the image stream into a blob
+    const blob = await res.blob();
+
+    // Create a temporary local URL for use in <img>
+    const imageUrl = URL.createObjectURL(blob);
+
+    return imageUrl;
+  } catch (err) {
+    console.error('Error fetching image:', err);
+    return null;
+  }
+};

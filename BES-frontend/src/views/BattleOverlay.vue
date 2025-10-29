@@ -1,7 +1,10 @@
 <script setup>
-import { getBattleJudges, getCurrentBattlePair } from '@/utils/api';
+import { getBattleJudges, getCurrentBattlePair, getImage } from '@/utils/api';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
 import { onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
+
+const imageLeft = ref(null)
+const imageRight = ref(null)
 
 let client = createClient()
 const subscribedTopics = new Set();
@@ -15,11 +18,15 @@ const battleJudges = ref([])
 
 const color = ref(["blue", "red", "grey"]);
 
-const updateBattlePair = (msg)=>{
-    rightName.value = msg.right;
-    rightScore.value = msg.rightScore;
-    leftName.value = msg.left;
-    leftScore.value = msg.leftScore;
+const updateBattlePair = async (msg)=>{
+  // animation here
+  // hide the judge decision
+  rightName.value = msg.right;
+  rightScore.value = msg.rightScore;
+  leftName.value = msg.left;
+  leftScore.value = msg.leftScore;
+  imageLeft.value = await getImage(`${leftName.value}.png`)
+  imageRight.value = await getImage(`${rightName.value}.png`)
 }
 
 const updateBattleJudge = (msg) => {
@@ -35,8 +42,9 @@ const updateBattleJudge = (msg) => {
 };
 
 const updateScore = (msg) => {
-    rightScore.value = msg.right
-    leftScore.value = msg.left
+  // unhide the judge decision
+  rightScore.value = msg.right
+  leftScore.value = msg.left
 }
 
 const updateJudgeVote = (msg) => {  
@@ -117,7 +125,7 @@ onUnmounted(() => {
     
     <div class="relative min-h-[60vh]">
       <!-- Bottom Left -->
-      <!-- <img :src=imge alt="example" class="fixed -left-30"></img> -->
+      <img :src=imageLeft alt="example" class="fixed -left-30"></img>
       <div class="font-anton min-w-[55vh] fixed bottom-15 left-12 bg-red-500 text-white p-3 rounded-xl shadow-lg">
         <div class="flex items-center justify-center">
         {{ leftName }} ({{ leftScore }})
@@ -125,7 +133,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Bottom Right -->
-      <!-- <img :src=imgee alt="example" class="fixed -right-30"></img> -->
+      <img :src=imageRight alt="example" class="fixed -right-30"></img>
       <div class="font-anton min-w-[55vh] fixed bottom-15 right-12 bg-blue-500 text-white p-3 rounded-xl shadow-lg">
         <div class="flex items-center justify-center">
         {{ rightName }} ({{ rightScore }})

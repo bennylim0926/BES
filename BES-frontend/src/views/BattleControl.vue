@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore } from '@/utils/api'
+import { addBattleJudge, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, uploadImage } from '@/utils/api'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
@@ -21,6 +21,14 @@ const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
 
+const onFileChange = async(e)=>{
+    const files = Array.from(e.target.files)
+    for(const file of files){
+        console.log(file)
+        await uploadImage(file)
+    }
+}
+
 const winnerAnnouncement = computed(()=>{
     if(currentWinner.value === -1){
         return "Its a tie"
@@ -33,8 +41,6 @@ const winnerAnnouncement = computed(()=>{
         return `${currentBattlePair?.value[currentWinner.value]} takes it`
     }
 })
-
-
 
 const previousBattlePair = computed(()=>{
     if(currentBattle.value.length !== 0 && currentBattle?.value[0]>0){
@@ -92,7 +98,11 @@ const nextPair = async () =>{
 }
 
 const topParticipants = computed(()=>{
-    return participants.value.map(p => p.participantName)
+    return [...new Set(
+  participants.value
+    .filter(p => p.genreName === selectedGenre.value)
+    .map(p => p.participantName)
+)];
 })
 
 const sizes  = ref([8, 16, 32])
@@ -266,7 +276,7 @@ onMounted(async ()=>{
         </span>
       </span>
     </div>
-    <div class="flex justify-center gap-8 p-6">
+    <div class="flex flex-wra justify-center gap-8 p-6">
     <!-- Each round -->
     <div
       v-for="(size, idx) in roundSizes"
@@ -285,10 +295,6 @@ onMounted(async ()=>{
       >
         <!-- Left Participant -->
         <div class="flex items-center gap-1">
-            <!-- <ReusableDropdown
-            v-model="rounds[`Top${size}`][mIdx][0]"
-            :options="topParticipants"
-            @update:modelValue="value => updateMatch(`Top${size}`, mIdx, 0, value)"></ReusableDropdown> -->
           <select
             class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
             v-model="rounds[`Top${size}`][mIdx][0]"
@@ -359,7 +365,10 @@ onMounted(async ()=>{
     <ReusableButton @onClick="submitGetScore" buttonName="Get Score"></ReusableButton>
   </div>
 
-  <div class="flex justify-center items-center mt-2">
-    <ReusableButton @onClick="clearLocalStorage" buttonName="Reset Bracket"></ReusableButton>
+  <div class="flex justify-center items-center mt-2 mb-6">
+    <div class="grid grid-cols-2">
+        <ReusableButton @onClick="clearLocalStorage" buttonName="Reset Bracket"></ReusableButton>
+        <input class="border border-orange-400 p-2 rounded" type="file" multiple @change="onFileChange"/>
+    </div>
   </div>
 </template>
