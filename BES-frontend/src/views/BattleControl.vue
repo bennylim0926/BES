@@ -276,7 +276,7 @@ onMounted(async ()=>{
         </span>
       </span>
     </div>
-    <div class="flex flex-wra justify-center gap-8 p-6">
+    <div class="flex flex-wrap justify-center gap-8 p-6">
     <!-- Each round -->
     <div
       v-for="(size, idx) in roundSizes"
