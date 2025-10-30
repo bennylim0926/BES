@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
+import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.models.Judge;
 
@@ -28,6 +29,7 @@ public class BattleService {
 
     // top 32, top 16 or 7ts
     private List<String> modes = Arrays.asList("Top32", "Top16", "7-to-Smoke");
+    private List<Battler> battlers = new ArrayList<>();
     public List<String> getModes() {
         return modes;
     }
@@ -45,6 +47,21 @@ public class BattleService {
         currentPair.leftBattler = left;
         currentPair.rightBattler = right;
         judges = new ArrayList<>();
+    }
+
+    public List<Battler> getSmokeBattlersService(){
+        return battlers;
+    }
+
+    public void setSmokeBattlersService(SetSmokeBattlersDto dto){
+        battlers = new ArrayList<>();
+        for (Battler battler : dto.getBattlers()) {
+            battlers.add(battler);
+        }
+        messagingTemplate.convertAndSend("/topic/battle/smoke",
+            Map.of(
+                "battlers", battlers
+            ));
     }
 
     public void setBattlerPairService(SetBattlerPairDto dto){
@@ -201,7 +218,7 @@ public class BattleService {
         }
     }
 
-    public class Battler {
+    public static class Battler {
         private String name;
         private Integer score;
         Battler(){

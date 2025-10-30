@@ -1,8 +1,12 @@
 <script setup>
 import { getBattleJudges, getCurrentBattlePair, getImage } from '@/utils/api';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
-import { onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useDelay } from '@/utils/utils';
+import { useRoute } from 'vue-router'
+import Chart from './Chart.vue';
+
+const route = useRoute()
 
 const imageLeft = ref(null)
 const imageRight = ref(null)
@@ -25,6 +29,8 @@ const rightWin = ref(false)
 
 const leftReset = ref(false)
 const rightReset = ref(false)
+
+const isSmoke = computed(() => route.query.isSmoke === 'true')
 
 const updateBattlePair = async (msg) => {
   // STEP 1: Animate current pair out (if visible)
@@ -141,7 +147,7 @@ onUnmounted(() => {
 
 
 <template>
-  {{ currentWinner }}
+  {{ isSmoke }}
   <div class="flex justify-center">
   <div
     class="flex justify-center items-center gap-8 mb-8 
@@ -172,7 +178,7 @@ onUnmounted(() => {
 </div>
 
   <!-- The rest of your existing bottom section -->
-  <div class="font-bold text-gray-900 text-7xl">
+  <div v-if="!isSmoke" class="font-bold text-gray-900 text-7xl">
     <div class="relative min-h-[60vh]">
     <div 
       class="fixed bottom-15 left-12 flex flex-col items-center transition-transform duration-1000 z-10"
@@ -222,6 +228,9 @@ onUnmounted(() => {
   </div>
 </div>
     </div>
+  </div>
+  <div v-else>
+    <Chart></Chart>
   </div>
   {{ hideJudgeDecision }}
 </template>

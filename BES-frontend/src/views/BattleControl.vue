@@ -1,45 +1,52 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, uploadImage } from '@/utils/api'
+import { addBattleJudge, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
+import { useDropdowns } from '@/utils/dropdown'
+import { useEventUtils } from '@/utils/eventUtils'
+import { useBattleLogic } from '@/utils/battleLogic'
 
-const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
-const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
-const filteredJudge = ref("")
 
-const allJudges = ref([])
-const allEvents = ref([])
-
-const participants = ref([])
+const {selectedEvent, selectedGenre, iintialiseDropdown, selectedJudge} = useDropdowns()
+const {allJudges, fetchAllJudges, allEvents, participants} = useEventUtils()
+const {rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound} = useBattleLogic()
 
 const battleJudges = ref([])
-
 const currentBattle = ref([])
 const currentWinner = ref(-2)
-
 const currentRound = ref(0)
 const currentTop = ref('')
 
 const onFileChange = async(e)=>{
     const files = Array.from(e.target.files)
     for(const file of files){
-        console.log(file)
         await uploadImage(file)
     }
 }
 
 const winnerAnnouncement = computed(()=>{
+  if(isSmoke.value){
     if(currentWinner.value === -1){
+        return "Its a tie"
+    }else if(currentWinner.value === 0){
+        return `${rounds.value[0].name} takes it`
+    }
+    else if(currentWinner.value === 1){
+        return `${rounds.value[1].name} takes it`
+    }
+  }else{
+      if(currentWinner.value === -1){
         return "Its a tie"
     }else if(currentWinner.value === 0){
         setWinner(currentTop.value, currentRound.value, 0)
         return `${currentBattlePair?.value[currentWinner.value]} takes it`
     }
     else if(currentWinner.value === 1){
-        setWinner(currentTop.value, currentRound.value, 1)
+        // setWinner(currentTop.value, currentRound.value, 1)
         return `${currentBattlePair?.value[currentWinner.value]} takes it`
     }
+  }
 })
 
 const previousBattlePair = computed(()=>{
@@ -50,29 +57,45 @@ const previousBattlePair = computed(()=>{
     }
 })
 const nextBattlePair = computed(()=>{
-    // return currentBattle.value
+  if(currentBattle.value.length === 0)return
+  if(isSmoke.value){
+    return currentBattle?.value[2]
+  }else{
     if(currentBattle.value.length !== 0 && currentBattle?.value[0] < currentBattle?.value[1].length-1){
         const left = currentBattle?.value[1][currentBattle?.value[0]+ 1][0]
         const right= currentBattle?.value[1][currentBattle?.value[0]+ 1][1]
         return [left, right]
     }
+  }
 })
 
 const currentBattlePair = computed(()=>{
-    if(currentBattle.value.length !== 0){
-        const left = currentBattle?.value[1][currentBattle?.value[0]][0]
-        const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-        return [left, right]
-    }
+  if(currentBattle.value.length === 0)return
+  if(isSmoke.value){
+    return [currentBattle?.value[0],currentBattle?.value[1]] 
+  }
+  else{
+      const left = currentBattle?.value[1][currentBattle?.value[0]][0]
+      const right = currentBattle?.value[1][currentBattle?.value[0]][1]
+      return [left, right]
+  }
 })
-
+const updateSmokePair = async ()=>{
+  currentBattle.value = [rounds.value[0],rounds.value[1], rounds.value.slice(2)]
+  await updateSmokeList(rounds.value)
+}
 const initiateBattlePair = async(top, pairList) =>{
-    currentBattle.value = [0, pairList]
-    const left = currentBattle?.value[1][currentBattle?.value[0]][0]
-    const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-    await setBattlePair(left, right)
-    currentRound.value = 0
-    currentTop.value = top
+  if(isSmoke.value){
+    await setBattlePair(rounds.value[0].name,rounds.value[1].name)
+    updateSmokePair()
+    return
+  }
+  currentBattle.value = [0, pairList].value = [0, pairList]
+  const left = currentBattle?.value[1][currentBattle?.value[0]][0]
+  const right = currentBattle?.value[1][currentBattle?.value[0]][1]
+  await setBattlePair(left, right)
+  currentRound.value = 0
+  currentTop.value = top
 }
 
 const prevPair = async () =>{
@@ -87,7 +110,12 @@ const prevPair = async () =>{
 }
 
 const nextPair = async () =>{
-    if(currentBattle.value.length !== 0 && currentBattle?.value[0] < currentBattle?.value[1].length-1){
+  if(currentBattle.value.length === 0) return 
+  if(isSmoke.value){
+     update7toSmokeMatch(currentWinner.value)
+     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
+  }else{
+    if(currentBattle?.value[0] < currentBattle?.value[1].length-1){
         currentBattle.value = [currentBattle.value[0]+1, currentBattle.value[1]]
         const left = currentBattle?.value[1][currentBattle?.value[0]][0]
         const right = currentBattle?.value[1][currentBattle?.value[0]][1]
@@ -95,6 +123,7 @@ const nextPair = async () =>{
         currentWinner.value = -2;
         currentRound.value += 1
     }
+  }
 }
 
 const topParticipants = computed(()=>{
@@ -105,41 +134,45 @@ const topParticipants = computed(()=>{
 )];
 })
 
-const sizes  = ref([8, 16, 32])
+const sizes  = ref([7, 8, 16, 32])
 // Start from Top 16
-const topSize = ref(localStorage.getItem("topSize" || 16));
-
-// Automatically generate rounds [16, 8, 4, 2]
-const roundSizes = computed(() => {
-  const arr = [];
-  let cur = Number(topSize.value);
-  while (cur >= 2) {
-    arr.push(cur);
-    cur /= 2;
-  }
-  return arr;
-});
-
-
-// Initialize rounds (each matchup = [player1, player2, winner])
-const rounds = ref({});
 
 function initRounds() {
   rounds.value = {};
-  roundSizes.value.forEach(size => {
-    const matches = [];
-    for (let i = 0; i < size / 2; i++) {
-      matches.push([null, null, null]); // [p1, p2, winner]
-    }
-    rounds.value[`Top${size}`] = matches;
-  });
-  return rounds.value
+  if(isSmoke.value){
+    return sevenToSmokeRound()
+  }
+  return standardBattleRound()
 }
 
 // Handle dropdown selection
 function updateMatch(roundKey, matchIdx, slotIdx, value) {
   rounds.value[roundKey][matchIdx][slotIdx] = value;
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+}
+
+function update7toSmokeMatch(winner){
+  if (!Array.isArray(rounds.value)) return;
+
+  if (winner === -1) {
+    // move both first and second to the end
+    const [first, second, ...rest] = rounds.value;
+    rounds.value = [...rest, first, second];
+  } else if (winner === 0) {
+    // move second to end
+    const arr = [...rounds.value];
+    const second = arr.splice(1, 1)[0];
+    arr[0] = {...arr[0], score: arr[0].score + 1}
+    rounds.value = [...arr, second];
+  } else if (winner === 1) {
+    // move first to end
+    const arr = [...rounds.value];
+    const first = arr.shift();
+    arr[0] = {...arr[0], score: arr[0].score + 1}
+    rounds.value = [...arr, first];
+  }
+  updateSmokePair()
+  currentWinner.value = -2;
 }
 
 // Handle winner checkbox selection
@@ -161,11 +194,6 @@ function setWinner(roundKey, matchIdx, slotIdx) {
   rounds.value[nextRoundKey][nextMatchIdx][nextSlotIdx] = winner;
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
 }
-
-// Clear future rounds if participant changes or new selection made
-watch(rounds, (newVal) => {
-  // Optional improvement: implement back-propagation cleanup
-}, { deep: true });
 
 const fetchEventsAndInit = async()=>{
     allEvents.value = await fetchAllEvents()
@@ -196,6 +224,13 @@ const submitRemoveBattleJudge = async(name) =>{
 }
 
 const submitGetScore = async()=>{
+    if(isSmoke.value){
+      const res = await setBattleScore()
+      const data = await res.json()
+      currentWinner.value = Number(data.winner)
+      // update7toSmokeMatch(currentWinner.value)
+      return
+    }
     if(currentBattle.value.length === 0) return 
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
@@ -203,6 +238,9 @@ const submitGetScore = async()=>{
     const res = await setBattleScore()
     const data = await res.json()
     currentWinner.value = Number(data.winner)
+    if(data.winner === 1 || data.winner === 0){
+      setWinner(currentTop.value, currentRound.value, data.winner)
+    }
 }
 
 const clearLocalStorage = ()=>{
@@ -232,17 +270,17 @@ watch(topSize, async (newVal) => {
     localStorage.setItem("topSize", newVal);
     const storedRounds = localStorage.getItem(`Top${newVal}${selectedGenre.value}Rounds`)
     rounds.value = JSON.parse(storedRounds) || initRounds()
-    
+    currentBattle.value = []
+    currentWinner.value = -2
   }
 },{immediate: true});
 
 onMounted(async ()=>{
     await fetchEventsAndInit()
-    const res = await getAllJudges()
-    allJudges.value = res
+    await fetchAllJudges()
     battleJudges.value = await getBattleJudges()
+    iintialiseDropdown()
 })
-
 </script>
 
 <template>
@@ -255,10 +293,10 @@ onMounted(async ()=>{
     </div>
     <div class="flex justify-center items-end mt-2">
       <div class="grid grid-cols-2 gap-2 items-end ">
-        <ReusableDropdown  v-model="filteredJudge" labelId="Judge" :options="allJudgeOptions" />
+        <ReusableDropdown  v-model="selectedJudge" labelId="Judge" :options="allJudgeOptions" />
         <div>
             <ReusableButton class="mx-2"
-            @onClick="()=>{submitAddBattleJudge(filteredJudge)}" buttonName="Add Judge"></ReusableButton>
+            @onClick="()=>{submitAddBattleJudge(selectedJudge)}" buttonName="Add Judge"></ReusableButton>
         </div>
       </div>
     </div>
@@ -279,6 +317,7 @@ onMounted(async ()=>{
     <div class="flex flex-wrap justify-center gap-8 p-6">
     <!-- Each round -->
     <div
+      v-if="Number(topSize) !== 7"
       v-for="(size, idx) in roundSizes"
       :key="idx"
       class="flex flex-col justify-between bg-orange-100 dark:bg-gray-800 p-4 rounded-lg shadow-md"
@@ -333,17 +372,53 @@ onMounted(async ()=>{
       </div>
       <ReusableButton @onClick="()=>{initiateBattlePair(`Top${size}`, rounds[`Top${size}`])}" buttonName="Start Round"></ReusableButton>
     </div>
+    <div v-else>
+      This is 7 to smoke
+      <div class="flex justify-center gap-8">
+  <!-- LEFT COLUMN (first 2 matches) -->
+  <div class="flex flex-col">
+    <div
+      v-for="(match, mIdx) in rounds.slice(0, 2)"
+      :key="'left-' + mIdx"
+      class="flex items-center gap-2 mb-2"
+    >
+      <select
+        class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+        v-model="rounds[mIdx].name"
+      >
+        <option :value="null" disabled>Select</option>
+        <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
+      </select>
+    </div>
   </div>
 
-  <!-- {{ currentBattle }}
-  <br></br> -->
+  <!-- RIGHT COLUMN (remaining matches) -->
+  <div class="flex flex-col">
+    <div
+      v-for="(match, mIdx) in rounds.slice(2)"
+      :key="'right-' + mIdx"
+      class="flex items-center gap-2 mb-2"
+    >
+      <select
+        class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+        v-model="rounds[mIdx + 2].name"
+      >
+        <option :value="null" disabled>Select</option>
+        <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
+      </select>
+    </div>
+  </div>
+</div>
+<ReusableButton @onClick="()=>{initiateBattlePair(0,0)}" buttonName="Start Round"></ReusableButton>
+    </div>
+  </div>
     <div class="flex justify-center items-center">
         <div class="text-3xl text-gray-100">
             {{ winnerAnnouncement }}
         </div>
     </div>
   <div class="flex justify-center items-center">
-    <div class="grid grid-cols-3 gap-2">
+    <div v-if="!isSmoke" class="grid grid-cols-3 gap-2">
         <div v-if="previousBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
             Previous Pair: <span class="font-bold text-2xl text-gray-100"> {{ previousBattlePair?.[0] }} </span> vs <span class="font-bold text-2xl text-gray-100">{{ previousBattlePair?.[1] }}</span>
         </div> <div v-else class="bg-gray-800"></div>
@@ -352,6 +427,14 @@ onMounted(async ()=>{
         </div> <div v-else class="bg-gray-800"></div>
         <div v-if="nextBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
             Next Pair: <span class="font-bold text-2xl text-gray-100">{{ nextBattlePair?.[0] }}</span> vs <span class="font-bold text-2xl text-gray-100">{{ nextBattlePair?.[1] }}</span>
+        </div> <div v-else class="bg-gray-800"></div>
+    </div>
+    <div v-else class="grid grid-cols-2 gap-2">
+      <div v-if="currentBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
+            Current Match: <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[0].name }} ({{currentBattlePair?.[0].score}})</span> vs <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[1].name }} ({{currentBattlePair?.[1].score}})</span>
+        </div> <div v-else class="bg-gray-800"></div>
+        <div v-if="nextBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
+            Queue: <span v-for="value in nextBattlePair">{{ value.name }}, </span>
         </div> <div v-else class="bg-gray-800"></div>
     </div>
   </div>

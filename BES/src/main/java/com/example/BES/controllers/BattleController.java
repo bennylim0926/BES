@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.core.io.Resource;
@@ -27,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
+import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.services.BattleService;
 
@@ -200,5 +203,21 @@ public class BattleController {
         Path file = uploadDir.resolve(filename);
         Resource resource = new UrlResource(file.toUri());
         return ResponseEntity.ok().body(resource);
+    }
+
+    @GetMapping("/smoke")
+    public ResponseEntity<?> getSmokeList(){
+        List<BattleService.Battler> battlers = battleService.getSmokeBattlersService();
+        return ResponseEntity.ok(Map.of(
+            "list", battlers
+        ));
+    }
+
+    @PostMapping("/smoke")
+    public ResponseEntity<?> setSmokeList(@RequestBody SetSmokeBattlersDto dto){
+        battleService.setSmokeBattlersService(dto);
+        return ResponseEntity.ok(Map.of(
+            "message", "List updated"
+        ));
     }
 }

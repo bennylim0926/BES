@@ -460,3 +460,33 @@ export const getImage = async (filename) => {
     return null;
   }
 };
+
+export const getSmokeList = async()=>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/smoke`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+        return await res.json()
+    }
+  }catch(e){
+      console.log(e)
+  }
+}
+export const updateSmokeList  = async(battlers)=>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/smoke`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        battlers: battlers
+      })
+    })
+  }catch(e){
+
+  }
+}

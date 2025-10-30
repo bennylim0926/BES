@@ -12,6 +12,7 @@ import { component } from "vue-fullscreen";
 import BattleOverlay from "@/views/BattleOverlay.vue";
 import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";
+import Chart from "@/views/Chart.vue";
 
 const routes = [
     {
@@ -80,6 +81,11 @@ const routes = [
         path: '/battle/control',
         name: "Battle Control",
         component: BattleControl
+    },
+    {
+        path: '/battle/chart',
+        name: "Smoke",
+        component: Chart
     }
 ]
 
