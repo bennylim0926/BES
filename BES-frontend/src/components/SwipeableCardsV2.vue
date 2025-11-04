@@ -32,14 +32,7 @@ const updateDecimal = (score, num) =>{
     const wholeNum = Math.floor(score)
     return wholeNum + num/10
 }
-
-// const colors = [
-//   'bg-red-100', 'bg-orange-100', 'bg-amber-100', 'bg-yellow-100', 'bg-lime-100',
-//   'bg-green-100', 'bg-emerald-100', 'bg-teal-100', 'bg-cyan-100', 'bg-sky-100',
-//   'bg-blue-100', 'bg-indigo-100', 'bg-violet-100', 'bg-purple-100', 'bg-fuchsia-100', 'bg-pink-100', 'bg-rose-100'
-// ];
-const colors = ['bg-orange-100', 'bg-sky-100'];
-const darkColors = ['dark:bg-gray-800', 'dark:bg-slate-800'];
+const colors = ['bg-orange-50'];
 </script>
 
 <template>
@@ -53,100 +46,68 @@ const darkColors = ['dark:bg-gray-800', 'dark:bg-slate-800'];
         v-for="(card, idx) in props.cards"
         :key="idx"
         data-card
-        class="flex-shrink-0 w-full snap-center px-4 flex items-center justify-center"
+        class="flex-shrink-0 w-full snap-center flex justify-center"
       >
         <div
-          class="w-full min-h-[85%] rounded-2xl shadow-lg flex flex-col p-8 overflow-y-auto"
-          :class="[colors[idx % colors.length], darkColors[idx % darkColors.length]]"
+          class="w-full min-h-[85%] rounded-2xl shadow-xl flex flex-col p-2 md:p-8 lg:p-8 overflow-y-auto m-0 md:m-5 lg:m-5 mb-5"
+          :class="[colors[idx % colors.length]]"
         >
-        <div class="w-full mt-auto grid grid-cols-[2fr_2fr]">
-            
-            <div class="flex-1 flex flex-col items-center justify-end text-center mb-5">
+        <div class="w-full grid grid-cols-2">
+            <div class="flex flex-col items-center justify-end text-center mb-5">
             <div class="flex flex-wrap w-full gap-10 justify-center items-center mt-2">
-              <p class="text-xl text-gray-700 dark:text-gray-300">
+              <p class="text-lg text-gray-700 ">
                 Name:
-                <span class="text-6xl font-bold text-gray-900 dark:text-gray-100">
-                  {{ card.participantName }} (#{{ capsFirstLetter(card.auditionNumber) }})
+                <span class="text-xl md:text-4xl lg:text-4xl font-semibold text-black">
+                  {{ card.participantName }}(#{{ capsFirstLetter(card.auditionNumber) }})
                 </span>
               </p>
-              <!-- <p class="text-3lg text-gray-700 dark:text-gray-300">
-                Number:
-                <span class="text-4xl font-bold text-gray-900 dark:text-gray-100">
-                  #{{ capsFirstLetter(card.auditionNumber) }}
-                </span>
-              </p> -->
             </div>
         </div>
         
-        <div class="flex-1 flex flex-col items-center justify-end text-center mb-5">
-            <p class="text-xl text-gray-700 dark:text-gray-300">
+        <div class="flex flex-col items-center justify-end text-center mb-5">
+            <p class="text-lg text-black">
                 Score:
-                <span class="text-6xl font-bold text-gray-900 dark:text-gray-100">
+                <span class="text-xl md:text-4xl lg:text-4xl font-semibold text-black ">
                   {{ card.score }}
                 </span>
               </p>
             </div>
         </div>
-        <hr class="h-px mb-5 bg-gray-900 border-0 dark:bg-gray-500">
-        <div class="flex w-full gap-3 text-5xl font-bold mb-2 justify-center items-center">
-            <!-- <div
-            class="flex-1 min-h-[100px] bg-orange-300 dark:bg-transparent text-gray-700 dark:text-gray-100 text-2xl rounded flex items-center justify-center border border-orange-400
-                active:bg-orange-400 active:border active:text-gray-100"
-            @click="card.score = 0"
-            >
-            Reset
-            </div> -->
+        <hr class="h-px mb-5 bg-gray-900 border-0 ">
+        <div class="flex mb-5 justify-center">
             <div
-            class="min-h-[70px] w-[85%] mx-auto px-6 bg-orange-300 dark:bg-transparent text-gray-700 dark:text-gray-100 text-2xl rounded flex items-center justify-center border border-orange-400
-                active:bg-orange-400 active:border active:text-gray-100"
+            class="min-h-[65px] w-[85%] px-6 bg-orange-400 text-white text-lg md:text-2xl lg:text-2xl rounded flex items-center justify-center
+                active:bg-orange-300 active:border active:text-gray-100 shadow-md"
             @click="card.score = 10"
             >
-            10 (Full Score)
+            10(Full Score)
             </div>
         </div>
           <!-- Scoring Buttons -->
-          <div class="w-full mt-auto grid grid-cols-[2fr_2fr]">
-            <div class="flex justify-center items-center">
-                <div class="grid grid-cols-3 w-auto gap-2 mb-4">
+          <div class="w-full grid grid-cols-2 gap-4 mt-auto">
+            <div class="flex justify-center">
+                <div class="grid grid-cols-3 gap-2 max-w-[300px]">
                 <ReusableButton
                     v-for="value in 9"
                     :key="value"
                     :buttonName="value"
-                    class="text-3xl bg-orange-300 dark:bg-transparent rounded"
+                    class="text-xl md:text-3xl rounded shadow-sm"
                     @onClick="card.score = Number(value)"
                 />
                 </div>
             </div>
-            <div class="flex justify-center items-center">
-                <div class="grid grid-cols-3 w-auto gap-2 mb-4">
+            <div class="flex justify-center">
+                <div class="grid grid-cols-3 gap-2 max-w-[300px]">
                 <ReusableButton
                     v-for="value in 9"
                     :key="value"
                     :buttonName="'.'+value"
-                    class="text-2xl bg-orange-300 dark:bg-transparent rounded"
+                    class="text-lg md:text-2xl rounded shadow-sm"
                     @onClick="()=>{card.score = updateDecimal(card.score, value)}"
                 />
                 </div>
             </div>
-            <!-- <div class="grid grid-cols-1 w-full gap-3 text-5xl font-bold">
-              <div
-                class="flex-1 min-h-[100px] bg-orange-300 dark:bg-transparent text-gray-700 dark:text-gray-100 text-2xl rounded flex items-center justify-center border border-orange-400
-                  active:bg-orange-400 active:border active:text-gray-100"
-                @click="minusByZeroOne(card)"
-              >
-                - 0.1
-              </div>
-              <div
-                class="flex-1 min-h-[100px] bg-orange-300 dark:bg-transparent text-gray-700 dark:text-gray-100 text-2xl rounded flex items-center justify-center border border-orange-400
-                  active:bg-orange-400 active:border active:text-gray-100"
-                @click="addByZeroOne(card, 10)"
-              >
-                + 0.1
-              </div>
-            </div> -->
-             
           </div>
-          
         </div>
       </div>
     </div>

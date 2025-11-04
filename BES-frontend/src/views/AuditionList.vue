@@ -2,7 +2,6 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import SwipeableCards from '@/components/SwipeableCards.vue';
 import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch, toRaw } from 'vue';
@@ -15,7 +14,7 @@ import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
-const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
+const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
 const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
@@ -78,10 +77,10 @@ watch(filteredParticipantsForJudge, (newVal) => {
 
 const filteredParticipantsForEmcee = computed({
     get(){
-        if (selectedGenre.value === "All" && filteredJudge.value === "") return transformForTable(participants.value);
-        if (selectedGenre.value === "All") return transformForTable(participants.value.filter(p =>  p.judgeName === filteredJudge.value));
+        // if (selectedGenre.value === "All" && filteredJudge.value === "") return transformForTable(participants.value);
+        // if (selectedGenre.value === "All") return transformForTable(participants.value.filter(p =>  p.judgeName === filteredJudge.value));
         if (filteredJudge.value === "") return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null));
-        return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value &&p.auditionNumber !== null));
+        return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null));
     },
     set(updatedSubset){
         const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
@@ -244,8 +243,8 @@ onMounted(async () => {
 <template>
     <div class="m-10">
     <div class="flex justify-end items-center mb-3">
-      <ReusableButton class="mx-2" @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
-      <ReusableButton class="mx-2" @onClick="showMiniMenu = !showMiniMenu" buttonName="Score Menu"></ReusableButton>
+      <ReusableButton @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
+      <ReusableButton v-if="selectedRole === 'Judge'" class="ml-2" @onClick="showMiniMenu = !showMiniMenu" buttonName="Score Menu"></ReusableButton>
     </div>
 
     <!-- Collapsible content -->
@@ -266,7 +265,7 @@ onMounted(async () => {
     </div>
   </div>
 <div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
-    <Timer class="sticky top-0 m-5 z-50 border-2"></Timer>
+    <Timer class="sticky top-0 m-5 z-50 shadow-lg"></Timer>
     <DynamicTable 
         v-model:tableValue="filteredParticipantsForEmcee.rows"
         :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
@@ -276,7 +275,7 @@ onMounted(async () => {
      <MiniScoreMenu 
      :cards="filteredParticipantsForJudge"
      :show="showMiniMenu"
-     :title="'Move to'"
+     :title="'MOVE TO'"
      @close="showMiniMenu = !showMiniMenu"></MiniScoreMenu>
      <SwipeableCardsV2 
      :cards="filteredParticipantsForJudge"></SwipeableCardsV2>

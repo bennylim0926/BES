@@ -10,20 +10,20 @@ title: { type: String, default: "Modal Title" }
 <template>
     <div
         v-if="show"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
     >
         <div class="relative w-auto max-w-[90vw] max-h-[90vh]
-        overflow-y-auto p-4 bg-white rounded-lg shadow dark:bg-gray-700">
+        overflow-y-auto p-4 bg-[#fffaf5] rounded-lg shadow">
             <div class="flex justify-end">
             <button
             @click="$emit('close')"
-            class="text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            class="text-black hover:text-orange-300 text-2xl"
             >
             ✖
         </button>
             </div>
         <div class="flex items-center justify-center px-4">
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <h3 class="text-xl font-semibold text-gray-900 ">
             {{ title }}
             </h3>
             

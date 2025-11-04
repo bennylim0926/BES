@@ -14,7 +14,7 @@
           >
             <!-- Label (name + score) above -->
             <div
-              class="text-2xl font-anton text-white mb-2 px-3 py-1 rounded"
+              class="text-2xl font-anton text-white px-3 py-1 rounded"
               :class="colors[idx % colors.length]"
             >
               {{ item.name }}
@@ -25,12 +25,12 @@
               v-if="imageMap[item.name]"
               :src="imageMap[item.name]"
               alt="icon"
-              class="w-48 h-auto mb-2 transition-transform duration-500"
+              class="w-48 h-auto transition-transform duration-500"
             />
   
             <!-- Bar -->
             <div
-              class="relative w-full bg-orange-400 opacity-80 rounded-t transition-all duration-500 ease-in-out flex items-center justify-center"
+              class="relative w-full bg-gray-200/30  rounded-t transition-all duration-500 ease-in-out flex items-center justify-center"
               :style="{ height: item.score * 60 + 'px' }"
             >
               <!-- Centered Score inside -->

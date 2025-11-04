@@ -49,11 +49,11 @@ onMounted( async () =>{
 </script>
 
 <template>
-  <nav class="bg-white border-gray-200 dark:bg-gray-900">
-    <div v-if="route.fullPath != '/battle/overlay' && route.fullPath != '/battle/judge' && route.fullPath != '/battle/overlay?isSmoke=true'" 
+  <nav class="bg-white border-gray-200">
+    <div v-if="route.fullPath != '/login' && route.fullPath != '/battle/overlay' && route.fullPath != '/battle/judge' && route.fullPath != '/battle/overlay?isSmoke=true'" 
     class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
       <!-- Logo -->
-      <router-link to="/" class="text-xl font-bold text-orange-400 dark:text-white">
+      <router-link to="/" class="text-xl font-bold text-orange-400">
         BES
       </router-link>
 
@@ -77,13 +77,12 @@ onMounted( async () =>{
       >
         <ul
           class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 
-                 md:flex-row md:space-x-8 md:mt-0 md:border-0 md:bg-white 
-                 dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700"
+                 md:flex-row md:space-x-8 md:mt-0 md:border-0 md:bg-white"
         >
           <li>
             <router-link @click="isOpen = !isOpen" to="/"
             v-slot="{ isActive }">
-                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900'"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
@@ -94,7 +93,7 @@ onMounted( async () =>{
           <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/events"
              v-slot="{ isActive, isExactActive }">
-                  <span :class="isActive || isExactActive? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isActive || isExactActive? 'text-orange-400' : 'text-gray-900 md:text-gray-900'"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
@@ -102,21 +101,21 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
+          <!-- <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/audition-number"
             v-slot="{ isActive }">
-                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
                     Audtion Number
                   </span>
             </router-link>
-          </li>
+          </li> -->
           <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/update-event-details"
             v-slot="{ isActive }">
-                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
@@ -127,18 +126,18 @@ onMounted( async () =>{
           <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'">
             <router-link @click="isOpen = !isOpen" to="/event/audition-list"
             v-slot="{ isActive }">
-                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
-                    Audition List
+                    Audition
                   </span>
             </router-link>
           </li>
           <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_ORGANISER'">
             <router-link @click="isOpen = !isOpen" to="/event/score"
             v-slot="{ isExactActive }">
-                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
@@ -146,21 +145,32 @@ onMounted( async () =>{
                   </span>
             </router-link>
           </li>
-          <li v-if="role === 'ROLE_ADMIN'">
+          <li v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'">
+            <router-link @click="isOpen = !isOpen" to="/battle/control"
+            v-slot="{ isExactActive }">
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
+                        class="block py-2 px-3 rounded-sm 
+                            hover:bg-gray-100 md:hover:bg-transparent 
+                            md:border-0 md:p-0">
+                    Battle
+                  </span>
+            </router-link>
+          </li>
+          <!-- <li v-if="role === 'ROLE_ADMIN'">
             <router-link @click="isOpen = !isOpen" to="/battle/overlay"
             v-slot="{ isExactActive }">
-                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">
                     Battle Overlay
                   </span>
             </router-link>
-          </li>
+          </li> -->
           <li v-if="isAuthenticated === false">
             <router-link @click="isOpen = !isOpen" to="/login"
             v-slot="{ isExactActive }">
-                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 dark:text-gray-100'"
+                  <span :class="isExactActive ? 'text-orange-400' : 'text-gray-900 md:text-gray-900 '"
                         class="block py-2 px-3 rounded-sm 
                             hover:bg-gray-100 md:hover:bg-transparent 
                             md:border-0 md:p-0">

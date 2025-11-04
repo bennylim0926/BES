@@ -29,7 +29,7 @@ function startSlotAnimation(finalNumber = null) {
 
   // start slot rolling
   intervalId = setInterval(() => {
-    fakeNumber.value = Math.floor(Math.random() * 100) + 1
+    fakeNumber.value = Math.floor(Math.random() * 50) + 1
   }, 100)
 
   // stop rolling after 3s and reveal
@@ -66,11 +66,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-6">
-    <div class="flex flex-col bg-orange-50 shadow-lg rounded-2xl p-6 w-[80vh] items-center text-center justify-center h-[50vh]">
+  <!-- <div class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-6"> -->
+    <div class="flex flex-col bg-[#fffaf5] shadow-lg rounded p-6 w-full items-center text-center justify-center h-[30vh]">
       <div v-if="loading" class="animate-pulse text-orange-500 text-2xl">
         Drawing audition number...  
-        <p class="mt-2 text-2xl font-mono font-bold text-gray-700">
+        <p class="mt-2 text-2xl font-mono font-bold text-black">
           {{ fakeNumber }}
         </p>
       </div>
@@ -79,13 +79,13 @@ onBeforeUnmount(() => {
         <p class="mt-2 text-4xl font-mono font-bold text-gray-800">
             {{ participantName }}
         </p>
-        <p class="mt-2 text-4xl font-mono font-bold text-gray-900">
+        <p class="mt-2 text-4xl font-mono font-bold text-black">
           {{genre}} #<span class="text-orange-500"> {{ auditionNumber }} </span>
         </p>
         <p class="mt-2 text-5xl font-mono font-bold text-gray-800">{{ judgeName }}</p>
       </div>
     </div>
-  </div>
+  <!-- </div> -->
   <ActionDoneModal
     :show="showModal"
     :title="modalTitle"

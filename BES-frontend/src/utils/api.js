@@ -90,6 +90,9 @@ export const getFileId = async (folderId) =>{
       credentials: 'include'
     })
     const result = await res.json()
+    if(result.length === 0){
+      return null
+    }
     return result[0].fileId
   }catch(e){
       console.log(e)

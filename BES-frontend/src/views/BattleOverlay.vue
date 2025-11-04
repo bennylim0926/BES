@@ -197,7 +197,7 @@ onUnmounted(() => {
           class="absolute -bottom-30 max-w-none w-[80vh] h-auto object-contain -z-10"
         />
       <!-- Name + Score -->
-      <div class="font-anton min-w-[55vh] bg-red-500 text-white p-3 rounded-xl shadow-lg text-center relative z-10">
+      <div class="font-anton min-w-[55vh] bg-red-400/70 text-white p-3 rounded-xl shadow-lg text-center relative z-10">
         {{ leftName }}
          <!-- ({{ leftScore }}) -->
       </div>
@@ -221,7 +221,7 @@ onUnmounted(() => {
     />
 
     <!-- Name + Score -->
-    <div class="font-anton min-w-[55vh] bg-blue-500 text-white p-3 rounded-xl shadow-lg text-center relative z-10">
+    <div class="font-anton min-w-[55vh] bg-blue-400/70 text-white p-3 rounded-xl shadow-lg text-center relative z-10">
       {{ rightName }} 
       <!-- ({{ rightScore }}) -->
     </div>
