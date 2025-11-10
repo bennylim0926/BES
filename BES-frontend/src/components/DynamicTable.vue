@@ -161,8 +161,8 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
         </table>
       </div>
     </div>
-    <div class="flex justify-center items-center">
+    <!-- <div class="flex justify-center items-center">
       <p class="text-xl font-semibold text-black">-End of List-</p>
-    </div>
+    </div> -->
   </template>
   

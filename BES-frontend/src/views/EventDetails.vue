@@ -4,9 +4,10 @@ import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent} from '@/utils/api';
-import { filterObject } from '@/utils/utils';
+import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
 
 const fileId = ref('')
 const modalTitle = ref("")
@@ -15,6 +16,7 @@ const inputs = ref([""])
 const genreOptions = ref(null)
 const tableExist = ref(true)
 const loading = ref(false)
+const onStartLoading = ref(false)
 
 const verifiedFormParticipants = ref([])
 const verifiedDbParticipants = ref([])
@@ -127,6 +129,9 @@ const completeBreakdown = computed(()=>{
 })
 
 const onSubmit = async () =>{
+    if(loading.value){
+        return
+    }
     // insert payment-status column if not exist
     if(createTable.genres.length == 0){
         openModal(404 , "Need to add at least one genre/category")
@@ -171,18 +176,6 @@ const refreshParticipant = async() =>{
     loading.value = false
 }
 
-// const tableConfig = computed(()=>{
-//     const base = [
-//         { key: 'name', label: 'Name', type: 'text', readonly: true },
-//         { key: 'genre', label: 'Genre', type: 'text', readonly: true }
-//     ]
-//     const hasResidency = verifiedFormParticipants.value.some(p => p.residency)
-//     if(hasResidency){
-//         base.push({ key: 'residency', label: 'Residency', type: 'text', readonly: true })
-//     }
-//     return base
-// })
-
 watch(
     fileId,
     async () =>{
@@ -194,14 +187,16 @@ watch(
 )
 
 onMounted( async () =>{
+    onStartLoading.value =true
     tableExist.value = checkTableExist(eventName, tableExist)
     fileId.value = await getFileId(props.folderID)
     genreOptions.value = await fetchAllGenres()
-    
     if(tableExist.value) {
         verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
         verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
     }
+    await useDelay().wait(2500)
+    onStartLoading.value =false
 })
 </script>
 
@@ -247,7 +242,7 @@ onMounted( async () =>{
         <AuditionNumber></AuditionNumber>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-2 px-2 justify-items-center mb-5 mx-4">
-        <div class=" bg-[#fffaf5] shadow-xl w-full h-auto p-4 rounded items-center justify-center "> 
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded items-center justify-center "> 
             <div class="text-2xl font-semibold">Total: {{ totalParticipants + totalWalkIn }}</div> 
             <div class="flex">
             <div class="text-lg grid grid-cols-2 gap-2 justify-center items-center">
@@ -256,11 +251,11 @@ onMounted( async () =>{
             </div>
         </div>
         </div>
-        <div class=" bg-[#fffaf5] shadow-xl w-full h-auto p-4 rounded"> 
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
             <div class="text-2xl font-semibold">Verified: {{ verifiedFormParticipants.length - totalWalkIn }}</div> 
             <div class="text-2xl font-semibold">Unverified: {{ totalParticipants - (verifiedFormParticipants.length - totalWalkIn) }}</div> 
         </div>
-        <div class=" bg-[#fffaf5] shadow-xl w-full h-auto p-4 rounded"> 
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
             <div class="text-2xl font-semibold">Registered: {{ totalDbRegistered.length }}</div> 
             <!-- <div class="text-2xl font-semibold">Unregistered: {{ totalDbRegistered.length }}</div>  -->
         </div>
@@ -342,6 +337,7 @@ onMounted( async () =>{
         {{ modalMessage}}
         </p>
     </ActionDoneModal>
+    <LoadingOverlay v-if="onStartLoading"></LoadingOverlay>
     
 </template>
 
@@ -367,8 +363,8 @@ onMounted( async () =>{
 
 .flip-card-front,
 .flip-card-back {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-            0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2),
+    0 8px 10px -6px rgba(0, 0, 0, 0.2);
   position: absolute;
   top: 0;
   left: 0;

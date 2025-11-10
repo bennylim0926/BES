@@ -182,9 +182,12 @@ public class BattleController {
             "message", "Voted right"
         ));
         }
-        else{
+        else if(vote == -1){
             return ResponseEntity.ok(Map.of(
             "message", "Tied"));
+        }else{
+            return ResponseEntity.ok(Map.of(
+            "message", "Reset"));
         }
     }
 

@@ -147,7 +147,6 @@ onUnmounted(() => {
 
 
 <template>
-  {{ isSmoke }}
   <div class="flex justify-center">
   <div
     class="flex justify-center items-center gap-8 mb-8 
@@ -170,6 +169,7 @@ onUnmounted(() => {
         :class="{
           'bg-blue-500': j.vote === 1,
           'bg-red-500': j.vote === 0,
+          'bg-transparent': j.vote === -3,
           'bg-gray-400': j.vote === -1 || j.vote === null
         }"
       ></div>
@@ -232,7 +232,6 @@ onUnmounted(() => {
   <div v-else>
     <Chart></Chart>
   </div>
-  {{ hideJudgeDecision }}
 </template>
 
 <style>

@@ -28,16 +28,16 @@ const moveTo = async (index) => {
         :title="props.title"
         @accept="$emit('close')"
         @close="$emit('close')">
-        <div class="flex flex-wrap justify-center md:justify-start lg:justify-start gap-2">
+        <div class="flex flex-wrap justify-between md:justify-start lg:justify-start gap-2">
             <div
                 v-for="(card, idx) in props.cards"
                 :key="idx"
                 @click="moveTo(idx)"
-                class="p-2 m-1 text-black cursor-pointer min-w-30 text-left rounded hover:bg-orange-400 active:bg-orange-200 transition shadow-lg"
+                class="p-2 text-black cursor-pointer min-w-9/20 md:min-w-30 text-left rounded hover:bg-orange-400 active:bg-orange-200 transition shadow-lg"
             >
                 <div>{{ card.auditionNumber }}. <span class="font-semibold">{{ card.participantName }}</span></div>
                 <div v-if="card.score===0" class="text-red-500 flex justify-center items-center">UNSCORED</div>
-                <div v-else class="text-black  flex justify-center items-center">{{card.score}}</div>
+                <div v-else class="text-black flex justify-center items-center">{{card.score}}</div>
             </div>
             </div>
     </ActionDoneModal>

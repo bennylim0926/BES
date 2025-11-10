@@ -1,11 +1,12 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
+import { subscribeToChannel,createClient } from '@/utils/websocket'
 
 
 const {selectedEvent, selectedGenre, iintialiseDropdown, selectedJudge} = useDropdowns()
@@ -26,6 +27,9 @@ const onFileChange = async(e)=>{
 }
 
 const winnerAnnouncement = computed(()=>{
+  if(currentBattle.value.length === 0) return "Choose a round to start"
+  if(currentWinner.value === -2) return "Battle is ongoing, GET SCORE when judges are ready"
+  if(currentWinner.value === -3) return "Judges are not ready"
   if(isSmoke.value){
     if(currentWinner.value === -1){
         return "Its a tie"
@@ -69,6 +73,12 @@ const nextBattlePair = computed(()=>{
   }
 })
 
+const resetJudgeVote = async()=>{
+  battleJudges.value.judges.forEach(async j => {
+    await battleJudgeVote(j.id, -3)
+  })
+}
+
 const currentBattlePair = computed(()=>{
   if(currentBattle.value.length === 0)return
   if(isSmoke.value){
@@ -85,6 +95,7 @@ const updateSmokePair = async ()=>{
   await updateSmokeList(rounds.value)
 }
 const initiateBattlePair = async(top, pairList) =>{
+  await resetJudgeVote()
   if(isSmoke.value){
     await setBattlePair(rounds.value[0].name,rounds.value[1].name)
     updateSmokePair()
@@ -111,6 +122,7 @@ const prevPair = async () =>{
 
 const nextPair = async () =>{
   if(currentBattle.value.length === 0) return 
+  await resetJudgeVote()
   if(isSmoke.value){
      update7toSmokeMatch(currentWinner.value)
      await setBattlePair(rounds.value[0].name, rounds.value[1].name)
@@ -224,6 +236,9 @@ const submitRemoveBattleJudge = async(name) =>{
 }
 
 const submitGetScore = async()=>{
+    battleJudges.value = await getBattleJudges()
+    const hasMinusThree = battleJudges?.value.judges.some(j => j.vote === -3)
+    if(hasMinusThree) {currentWinner.value = -3; return} 
     if(isSmoke.value){
       const res = await setBattleScore()
       const data = await res.json()
@@ -232,6 +247,11 @@ const submitGetScore = async()=>{
       return
     }
     if(currentBattle.value.length === 0) return 
+    if(currentWinner.value === -1){
+      currentWinner.value = -2
+      await resetJudgeVote()
+      return
+    }
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
     if(left === "" || right === "") return
@@ -303,9 +323,9 @@ onMounted(async ()=>{
     <div class="flex items-center justify-center mt-2">
       <span class="mx-2" v-for="(j, index) in battleJudges?.judges || []"
         :key="index">
-        <span id="badge-dismiss-default" class="inline-flex items-center px-2 py-1 me-2 text-sm font-medium text-gray-800 bg-orange-100 rounded-sm dark:bg-gray-800 dark:text-gray-200">
+        <span id="badge-dismiss-default" class="inline-flex items-center px-2 py-1 me-2 text-sm font-medium text-gray-800 bg-[#fffaf5] rounded-sm shadow-sm ">
         {{j.name}}
-            <button @click="()=>submitRemoveBattleJudge(j.name)" type="button" class="inline-flex items-center p-1 ms-2 text-sm text-gray-100 bg-transparent rounded-xs hover:bg-orange-400 hover:text-gray-100 dark:hover:bg-orange-400 dark:hover:text-gray-100" data-dismiss-target="#badge-dismiss-default" aria-label="Remove">
+            <button @click="()=>submitRemoveBattleJudge(j.name)" type="button" class="inline-flex items-center p-1 ms-2 text-sm text-black bg-transparent rounded-xs hover:bg-orange-400 hover:text-gray-100 " data-dismiss-target="#badge-dismiss-default" aria-label="Remove">
                 <svg class="w-2 h-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
                 </svg>
@@ -320,9 +340,9 @@ onMounted(async ()=>{
       v-if="Number(topSize) !== 7"
       v-for="(size, idx) in roundSizes"
       :key="idx"
-      class="flex flex-col justify-between bg-orange-100 dark:bg-gray-800 p-4 rounded-lg shadow-md"
+      class="flex flex-col justify-between bg-[#fffaf5] p-4 rounded-lg shadow-md"
     >
-      <div class="font-bold mb-4 text-lg text-gray-800 dark:text-gray-100">
+      <div class="font-bold mb-4 text-lg text-gray-800">
         Top {{ size }}
       </div>
 
@@ -335,7 +355,7 @@ onMounted(async ()=>{
         <!-- Left Participant -->
         <div class="flex items-center gap-1">
           <select
-            class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+            class="border rounded px-2 py-1 text-sm text-gray-700 "
             v-model="rounds[`Top${size}`][mIdx][0]"
             @change="updateMatch(`Top${size}`, mIdx, 0, rounds[`Top${size}`][mIdx][0])"
           >
@@ -350,12 +370,12 @@ onMounted(async ()=>{
           />
         </div>
 
-        <span class="font-bold text-gray-700 dark:text-gray-100">vs</span>
+        <span class="font-bold text-gray-700 ">vs</span>
 
         <!-- Right Participant -->
         <div class="flex items-center gap-1">
           <select
-            class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+            class="border rounded px-2 py-1 text-sm text-gray-700 "
             v-model="rounds[`Top${size}`][mIdx][1]"
             @change="updateMatch(`Top${size}`, mIdx, 1, rounds[`Top${size}`][mIdx][1])"
           >
@@ -373,9 +393,12 @@ onMounted(async ()=>{
       <ReusableButton @onClick="()=>{initiateBattlePair(`Top${size}`, rounds[`Top${size}`])}" buttonName="Start Round"></ReusableButton>
     </div>
     <div v-else>
-      This is 7 to smoke
-      <div class="flex justify-center gap-8">
+      <div class="flex flex-col justify-center bg-[#fffaf5] p-4 rounded-lg mb-4 shadow-lg">
+        <div class="font-bold mb-4 text-lg text-gray-800">
+        7 to Smoke
+      </div>
   <!-- LEFT COLUMN (first 2 matches) -->
+   <div class="flex justify-center gap-8">
   <div class="flex flex-col">
     <div
       v-for="(match, mIdx) in rounds.slice(0, 2)"
@@ -383,7 +406,7 @@ onMounted(async ()=>{
       class="flex items-center gap-2 mb-2"
     >
       <select
-        class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+        class="border rounded px-2 py-1 text-sm text-gray-700 "
         v-model="rounds[mIdx].name"
       >
         <option :value="null" disabled>Select</option>
@@ -400,7 +423,7 @@ onMounted(async ()=>{
       class="flex items-center gap-2 mb-2"
     >
       <select
-        class="border rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-100"
+        class="border rounded px-2 py-1 text-sm text-gray-700 "
         v-model="rounds[mIdx + 2].name"
       >
         <option :value="null" disabled>Select</option>
@@ -410,42 +433,44 @@ onMounted(async ()=>{
   </div>
 </div>
 <ReusableButton @onClick="()=>{initiateBattlePair(0,0)}" buttonName="Start Round"></ReusableButton>
+</div>
+
     </div>
   </div>
     <div class="flex justify-center items-center">
-        <div class="text-3xl text-gray-100">
+        <div class="text-2xl text-black p-4 bg-[#fffaf5] rounded shadow-md mb-4">
             {{ winnerAnnouncement }}
         </div>
     </div>
-  <div class="flex justify-center items-center">
+  <div class="flex justify-center items-center mx-4">
     <div v-if="!isSmoke" class="grid grid-cols-3 gap-2">
-        <div v-if="previousBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
-            Previous Pair: <span class="font-bold text-2xl text-gray-100"> {{ previousBattlePair?.[0] }} </span> vs <span class="font-bold text-2xl text-gray-100">{{ previousBattlePair?.[1] }}</span>
-        </div> <div v-else class="bg-gray-800"></div>
-        <div v-if="currentBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
-            Current Pair: <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[0] }}</span> vs <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[1] }}</span>
-        </div> <div v-else class="bg-gray-800"></div>
-        <div v-if="nextBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
-            Next Pair: <span class="font-bold text-2xl text-gray-100">{{ nextBattlePair?.[0] }}</span> vs <span class="font-bold text-2xl text-gray-100">{{ nextBattlePair?.[1] }}</span>
-        </div> <div v-else class="bg-gray-800"></div>
+        <div v-if="previousBattlePair" class="text-gray-600 p-5 bg-[#fffaf5] text-lg shadow-xl">
+            Previous Pair: <span class="font-bold text-2xl text-black"> {{ previousBattlePair?.[0] }} </span> vs <span class="font-bold text-2xl text-black">{{ previousBattlePair?.[1] }}</span>
+        </div> <div v-else class="bg-[#fffaf5] shadow-xl"></div>
+        <div v-if="currentBattlePair" class="text-gray-600 p-5 bg-[#fffaf5] text-lg shadow-xl">
+            Current Pair: <span class="font-bold text-2xl text-black">{{ currentBattlePair?.[0] }}</span> vs <span class="font-bold text-2xl text-black">{{ currentBattlePair?.[1] }}</span>
+        </div> <div v-else class="bg-[#fffaf5] shadow-xl"></div>
+        <div v-if="nextBattlePair" class="text-gray-600 p-5 bg-[#fffaf5] text-lg shadow-xl">
+            Next Pair: <span class="font-bold text-2xl text-black">{{ nextBattlePair?.[0] }}</span> vs <span class="font-bold text-2xl text-black">{{ nextBattlePair?.[1] }}</span>
+        </div> <div v-else class="bg-[#fffaf5] shadow-xl"></div>
     </div>
     <div v-else class="grid grid-cols-2 gap-2">
-      <div v-if="currentBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
-            Current Match: <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[0].name }} ({{currentBattlePair?.[0].score}})</span> vs <span class="font-bold text-2xl text-gray-100">{{ currentBattlePair?.[1].name }} ({{currentBattlePair?.[1].score}})</span>
-        </div> <div v-else class="bg-gray-800"></div>
-        <div v-if="nextBattlePair" class="text-gray-300 p-5 bg-gray-800 text-lg">
-            Queue: <span v-for="value in nextBattlePair">{{ value.name }}, </span>
-        </div> <div v-else class="bg-gray-800"></div>
+      <div v-if="currentBattlePair" class="text-gray-600 p-5 bg-[#fffaf5] text-lg shadow-xl">
+            Current Match: <span class="font-bold text-2xl text-black">{{ currentBattlePair?.[0].name }} ({{currentBattlePair?.[0].score}})</span> vs <span class="font-bold text-2xl text-black">{{ currentBattlePair?.[1].name }} ({{currentBattlePair?.[1].score}})</span>
+        </div> <div v-else class="bg-[#fffaf5] shadow-xl"></div>
+        <div v-if="nextBattlePair" class="text-gray-600 p-5 bg-[#fffaf5] text-lg shadow-xl">
+            Queue: <span>{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
+        </div> <div v-else class="bg-[#fffaf5] shadow-xl"></div>
     </div>
   </div>
-  <div class="flex justify-center items-center">
+  <div v-if="Number(currentWinner) !== -2 && Number(currentWinner) !== -3 && Number(currentWinner) !== -1"  class="flex justify-center items-center">
     <div class="grid grid-cols-2 gap-2 mt-2">
         <ReusableButton @onClick="prevPair" buttonName="Previous Pair"></ReusableButton>
         <ReusableButton @onClick="nextPair" buttonName="Next Pair"></ReusableButton>
     </div>
   </div>
-  <div class="flex justify-center items-center mt-2">
-    <ReusableButton @onClick="submitGetScore" buttonName="Get Score"></ReusableButton>
+  <div v-if="Number(currentWinner) === -2 || Number(currentWinner) === -3 || Number(currentWinner) === -1" class="flex justify-center items-center mt-2">
+    <ReusableButton @onClick="submitGetScore" :buttonName="(Number(currentWinner === -1) && !isSmoke )? 'Rematch' : 'Get Score' "></ReusableButton>
   </div>
 
   <div class="flex justify-center items-center mt-2 mb-6">

@@ -4,12 +4,13 @@ import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
-import { ref, computed, onMounted, watch, toRaw } from 'vue';
+import { ref, computed, onMounted, watch, toRaw, callWithAsyncErrorHandling } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import Timer from '@/components/Timer.vue';
 import { checkAuthStatus } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
+import 'primeicons/primeicons.css'
 
 const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
@@ -25,6 +26,7 @@ const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
 const showMiniMenu = ref(false)
+const dynamicCallBack = ref(()=>{})
 
 const dynamicRole = async ()=>{
   const res = await whoami()
@@ -48,7 +50,25 @@ const openModal = (title, message) => {
     modalTitle.value = title
     modalMessage.value = message
     showModal.value = true
+    dynamicCallBack.value = ()=>{showModal.value = false}
 }
+
+const confirmReset = (title, message) => {
+    modalTitle.value = title
+    modalMessage.value = message
+    showModal.value = true
+    dynamicCallBack.value = ()=>{showModal.value = false; resetScore();}
+}
+
+const confirmSubmit = async (title, message) => {
+    modalTitle.value = title
+    modalMessage.value = message
+    showModal.value = true
+    dynamicCallBack.value = async ()=>{showModal.value = false;
+         await submitScore(selectedEvent.value, selectedGenre.value, 
+         currentJudge.value, filteredParticipantsForJudge.value);}
+}
+
 
 const filteredParticipantsForJudge = computed({
   get() {
@@ -72,7 +92,11 @@ const filteredParticipantsForJudge = computed({
 })
 
 watch(filteredParticipantsForJudge, (newVal) => {
-    localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+    const update = newVal.find(c => c.score !== 0)
+    if(update){
+      localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+    }
+    // console.log(localStorage.getItem("currentScore"))
 }, { deep: true });
 
 const filteredParticipantsForEmcee = computed({
@@ -198,8 +222,16 @@ const submitScore = async(eventName,genreName, judgeName, participants) =>{
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
   if(res.ok){
     openModal("Success", "Score updated!")
-    localStorage.removeItem("currentScore");
+    // localStorage.removeItem("currentScore");
   }
+}
+
+const resetScore = ()=>{
+  localStorage.removeItem("currentScore");
+  participants.value = participants.value.map( obj=>({
+    ...obj,
+    score: 0
+  }))
 }
 
 const showFilters = ref(true)
@@ -241,18 +273,22 @@ onMounted(async () => {
 -->
 
 <template>
-    <div class="m-10">
-    <div class="flex justify-end items-center mb-3">
-      <ReusableButton @onClick="showFilters = !showFilters" :buttonName="showFilters ? 'Hide filter' : 'Show filter'"></ReusableButton>
-      <ReusableButton v-if="selectedRole === 'Judge'" class="ml-2" @onClick="showMiniMenu = !showMiniMenu" buttonName="Score Menu"></ReusableButton>
+    <div class="mx-5">
+      <div class="flex justify-end">
+        <div class="flex items-center bg-[#fffaf5] shadow-xl p-5 mb-5 mt-3 rounded">
+      <span class="pi ml-2" :class="showFilters?'pi-filter-slash': 'pi-filter'" style="font-size: 2rem" @click="showFilters = !showFilters"></span>
+      <span v-if="selectedRole === 'Judge'" class="pi pi-search ml-3" style="font-size: 2rem" @click="showMiniMenu = !showMiniMenu"></span>
+      <span v-if="selectedRole === 'Judge'" class="pi pi-send ml-3" style="font-size: 2rem" @click="confirmSubmit('Submit Score', 'Are you sure you wanna submit now?')"></span>
+      <span v-if="selectedRole === 'Judge'" class="pi pi-undo ml-3" style="font-size: 2rem" @click="confirmReset('Warning','Are you sure you want to reset the score?')"></span>
+    </div>
     </div>
 
     <!-- Collapsible content -->
     <transition name="fade">
-      <form v-if="showFilters" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+      <form v-if="showFilters" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         <ReusableDropdown v-model="selectedRole" labelId="Role" :options="roles" />
-        <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
+        <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
       </form>
     </transition>
@@ -270,24 +306,28 @@ onMounted(async () => {
         v-model:tableValue="filteredParticipantsForEmcee.rows"
         :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
 </div>
-<div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0">
+<div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0"
+  >
     <!-- <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards> -->
      <MiniScoreMenu 
      :cards="filteredParticipantsForJudge"
      :show="showMiniMenu"
      :title="'MOVE TO'"
      @close="showMiniMenu = !showMiniMenu"></MiniScoreMenu>
-     <SwipeableCardsV2 
-     :cards="filteredParticipantsForJudge"></SwipeableCardsV2>
-    <div class="flex justify-center my-3">
+     <div class="flex items-center justify-center w-full">
+      <SwipeableCardsV2 
+      class="absolute bottom-0 md:bottom-10 left-0"
+      :cards="filteredParticipantsForJudge"></SwipeableCardsV2>
+    </div>
+    <!-- <div class="flex justify-center my-3">
         <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
         buttonName="Submit Scores"></ReusableButton>
-    </div>
+    </div> -->
 </div>
 <ActionDoneModal
     :show="showModal"
     :title="modalTitle"
-    @accept="()=>{showModal = false}"
+    @accept="()=>{dynamicCallBack()}"
     @close="()=>{showModal = false}"
   >
     <p>
