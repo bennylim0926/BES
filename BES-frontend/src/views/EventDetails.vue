@@ -4,8 +4,10 @@ import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicInputs from '@/components/DynamicInputs.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getVerifiedParticipantsByEvent, addJudges, insertPaymenColumnInSheet, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent} from '@/utils/api';
+import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
-import { filterObject } from '@/utils/utils';
+import AuditionNumber from './AuditionNumber.vue';
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
 
 const fileId = ref('')
 const modalTitle = ref("")
@@ -13,6 +15,8 @@ const modalMessage = ref("")
 const inputs = ref([""]) 
 const genreOptions = ref(null)
 const tableExist = ref(true)
+const loading = ref(false)
+const onStartLoading = ref(false)
 
 const verifiedFormParticipants = ref([])
 const verifiedDbParticipants = ref([])
@@ -27,19 +31,6 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const createTable = reactive({
     genres: []
 })
-
-const openCategoryDetails = (genre) =>{
-    const res = getUnregistered(genre)
-    showModal.value = true
-    if(res.unregistered.length === 0){
-        modalTitle.value = "All participants registered"
-        modalMessage.value = ""
-    }
-    else{
-        modalTitle.value = "Unregistered participants"
-        modalMessage.value = res.unregistered.map(p => p.participantName).join(", ")
-    }
-}
 
 const showModal = ref(false)
 const handleAccept = () => {
@@ -83,10 +74,6 @@ const totalDbRegistered = computed(()=>{
   return uniqueParticipants.filter(p => p.auditionNumber !== null)
 })
 
-const sumBreakdown = computed(()=>{
-    return [verifiedFormParticipants.value.length ,totalParticipants.value]
-})
-
 function normalizeGenreName(name) {
     const normalized = name.trim().toLowerCase().replace(/\s+/g, '');
     if (normalized.includes('7tosmoke')) return 'smoke';
@@ -109,8 +96,6 @@ const getUnregistered = (genre) =>{
                         .filter(p => p.genreName === genre && p.auditionNumber !== null && p.walkin === false)
                         .sort((a,b)=> a.auditionNumber - b.auditionNumber),
         "unregistered": participants.filter(p => p.genreName === genre && p.auditionNumber === null && p.walkin === false)
-
-        
     }
 }
 
@@ -144,11 +129,15 @@ const completeBreakdown = computed(()=>{
 })
 
 const onSubmit = async () =>{
+    if(loading.value){
+        return
+    }
     // insert payment-status column if not exist
     if(createTable.genres.length == 0){
         openModal(404 , "Need to add at least one genre/category")
         return
     }
+    loading.value = true
     for (let index = 0; index < inputs.value.length; index++) {
         if(inputs.value[index] === ""){
             console.log("cannot have empty value")
@@ -158,13 +147,13 @@ const onSubmit = async () =>{
     }
     await addJudges(inputs.value)
     await insertPaymenColumnInSheet(fileId.value)
-    
     // create table with eventName
     await insertEventInTable(props.eventName)
 
     // link table to selected genres
     const resp = await linkGenreToEvent(props.eventName, createTable.genres)
     resp.json().then(result=>{
+        loading.value = false
         openModal(resp.status , result)
         tableExist.value = true
     })
@@ -172,6 +161,7 @@ const onSubmit = async () =>{
 }
 
 const refreshParticipant = async() =>{
+    loading.value = true
     const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
     if(createEventResponse.ok){
         verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
@@ -183,121 +173,159 @@ const refreshParticipant = async() =>{
             openModal(createEventResponse.status , result)
         ])
     }
+    loading.value = false
 }
-
-const tableConfig = computed(()=>{
-    const base = [
-        { key: 'name', label: 'Name', type: 'text', readonly: true },
-        { key: 'genre', label: 'Genre', type: 'text', readonly: true }
-    ]
-    const hasResidency = verifiedFormParticipants.value.some(p => p.residency)
-    if(hasResidency){
-        base.push({ key: 'residency', label: 'Residency', type: 'text', readonly: true })
-    }
-    return base
-})
 
 watch(
     fileId,
     async () =>{
-        participantsNumBreakdown.value = await getResponseDetails(fileId.value)
-        totalParticipants.value = await getSheetSize(fileId.value)
+        if(fileId.value !== null){
+            participantsNumBreakdown.value = await getResponseDetails(fileId.value)
+            totalParticipants.value = await getSheetSize(fileId.value)
+        }
     }
 )
 
 onMounted( async () =>{
+    onStartLoading.value =true
     tableExist.value = checkTableExist(eventName, tableExist)
     fileId.value = await getFileId(props.folderID)
     genreOptions.value = await fetchAllGenres()
-    verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
-    verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+    if(tableExist.value) {
+        verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+        verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+    }
+    await useDelay().wait(2500)
+    onStartLoading.value =false
 })
 </script>
 
 <template>
-<!-- 
-    if no database, give an option to create and with genre
-        to check database exist, 
-        to create event with genre, need eventName and genreName
-    once created, show verified and unverified participants
- -->
-    <h1 class="flex justify-center gap-2 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-3xl lg:text-4xl dark:text-white mb-3">{{ props.eventName }}</h1>
-    <div class="mx-10">
-        <h1 class="flex justify-center gap-2 text-xl font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-xl dark:text-white mb-3">
-            <!-- Email Received: {{ sumBreakdown[0] }}/{{ sumBreakdown[1] }} -->
-            Total Participants: {{ totalParticipants + totalWalkIn}}
-            <br></br>
-            Total Form Sign Up: {{ totalParticipants }}
-            <br></br>
-            Total Walk In: {{ totalWalkIn }}
-            <br></br>
-            Total Form Sign Up (Verified): {{ verifiedFormParticipants.length - totalWalkIn}}
-            <br></br>
-            Total Registered (With Audition Number): {{ totalDbRegistered.length }}
-            <br></br>
-        </h1>
-    <DynamicTable
-        @onClick="openCategoryDetails"
-        v-model:tableValue="completeBreakdown"
-        :table-config="[
-            { key: 'genre', label: 'Genre', type: 'link'},
-            { key: 'total', label: 'Total Form Sign Up', type: 'number', readonly:true },
-            { key: 'unregistered', label: 'Unregistered', type: 'number', readonly:true },
-            { key: 'registered', label: 'Registered', type: 'number', readonly:true }
-        ]"
-        />
+    
+    <h1
+  class="flex flex-wrap text-2xl md:text-6xl lg:text-6xl items-center justify-center leading-none tracking-tight  mt-4 mx-3 mb-2"
+>
+  <span class="font-semibold text-black">{{ props.eventName }} </span>
+
+  <svg
+    v-if="loading"
+    class="w-10 h-10 text-gray-800 animate-spin shrink-0 mx-2"
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+  >
+    <path
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364 6.364l-2.121-2.121M6.757 6.757L4.636 4.636m12.728 0l-2.121 2.121M6.757 17.243l-2.121 2.121"
+    />
+  </svg>
+
+  <svg
+    v-else
+    class="w-10 h-10 mx-2 text-gray-800 shrink-0"
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    @click="refreshParticipant"
+  >
+  <path stroke="currentColor" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        stroke-width="2" 
+        d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4"/>
+  </svg>
+</h1>
+    <div class="flex justify-center m-5">
+        <AuditionNumber></AuditionNumber>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-2 px-2 justify-items-center mb-5 mx-4">
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded items-center justify-center "> 
+            <div class="text-2xl font-semibold">Total: {{ totalParticipants + totalWalkIn }}</div> 
+            <div class="flex">
+            <div class="text-lg grid grid-cols-2 gap-2 justify-center items-center">
+                <div> Form: {{ totalParticipants }}</div>
+                <div>Walkin: {{ totalWalkIn }}</div>
+            </div>
+        </div>
+        </div>
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
+            <div class="text-2xl font-semibold">Verified: {{ verifiedFormParticipants.length - totalWalkIn }}</div> 
+            <div class="text-2xl font-semibold">Unverified: {{ totalParticipants - (verifiedFormParticipants.length - totalWalkIn) }}</div> 
+        </div>
+        <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
+            <div class="text-2xl font-semibold">Registered: {{ totalDbRegistered.length }}</div> 
+            <!-- <div class="text-2xl font-semibold">Unregistered: {{ totalDbRegistered.length }}</div>  -->
+        </div>
+    </div>
+    <div class="m-8">
+        <div class=" grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-2">
+            <div v-for="genre in completeBreakdown"
+            class="flip-card">
+            <!-- @click="openCategoryDetails(genre.genre)"> -->
+            <div class="flip-card-inner">
+                <div class="flip-card-front grid grid-cols-1">
+                    <p class=" text-3xl font-semibold">{{ genre.genre }}</p>
+                    <hr class="h-px my-4  bg-gray-700"></hr>
+                    <p class="text-lg">Total: {{ genre.total }}</p>
+                    <p class="text-lg">Registered: {{ genre.registered }}</p>
+                    <p class="text-lg">Unregistered: {{ genre.unregistered }}</p>
+                </div>
+                <div class="flip-card-back">
+                    <div v-if="getUnregistered(genre.genre).unregistered.length > 0">
+                        <p class=" text-2xl font-semibold">Unregistered</p>
+                        <p>
+                            {{
+                                getUnregistered(genre.genre).unregistered
+                                .map(v => v.participantName)
+                                .join(', ')
+                            }}
+                        </p>
+                    </div>
+                    <div v-else><p class=" text-2xl font-semibold">All verified participants had registered</p></div>
+                </div>
+            </div>
+            </div>
+        </div>
     </div>
     <div v-if="tableExist">
-        <div class="flex justify-center">
-            <ReusableButton @onClick="refreshParticipant" buttonName="Refresh"></ReusableButton>
-        </div>
-        <!-- <div class="mx-10">
-        <DynamicTable
-        v-if="verifiedFormParticipants.length > 0 && tableExist" 
-        v-model:tableValue="verifiedFormParticipants"
-        :table-config="tableConfig"
-        />
-        <div v-else class="flex justify-center"> Please check your response form and mark it if the participant paid</div>
-    </div> -->
     </div>
-    <div v-else class="flex items-center gap-2">
-        <form class="mx-auto relative overflow-x-auto " @submit.prevent="onSubmit">        
-            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                <h1 class="flex justify-center gap-2 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-2xl dark:text-white mb-3">
-                Genres</h1>
+    <div v-else class="flex items-center gap-2 bg-[#fffaf5] p-5 m-6 shadow-xl">
+        <div class="mx-auto relative overflow-x-auto">        
+            <label class="block mb-2 text-sm text-gray-900">
+                <h1 class="flex justify-center gap-2 text-xl leading-none tracking-tight text-gray-900 md:text-5xl lg:text-2xl mb-3">
+                Genres/Categories</h1>
             </label>
 
             <div class="grid grid-cols-2 gap-3 w-fit mb-2">
                 <div
                 v-for="g in genreOptions"
                 :key="g.genreName"
-                class="flex items-center px-3 py-2 border border-gray-200 rounded-md 
-                        dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
-                >
+                class="flex items-center px-3 py-2 sm:min-w-48 md:min-w-62 lg:min-w-62 h-auto rounded bg-white shadow-md">
                     <input
                         type="checkbox"
                         :id="g.genreName"
                         :value="g.genreName"
                         v-model="createTable.genres"
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm
-                            focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800
-                            focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        class="w-4 h-4 text-orange-400 bg-gray-100 border-gray-300 rounded-sm
+                            focus:ring-orange-400
+                            focus:ring-2"
                     />
                     <label
                         :for="g.genreName"
-                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                        class="ms-2 sm:text-lg md:text-xl lg:text-xl font-medium text-black"
                     >
                         {{ g.genreName }}
                     </label>
                 </div>
             </div>
-            <DynamicInputs  v-model="inputs"></DynamicInputs>
+            <!-- <DynamicInputs  v-model="inputs"></DynamicInputs> -->
             <div class="flex justify-center">
-                <button class="bg-transparent hover:bg-gray-500 text-gray-400 font-semibold hover:text-white py-2 px-4 border border-gray-500 hover:border-transparent rounded mb-3" type="submit" value="Submit">
-                            Create Table
-                </button>
+                <ReusableButton @onClick="onSubmit" buttonName="Update database"></ReusableButton>
             </div>
-        </form>
+        </div>
     </div>
     <ActionDoneModal
         :show="showModal"
@@ -309,4 +337,57 @@ onMounted( async () =>{
         {{ modalMessage}}
         </p>
     </ActionDoneModal>
+    <LoadingOverlay v-if="onStartLoading"></LoadingOverlay>
+    
 </template>
+
+<style>
+
+.flip-card {
+  height: 180px; /* pick a consistent height */
+}
+
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%; /* or a fixed height like 300px */
+
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+}
+
+/* Do an horizontal flip when you move the mouse over the flip box container */
+.flip-card:hover .flip-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2),
+    0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  backface-visibility: hidden;
+}
+
+.flip-card-front {
+  background-color: #fffaf5;
+  border-radius: 4px;
+}
+
+.flip-card-back {
+  background-color: #ff8904; /* ✅ keep background visible after flip */
+  color: white;
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 1rem;
+  border-radius: 4px;
+}
+</style>

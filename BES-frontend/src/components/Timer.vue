@@ -1,5 +1,5 @@
 <template>
-    <div class="flex flex-col items-center space-y-4 h-50 w-auto bg-orange-50 dark:bg-gray-900 p-10 rounded-lg">
+    <div class="flex flex-col items-center space-y-4 h-50 w-auto bg-[#fffaf5] p-10 rounded-lg">
       <!-- Countdown -->
       <div v-if="timeLeft < selectedTime">
         <div class="text-2xl ">

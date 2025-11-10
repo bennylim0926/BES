@@ -8,6 +8,11 @@ import AuditionList from "@/views/AuditionList.vue";
 import Score from "@/views/Score.vue";
 import Login from "@/views/Login.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
+import { component } from "vue-fullscreen";
+import BattleOverlay from "@/views/BattleOverlay.vue";
+import BattleJudge from "@/views/BattleJudge.vue";
+import BattleControl from "@/views/BattleControl.vue";
+import Chart from "@/views/Chart.vue";
 
 const routes = [
     {
@@ -19,10 +24,7 @@ const routes = [
         path: '/events',
         name: 'Event',
         component: Event,
-        children: [
-            { path: ':eventName', component: EventDetails } // /events/something
-          ]
-    },
+      },
     {
         path: '/events/:eventName',
         name: 'Event Details',
@@ -61,6 +63,26 @@ const routes = [
         path: '/403',
         name: 'Forbidden',
         component: ForbiddenPage    
+    },
+    {
+        path: '/battle/overlay',
+        name: "StreamOverlay",
+        component: BattleOverlay
+    },
+    {
+        path: '/battle/judge',
+        name: "Battle Judge",
+        component: BattleJudge
+    },
+    {
+        path: '/battle/control',
+        name: "Battle Control",
+        component: BattleControl
+    },
+    {
+        path: '/battle/chart',
+        name: "Smoke",
+        component: Chart
     }
 ]
 

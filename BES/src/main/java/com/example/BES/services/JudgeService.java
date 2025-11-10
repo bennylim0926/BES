@@ -55,4 +55,8 @@ public class JudgeService {
         }
         return name;
     }
+
+    public Judge getJudgeById(Long id){
+        return judgeRepo.findById(id).orElse(null);
+    }
 }

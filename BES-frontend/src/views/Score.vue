@@ -132,14 +132,13 @@ function transformForScore(data){
 
 
 <template>
-    <div class="m-10">
+    <div class="m-5">
     <form class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-5">
         <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
         <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
       </form>
-
-      <div class="m-10">
+    <div class="my-4">
     <DynamicTable 
         v-if="selectedTabulation == 'By Total' && filteredParticipantsForScore.rows.length>0"
         @onClick="editScore"
@@ -148,7 +147,7 @@ function transformForScore(data){
     </DynamicTable>
      <div v-if="selectedTabulation == 'By Judge'">
     <div v-for="(group, judge) in filteredParticipantsForScore.byJudge" :key="judge" class="mb-8">
-        <h2 class="text-lg font-bold mb-2">{{ judge }}</h2>
+        <h2 class="text-lg font-bold">{{ judge }}</h2>
         <DynamicTable 
         @onClick="editScore"
         v-model:tableValue="group.rows"

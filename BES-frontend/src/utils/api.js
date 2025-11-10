@@ -1,3 +1,5 @@
+import { file } from "@primeuix/themes/aura/fileupload"
+
 // const domain = "http://localhost:5050"
 const domain = ""
 
@@ -88,6 +90,9 @@ export const getFileId = async (folderId) =>{
       credentials: 'include'
     })
     const result = await res.json()
+    if(result.length === 0){
+      return null
+    }
     return result[0].fileId
   }catch(e){
       console.log(e)
@@ -305,4 +310,186 @@ export const getParticipantScore = async(eventName) =>{
     }catch(e){
         console.log(e)
     }
+}
+
+export const getBattleJudges = async() =>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/judges`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+      return await res.json()
+    }
+  }catch(e){
+    console.log(e)
+  }
+}
+
+export const getCurrentBattlePair = async()=>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/battle-pair`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+      return await res.json()
+    }
+  }catch(e){
+
+  }
+}
+
+export const battleJudgeVote = async(id, vote) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/vote`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+        vote: Number(vote)
+      })
+    })
+  }catch(e){
+
+  }
+}
+
+export const addBattleJudge = async(id) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/judge`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+      })
+    })
+  }catch(e){
+
+  }
+}
+
+export const removeBattleJudge = async(id) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/judge`,{
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+      })
+    })
+  }catch(e){
+
+  }
+}
+export const setBattlePair = async(leftBattler, rightBattler) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/battle-pair`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        leftBattler: leftBattler,
+        rightBattler: rightBattler
+      })
+    })
+  }catch(e){
+
+  }
+}
+
+export const setBattleScore = async() =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/score`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+  }catch(e){
+
+  }
+}
+
+export const uploadImage = async(file)=>{
+  try{
+    const formData = new FormData();
+    formData.append("file", file);
+    return await fetch(`${domain}/api/v1/battle/upload`,{
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    })
+  }catch(e){
+
+  }
+}
+
+export const getImage = async (filename) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/uploads/${filename}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch image: ${res.status}`);
+    }
+
+    // Convert the image stream into a blob
+    const blob = await res.blob();
+
+    // Create a temporary local URL for use in <img>
+    const imageUrl = URL.createObjectURL(blob);
+
+    return imageUrl;
+  } catch (err) {
+    console.error('Error fetching image:', err);
+    return null;
+  }
+};
+
+export const getSmokeList = async()=>{
+  try{
+    const res = await fetch(`${domain}/api/v1/battle/smoke`,{
+      credentials: 'include'
+    })
+    if(res.ok){
+        return await res.json()
+    }
+  }catch(e){
+      console.log(e)
+  }
+}
+export const updateSmokeList  = async(battlers)=>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/smoke`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        battlers: battlers
+      })
+    })
+  }catch(e){
+
+  }
 }

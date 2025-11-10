@@ -10,3 +10,8 @@ export function filterObject(obj, predicate) {
         return res;
       }, {});
   }
+
+export function useDelay() {
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    return { wait };
+  }

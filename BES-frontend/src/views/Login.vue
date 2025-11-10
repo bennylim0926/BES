@@ -42,10 +42,18 @@ const submitLogin = async(username, password) =>{
 </script>
 
 <template>
-    <div class="flex flex-col h-screen justify-center items-center align-middle">
-        <form >
-            <h1 class="text-3xl font-bold mb-8">Login</h1>
-            <!-- <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Username</label> -->
+    <div class="flex flex-col h-screen justify-center items-center align-middle 
+    bg-white [background:radial-gradient(130%_120%_at_30%_30%,#fff_40%,#f56702_100%)]
+    text-black">
+        <div class="flex flex-col items-center justify-center mb-10">
+            <div>
+                <h1 class="text-3xl sm:text-3xl md:text-5xl lg:text-5xl"> BES </h1>
+            </div>
+            <div>
+                <p class="text-sm sm:text-sm md:text-lg lg:text-lg"> -Unite the groove in one process- </p>
+            </div>
+        </div>
+        <form class="mx-5">
             <input
             
             placeholder="Username"
@@ -60,7 +68,7 @@ const submitLogin = async(username, password) =>{
             class="mb-3 border rounded-lg px-3 py-2 w-full focus:ring focus:ring-blue-300"></input>
             
         </form>
-        <ReusableButton class="m-3" buttonName="Login" @onClick="submitLogin(username,password)"></ReusableButton>
+        <ReusableButton class="" buttonName="Login" @onClick="submitLogin(username,password)"></ReusableButton>
     </div>
     <ActionDoneModal
     :show="showModal"

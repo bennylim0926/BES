@@ -5,6 +5,11 @@ const props = defineProps({
         type: String,
         required: true,
         default: ()=>("")
+    },
+    disabled:{
+        type: Boolean,
+        required: false,
+        default: ()=>(false)
     }
 })
 
@@ -13,8 +18,10 @@ const emit = defineEmits(["onClick"])
 
 <template>
     <div class="flex justify-center">
-        <button class="bg-transparent hover:bg-orange-300 text-gray-700 dark:text-gray-100 font-semibold hover:text-white py-2 px-4 border border-orange-400 hover:border-transparent rounded 
-        active:bg-orange-400 active:border active:text-gray-100 sm:min-w-[20px] md:min-w-[70px] lg:min-w-[100px]"
+        <button
+        :disabled="props.disabled" 
+        class="bg-orange-400 hover:bg-orange-300 text-white font-semibold py-2 px-4 rounded 
+        active:bg-orange-200 sm:min-w-[20px] md:min-w-[70px] lg:min-w-[100px]"
         :class="$attrs.class"
         @click="emit('onClick')"> {{ props.buttonName }}</button>
     </div>

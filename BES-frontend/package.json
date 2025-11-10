@@ -18,10 +18,12 @@
     "@tailwindcss/vite": "^4.1.12",
     "@vueuse/core": "^13.9.0",
     "headlessui": "^0.0.0",
+    "localforage": "^1.10.0",
     "pinia": "^3.0.3",
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
     "primevue": "^4.3.8",
+    "timers-promises": "^1.0.1",
     "vue": "^3.5.18",
     "vue-fullscreen": "^2.6.1",
     "vue-router": "^4.5.1"
@@ -30,7 +32,7 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.12",
+    "tailwindcss": "^4.1.16",
     "vite": "^7.0.6",
     "vite-plugin-vue-devtools": "^8.0.0"
   }

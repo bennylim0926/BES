@@ -73,17 +73,16 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 <template>
     <div class="flex justify-center mb-3">
       <!-- Outer wrapper makes table scrollable on small devices -->
-      <div class="w-full overflow-x-auto max-h-130 rounded-lg border">
-        <table class="min-w-full sm:w-auto text-sm text-gray-500 border-collapse">
+      <div class="w-full overflow-x-auto max-h-130 rounded-lg shadow-lg">
+        <table class="min-w-full sm:w-auto text-xl md:text-2xl lg:text-2xl  text-black mb-5">
           <thead
-            class="text-xs text-gray-700 uppercase bg-orange-300 sticky top-0 
-                   dark:bg-orange-300 dark:text-gray-400"
+            class="text-xs text-black uppercase bg-orange-400 sticky top-0"
           >
             <tr>
               <th
                 v-for="col in props.tableConfig"
                 :key="col.key"
-                class="px-4 sm:px-6 py-3 text-center whitespace-nowrap text-gray-700"
+                class="px-4 sm:px-6 text-lg py-3 text-center whitespace-nowrap text-white"
               >
                 {{ col.label }}
               </th>
@@ -93,16 +92,16 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
             <tr
               v-for="(row, rowIndex) in rows"
               :key="rowIndex"
-              class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 
-                     hover:bg-gray-50 dark:hover:bg-gray-600"
+              class="bg-orange-50 
+                     hover:bg-gray-200 "
             >
               <td
                 v-for="col in props.tableConfig"
                 :key="col.key"
-                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap text-gray-700 dark:text-gray-100"
+                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap text-black "
               >
                 <!-- Read-only -->
-                <template v-if="col.readonly">
+                <template v-if="col.readonly" class="text-2xl">
                   {{ row[col.key] !== null && row[col.key] !== undefined && row[col.key] !== '' 
                     ? capsFirst(row[col.key]) 
                     : '-' }}
@@ -148,7 +147,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
                   <div
                     @click="row[col.key] = !row[col.key]"
                     class="w-12 h-12 mx-auto rounded-full active:border-4 active:border-green-500 active:bg-green-300"
-                    :class="row[col.key] ? 'bg-green-500' : 'bg-gray-50'"
+                    :class="row[col.key] ? 'bg-green-500' : 'bg-gray-200'"
                   ></div>
                 </template>
   
@@ -162,5 +161,8 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
         </table>
       </div>
     </div>
+    <!-- <div class="flex justify-center items-center">
+      <p class="text-xl font-semibold text-black">-End of List-</p>
+    </div> -->
   </template>
   
