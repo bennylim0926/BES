@@ -1,1 +1,23 @@
-.DS_STORE
+# OS files
+.DS_Store
+
+# Secrets & credentials — NEVER commit these
+.env
+*.pem
+credentials.json
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+BES/target/
+BES-frontend/node_modules/
+BES-frontend/dist/
+
+# Docker volumes
+postgres-data/
+
+# SSL certs (local dev)
+BES-frontend/nginx/certs/*.crt
+BES-frontend/nginx/certs/*.key

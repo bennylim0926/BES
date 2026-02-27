@@ -46,11 +46,14 @@ import com.example.BES.services.ScoreService;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.mail.MessagingException;
 
 @RestController
 @CrossOrigin
 @RequestMapping("/api/v1/event")
+@Tag(name = "Event Management", description = "Endpoints for managing events, genres, participants, walk-ins, and scores")
 public class EventController {
     @Autowired
     EventService eventService;
@@ -58,7 +61,7 @@ public class EventController {
     @Autowired
     ParticipantService participantService;
 
-    @Autowired 
+    @Autowired
     EventParticpantService eventParticipantService;
 
     @Autowired
@@ -81,109 +84,119 @@ public class EventController {
 
     private static final Gson gson = new Gson();
 
-    // Check is this event exist in table
+    @Operation(summary = "Check Event Exists", description = "Returns true if an event with the given name exists")
     @GetMapping("/{eventName}")
-    public ResponseEntity<Boolean> eventExistByName(@PathVariable String eventName){
+    public ResponseEntity<Boolean> eventExistByName(@PathVariable String eventName) {
         AddEventDto event = eventService.findEventbyNameSerivce(eventName);
         return new ResponseEntity<>(event != null, HttpStatus.OK);
     }
 
+    @Operation(summary = "Get All Events", description = "Returns a list of all events")
     @GetMapping("/events")
-    public ResponseEntity<List<GetEventDto>> getAllEvents(){
+    public ResponseEntity<List<GetEventDto>> getAllEvents() {
         return new ResponseEntity<>(eventService.getAllEvents(), HttpStatus.OK);
     }
 
-    // Get all possible genres
+    @Operation(summary = "Get All Genres", description = "Returns all available genres in the system")
     @GetMapping("/genre")
-    public ResponseEntity<List<GetGenreDto>> getAllGenres(){
+    public ResponseEntity<List<GetGenreDto>> getAllGenres() {
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
 
-    // Create a new entry in the event table
+    @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
-    public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto){
+    public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto) {
         eventService.createEventService(dto);
         return new ResponseEntity<>(gson.toJson("Table created"), HttpStatus.CREATED);
     }
 
-    // Assign a genre to a existing event
+    @Operation(summary = "Assign Genre to Event", description = "Links a genre to an existing event")
     @PostMapping("/genre")
-    public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto){
-        try{
+    public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto) {
+        try {
             eventGenreService.addGenreToEventService(dto);
             return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
 
     // @PostMapping("/judges")
     // public ResponseEntity<String> addJudge(@RequestBody AddJudgesDto dto){
-    //     try{
-    //         judgeService.addJudgesService(dto);
-    //         return new ResponseEntity<>(gson.toJson("Judges are added"), HttpStatus.CREATED);
-    //     }catch(Exception e){
-    //         return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
-    //     }
+    // try{
+    // judgeService.addJudgesService(dto);
+    // return new ResponseEntity<>(gson.toJson("Judges are added"),
+    // HttpStatus.CREATED);
+    // }catch(Exception e){
+    // return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+    // }
     // }
 
+    @Operation(summary = "Get All Judges", description = "Returns a list of all registered judges")
     @GetMapping("/judges")
-    public ResponseEntity<List<GetJudgeDto>> getAllJudges(){
-        try{
+    public ResponseEntity<List<GetJudgeDto>> getAllJudges() {
+        try {
             return new ResponseEntity<>(judgeService.getAllJudges(), HttpStatus.OK);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
     }
 
-    // add participants from form (walk ins)
+    @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
-    public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto){
-        try{
+    public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto) {
+        try {
             Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep =  eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre);
-            EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep, dto.judgeName);
+            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre);
+            EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep,
+                    dto.judgeName);
             AddParticipantToEventGenreDto auditionDto = new AddParticipantToEventGenreDto();
             auditionDto.eventId = egp.getEvent().getEventId();
             auditionDto.genreId = egp.getGenre().getGenreId();
             auditionDto.participantId = egp.getParticipant().getParticipantId();
             eventGenreParticipantService.getAuditionNumViaQR(auditionDto);
             return new ResponseEntity<>(gson.toJson("Added walkin"), HttpStatus.CREATED);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson("error"), HttpStatus.BAD_REQUEST);
         }
     }
 
-    // Add participants by reading the sheet
+    @Operation(summary = "Add List of Participants", description = "Adds participants to an event, typically read from a Google Sheet")
     @PostMapping("/participants/")
-    public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)throws IOException, MessagingException, WriterException{
-        try{
+    public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)
+            throws IOException, MessagingException, WriterException {
+        try {
             registerService.addParticipantToEvent(dto);
-            return new ResponseEntity<>(gson.toJson( "Participants list updated!"), HttpStatus.CREATED);
-        }catch(NullPointerException e){
-            return new ResponseEntity<>(gson.toJson( "The record is empty, please verify the payment in the google sheet"), HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(gson.toJson("Participants list updated!"), HttpStatus.CREATED);
+        } catch (NullPointerException e) {
+            return new ResponseEntity<>(
+                    gson.toJson("The record is empty, please verify the payment in the google sheet"),
+                    HttpStatus.NOT_FOUND);
         }
     }
 
+    @Operation(summary = "Get Participants by Event Genre", description = "Retrieves a list of participants for a specific event based on their genre")
     @GetMapping("/participants/{eventName}")
-    public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(@PathVariable String eventName)throws IOException, MessagingException, WriterException{
-        try{
-            List<GetEventGenreParticipantDto> results = eventGenreParticipantService.getAllEventGenreParticipantByEventService(eventName);
-            if(results.size() > 0){
+    public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(
+            @PathVariable String eventName) throws IOException, MessagingException, WriterException {
+        try {
+            List<GetEventGenreParticipantDto> results = eventGenreParticipantService
+                    .getAllEventGenreParticipantByEventService(eventName);
+            if (results.size() > 0) {
                 return new ResponseEntity<>(results, HttpStatus.OK);
             }
             return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
-            
-        }catch(NullPointerException e){
+
+        } catch (NullPointerException e) {
             return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
         }
     }
 
-    // Get all the paid participants in an event regardless of their genres
+    @Operation(summary = "Get All Paid Participants", description = "Gets all verified/paid participants for an event regardless of genre")
     @GetMapping("/verified-participant/{eventName}")
-    public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName){
+    public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName) {
         List<GetParticipantByEventDto> res = eventParticipantService.getAllParticipantsByEvent(eventName);
-        if(res == null){
+        if (res == null) {
             return new ResponseEntity<>(res, HttpStatus.NOT_FOUND);
         }
         return new ResponseEntity<>(res, HttpStatus.OK);
@@ -191,49 +204,55 @@ public class EventController {
 
     /*
      * This is actually a POST method, and this link is send to the participants
-     * When organiser scan the QR, it will give the participant audition number based on genre
+     * When organiser scan the QR, it will give the participant audition number
+     * based on genre
      */
+    @Operation(summary = "Register Participant with Genre", description = "Registers a participant and generates an audition number via QR scan")
     @GetMapping("/register-participant/{participantId}/{eventId}/{genreId}")
-    public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId, @PathVariable Long eventId, @PathVariable Long genreId) throws IOException{ 
-        try{
+    public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId,
+            @PathVariable Long eventId, @PathVariable Long genreId) throws IOException {
+        try {
             AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
             dto.genreId = genreId;
             eventGenreParticipantService.getAuditionNumViaQR(dto);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
         }
     }
 
+    @Operation(summary = "Update Participant Judge", description = "Assigns or updates a judge for a participant")
     @PostMapping("/participants-judge/")
-    public ResponseEntity<String> updateParticipantJudge(@RequestBody UpdateParticipantJudgeDto dto){
-        try{
+    public ResponseEntity<String> updateParticipantJudge(@RequestBody UpdateParticipantJudgeDto dto) {
+        try {
             // eventGenreParticipantService.addParticipantToEventGenreService(dto);
             eventGenreParticipantService.updateParticipantsJudgeService(dto);
             return new ResponseEntity<>(gson.toJson("All updated"), HttpStatus.CREATED);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson("Failed to update"), HttpStatus.BAD_REQUEST);
         }
     }
 
+    @Operation(summary = "Update Participant Score", description = "Updates or submits scores for participants")
     @PostMapping("/scores")
-    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantsScoreDto dto){
-        try{
+    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantsScoreDto dto) {
+        try {
             // score service here
             scoreService.updateParticipantScoreService(dto);
             return new ResponseEntity<>(gson.toJson("Score updated!"), HttpStatus.ACCEPTED);
-        }catch(Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson("Failed to update score"), HttpStatus.BAD_REQUEST);
         }
     }
 
+    @Operation(summary = "Get Participant Scores", description = "Gets all scores for participants in a specific event")
     @GetMapping("/scores/{eventName}")
-    public ResponseEntity<List<GetParticipatnScoreDto>> getParticipantScore(@PathVariable String eventName){
-        try{
+    public ResponseEntity<List<GetParticipatnScoreDto>> getParticipantScore(@PathVariable String eventName) {
+        try {
             return new ResponseEntity<>(scoreService.getAllScore(eventName), HttpStatus.OK);
-        }catch(Exception e){
+        } catch (Exception e) {
             System.out.println(e.getMessage());
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
