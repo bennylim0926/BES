@@ -122,9 +122,11 @@ watch(battleJudges, (newVal)=>{
 },{deep : true})
 
 onMounted(async ()=>{
-    document.body.style.background = "transparent";
-    const appRoot = document.getElementById("app");
-    if (appRoot) appRoot.style.background = "transparent";
+    // document.body.style.background = "transparent";
+    // const appRoot = document.getElementById("app");
+    // if (appRoot) appRoot.style.background = "transparent";
+    document.documentElement.classList.add("transparent-page");
+  document.body.classList.add("transparent-page");
     battleJudges.value = await getBattleJudges()
     const res = await getCurrentBattlePair()
     updateBattlePair(res)
@@ -139,7 +141,9 @@ onBeforeUnmount(() => {
 })
 
 onUnmounted(() => {
-  document.body.style.background = "";
+  // document.body.style.background = "";
+  document.documentElement.classList.remove("transparent-page");
+  document.body.classList.remove("transparent-page");
   const appRoot = document.getElementById("app");
   if (appRoot) appRoot.style.background = "";
 });
@@ -235,6 +239,14 @@ onUnmounted(() => {
 </template>
 
 <style>
+html.transparent-page,
+body.transparent-page,
+html.transparent-page #app,
+body.transparent-page #app {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 @keyframes slideRight {
   0% {
     transform: translateX(0);

@@ -1,7 +1,7 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
 import ReusableDropdown from './ReusableDropdown.vue';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, reactive} from 'vue';
 import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -16,6 +16,9 @@ const selectedGenre = ref("")
 const selectedJudge = ref("")
 const genreOptions = ref([])
 const allJudges = ref([])
+const createTable = reactive({
+    genres: []
+})
 
 const showModel = ref(false)
 
@@ -25,7 +28,8 @@ const submitNewEntry = async ()=>{
         return
     }
     emit("createNewEntry")
-    await addWalkinToSystem(name.value, props.event, selectedGenre.value, selectedJudge.value);
+    createTable.genres.forEach(async (g) => await addWalkinToSystem(name.value, props.event, g, selectedJudge.value))
+    // await addWalkinToSystem(name.value, props.event, selectedGenre.value, selectedJudge.value);
     name.value = ""
 }
 
@@ -52,12 +56,34 @@ onMounted(async()=>{
                   v-model="name"
                  class="border rounded-lg px-3 py-2 w-full focus:ring focus:ring-blue-300"></input>
                 <!-- Genre should--> 
-                <ReusableDropdown v-model="selectedGenre"
+                <!-- <ReusableDropdown v-model="selectedGenre"
                 class="my-3"
-                labelId="Genre" :options="genreOptions"></ReusableDropdown>
+                labelId="Genre" :options="genreOptions"></ReusableDropdown> -->
                 <!-- Judge -->
-                <ReusableDropdown v-model="selectedJudge"
-                labelId="Judge" :options="allJudges"></ReusableDropdown>
+                <!-- <ReusableDropdown v-model="selectedJudge"
+                labelId="Judge" :options="allJudges"></ReusableDropdown> -->
+                <div class="grid grid-cols-2 gap-3 w-fit my-2">
+                <div
+                v-for="g in genreOptions"
+                :key="g.genreName"
+                class="flex items-center px-3 py-2 sm:min-w-48 md:min-w-62 lg:min-w-62 h-auto rounded bg-white shadow-md">
+                    <input
+                        type="checkbox"
+                        :id="g"
+                        :value="g"
+                        v-model="createTable.genres"
+                        class="w-4 h-4 text-orange-400 bg-gray-100 border-gray-300 rounded-sm
+                            focus:ring-orange-400
+                            focus:ring-2"
+                    />
+                    <label
+                        :for="g"
+                        class="ms-2 sm:text-lg md:text-xl lg:text-xl font-medium text-black"
+                    >
+                        {{ g }}
+                    </label>
+                </div>
+            </div>
             </form>
         </div>
     </ActionDoneModal>

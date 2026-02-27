@@ -15,3 +15,10 @@ export function useDelay() {
     const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     return { wait };
   }
+
+export function checkInputNull(value){
+  if(value === ''){
+    return true
+  }
+  return false
+}
