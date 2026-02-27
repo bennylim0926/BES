@@ -1,0 +1,13 @@
+[Unit]
+Description=docker boot
+After=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+WorkingDirectory=/home/ubuntu/BES
+ExecStart=docker-compose up -d
+
+[Install]
+WantedBy=multi-user.target
