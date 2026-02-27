@@ -62,7 +62,11 @@ public class ScoreService {
         }
     }
 
+    // public Integer deleteScoreByEventGenreService(DeleteScoreByEventDto dto){
+    //     return repo.deleteByEventIdAndGenreId(dto.getEvent_id(), dto.getGenre_id());
+    // }
+
     public Integer deleteScoreByEventService(DeleteScoreByEventDto dto){
-        return repo.deleteByEventIdAndGenreId(dto.getEvent_id(), dto.getGenre_id());
+        return repo.deleteByEventId(dto.getEvent_id());
     }
 }

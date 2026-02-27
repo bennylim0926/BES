@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, fetchAllEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, fetchAllFolderEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
@@ -208,7 +208,7 @@ function setWinner(roundKey, matchIdx, slotIdx) {
 }
 
 const fetchEventsAndInit = async()=>{
-    allEvents.value = await fetchAllEvents()
+    allEvents.value = await fetchAllFolderEvents()
     const savedEvent = localStorage.getItem("selectedEvent")
     selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
 }

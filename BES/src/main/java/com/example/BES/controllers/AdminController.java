@@ -1,5 +1,6 @@
 package com.example.BES.controllers;
 
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.AddJudgeDto;
+import com.example.BES.dtos.GetGenreDto;
+import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.AddGenreDto;
 import com.example.BES.dtos.admin.DeleteGenreDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
@@ -39,11 +43,9 @@ public class AdminController {
 
     // Create Genre
     @PostMapping("/genre")
-    public ResponseEntity<?> createGenre(@RequestBody AddGenreDto dto){
-        Genre genre = genreService.addGenreService(dto);
-        return ResponseEntity.ok(Map.of(
-            "Created genre: ", genre.getGenreName()
-        ));
+    public ResponseEntity<List<GetGenreDto>> createGenre(@RequestBody AddGenreDto dto){
+        genreService.addGenreService(dto);
+        return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
     
     // Update Genre
@@ -57,6 +59,7 @@ public class AdminController {
         }
         return ResponseEntity.ok(Map.of(
             "message", "Genre updated successfully",
+            "id", genre.getGenreId(),
             "genre", genre.getGenreName()
         ));
     }
@@ -76,8 +79,14 @@ public class AdminController {
         ));
     }
 
-    // Update Judge
     @PostMapping("/judge")
+    public ResponseEntity<List<GetJudgeDto>> addJudge(@RequestBody AddJudgeDto dto){
+        judgeService.addJudgeService(dto);
+        return new ResponseEntity<>(judgeService.getAllJudges(), HttpStatus.OK);
+    }
+
+    // Update Judge
+    @PostMapping("/update-judge")
     public ResponseEntity<?> updateJudge(@RequestBody UpdateJudgeDto dto){
         Judge judge = judgeService.updateJudgeService(dto);
         if(judge == null){
@@ -89,6 +98,7 @@ public class AdminController {
         }
         return ResponseEntity.ok(Map.of(
             "message", "Judge updated successfully",
+            "id", judge.getJudgeId(),
             "judge", judge.getName()
         ));
     }

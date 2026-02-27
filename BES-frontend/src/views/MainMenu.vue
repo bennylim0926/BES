@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="flex flex-col justify-center items-center px-6 py-10 max-w-4xl mx-auto text-gray-900 dark:text-gray-100 ">
+  <div class="flex flex-col justify-center items-center px-6 py-10 max-w-4xl mx-auto text-black">
     <h1 class="text-3xl font-bold mb-8">How to Use</h1>
 
     <!-- Before Event Day -->

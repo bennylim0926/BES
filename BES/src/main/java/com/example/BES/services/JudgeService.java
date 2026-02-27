@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.example.BES.dtos.AddJudgesDto;
+import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
@@ -18,13 +18,21 @@ public class JudgeService {
     @Autowired
     JudgeRepo judgeRepo;
 
-    public void addJudgesService(AddJudgesDto dto){
-        for(String judge: dto.judges){
-            Judge j = new Judge();
-            j.setName(judge);
-            judgeRepo.save(j);
-        }
+    // public void addJudgesService(AddJudgesDto dto){
+    //     for(String judge: dto.judges){
+    //         Judge j = new Judge();
+    //         j.setName(judge);
+    //         judgeRepo.save(j);
+    //     }
+    // }
+
+    public Judge addJudgeService(AddJudgeDto dto){
+        Judge j = new Judge();
+        j.setName(dto.judgeName);
+        Judge judge = judgeRepo.save(j);
+        return judge;
     }
+
     public List<GetJudgeDto> getAllJudges(){
         List<Judge> judges = judgeRepo.findAll();
         List<GetJudgeDto> dtos = new ArrayList<>();

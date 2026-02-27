@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch, readonly } from 'vue';
-import { fetchAllEvents, getParticipantScore } from '@/utils/api';
+import { fetchAllFolderEvents, getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { checkAuthStatus } from '@/utils/auth';
@@ -57,7 +57,7 @@ const filteredParticipantsForScore = computed({
 })
 
 const fetchEventsAndInit = async()=>{
-    allEvents.value = await fetchAllEvents()
+    allEvents.value = await fetchAllFolderEvents()
     const savedEvent = localStorage.getItem("selectedEvent")
     selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
 }

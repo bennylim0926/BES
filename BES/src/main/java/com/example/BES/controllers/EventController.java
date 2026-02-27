@@ -19,10 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.AddJudgesDto;
+// import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
+import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetEventGenreParticipantDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
@@ -87,6 +88,11 @@ public class EventController {
         return new ResponseEntity<>(event != null, HttpStatus.OK);
     }
 
+    @GetMapping("/events")
+    public ResponseEntity<List<GetEventDto>> getAllEvents(){
+        return new ResponseEntity<>(eventService.getAllEvents(), HttpStatus.OK);
+    }
+
     // Get all possible genres
     @GetMapping("/genre")
     public ResponseEntity<List<GetGenreDto>> getAllGenres(){
@@ -111,15 +117,15 @@ public class EventController {
         }
     }
 
-    @PostMapping("/judges")
-    public ResponseEntity<String> addJudge(@RequestBody AddJudgesDto dto){
-        try{
-            judgeService.addJudgesService(dto);
-            return new ResponseEntity<>(gson.toJson("Judges are added"), HttpStatus.CREATED);
-        }catch(Exception e){
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
-        }
-    }
+    // @PostMapping("/judges")
+    // public ResponseEntity<String> addJudge(@RequestBody AddJudgesDto dto){
+    //     try{
+    //         judgeService.addJudgesService(dto);
+    //         return new ResponseEntity<>(gson.toJson("Judges are added"), HttpStatus.CREATED);
+    //     }catch(Exception e){
+    //         return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+    //     }
+    // }
 
     @GetMapping("/judges")
     public ResponseEntity<List<GetJudgeDto>> getAllJudges(){

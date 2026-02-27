@@ -52,7 +52,21 @@ const getTitle = (statusCode) =>{
 }
 
 const filteredBreakdown = computed(()=>{
+    console.log(participantsNumBreakdown.value)
     return filterObject(participantsNumBreakdown.value, value => value>0)
+})
+
+const genreCounts = computed(() => {
+  const counts = {}
+  verifiedDbParticipants.value.forEach(p => {
+    // normalize genre names
+    let key = p.genreName.toLowerCase()
+    if (key.includes('smoke')) key = 'smoke'
+    else key = key.replace(/\s+/g, '') // remove spaces (hip hop → hiphop)
+
+    counts[key] = (counts[key] || 0) + 1
+  })
+  return counts
 })
 
 const totalWalkIn = computed(()=>{
@@ -103,7 +117,7 @@ const completeBreakdown = computed(()=>{
     const genreStats = {};
 
     for (const item of verifiedDbParticipants.value) {
-        if(item.walkin) continue
+        // if(item.walkin) continue
         const genre = normalizeGenreName(item.genreName);
         if (!genreStats[genre]) {
             genreStats[genre] = { registered: 0, unregistered: 0 };
@@ -116,14 +130,14 @@ const completeBreakdown = computed(()=>{
         }
     }
 
-    const result = Object.entries(filteredBreakdown.value).map(([genre, total]) => {
-    const stats = genreStats[genre] || { registered: 0, unregistered: 0 };
-    return {
-        genre,
-        total,
-        registered: stats.registered,
-        unregistered: stats.unregistered
-    };
+    const result = Object.entries(genreCounts.value).map(([genre, total]) => {
+        const stats = genreStats[genre] || { registered: 0, unregistered: 0 };
+        return {
+            genre,
+            total,
+            registered: stats.registered,
+            unregistered: stats.unregistered
+        };
     });
     return result
 })
@@ -138,13 +152,13 @@ const onSubmit = async () =>{
         return
     }
     loading.value = true
-    for (let index = 0; index < inputs.value.length; index++) {
-        if(inputs.value[index] === ""){
-            console.log("cannot have empty value")
-            openModal(404 , "Cannot have empty value in Judges")
-            return
-        }
-    }
+    // for (let index = 0; index < inputs.value.length; index++) {
+    //     if(inputs.value[index] === ""){
+    //         console.log("cannot have empty value")
+    //         openModal(404 , "Cannot have empty value in Judges")
+    //         return
+    //     }
+    // }
     await addJudges(inputs.value)
     await insertPaymenColumnInSheet(fileId.value)
     // create table with eventName
@@ -251,9 +265,10 @@ onMounted( async () =>{
             </div>
         </div>
         </div>
+        <!-- {{ verifiedFormParticipants }} -->
         <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
             <div class="text-2xl font-semibold">Verified: {{ verifiedFormParticipants.length - totalWalkIn }}</div> 
-            <div class="text-2xl font-semibold">Unverified: {{ totalParticipants - (verifiedFormParticipants.length - totalWalkIn) }}</div> 
+            <div class="text-2xl font-semibold">Unverified: {{ totalParticipants - (verifiedFormParticipants.length -totalWalkIn) }}</div> 
         </div>
         <div class=" bg-[#fffaf5] shadow-lg w-full h-auto p-4 rounded"> 
             <div class="text-2xl font-semibold">Registered: {{ totalDbRegistered.length }}</div> 
@@ -338,7 +353,6 @@ onMounted( async () =>{
         </p>
     </ActionDoneModal>
     <LoadingOverlay v-if="onStartLoading"></LoadingOverlay>
-    
 </template>
 
 <style>

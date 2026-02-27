@@ -13,6 +13,7 @@ import BattleOverlay from "@/views/BattleOverlay.vue";
 import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";
 import Chart from "@/views/Chart.vue";
+import AdminPage from "@/views/AdminPage.vue";
 
 const routes = [
     {
@@ -83,6 +84,11 @@ const routes = [
         path: '/battle/chart',
         name: "Smoke",
         component: Chart
+    },
+    {
+        path: '/admin',
+        name: "Admin Page",
+        component: AdminPage
     }
 ]
 

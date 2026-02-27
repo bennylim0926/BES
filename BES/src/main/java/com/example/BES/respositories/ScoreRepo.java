@@ -38,4 +38,15 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     s.eventGenreParticipant.event.id = :eventId
     """)
     int deleteByEventIdAndGenreId(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+
+    @Modifying
+    @Transactional
+    @Query(value = 
+    """
+    DELETE
+    FROM Score s
+    WHERE  
+    s.eventGenreParticipant.event.id = :eventId
+    """)
+    int deleteByEventId(@Param("eventId") Long eventId);
 }

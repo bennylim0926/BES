@@ -2,7 +2,7 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { fetchAllEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
+import { fetchAllFolderEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch, toRaw, callWithAsyncErrorHandling } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -125,6 +125,7 @@ watch(selectedEvent, async (newVal) => {
         rowId: r.rowId ?? i,
         score: 0
     }))
+    console.log(participants.value)
     const stored = localStorage.getItem("currentScore")
     if (stored) {
       const cached = JSON.parse(stored)
@@ -237,7 +238,7 @@ const resetScore = ()=>{
 const showFilters = ref(true)
 
 const fetchEventsAndInit = async()=>{
-    allEvents.value = await fetchAllEvents()
+    allEvents.value = await fetchAllFolderEvents()
     const savedEvent = localStorage.getItem("selectedEvent")
     selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
 }

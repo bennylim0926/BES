@@ -49,7 +49,7 @@ export const whoami = async () =>{
   }
 }
 
-export const fetchAllEvents = async () =>{
+export const fetchAllFolderEvents = async () =>{
     try{
         const res = await fetch(`${domain}/api/v1/folders`,{
           method: 'GET',
@@ -59,6 +59,18 @@ export const fetchAllEvents = async () =>{
       }catch(err){
         console.log(err)
       }
+}
+
+export const fetchAllEvents = async () =>{
+  try{
+      const res = await fetch(`${domain}/api/v1/event/events`,{
+        method: 'GET',
+        credentials: 'include'
+      })
+      return await res.json()
+    }catch(err){
+      console.log(err)
+    }
 }
 
 export const fetchAllGenres = async () =>{

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router'
-import {fetchAllEvents} from "@/utils/api"
+import {fetchAllFolderEvents} from "@/utils/api"
 import { checkAuthStatus, useAuthStore } from '@/utils/auth';
 import EventCard from '@/components/EventCard.vue';
 import { useDelay } from '@/utils/utils';
@@ -22,7 +22,7 @@ async function goToEventDetails(eventName, folderID) {
 onMounted(async ()=>{
   const ok = await checkAuthStatus(["admin","organiser"])
   if(!ok) return
-  events.value = await fetchAllEvents()
+  events.value = await fetchAllFolderEvents()
 })
 </script>
 

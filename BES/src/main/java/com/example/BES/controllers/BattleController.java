@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.BES.dtos.battle.DeleteImageDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
@@ -207,6 +210,29 @@ public class BattleController {
         Resource resource = new UrlResource(file.toUri());
         return ResponseEntity.ok().body(resource);
     }
+
+    @GetMapping("/images")
+    public ResponseEntity<List<String>> getAllImages() throws IOException{
+        List<String> fileNames = Files.list(uploadDir)
+            .filter(Files::isRegularFile)
+            .map(path -> path.getFileName().toString())
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(fileNames);
+    }
+
+    @DeleteMapping("/image")
+    public ResponseEntity<String> deleteImage(@RequestBody DeleteImageDto dto) throws IOException{
+        Path file = uploadDir.resolve(dto.getName());
+
+        if (!Files.exists(file)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("File not found");
+        }
+        Files.delete(file);
+        return ResponseEntity.ok("File deleted successfully");
+    }
+
+
 
     @GetMapping("/smoke")
     public ResponseEntity<?> getSmokeList(){
