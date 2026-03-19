@@ -1,6 +1,7 @@
-/* color palette from <https://github.com/vuejs/theme> */
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap');
 
+/* Local fonts */
 @font-face {
   font-family: 'EagleHorizonP';
   src: url('./fonts/EagleHorizonP.ttf') format('truetype');
@@ -8,111 +9,245 @@
   font-style: normal;
 }
 
-/* anton-sc-regular - latin */
 @font-face {
-  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-display: swap;
   font-family: 'Anton SC';
   font-style: normal;
   font-weight: 400;
-  src: url('./fonts/anton-sc-v1-latin-regular.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  src: url('./fonts/anton-sc-v1-latin-regular.woff2') format('woff2');
 }
 
 @font-face {
   font-family: 'Source Code Pro';
-  src: url('./fonts/SourceCodePro-VariableFont_wght.ttf') format('truetype'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  src: url('./fonts/SourceCodePro-VariableFont_wght.ttf') format('truetype');
 }
 
+/* ─────────────────────────────────────────
+   Tailwind v4 Theme Configuration
+
+   COLOR USAGE RULES (60-30-10)
+   ─────────────────────────────
+   60% Neutral  — surface-* scale: backgrounds, borders, text hierarchy
+   30% Structure — surface-800/900 + white: nav, table headers, dark surfaces
+   10% Brand     — primary-* (cyan): ALL interactive elements — buttons, links,
+                   active states, focus rings, selection highlights
+
+   Semantic colors (use ONLY for their intended meaning, never decorative):
+     • Emerald  → success states only
+     • Amber    → warning states only
+     • Red      → error / destructive actions only
+     • Primary  → info (same as brand)
+
+   Orange (secondary-*):
+     → Accent token ONLY — medals, rankings, featured highlights
+     → NEVER used for buttons, navigation, badges, or role indicators
+     → Rationale: two competing "action" colors break the visual hierarchy
+───────────────────────────────────────── */
 @theme {
-  --font-eagle: "EagleHorizonP", "sans-serif";
-  --font-anton: "Anton SC", "sans-serif";
-  --font-source: "Source Code Pro", "sans-serif";
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+  --font-eagle: 'EagleHorizonP', sans-serif;
+  --font-anton: 'Anton SC', sans-serif;
+  --font-source: 'Source Code Pro', monospace;
+
+  /* Brand — Cyan (the ONE interactive color) */
+  --color-primary-50:  #ecfeff;
+  --color-primary-100: #cffafe;
+  --color-primary-200: #a5f3fc;
+  --color-primary-500: #06b6d4;
+  --color-primary-600: #0891b2;
+  --color-primary-700: #0e7490;
+
+  /* Accent — Orange (medals / rankings only — NOT for UI chrome) */
+  --color-accent-50:  #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-500: #f97316;
+  --color-accent-600: #ea580c;
+  --color-accent-700: #c2410c;
+
+  /* Neutral / Surface — slate scale (60% of every screen) */
+  --color-surface-50:  #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
 }
 
-
-/* :root {
-  --vt-c-white: #ffffff;
-  --vt-c-white-soft: #f8f8f8;
-  --vt-c-white-mute: #f2f2f2;
-
-  --vt-c-black: #111827;
-  --vt-c-black-soft: #222222;
-  --vt-c-black-mute: #1e2245;
-
-  --vt-c-indigo: #18232d;
-
-  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
-  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
-  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
-  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
-
-  --vt-c-text-light-1: var(--vt-c-indigo);
-  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
-  --vt-c-text-dark-1: var(--vt-c-white);
-  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
-} */
-
-/* semantic color variables for this project */
-/* /* :root { 
-  --color-background: var(--vt-c-white);
-  --color-background-soft: var(--vt-c-white-soft);
-  --color-background-mute: var(--vt-c-white-mute);
-
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
-
-  --color-heading: var(--vt-c-text-light-1);
-  --color-text: var(--vt-c-text-light-1);
-
-  --section-gap: 160px;
-} 
-
-/* @media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
-
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
+/* ─────────────────────────────────────────
+   Global Resets & Base
+───────────────────────────────────────── */
+@layer base {
+  body {
+    @apply font-sans bg-surface-50 text-surface-900 antialiased leading-relaxed min-h-screen;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
   }
-} */
 
-/* *,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  font-weight: normal;
-} */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold tracking-tight text-surface-900;
+  }
 
-body {
-  /* min-height: 100vh; */
-  color: var(--color-text);
-  background: var(--color-background);
-  transition:
-    color 0.5s,
-    background-color 0.5s;
-  line-height: 1.6;
-  font-family:
-    'Source Code Pro',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    'EagleHorizonP',
-    'Anton SC',
-    sans-serif;
-  font-size: 15px;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 }
+
+/* ─────────────────────────────────────────
+   Utility Classes
+───────────────────────────────────────── */
+@layer utilities {
+
+  /* Layout */
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-surface-200/80 shadow-sm;
+  }
+
+  .card-hover {
+    @apply bg-white rounded-2xl border border-surface-200/80 shadow-sm
+           hover:shadow-md hover:border-surface-300 transition-all duration-200;
+  }
+
+  /* Glassmorphism (use sparingly) */
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-sm rounded-2xl;
+  }
+
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/60
+           shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-xl
+           transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)];
+  }
+
+  /* Inputs */
+  .input-base {
+    @apply w-full rounded-xl border border-surface-200 bg-white px-4 py-2.5
+           text-sm text-surface-900 shadow-sm placeholder:text-surface-400
+           focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
+           transition-all duration-200;
+  }
+
+  /* Badges / Pills — each class is fully self-contained (Tailwind v4 forbids @apply of custom classes) */
+  .badge,
+  .badge-primary,
+  .badge-secondary,
+  .badge-success,
+  .badge-warning,
+  .badge-danger,
+  .badge-neutral {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-primary   { @apply bg-primary-100  text-primary-700;  }
+  .badge-secondary { @apply bg-accent-100   text-accent-700;   }  /* accent = orange; medal/ranking use only */
+  .badge-success   { @apply bg-emerald-100  text-emerald-700;  }  /* success states only */
+  .badge-warning   { @apply bg-amber-100    text-amber-700;    }  /* warning states only */
+  .badge-danger    { @apply bg-red-100      text-red-700;      }  /* error/danger states only */
+  .badge-neutral   { @apply bg-surface-100  text-surface-600;  }  /* default — use for role labels */
+
+  /* Typography helpers */
+  .section-title {
+    @apply text-xl font-heading font-bold text-surface-900 tracking-tight;
+  }
+
+  .page-title {
+    @apply text-2xl sm:text-3xl font-heading font-extrabold text-surface-900 tracking-tight;
+  }
+
+  .text-muted {
+    @apply text-surface-500 text-sm;
+  }
+
+  /* Text shadows */
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-strong {
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Stat cards */
+  .stat-card {
+    @apply bg-white rounded-2xl border border-surface-200/80 shadow-sm
+           flex flex-col items-center justify-center p-5 text-center gap-1;
+  }
+
+  .stat-value {
+    @apply text-3xl font-heading font-extrabold text-surface-900 tabular-nums;
+  }
+
+  .stat-label {
+    @apply text-xs font-medium text-surface-500 uppercase tracking-wider;
+  }
+
+  /* Divider */
+  .divider {
+    @apply border-t border-surface-200 my-6;
+  }
+
+  /* Focus ring reusable */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-1;
+  }
+}
+
+/* ─────────────────────────────────────────
+   Animations & Keyframes
+───────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+.animate-fade-in       { animation: fadeIn   0.2s ease-out both; }
+.animate-slide-down    { animation: slideDown 0.22s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-slide-up      { animation: slideUp   0.22s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-scale-in      { animation: scaleIn  0.2s  cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-slide-in-left { animation: slideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.animate-pulse-soft    { animation: pulse-soft 2s ease-in-out infinite; }
+
+/* ─────────────────────────────────────────
+   Scrollbars
+───────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { @apply bg-surface-300 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-surface-400; }

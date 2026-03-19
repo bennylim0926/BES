@@ -5,7 +5,7 @@ const props = defineProps({
   tableValue: {
     type: [Array, Object],
     required: true,
-    default: () => ([]), // fallback to empty array if null
+    default: () => ([]),
   },
   tableConfig: {
     type: Array,
@@ -17,46 +17,37 @@ const emit = defineEmits(["update:tableValue", "onClick"]);
 
 const rows = ref([]);
 
-const capsFirst = (text) =>{
-    return String(text).charAt(0).toUpperCase() + String(text).slice(1);
+const capsFirst = (text) => {
+  return String(text).charAt(0).toUpperCase() + String(text).slice(1);
 }
 
-// normalize incoming data safely
 const normalizeData = (data) => {
   if (Array.isArray(data)) {
-    return JSON.parse(JSON.stringify(data)); // deep copy
+    return JSON.parse(JSON.stringify(data));
   } else if (data && typeof data === "object") {
     return Object.entries(data).map(([key, value]) => ({ key, value }));
   }
   return [];
 };
 
-// initialize rows
 rows.value = normalizeData(props.tableValue);
 
-// watch incoming prop safely
 watch(
   () => props.tableValue,
   (newVal) => {
     const normalized = normalizeData(newVal);
-    // only update if changed to prevent infinite loop
     if (JSON.stringify(normalized) !== JSON.stringify(rows.value)) {
       rows.value = normalized;
     }
-    // console.log(props.tableValue)
-    // console.log(rows.value)
   },
   { deep: true, immediate: true }
 );
 
-// watch rows and emit only if really changed
 watch(
   rows,
   (newVal) => {
-    // Convert back to array or object format
     if (Array.isArray(props.tableValue)) {
-      const arrVal = JSON.parse(JSON.stringify(newVal));
-      emit("update:tableValue", arrVal);
+      emit("update:tableValue", JSON.parse(JSON.stringify(newVal)));
     } else if (props.tableValue && typeof props.tableValue === "object") {
       const objVal = {};
       newVal.forEach((r) => objVal[r.key] = r.value);
@@ -66,103 +57,115 @@ watch(
   { deep: true }
 );
 
-// helper to get column config by key
 const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type: "text" };
 </script>
 
 <template>
-    <div class="flex justify-center mb-3">
-      <!-- Outer wrapper makes table scrollable on small devices -->
-      <div class="w-full overflow-x-auto max-h-130 rounded-lg shadow-lg">
-        <table class="min-w-full sm:w-auto text-xl md:text-2xl lg:text-2xl  text-black mb-5">
-          <thead
-            class="text-xs text-black uppercase bg-orange-400 sticky top-0"
+  <div class="w-full overflow-x-auto rounded-xl border border-surface-200/80 shadow-sm">
+    <table class="min-w-full text-sm text-surface-900">
+      <thead>
+        <tr class="bg-surface-800 text-white">
+          <th
+            v-for="col in props.tableConfig"
+            :key="col.key"
+            class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
           >
-            <tr>
-              <th
-                v-for="col in props.tableConfig"
-                :key="col.key"
-                class="px-4 sm:px-6 text-lg py-3 text-center whitespace-nowrap text-white"
-              >
-                {{ col.label }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(row, rowIndex) in rows"
-              :key="rowIndex"
-              class="bg-orange-50 
-                     hover:bg-gray-200 "
-            >
-              <td
-                v-for="col in props.tableConfig"
-                :key="col.key"
-                class="px-4 sm:px-6 py-4 text-center whitespace-nowrap text-black "
-              >
-                <!-- Read-only -->
-                <template v-if="col.readonly" class="text-2xl">
-                  {{ row[col.key] !== null && row[col.key] !== undefined && row[col.key] !== '' 
-                    ? capsFirst(row[col.key]) 
-                    : '-' }}
-                </template>
+            {{ col.label }}
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-surface-100">
+        <tr
+          v-for="(row, rowIndex) in rows"
+          :key="rowIndex"
+          class="bg-white even:bg-surface-50 hover:bg-primary-50 transition-colors duration-150"
+        >
+          <td
+            v-for="col in props.tableConfig"
+            :key="col.key"
+            class="px-4 py-3 whitespace-nowrap"
+          >
+            <!-- Read-only -->
+            <template v-if="col.readonly">
+              <span class="text-surface-700">
+                {{ row[col.key] !== null && row[col.key] !== undefined && row[col.key] !== ''
+                  ? capsFirst(row[col.key])
+                  : '—' }}
+              </span>
+            </template>
 
-                <template v-else-if="col.type === 'link'">
-                  <div @click="emit('onClick', row[col.key])"> {{ row[col.key] }}</div>
-                </template>
-  
-                <!-- Editable text -->
-                <template v-else-if="col.type === 'text'">
-                  <input
-                    v-model="row[col.key]"
-                    type="text"
-                    class="border rounded p-1 w-full"
-                  />
-                </template>
-  
-                <!-- Editable number -->
-                <template v-else-if="col.type === 'number'">
-                  <input
-                    v-model.number="row[col.key]"
-                    type="number"
-                    class="border rounded p-1 w-full"
-                  />
-                </template>
-  
-                <!-- Editable select -->
-                <template v-else-if="col.type === 'select'">
-                  <select v-model="row[col.key]" class="border rounded p-1 w-full">
-                    <option
-                      class="text-center"
-                      v-for="opt in col.options"
-                      :key="opt"
-                      :value="opt"
-                    >
-                      {{ capsFirst(opt) }}
-                    </option>
-                  </select>
-                </template>
+            <!-- Link -->
+            <template v-else-if="col.type === 'link'">
+              <button
+                @click="emit('onClick', row[col.key])"
+                class="text-primary-600 hover:text-primary-700 font-medium hover:underline focus:outline-none"
+              >
+                {{ row[col.key] }}
+              </button>
+            </template>
 
-                <template v-else-if="col.type === 'boolean'">
-                  <div
-                    @click="row[col.key] = !row[col.key]"
-                    class="w-12 h-12 mx-auto rounded-full active:border-4 active:border-green-500 active:bg-green-300"
-                    :class="row[col.key] ? 'bg-green-500' : 'bg-gray-200'"
-                  ></div>
-                </template>
-  
-                <!-- fallback -->
-                <template v-else>
-                  {{ row[col.key] }}
-                </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <!-- <div class="flex justify-center items-center">
-      <p class="text-xl font-semibold text-black">-End of List-</p>
-    </div> -->
-  </template>
-  
+            <!-- Editable text -->
+            <template v-else-if="col.type === 'text'">
+              <input
+                v-model="row[col.key]"
+                type="text"
+                class="input-base text-sm py-1.5 px-3"
+              />
+            </template>
+
+            <!-- Editable number -->
+            <template v-else-if="col.type === 'number'">
+              <input
+                v-model.number="row[col.key]"
+                type="number"
+                class="input-base text-sm py-1.5 px-3 w-24"
+              />
+            </template>
+
+            <!-- Editable select -->
+            <template v-else-if="col.type === 'select'">
+              <select
+                v-model="row[col.key]"
+                class="input-base text-sm py-1.5 px-3 pr-8"
+              >
+                <option v-for="opt in col.options" :key="opt" :value="opt">
+                  {{ opt ? capsFirst(opt) : '— None —' }}
+                </option>
+              </select>
+            </template>
+
+            <!-- Boolean toggle -->
+            <template v-else-if="col.type === 'boolean'">
+              <button
+                @click="row[col.key] = !row[col.key]"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                :class="row[col.key] ? 'bg-primary-500' : 'bg-surface-300'"
+              >
+                <span
+                  class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                  :class="row[col.key] ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+              </button>
+            </template>
+
+            <!-- Fallback -->
+            <template v-else>
+              <span class="text-surface-700">{{ row[col.key] }}</span>
+            </template>
+          </td>
+        </tr>
+
+        <!-- Empty state -->
+        <tr v-if="rows.length === 0">
+          <td
+            :colspan="props.tableConfig.length"
+            class="px-4 py-10 text-center text-surface-400 text-sm"
+          >
+            <i class="pi pi-inbox text-2xl block mb-2 opacity-40"></i>
+            No data available
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</template>

@@ -3,67 +3,73 @@ import ActionDoneModal from '@/views/ActionDoneModal.vue';
 import { ref } from 'vue';
 
 const props = defineProps({
-    show: { type: Boolean, default: false },
-    title: { type: String, default: "Modal Title" },
-    type: { type: String, default: "text" }
-    })
+  show:  { type: Boolean, default: false },
+  title: { type: String, default: 'Update' },
+  type:  { type: String, default: 'text' }
+})
 
-const emit = defineEmits(['submitUpdate',"close"])
+const emit = defineEmits(['submitUpdate', 'close'])
 
-const name = ref("")
-const showModel = ref(false)
-
-const modalTitle = ref('')
-const modalMessage = ref('')
+const inputValue = ref("")
+const errorTitle = ref('')
+const errorMessage = ref('')
+const showError = ref(false)
 
 function isNumeric(str) {
-  return !isNaN(str) && !isNaN(parseFloat(str));
+  return !isNaN(str) && !isNaN(parseFloat(str))
 }
 
-const submitUpdate = async ()=>{
-    if(props.type === 'text'){
-        if(name.value == ""){
-            showModel.value = true
-            modalTitle.value = "Failed to update"
-            modalMessage.value = "Field cannot be empty"
-            return
-        }
-        emit("submitUpdate", name.value)
-    }else if(props.type === 'number'){
-        if(isNumeric(name.value) && Number(name.value) > 0){
-            emit("submitUpdate", Number(name.value))
-        }else{
-            showModel.value = true
-            modalTitle.value = "Failed to update"
-            modalMessage.value = "Field must be numeric number > 0 & cannot be empty"
-        }
+const submitUpdate = async () => {
+  if (props.type === 'text') {
+    if (inputValue.value == "") {
+      errorTitle.value = "Validation Error"
+      errorMessage.value = "Field cannot be empty."
+      showError.value = true
+      return
     }
-    name.value = ""
+    emit("submitUpdate", inputValue.value)
+  } else if (props.type === 'number') {
+    if (isNumeric(inputValue.value) && Number(inputValue.value) > 0) {
+      emit("submitUpdate", Number(inputValue.value))
+    } else {
+      errorTitle.value = "Invalid Value"
+      errorMessage.value = "Please enter a numeric value greater than 0."
+      showError.value = true
+    }
+  }
+  inputValue.value = ""
 }
-
 </script>
 
 <template>
-    <ActionDoneModal
-        :show="props.show"
-        :title="props.title"
-        @accept="submitUpdate"
-        @close="$emit('close')">
-        <div>
-            <form>
-                 <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Name</label>
-                 <input
-                  placeholder="Enter new value"
-                  v-model="name"
-                 class="border rounded-lg px-3 py-2 w-full focus:ring focus:ring-blue-300"></input>
-            </form>
-        </div>
-    </ActionDoneModal>
-    <ActionDoneModal
-        :show="showModel"
-        :title=modalTitle
-        @accept="()=>{showModel = false}"
-        @close="()=>{showModel = false}">
-        {{modalMessage}}
-    </ActionDoneModal>
+  <ActionDoneModal
+    :show="props.show"
+    :title="props.title"
+    variant="info"
+    @accept="submitUpdate"
+    @close="$emit('close')"
+  >
+    <div class="mt-1">
+      <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
+        New Value
+      </label>
+      <input
+        v-model="inputValue"
+        :type="props.type === 'number' ? 'number' : 'text'"
+        placeholder="Enter new value…"
+        class="input-base"
+        @keyup.enter="submitUpdate"
+      />
+    </div>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showError"
+    :title="errorTitle"
+    variant="error"
+    @accept="showError = false"
+    @close="showError = false"
+  >
+    <p class="text-surface-600">{{ errorMessage }}</p>
+  </ActionDoneModal>
 </template>

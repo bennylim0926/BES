@@ -1,6 +1,6 @@
 <script setup>
 import DynamicTable from '@/components/DynamicTable.vue';
-import { onMounted, ref, watch, computed} from 'vue';
+import { onMounted, ref, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
@@ -16,54 +16,58 @@ const showCreateNewEntry = ref(false)
 
 const modalTitle = ref("")
 const modalMessage = ref("")
+const modalVariant = ref("success")
 const showModal = ref(false)
-const openModal = (title, message) => {
-    modalTitle.value = title
-    modalMessage.value = message
-    showModal.value = true
+const openModal = (title, message, variant = 'success') => {
+  modalTitle.value = title
+  modalMessage.value = message
+  modalVariant.value = variant
+  showModal.value = true
 }
 const handleAccept = () => {
   showModal.value = false
 }
 
 const uniqueGenres = computed(() => {
-    const genres = participants.value.map(p => p.genreName);
-    return [...new Set(genres)].sort();
+  const genres = participants.value.map(p => p.genreName);
+  return [...new Set(genres)].sort();
 })
 
+const genreOptions = computed(() => ['All', ...uniqueGenres.value])
+
 const filteredParticipants = computed({
-    get(){
-        if (selectedGenre.value === "All") return participants.value;
-        return participants.value.filter(p => p.genreName === selectedGenre.value);
-    },
-    set(updatedSubset){
-      if (!Array.isArray(participants.value)) return;
-      const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
-      participants.value = participants.value.map(org => {
-          const updated = byId.get(org.rowId)
-          return updated ? {...org, ...updated}: org
-      })
-    }
+  get() {
+    if (selectedGenre.value === "All") return participants.value;
+    return participants.value.filter(p => p.genreName === selectedGenre.value);
+  },
+  set(updatedSubset) {
+    if (!Array.isArray(participants.value)) return;
+    const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
+    participants.value = participants.value.map(org => {
+      const updated = byId.get(org.rowId)
+      return updated ? { ...org, ...updated } : org
+    })
+  }
 });
 
-const updateParticipantJudge = async()=>{
+const updateParticipantJudge = async () => {
+  try {
     const updateResponse = await fetch("/api/v1/event/participants-judge/", {
-        method: 'POST',
-        credentials: "include",
-        headers: {
+      method: 'POST',
+      credentials: "include",
+      headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            updatedList: participants.value,
-        })
+      },
+      body: JSON.stringify({ updatedList: participants.value })
     })
-    const result = await updateResponse.json()
-    openModal("Success", "Updated!")
-    
+    await updateResponse.json()
+    openModal("Judges Updated", "Judge assignments have been saved successfully.", "success")
+  } catch {
+    openModal("Update Failed", "Unable to save changes. Please try again.", "error")
+  }
 }
 
-// IF THERE IS ANY ISSUE LOADING, PUT BACK THE IMMEDIATE
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
@@ -75,38 +79,28 @@ watch(selectedGenre, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal);
   }
-},{immediate: true});
+}, { immediate: true });
 
-const fetchAllParticipantInEvent = async(eventName) =>{
-  try{
-    const res = await fetch(`/api/v1/event/participants/${eventName}`,{
-      credentials: "include"
-    })
-    if(!res.ok) throw new Error('Failed to fetch event data')
+const fetchAllParticipantInEvent = async (eventName) => {
+  try {
+    const res = await fetch(`/api/v1/event/participants/${eventName}`, { credentials: "include" })
+    if (!res.ok) throw new Error('Failed to fetch event data')
     const result = await res.json()
-    participants.value = result.map((r, i) => ({
-        ...r,
-        rowId: r.rowId ?? i
-    }))
-  }catch(err){
+    participants.value = result.map((r, i) => ({ ...r, rowId: r.rowId ?? i }))
+  } catch (err) {
     console.log(err)
   }
 }
 
 const fetchAllEvents = async () => {
   try {
-    const res = await fetch('/api/v1/folders',{
-      credentials: "include"
-    });
+    const res = await fetch('/api/v1/folders', { credentials: "include" });
     if (!res.ok) throw new Error('Failed to fetch event data');
     const result = await res.json();
     allEvents.value = result;
-
-    // if no saved event, pick the first
     if (!selectedEvent.value && allEvents.value.length > 0) {
       selectedEvent.value = allEvents.value[0].folderName;
     }
-    // manually trigger once here, ensures participants load
     if (selectedEvent.value) {
       await fetchAllParticipantInEvent(selectedEvent.value);
     }
@@ -115,69 +109,130 @@ const fetchAllEvents = async () => {
   }
 };
 
-const fetchAllJudges = async() =>{
-  try{
-    const res = await fetch('/api/v1/event/judges',{
-      credentials: "include"
-    })
-    if(!res.ok) throw new Error('Failed to fetch event data')
-    res.json().then(result =>{
-        allJudges.value = Object.values(result).map(item => item.judgeName);
-    })
-  }catch(err){
+const fetchAllJudges = async () => {
+  try {
+    const res = await fetch('/api/v1/event/judges', { credentials: "include" })
+    if (!res.ok) throw new Error('Failed to fetch judges')
+    const result = await res.json()
+    allJudges.value = Object.values(result).map(item => item.judgeName)
+  } catch (err) {
     console.log(err)
   }
 }
-onMounted(async()=>{
-    const ok = await checkAuthStatus(["admin","organiser"])
-    if(!ok) return
-    fetchAllEvents()
-    fetchAllJudges()
+
+onMounted(async () => {
+  const ok = await checkAuthStatus(["admin", "organiser"])
+  if (!ok) return
+  fetchAllEvents()
+  fetchAllJudges()
 })
 </script>
 
 <template>
-  <div class="m-10">
-    <div class="flex justify-end items-center mb-3">
-      <ReusableButton @onClick="showCreateNewEntry = !showCreateNewEntry" buttonName="Add participant"></ReusableButton>
-    </div>
-  </div>
-    <form class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-5 m-10">
-        <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
-        <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-    </form>
-    <div class="mx-5">
-    <DynamicTable 
-    v-if="participants.length > 0"
-    v-model:tableValue="filteredParticipants"
-    :tableConfig="[
-        { key: 'eventName', label: 'Event', type: 'text', readonly: true },
-        { key: 'participantName', label: 'Name', type: 'text', readonly:true },
-        { key: 'genreName', label: 'Genre', type: 'text', readonly:true },
-        { key: 'judgeName', label: 'Judge', type: 'select', options: ['', ...(allJudges || [])]}
-    ]"></DynamicTable>
+  <div class="page-container">
+
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+      <div>
+        <h1 class="page-title">Participants</h1>
+        <p class="text-muted mt-1">Assign judges and manage participant entries</p>
+      </div>
+      <ReusableButton
+        variant="primary"
+        size="sm"
+        @onClick="showCreateNewEntry = true"
+      >
+        <template #default>
+          <i class="pi pi-plus text-xs"></i>
+          Add Participant
+        </template>
+      </ReusableButton>
     </div>
 
-    <div class="flex justify-center">
-        <ReusableButton
-            buttonName="Update Judges" @onClick="updateParticipantJudge">
-        </ReusableButton>
+    <!-- Filter bar -->
+    <div class="card p-5 mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <ReusableDropdown
+            v-model="selectedEvent"
+            labelId="Event"
+            :options="allEvents.map(e => e.folderName)"
+            placeholder="Select event…"
+          />
+        </div>
+        <div>
+          <ReusableDropdown
+            v-model="selectedGenre"
+            labelId="Genre"
+            :options="genreOptions"
+            placeholder="All genres"
+          />
+        </div>
+      </div>
+
+      <!-- Participant count -->
+      <div class="flex items-center gap-2 mt-4 pt-4 border-t border-surface-100">
+        <i class="pi pi-users text-surface-400 text-sm"></i>
+        <span class="text-sm text-surface-600">
+          Showing <strong class="text-surface-900">{{ filteredParticipants.length }}</strong>
+          of <strong class="text-surface-900">{{ participants.length }}</strong> participants
+        </span>
+      </div>
     </div>
-    <ActionDoneModal
+
+    <!-- Table -->
+    <div class="mb-6">
+      <DynamicTable
+        v-if="participants.length > 0"
+        v-model:tableValue="filteredParticipants"
+        :tableConfig="[
+          { key: 'eventName',       label: 'Event',  type: 'text',   readonly: true },
+          { key: 'participantName', label: 'Name',   type: 'text',   readonly: true },
+          { key: 'genreName',       label: 'Genre',  type: 'text',   readonly: true },
+          { key: 'judgeName',       label: 'Judge',  type: 'select', options: ['', ...(allJudges || [])] }
+        ]"
+      />
+
+      <!-- Empty state -->
+      <div
+        v-if="participants.length === 0 && selectedEvent"
+        class="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div class="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+          <i class="pi pi-users text-surface-400 text-xl"></i>
+        </div>
+        <p class="font-heading font-semibold text-surface-700">No participants found</p>
+        <p class="text-muted text-sm mt-1">Select a different event or add a participant</p>
+      </div>
+    </div>
+
+    <!-- Save action -->
+    <div class="flex justify-end">
+      <ReusableButton variant="primary" @onClick="updateParticipantJudge">
+        <template #default>
+          <i class="pi pi-check text-xs"></i>
+          Save Judge Assignments
+        </template>
+      </ReusableButton>
+    </div>
+
+  </div>
+
+  <ActionDoneModal
     :show="showModal"
     :title="modalTitle"
+    :variant="modalVariant"
     @accept="handleAccept"
-    @close="()=>{showModal=false}"
-    >
-        <p>
-        {{ modalMessage}}
-        </p>
-    </ActionDoneModal>
-    <CreateParticipantForm
+    @close="handleAccept"
+  >
+    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
+  </ActionDoneModal>
+
+  <CreateParticipantForm
     :event="selectedEvent"
-    :show="showCreateNewEntry" 
+    :show="showCreateNewEntry"
     title="New participant entry"
-    @createNewEntry="()=>{showCreateNewEntry = !showCreateNewEntry}"
-    @close="()=>{showCreateNewEntry = !showCreateNewEntry}"
-    ></CreateParticipantForm>
+    @createNewEntry="showCreateNewEntry = false"
+    @close="showCreateNewEntry = false"
+  />
 </template>

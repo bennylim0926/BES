@@ -4,7 +4,7 @@ import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import { fetchAllFolderEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
-import { ref, computed, onMounted, watch, toRaw, callWithAsyncErrorHandling } from 'vue';
+import { ref, computed, onMounted, watch, toRaw } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import Timer from '@/components/Timer.vue';
 import { checkAuthStatus } from '@/utils/auth';
@@ -24,51 +24,54 @@ const participants = ref([])
 
 const modalTitle = ref("")
 const modalMessage = ref("")
+const modalVariant = ref("info")
 const showModal = ref(false)
 const showMiniMenu = ref(false)
-const dynamicCallBack = ref(()=>{})
+const dynamicCallBack = ref(() => {})
 
-const dynamicRole = async ()=>{
+const dynamicRole = async () => {
   const res = await whoami()
-  if(res.username === "emcee"){
+  if (res.username === "emcee") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
-  }else if (res.username === "judge"){
+  } else if (res.username === "judge") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
-  }else if (res.username === "admin"){
+  } else if (res.username === "admin") {
     roles.value = ["Emcee", "Judge"]
     selectedRole.value = localStorage.getItem("selectedRole") || ""
   }
 }
 
-const hasJudge = computed(()=>{
-  return participants.value.some(item => item.judgeName !== null)
-})
+const hasJudge = computed(() => participants.value.some(item => item.judgeName !== null))
 
-const openModal = (title, message) => {
-    modalTitle.value = title
-    modalMessage.value = message
-    showModal.value = true
-    dynamicCallBack.value = ()=>{showModal.value = false}
+const openModal = (title, message, variant = 'info') => {
+  modalTitle.value = title
+  modalMessage.value = message
+  modalVariant.value = variant
+  showModal.value = true
+  dynamicCallBack.value = () => { showModal.value = false }
 }
 
 const confirmReset = (title, message) => {
-    modalTitle.value = title
-    modalMessage.value = message
-    showModal.value = true
-    dynamicCallBack.value = ()=>{showModal.value = false; resetScore();}
+  modalTitle.value = title
+  modalMessage.value = message
+  modalVariant.value = 'warning'
+  showModal.value = true
+  dynamicCallBack.value = () => { showModal.value = false; resetScore(); }
 }
 
 const confirmSubmit = async (title, message) => {
-    modalTitle.value = title
-    modalMessage.value = message
-    showModal.value = true
-    dynamicCallBack.value = async ()=>{showModal.value = false;
-         await submitScore(selectedEvent.value, selectedGenre.value, 
-         currentJudge.value, filteredParticipantsForJudge.value);}
+  modalTitle.value = title
+  modalMessage.value = message
+  modalVariant.value = 'info'
+  showModal.value = true
+  dynamicCallBack.value = async () => {
+    showModal.value = false;
+    await submitScore(selectedEvent.value, selectedGenre.value,
+      currentJudge.value, filteredParticipantsForJudge.value);
+  }
 }
-
 
 const filteredParticipantsForJudge = computed({
   get() {
@@ -81,7 +84,6 @@ const filteredParticipantsForJudge = computed({
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
   set(updatedList) {
-    // sync changes back into participants
     updatedList.forEach(updated => {
       const idx = participants.value.findIndex(p => p.auditionNumber === updated.auditionNumber)
       if (idx !== -1) {
@@ -92,40 +94,36 @@ const filteredParticipantsForJudge = computed({
 })
 
 watch(filteredParticipantsForJudge, (newVal) => {
-    const update = newVal.find(c => c.score !== 0)
-    if(update){
-      localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
-    }
-    // console.log(localStorage.getItem("currentScore"))
+  const update = newVal.find(c => c.score !== 0)
+  if (update) {
+    localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+  }
 }, { deep: true });
 
 const filteredParticipantsForEmcee = computed({
-    get(){
-        // if (selectedGenre.value === "All" && filteredJudge.value === "") return transformForTable(participants.value);
-        // if (selectedGenre.value === "All") return transformForTable(participants.value.filter(p =>  p.judgeName === filteredJudge.value));
-        if (filteredJudge.value === "") return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null));
-        return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null));
-    },
-    set(updatedSubset){
-        const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
-        participants.value = participants.value.map(org => {
-            const updated = byId.get(org.rowId)
-            return updated ? {...org, ...updated}: org
-        })
+  get() {
+    if (filteredJudge.value === "") {
+      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null))
     }
-});
+    return transformForTable(participants.value.filter(p =>
+      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null
+    ))
+  },
+  set(updatedSubset) {
+    const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
+    participants.value = participants.value.map(org => {
+      const updated = byId.get(org.rowId)
+      return updated ? { ...org, ...updated } : org
+    })
+  }
+})
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
     participants.value = []
     const res = await getRegisteredParticipantsByEvent(newVal)
-    participants.value = res.map((r,i)=>({
-        ...r,
-        rowId: r.rowId ?? i,
-        score: 0
-    }))
-    console.log(participants.value)
+    participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     const stored = localStorage.getItem("currentScore")
     if (stored) {
       const cached = JSON.parse(stored)
@@ -135,54 +133,31 @@ watch(selectedEvent, async (newVal) => {
       })
     }
   }
-},{ immediate: true });
+}, { immediate: true });
 
-watch(selectedGenre, async (newVal) => {
-  if (newVal) {
-    localStorage.setItem("selectedGenre", newVal);
-  }
-},{immediate: true});
-
-watch(selectedRole, async (newVal) => {
-  if (newVal) {
-    localStorage.setItem("selectedRole", newVal);
-  }
-},{immediate: true});
-
-watch(currentJudge, async (newVal) => {
-  if (newVal) {
-    localStorage.setItem("currentJudge", newVal);
-    
-  }
-},{immediate: true});
+watch(selectedGenre, (newVal) => { if (newVal) localStorage.setItem("selectedGenre", newVal); }, { immediate: true });
+watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
+watch(currentJudge, (newVal) => { if (newVal) localStorage.setItem("currentJudge", newVal); }, { immediate: true });
 
 const uniqueGenres = computed(() => {
-    const genres = participants.value.map(p => p.genreName);
-    return [...new Set(genres)].sort();
+  const genres = participants.value.map(p => p.genreName);
+  return [...new Set(genres)].sort();
 })
 
 function transformForTable(data) {
   const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))];
-  
-  // If all judgeName are null → just return audition + participant
   if (judges.length === 0) {
     return {
       columns: [
-        { key: 'auditionNumber', label: 'Number', type: 'text', readonly: true },
+        { key: 'auditionNumber', label: 'No.', type: 'text', readonly: true },
         { key: 'participantName', label: 'Name', type: 'text', readonly: true },
-        { key: 'marked', label: 'Done', type: 'boolean'}
+        { key: 'marked', label: 'Done', type: 'boolean' }
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
-        .map(d => ({
-          auditionNumber: d.auditionNumber,
-          participantName: d.participantName,
-          marked: false
-        }))
+        .map(d => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
     };
   }
-
-  // Otherwise → pivot by auditionNumber
   const auditions = {};
   data.forEach(d => {
     if (!auditions[d.auditionNumber]) {
@@ -190,17 +165,14 @@ function transformForTable(data) {
     }
     auditions[d.auditionNumber][d.judgeName] = d.participantName;
   });
-  // Clean rows → drop if all judges undefined, else replace missing with ""
   const rows = Object.values(auditions)
     .map(row => {
       const allEmpty = judges.every(j => !row[j]);
       if (allEmpty) return null;
-      judges.forEach(j => {
-        if (!row[j]) row[j] = ""; // replace missing with ""
-      });
+      judges.forEach(j => { if (!row[j]) row[j] = ""; });
       return row;
     })
-    .filter(Boolean) // remove dropped rows
+    .filter(Boolean)
     .sort((a, b) => a.auditionNumber - b.auditionNumber);
   return {
     columns: [
@@ -211,138 +183,189 @@ function transformForTable(data) {
   };
 }
 
-const submitScore = async(eventName,genreName, judgeName, participants) =>{
-  if(judgeName === ""){
-    openModal("Failed", "Must assign a judge to this audition")
-    return 
+const submitScore = async (eventName, genreName, judgeName, participants) => {
+  if (judgeName === "") {
+    openModal("Missing Judge", "Please select a judge before submitting.", "warning")
+    return
   }
-  const p = participants.map( obj=>({
-    ...obj,
-    score: parseFloat(obj.score)
-  }))
+  const p = participants.map(obj => ({ ...obj, score: parseFloat(obj.score) }))
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
-  if(res.ok){
-    openModal("Success", "Score updated!")
-    // localStorage.removeItem("currentScore");
+  if (res.ok) {
+    openModal("Scores Submitted", "All scores have been saved successfully.", "success")
   }
 }
 
-const resetScore = ()=>{
+const resetScore = () => {
   localStorage.removeItem("currentScore");
-  participants.value = participants.value.map( obj=>({
-    ...obj,
-    score: 0
-  }))
+  participants.value = participants.value.map(obj => ({ ...obj, score: 0 }))
 }
 
 const showFilters = ref(true)
 
-const fetchEventsAndInit = async()=>{
-    allEvents.value = await fetchAllFolderEvents()
-    const savedEvent = localStorage.getItem("selectedEvent")
-    selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
+const fetchEventsAndInit = async () => {
+  allEvents.value = await fetchAllFolderEvents()
+  const savedEvent = localStorage.getItem("selectedEvent")
+  selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
 }
 
 onMounted(async () => {
-    const ok = await checkAuthStatus(["admin","emcee", "judge"])
-    if(!ok) return
-    await dynamicRole()
-    await fetchEventsAndInit()
-    
-    const res = await getAllJudges()
-    allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
-    subscribeToChannel(createClient(), "/topic/audition/",
-     (msg) => {
-        // console.log(msg.name, msg.genre, msg.judge)
-        const idx = participants.value
-                            .findIndex(
-                                p => p.participantName === msg.name 
-                            && p.genreName === msg.genre
-                            && (p.judgeName === null ? 1 : p.judgeName === msg.judge))
-        if (idx !== -1){
-            // console.log({...participants.value[idx], ...{auditionNumber: msg.auditionNumber}})
-            participants.value[idx] = {...participants.value[idx], ...{auditionNumber: msg.auditionNumber} }
-        }      
-     })
+  const ok = await checkAuthStatus(["admin", "emcee", "judge"])
+  if (!ok) return
+  await dynamicRole()
+  await fetchEventsAndInit()
+  const res = await getAllJudges()
+  allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)];
+  subscribeToChannel(createClient(), "/topic/audition/",
+    (msg) => {
+      const idx = participants.value.findIndex(p =>
+        p.participantName === msg.name &&
+        p.genreName === msg.genre &&
+        (p.judgeName === null ? 1 : p.judgeName === msg.judge)
+      )
+      if (idx !== -1) {
+        participants.value[idx] = { ...participants.value[idx], ...{ auditionNumber: msg.auditionNumber } }
+      }
+    })
 })
 </script>
 
-<!-- Choose whether you are emcee or judge -->
-<!-- If emcee, should see all participants in one event, one genre 
-        the header either like | no. | judge 1 | judge 2| or no. | name |
-    If judge, need to extra select to who you are so that the score given can be tracked
--->
-
 <template>
-    <div class="mx-5">
-      <div class="flex justify-end">
-        <div class="flex items-center bg-[#fffaf5] shadow-xl p-5 mb-5 mt-3 rounded">
-      <span class="pi ml-2" :class="showFilters?'pi-filter-slash': 'pi-filter'" style="font-size: 2rem" @click="showFilters = !showFilters"></span>
-      <span v-if="selectedRole === 'Judge'" class="pi pi-search ml-3" style="font-size: 2rem" @click="showMiniMenu = !showMiniMenu"></span>
-      <span v-if="selectedRole === 'Judge'" class="pi pi-send ml-3" style="font-size: 2rem" @click="confirmSubmit('Submit Score', 'Are you sure you wanna submit now?')"></span>
-      <span v-if="selectedRole === 'Judge'" class="pi pi-undo ml-3" style="font-size: 2rem" @click="confirmReset('Warning','Are you sure you want to reset the score?')"></span>
-    </div>
-    </div>
+  <div class="page-container">
 
-    <!-- Collapsible content -->
-    <transition name="fade">
-      <form v-if="showFilters" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-        <ReusableDropdown v-model="selectedRole" labelId="Role" :options="roles" />
-        <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-        <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
-        <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
-      </form>
-    </transition>
+    <!-- Page header + action toolbar -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div>
+        <h1 class="page-title">Audition List</h1>
+        <p class="text-muted mt-1">
+          {{ selectedRole === 'Judge' ? 'Score participants for your genre' : 'Track audition progress' }}
+        </p>
+      </div>
 
-    <!-- Optional extra dropdown (only for judges) -->
-    <div class="flex justify-center mt-3" v-if="showFilters && selectedRole === 'Judge'">
-      <div class="w-50">
-        <ReusableDropdown v-model="currentJudge" labelId="Current Judge by:" :options="allJudges" />
+      <!-- Action buttons -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- Toggle filters -->
+        <button
+          @click="showFilters = !showFilters"
+          class="flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all duration-200"
+          :class="showFilters
+            ? 'bg-surface-800 text-white border-surface-800'
+            : 'bg-white text-surface-700 border-surface-200 hover:border-surface-300'"
+        >
+          <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
+          Filters
+        </button>
+
+        <!-- Judge-only actions -->
+        <template v-if="selectedRole === 'Judge'">
+          <button
+            @click="showMiniMenu = !showMiniMenu"
+            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-surface-200 bg-white
+                   text-sm font-semibold text-surface-700 hover:border-surface-300 transition-all duration-200"
+          >
+            <i class="pi pi-search text-xs"></i>
+            Jump
+          </button>
+          <button
+            @click="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
+            class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary-600 text-white text-sm
+                   font-semibold hover:bg-primary-700 shadow-sm transition-all duration-200"
+          >
+            <i class="pi pi-send text-xs"></i>
+            Submit
+          </button>
+          <button
+            @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
+            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-200 bg-white
+                   text-sm font-semibold text-red-600 hover:bg-red-50 transition-all duration-200"
+          >
+            <i class="pi pi-undo text-xs"></i>
+            Reset
+          </button>
+        </template>
       </div>
     </div>
-  </div>
-<div class="m-8" v-if="selectedRole==='Emcee' && filteredParticipantsForEmcee.rows.length > 0">
-    <Timer class="sticky top-0 m-5 z-50 shadow-lg"></Timer>
-    <DynamicTable 
+
+    <!-- Filter panel -->
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0 -translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-2"
+    >
+      <div v-if="showFilters" class="card p-5 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <ReusableDropdown v-model="selectedRole"  labelId="Role"  :options="roles" />
+          <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
+          <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
+          <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+        </div>
+
+        <!-- Current judge selector (judge role only) -->
+        <div v-if="selectedRole === 'Judge'" class="mt-4 pt-4 border-t border-surface-100">
+          <div class="max-w-xs">
+            <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Emcee view: Timer + table -->
+    <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+      <div class="sticky top-4 z-20 mb-4">
+        <Timer />
+      </div>
+      <DynamicTable
         v-model:tableValue="filteredParticipantsForEmcee.rows"
-        :tableConfig="filteredParticipantsForEmcee.columns"></DynamicTable>
-</div>
-<div v-else-if="selectedRole==='Judge' && filteredParticipantsForEmcee.rows.length>0"
-  >
-    <!-- <SwipeableCards v-model:cards="filteredParticipantsForJudge"></SwipeableCards> -->
-     <MiniScoreMenu 
-     :cards="filteredParticipantsForJudge"
-     :show="showMiniMenu"
-     :title="'MOVE TO'"
-     @close="showMiniMenu = !showMiniMenu"></MiniScoreMenu>
-     <div class="flex items-center justify-center w-full">
-      <SwipeableCardsV2 
-      class="absolute bottom-0 md:bottom-10 left-0"
-      :cards="filteredParticipantsForJudge"></SwipeableCardsV2>
+        :tableConfig="filteredParticipantsForEmcee.columns"
+      />
+    </template>
+
+    <!-- Judge view: swipeable score cards -->
+    <template v-else-if="selectedRole === 'Judge' && filteredParticipantsForEmcee.rows.length > 0">
+      <MiniScoreMenu
+        :cards="filteredParticipantsForJudge"
+        :show="showMiniMenu"
+        title="Jump to Participant"
+        @close="showMiniMenu = false"
+      />
+      <SwipeableCardsV2 :cards="filteredParticipantsForJudge" />
+    </template>
+
+    <!-- Empty state -->
+    <div
+      v-else-if="selectedRole && selectedGenre"
+      class="flex flex-col items-center justify-center py-24 text-center"
+    >
+      <div class="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+        <i class="pi pi-list text-surface-400 text-xl"></i>
+      </div>
+      <p class="font-heading font-semibold text-surface-700">No participants found</p>
+      <p class="text-muted text-sm mt-1">Select a different event or genre</p>
     </div>
-    <!-- <div class="flex justify-center my-3">
-        <ReusableButton @onClick="submitScore(selectedEvent, selectedGenre, currentJudge, filteredParticipantsForJudge)" 
-        buttonName="Submit Scores"></ReusableButton>
-    </div> -->
-</div>
-<ActionDoneModal
+
+    <!-- No role selected -->
+    <div
+      v-else-if="!selectedRole"
+      class="flex flex-col items-center justify-center py-24 text-center"
+    >
+      <div class="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center mb-4">
+        <i class="pi pi-filter text-primary-500 text-xl"></i>
+      </div>
+      <p class="font-heading font-semibold text-surface-700">Select your role to begin</p>
+      <p class="text-muted text-sm mt-1">Choose Emcee or Judge in the filter panel above</p>
+    </div>
+
+  </div>
+
+  <ActionDoneModal
     :show="showModal"
     :title="modalTitle"
-    @accept="()=>{dynamicCallBack()}"
-    @close="()=>{showModal = false}"
+    :variant="modalVariant"
+    @accept="() => { dynamicCallBack() }"
+    @close="() => { showModal = false }"
   >
-    <p>
-      {{ modalMessage}}
-    </p>
+    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
 </template>
-
-<style>
-/* simple fade animation */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
-</style>
