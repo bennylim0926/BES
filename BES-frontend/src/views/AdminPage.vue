@@ -140,10 +140,10 @@ const submitDeleteImage = async (name) => {
 }
 
 onMounted(async () => {
-  genres.value = await fetchAllGenres()
-  judges.value = await getAllJudges()
-  events.value = await fetchAllEvents()
-  images.value = await getAllImages()
+  genres.value = await fetchAllGenres() ?? []
+  judges.value = await getAllJudges() ?? []
+  events.value = await fetchAllEvents() ?? []
+  images.value = await getAllImages() ?? []
 })
 </script>
 

@@ -14,6 +14,7 @@ import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";
 import Chart from "@/views/Chart.vue";
 import AdminPage from "@/views/AdminPage.vue";
+import { whoami } from "@/utils/api";
 
 const routes = [
     {
@@ -95,6 +96,19 @@ const routes = [
 const router = createRouter({
     history: createWebHistory(),
     routes
+})
+
+const PUBLIC_ROUTES = ['Login', 'Forbidden']
+
+router.beforeEach(async (to) => {
+    if (PUBLIC_ROUTES.includes(to.name)) return true
+    try {
+        const user = await whoami()
+        if (!user || !user.authenticated) return { name: 'Login' }
+    } catch {
+        return { name: 'Login' }
+    }
+    return true
 })
 
 export default router

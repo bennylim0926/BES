@@ -2,6 +2,7 @@
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { addBattleJudge, battleJudgeVote, fetchAllFolderEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
@@ -18,9 +19,23 @@ const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
 
+const uploadedFiles = ref([])
+
 const onFileChange = async (e) => {
   const files = Array.from(e.target.files)
-  for (const file of files) { await uploadImage(file) }
+  for (const file of files) {
+    await uploadImage(file)
+    if (!uploadedFiles.value.includes(file.name)) {
+      uploadedFiles.value.push(file.name)
+    }
+  }
+  e.target.value = ''
+}
+
+const removeUploadedFile = async (index) => {
+  const name = uploadedFiles.value[index]
+  const res = await deleteImage(name)
+  if (res.ok) uploadedFiles.value.splice(index, 1)
 }
 
 const winnerAnnouncement = computed(() => {
@@ -520,6 +535,33 @@ onMounted(async () => {
           Upload Images
           <input type="file" multiple @change="onFileChange" class="hidden" />
         </label>
+      </div>
+
+      <!-- Uploaded images list -->
+      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4 border-t border-surface-100">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="pi pi-images text-surface-500 text-sm"></i>
+          <span class="text-sm font-semibold text-surface-700">Uploaded Images</span>
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-100
+                       text-xs font-bold text-surface-600">{{ uploadedFiles.length }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <div
+            v-for="(name, idx) in uploadedFiles"
+            :key="idx"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-surface-200
+                   bg-surface-50 text-sm text-surface-700"
+          >
+            <span class="max-w-[160px] truncate">{{ name }}</span>
+            <button
+              @click="removeUploadedFile(idx)"
+              class="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full
+                     hover:bg-surface-200 transition-colors"
+            >
+              <i class="pi pi-times text-xs text-surface-400"></i>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
