@@ -1,97 +1,99 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
-import ReusableDropdown from './ReusableDropdown.vue';
-import { onMounted, ref, reactive} from 'vue';
+import { onMounted, ref, reactive } from 'vue';
 import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
-const props = defineProps({
-    show: { type: Boolean, default: false },
-    title: { type: String, default: "Modal Title" },
-    event: { type: String, default: "" }
-    })
 
-const emit = defineEmits(['createNewEntry',"close"])
+const props = defineProps({
+  show:  { type: Boolean, default: false },
+  title: { type: String, default: 'New Participant' },
+  event: { type: String, default: '' }
+})
+
+const emit = defineEmits(['createNewEntry', 'close'])
 
 const name = ref("")
-const selectedGenre = ref("")
 const selectedJudge = ref("")
 const genreOptions = ref([])
 const allJudges = ref([])
-const createTable = reactive({
-    genres: []
-})
+const createTable = reactive({ genres: [] })
+const showError = ref(false)
 
-const showModel = ref(false)
-
-const submitNewEntry = async ()=>{
-    if(name.value == ""){
-        showModel.value = true
-        return
-    }
-    emit("createNewEntry")
-    createTable.genres.forEach(async (g) => await addWalkinToSystem(name.value, props.event, g, selectedJudge.value))
-    // await addWalkinToSystem(name.value, props.event, selectedGenre.value, selectedJudge.value);
-    name.value = ""
+const submitNewEntry = async () => {
+  if (name.value == "") {
+    showError.value = true
+    return
+  }
+  emit("createNewEntry")
+  createTable.genres.forEach(async (g) => await addWalkinToSystem(name.value, props.event, g, selectedJudge.value))
+  name.value = ""
+  createTable.genres = []
 }
 
-onMounted(async()=>{
-    const genres = await fetchAllGenres()
-    genreOptions.value = genres.map(g => g.genreName)
-    const res = await getAllJudges()
-    allJudges.value =["", ...Object.values(res).map(item => item.judgeName)];
+onMounted(async () => {
+  const genres = await fetchAllGenres()
+  genreOptions.value = genres.map(g => g.genreName)
+  const res = await getAllJudges()
+  allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)]
 })
 </script>
 
 <template>
-    <ActionDoneModal
-        :show="props.show"
-        :title="props.title"
-        @accept="submitNewEntry"
-        @close="$emit('close')">
-        <div>
-            <form>
-                <!-- Name -->
-                 <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Name</label>
-                 <input
-                  placeholder="Enter stage name"
-                  v-model="name"
-                 class="border rounded-lg px-3 py-2 w-full focus:ring focus:ring-blue-300"></input>
-                <!-- Genre should--> 
-                <!-- <ReusableDropdown v-model="selectedGenre"
-                class="my-3"
-                labelId="Genre" :options="genreOptions"></ReusableDropdown> -->
-                <!-- Judge -->
-                <!-- <ReusableDropdown v-model="selectedJudge"
-                labelId="Judge" :options="allJudges"></ReusableDropdown> -->
-                <div class="grid grid-cols-2 gap-3 w-fit my-2">
-                <div
-                v-for="g in genreOptions"
-                :key="g.genreName"
-                class="flex items-center px-3 py-2 sm:min-w-48 md:min-w-62 lg:min-w-62 h-auto rounded bg-white shadow-md">
-                    <input
-                        type="checkbox"
-                        :id="g"
-                        :value="g"
-                        v-model="createTable.genres"
-                        class="w-4 h-4 text-orange-400 bg-gray-100 border-gray-300 rounded-sm
-                            focus:ring-orange-400
-                            focus:ring-2"
-                    />
-                    <label
-                        :for="g"
-                        class="ms-2 sm:text-lg md:text-xl lg:text-xl font-medium text-black"
-                    >
-                        {{ g }}
-                    </label>
-                </div>
-            </div>
-            </form>
+  <ActionDoneModal
+    :show="props.show"
+    :title="props.title"
+    variant="info"
+    @accept="submitNewEntry"
+    @close="$emit('close')"
+  >
+    <div class="space-y-4 mt-1">
+      <!-- Name field -->
+      <div>
+        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
+          Stage Name
+        </label>
+        <input
+          v-model="name"
+          type="text"
+          placeholder="Enter stage name…"
+          class="input-base"
+          @keyup.enter="submitNewEntry"
+        />
+      </div>
+
+      <!-- Genre checkboxes -->
+      <div>
+        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
+          Genres
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <label
+            v-for="g in genreOptions"
+            :key="g"
+            class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
+            :class="createTable.genres.includes(g)
+              ? 'bg-primary-50 border-primary-300 text-primary-700'
+              : 'bg-white border-surface-200 text-surface-700 hover:border-surface-300'"
+          >
+            <input
+              type="checkbox"
+              :value="g"
+              v-model="createTable.genres"
+              class="w-4 h-4 rounded accent-primary-600"
+            />
+            <span class="text-sm font-medium">{{ g }}</span>
+          </label>
         </div>
-    </ActionDoneModal>
-    <ActionDoneModal
-        :show="showModel"
-        title="Opps!"
-        @accept="()=>{showModel = false}"
-        @close="()=>{showModel = false}">
-        Name cannot be empty!
-    </ActionDoneModal>
+      </div>
+    </div>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showError"
+    title="Name Required"
+    variant="error"
+    @accept="showError = false"
+    @close="showError = false"
+  >
+    <p class="text-surface-600">Please enter a stage name before submitting.</p>
+  </ActionDoneModal>
 </template>

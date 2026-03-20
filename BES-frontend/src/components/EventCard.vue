@@ -1,98 +1,36 @@
 <script setup>
-import { defineProps, defineEmits } from 'vue';
-
 const props = defineProps({
-    buttonName: {
-        type: String,
-        required: true,
-        default: ()=>("")
-    }
+  buttonName: { type: String, required: true, default: '' }
 })
 
-const emit = defineEmits(["onClick"])
+const emit = defineEmits(['onClick'])
 </script>
 
 <template>
-    <div class="card1 flex justify-center items-center shadow-lg"
-        @click="emit('onClick')">
-        <h3 class="">
-            {{props.buttonName}}
-        </h3>
-        <div class="go-corner" href="#">
+  <div
+    class="group relative bg-white rounded-2xl border border-surface-200/80 shadow-sm
+           hover:shadow-md hover:border-primary-200
+           border-l-[4px] border-l-primary-500
+           transition-all duration-200 cursor-pointer overflow-hidden w-full"
+    @click="emit('onClick')"
+  >
+    <div class="flex items-center justify-between p-5 gap-4">
+      <!-- Event name -->
+      <h3 class="font-heading font-bold text-base text-surface-900 leading-snug line-clamp-2 flex-1">
+        {{ props.buttonName }}
+      </h3>
+
+      <!-- Chevron indicator -->
+      <div
+        class="flex-shrink-0 w-8 h-8 rounded-full bg-surface-100
+               group-hover:bg-primary-100 flex items-center justify-center
+               transition-colors duration-200"
+      >
+        <i
+          class="pi pi-chevron-right text-surface-400 group-hover:text-primary-600 text-xs
+                 group-hover:translate-x-0.5 transition-all duration-200"
+        ></i>
+      </div>
     </div>
-    </div>
+  </div>
 </template>
-
-<style>
-go-corner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  overflow: hidden;
-  top: 0;
-  right: 0;
-  background-color: #ff8904;
-  border-radius: 0 4px 0 32px;
-}
-
-.go-arrow {
-  margin-top: -4px;
-  margin-right: -4px;
-  color: white;
-  font-family: courier, sans;
-}
-
-h3 {
-  color: #262626;
-  font-size: 24px;
-  line-height: 24px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.card1 {
-  display: block;
-  position: relative;
-  width: 262px;
-  background-color: #fffaf5;
-  border-radius: 4px;
-  padding: 32px 24px;
-  margin: 12px;
-  text-decoration: none;
-  z-index: 0;
-  overflow: hidden;
-
-  &:before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    top: -16px;
-    right: -16px;
-    background: #ff8904;
-    height: 32px;
-    width: 32px;
-    border-radius: 32px;
-    transform: scale(1);
-    transform-origin: 50% 50%;
-    transition: transform 0.25s ease-out;
-  }
-
-  &:hover:before {
-    transform: scale(21);
-  }
-}
-
-.card1:hover {
-  p {
-    transition: all 0.3s ease-out;
-    color: rgba(255, 255, 255, 0.8);
-  }
-  h3 {
-    transition: all 0.3s ease-out;
-    color: #ffffff;
-  }
-}
-</style>
