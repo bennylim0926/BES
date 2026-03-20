@@ -175,6 +175,16 @@ public class EventControllerIntegrationTest {
 
     @Test
     @WithMockUser
+    public void testRegisterParticipantAllGenres() throws Exception {
+        doNothing().when(eventGenreParticipantService).getAllAuditionNumsViaQR(1L, 2L);
+
+        mockMvc.perform(get("/api/v1/event/register-participant/1/2"))
+               .andExpect(status().isCreated())
+               .andExpect(jsonPath("$").value("registered"));
+    }
+
+    @Test
+    @WithMockUser
     public void testRegisterParticipantWithGenre() throws Exception {
         doNothing().when(eventGenreParticipantService).getAuditionNumViaQR(any(AddParticipantToEventGenreDto.class));
 

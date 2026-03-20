@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -70,6 +71,26 @@ public class EventGenreParticpantService {
         return repo.save(egp);
     }
 
+    public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
+        List<EventGenreParticipant> entries =
+            repo.findByEventIdAndParticipantId(eventId, participantId);
+        for (EventGenreParticipant entry : entries) {
+            AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
+            dto.participantId = participantId;
+            dto.eventId = eventId;
+            dto.genreId = entry.getGenre().getGenreId();
+            int attempts = 0;
+            while (true) {
+                try {
+                    getAuditionNumViaQR(dto);
+                    break;
+                } catch (Exception e) {
+                    if (++attempts >= 3) throw e;
+                }
+            }
+        }
+    }
+
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void getAuditionNumViaQR(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
@@ -116,7 +137,13 @@ public class EventGenreParticpantService {
     public List<GetEventGenreParticipantDto> getAllEventGenreParticipantByEventService(String eventName){
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
-        List<EventGenreParticipant> results =  repo.findByEvent(event);
+        // Deduplicate by composite ID to avoid Hibernate row multiplication
+        // caused by the @OneToMany(scores) join producing one row per score entry.
+        LinkedHashMap<com.example.BES.models.EventGenreParticipantId, EventGenreParticipant> seen = new LinkedHashMap<>();
+        for (EventGenreParticipant egp : repo.findByEvent(event)) {
+            seen.putIfAbsent(egp.getId(), egp);
+        }
+        List<EventGenreParticipant> results = new ArrayList<>(seen.values());
         List<GetEventGenreParticipantDto> dtos = new ArrayList<>();
         for(EventGenreParticipant res : results){
             GetEventGenreParticipantDto dto = new GetEventGenreParticipantDto();

@@ -12,13 +12,10 @@ import com.example.BES.enums.Constant;
 import com.example.BES.enums.EmailTemplates;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.Participant;
-import com.example.BES.respositories.GenreRepo;
 import com.google.zxing.WriterException;
 
-import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
 import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.util.ByteArrayDataSource;
 import org.springframework.core.env.Environment;
@@ -35,9 +32,6 @@ public class MailSenderService {
     QrCodeService qrService;
 
     @Autowired
-    GenreRepo genreRepo;
-
-    @Autowired
     private Environment env;
 
 
@@ -45,17 +39,15 @@ public class MailSenderService {
         EmailTemplates.Template template = emailTemplates.getEvents().get(normalizeKey(eventName)); 
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
-        for(EventGenreParticipantId id : ids){
-            // insert real domain here
-            String registerLink = String.format("%s/api/v1/event/register-participant/%d/%d/%d",env.getProperty("DOMAIN") ,id.getParticipantId(),id.getEventId(), id.getGenreId());
-            byte[] sourceBytes = qrService.generateQrCode(registerLink, 350, 350);
-            DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
-            MimeBodyPart attachmentPart = new MimeBodyPart();
-            attachmentPart.setDataHandler(new DataHandler(dataSource));
-            String genreName = genreRepo.findById(id.getGenreId()).orElse(null).getGenreName();
-            attachmentPart.setFileName(String.format("%s.jpg", genreName));
-            messageHelper.addAttachment(String.format("%s.jpg", genreName), dataSource);;
-        }
+        EventGenreParticipantId first = ids.get(0);
+        String registerLink = String.format(
+            "%s/api/v1/event/register-participant/%d/%d",
+            env.getProperty("DOMAIN"),
+            first.getParticipantId(),
+            first.getEventId());
+        byte[] sourceBytes = qrService.generateQrCode(registerLink, 350, 350);
+        DataSource dataSource = new ByteArrayDataSource(sourceBytes, "image/jpeg");
+        messageHelper.addAttachment("audition-qr.jpg", dataSource);
             // use with MimeBodyPart
         messageHelper.setFrom(Constant.SENDER_EMAIL.getLabel());
         messageHelper.setTo(receiver.getParticipantEmail());

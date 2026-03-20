@@ -208,12 +208,26 @@ public class EventController {
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
+    @Operation(summary = "Register Participant All Genres", description = "Scans one QR and assigns audition numbers for all genres the participant is enrolled in")
+    @GetMapping("/register-participant/{participantId}/{eventId}")
+    public ResponseEntity<String> registerParticipantAllGenres(
+            @PathVariable Long participantId,
+            @PathVariable Long eventId) {
+        try {
+            eventGenreParticipantService.getAllAuditionNumsViaQR(participantId, eventId);
+            return new ResponseEntity<>("registered", HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
+        }
+    }
+
     /*
      * This is actually a POST method, and this link is send to the participants
      * When organiser scan the QR, it will give the participant audition number
      * based on genre
+     * @deprecated Use /register-participant/{participantId}/{eventId} (single QR) instead
      */
-    @Operation(summary = "Register Participant with Genre", description = "Registers a participant and generates an audition number via QR scan")
+    @Operation(summary = "Register Participant with Genre (Deprecated)", description = "Registers a participant and generates an audition number via QR scan for a specific genre. Deprecated: use the 2-param endpoint instead.")
     @GetMapping("/register-participant/{participantId}/{eventId}/{genreId}")
     public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId,
             @PathVariable Long eventId, @PathVariable Long genreId) throws IOException {

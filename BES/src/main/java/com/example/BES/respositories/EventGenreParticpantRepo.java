@@ -50,6 +50,15 @@ public interface EventGenreParticpantRepo extends JpaRepository<EventGenrePartic
                                           @Param("genreId") Long genreId,
                                           @Param("name") String name);
 
+    @Query("""
+        SELECT e FROM EventGenreParticipant e
+        WHERE e.event.eventId = :eventId
+          AND e.participant.participantId = :participantId
+        """)
+    List<EventGenreParticipant> findByEventIdAndParticipantId(
+        @Param("eventId") Long eventId,
+        @Param("participantId") Long participantId);
+
     @Query(value = """
        SELECT e.auditionNumber
        FROM EventGenreParticipant e

@@ -76,10 +76,14 @@ const totalWalkIn = computed(() => {
 })
 
 const totalDbRegistered = computed(() => {
-  const uniqueParticipants = [
-    ...new Map(verifiedDbParticipants.value.map(p => [p.participantName, p])).values()
-  ]
-  return uniqueParticipants.filter(p => p.auditionNumber !== null)
+  const grouped = {}
+  verifiedDbParticipants.value.forEach(p => {
+    if (!grouped[p.participantName]) grouped[p.participantName] = []
+    grouped[p.participantName].push(p)
+  })
+  return Object.values(grouped).filter(rows =>
+    rows.every(r => r.auditionNumber !== null)
+  )
 })
 
 function normalizeGenreName(name) {
