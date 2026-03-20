@@ -22,7 +22,8 @@ public class RegistrationDtoMapper {
         if(colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)){
             dto.setResidency(row.get(colIndexMap.get(SheetHeader.LOCAL_OVERSEAS)));
         }        
-        dto.setPaymentStatus(Boolean.parseBoolean(row.get(colIndexMap.get(SheetHeader.PAYMENT_STATUS))));     
+        int paymentIdx = colIndexMap.get(SheetHeader.PAYMENT_STATUS);
+        dto.setPaymentStatus(row.size() > paymentIdx && Boolean.parseBoolean(row.get(paymentIdx)));     
         List<String> categories = new ArrayList<>();
         for (Integer i : categoriesCols){
             categories = GoogleSheetParser.normalizeGenre(row.get(i).toLowerCase(), genres);

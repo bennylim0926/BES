@@ -31,12 +31,33 @@ public interface EventGenreParticpantRepo extends JpaRepository<EventGenrePartic
                                                               @Param("participantName") String participantName);
 
     @Query(value = """
-       SELECT e.auditionNumber
+       SELECT COUNT(e)
        FROM EventGenreParticipant e
        WHERE e.event.eventId = :eventId
          AND e.genre.genreId = :genreId
        """)
-    List<Integer> findAuditionNumberByEventAndGenre(@Param("eventId") Long eventId, 
+    long countByEventIdAndGenreId(@Param("eventId") Long eventId,
+                                  @Param("genreId") Long genreId);
+
+    @Query(value = """
+       SELECT COUNT(e)
+       FROM EventGenreParticipant e
+       WHERE e.event.eventId = :eventId
+         AND e.genre.genreId = :genreId
+         AND e.judge.name = :name
+       """)
+    long countByEventIdAndGenreIdAndJudge(@Param("eventId") Long eventId,
+                                          @Param("genreId") Long genreId,
+                                          @Param("name") String name);
+
+    @Query(value = """
+       SELECT e.auditionNumber
+       FROM EventGenreParticipant e
+       WHERE e.event.eventId = :eventId
+         AND e.genre.genreId = :genreId
+         AND e.auditionNumber IS NOT NULL
+       """)
+    List<Integer> findAuditionNumberByEventAndGenre(@Param("eventId") Long eventId,
                                                     @Param("genreId") Long genreId);
 
     @Query(value = """
@@ -44,9 +65,10 @@ public interface EventGenreParticpantRepo extends JpaRepository<EventGenrePartic
        FROM EventGenreParticipant e
        WHERE e.event.eventId = :eventId
          AND e.genre.genreId = :genreId
-        AND e.judge.name = :name
+         AND e.judge.name = :name
+         AND e.auditionNumber IS NOT NULL
        """)
-    List<Integer> findAuditionNumberByEventAndGenreAndJudge(@Param("eventId") Long eventId, 
+    List<Integer> findAuditionNumberByEventAndGenreAndJudge(@Param("eventId") Long eventId,
                                                     @Param("genreId") Long genreId,
                                                     @Param("name") String name);
 

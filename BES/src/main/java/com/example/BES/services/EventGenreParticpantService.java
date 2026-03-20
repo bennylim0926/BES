@@ -1,16 +1,18 @@
 package com.example.BES.services;
 
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.GetEventGenreParticipantDto;
@@ -31,6 +33,8 @@ import com.example.BES.respositories.ParticipantRepo;
 
 @Service
 public class EventGenreParticpantService {
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     @Autowired
     EventGenreParticpantRepo repo;
 
@@ -66,6 +70,7 @@ public class EventGenreParticpantService {
         return repo.save(egp);
     }
 
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public void getAuditionNumViaQR(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
         EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId,dto.genreId, dto.participantId);
@@ -73,20 +78,23 @@ public class EventGenreParticpantService {
         EventGenreParticipant participantInEventGenre = repo.findById(id).orElse(new EventGenreParticipant());
         Judge j = participantInEventGenre.getJudge();
         if(participantInEventGenre.getParticipant() != null && participantInEventGenre.getAuditionNumber() == null){
-            // if judge is null, give audition like normal
-            List<Integer> totalParticipantInGenre = new ArrayList<>();
-            
+            int totalInGenre;
+            List<Integer> takenNumbers;
+
             if(j != null){
-                totalParticipantInGenre = 
-                    repo.findAuditionNumberByEventAndGenreAndJudge(dto.eventId, dto.genreId, j.getName());
+                totalInGenre = (int) repo.countByEventIdAndGenreIdAndJudge(dto.eventId, dto.genreId, j.getName());
+                takenNumbers = repo.findAuditionNumberByEventAndGenreAndJudge(dto.eventId, dto.genreId, j.getName());
             }else{
-                totalParticipantInGenre = 
-                    repo.findAuditionNumberByEventAndGenre(dto.eventId, dto.genreId);
+                totalInGenre = (int) repo.countByEventIdAndGenreId(dto.eventId, dto.genreId);
+                takenNumbers = repo.findAuditionNumberByEventAndGenre(dto.eventId, dto.genreId);
             }
-           
-            List<Integer> randomPool = generateListFromOneToN(totalParticipantInGenre.size());
-            randomPool.removeAll(totalParticipantInGenre);
-            auditionNumber = randomPool.get(ThreadLocalRandom.current().nextInt(randomPool.size()));
+
+            List<Integer> pool = IntStream.rangeClosed(1, totalInGenre)
+                    .boxed()
+                    .collect(Collectors.toCollection(ArrayList::new));
+            pool.removeAll(takenNumbers);
+            Collections.shuffle(pool, SECURE_RANDOM);
+            auditionNumber = pool.get(0);
             participantInEventGenre.setAuditionNumber(auditionNumber);
             repo.save(participantInEventGenre);
             messagingTemplate.convertAndSend("/topic/audition/",
@@ -106,7 +114,8 @@ public class EventGenreParticpantService {
     }
 
     public List<GetEventGenreParticipantDto> getAllEventGenreParticipantByEventService(String eventName){
-        Event event = eventRepo.findByEventName(eventName).orElse(null);
+        Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (event == null) return new ArrayList<>();
         List<EventGenreParticipant> results =  repo.findByEvent(event);
         List<GetEventGenreParticipantDto> dtos = new ArrayList<>();
         for(EventGenreParticipant res : results){
@@ -136,12 +145,4 @@ public class EventGenreParticpantService {
         }
     }
 
-    public static List<Integer> generateListFromOneToN(int n) {
-        if (n < 1) {
-            throw new IllegalArgumentException("n must be a positive integer.");
-        }
-        return IntStream.rangeClosed(1, n)
-                        .boxed() // Convert int to Integer
-                        .collect(Collectors.toList());
-    }
 }

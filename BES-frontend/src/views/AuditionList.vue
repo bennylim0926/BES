@@ -123,6 +123,7 @@ watch(selectedEvent, async (newVal) => {
     localStorage.setItem("selectedEvent", newVal);
     participants.value = []
     const res = await getRegisteredParticipantsByEvent(newVal)
+    if (selectedEvent.value !== newVal) return  // discard stale result if event changed while fetching
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     const stored = localStorage.getItem("currentScore")
     if (stored) {
