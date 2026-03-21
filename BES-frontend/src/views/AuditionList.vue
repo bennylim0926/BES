@@ -156,7 +156,7 @@ function transformForTable(data) {
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
-        .map(d => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
+        .map((d, i) => ({ auditionNumber: i + 1, participantName: d.participantName, marked: false }))
     };
   }
   const auditions = {};

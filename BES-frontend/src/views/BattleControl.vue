@@ -94,7 +94,7 @@ const initiateBattlePair = async (top, pairList) => {
   await resetJudgeVote()
   if (isSmoke.value) {
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
-    updateSmokePair()
+    await updateSmokePair()  // must await so smoke list is posted before overlay reloads
     return
   }
   currentBattle.value = [0, pairList]
@@ -120,7 +120,7 @@ const nextPair = async () => {
   if (currentBattle.value.length === 0) return
   await resetJudgeVote()
   if (isSmoke.value) {
-    update7toSmokeMatch(currentWinner.value)
+    await update7toSmokeMatch(currentWinner.value)
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
   } else {
     if (currentBattle?.value[0] < currentBattle?.value[1].length - 1) {
@@ -151,9 +151,10 @@ function updateMatch(roundKey, matchIdx, slotIdx, value) {
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
 }
 
-function update7toSmokeMatch(winner) {
+async function update7toSmokeMatch(winner) {
   if (!Array.isArray(rounds.value)) return
   if (winner === -1) {
+    // Tie: both battlers go to the back of the queue
     const [first, second, ...rest] = rounds.value
     rounds.value = [...rest, first, second]
   } else if (winner === 0) {
@@ -167,7 +168,7 @@ function update7toSmokeMatch(winner) {
     arr[0] = { ...arr[0], score: arr[0].score + 1 }
     rounds.value = [...arr, first]
   }
-  updateSmokePair()
+  await updateSmokePair()
   currentWinner.value = -2
 }
 
@@ -222,7 +223,14 @@ const submitGetScore = async () => {
     return
   }
   if (currentBattle.value.length === 0) return
-  if (currentWinner.value === -1) { currentWinner.value = -2; await resetJudgeVote(); return }
+  if (currentWinner.value === -1) {
+    currentWinner.value = -2
+    await resetJudgeVote()
+    // Re-broadcast same pair so the overlay hides the judge panel and resets battler animations
+    const [rLeft, rRight] = currentBattlePair.value ?? []
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight)
+    return
+  }
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
@@ -488,7 +496,7 @@ onMounted(async () => {
 
       <!-- Action buttons -->
       <div class="flex flex-wrap gap-2">
-        <template v-if="Number(currentWinner) !== -2 && Number(currentWinner) !== -3 && Number(currentWinner) !== -1">
+        <template v-if="Number(currentWinner) !== -2 && Number(currentWinner) !== -3 && (Number(currentWinner) !== -1 || isSmoke)">
           <button
             @click="prevPair"
             class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-200 bg-white

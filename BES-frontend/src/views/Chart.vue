@@ -57,9 +57,7 @@ const smokeParticipants = ref([])
 const colors = ref(['bg-red-500', 'bg-blue-500','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800'])
 
 const updateList = (msg)=>{
-    console.log(msg.battlers)
-    smokeParticipants.value = {}
-    smokeParticipants.value = msg.battlers
+    if (msg?.battlers) smokeParticipants.value = msg.battlers
 }
 
 watch(
@@ -76,7 +74,7 @@ watch(
 onMounted(async ()=>{
     subscribeToChannel(createClient(), "/topic/battle/smoke", (msg) => updateList(msg))
     const smoke = await getSmokeList()
-    smokeParticipants.value = smoke.list
+    if (smoke?.list) smokeParticipants.value = smoke.list
 })
   </script>
   
