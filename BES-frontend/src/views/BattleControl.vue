@@ -282,6 +282,46 @@ onMounted(async () => {
       <p class="text-muted mt-1">Manage brackets, rounds, and live voting</p>
     </div>
 
+    <!-- Quick access links -->
+    <div class="flex flex-wrap gap-2">
+      <a
+        href="/battle/overlay"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
+               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+               transition-all duration-200"
+      >
+        <i class="pi pi-desktop text-xs"></i>
+        Stream Overlay
+        <i class="pi pi-external-link text-xs text-surface-400"></i>
+      </a>
+      <a
+        href="/battle/overlay?isSmoke=true"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
+               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+               transition-all duration-200"
+      >
+        <i class="pi pi-desktop text-xs"></i>
+        Smoke Overlay
+        <i class="pi pi-external-link text-xs text-surface-400"></i>
+      </a>
+      <a
+        href="/battle/judge"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
+               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+               transition-all duration-200"
+      >
+        <i class="pi pi-users text-xs"></i>
+        Judge View
+        <i class="pi pi-external-link text-xs text-surface-400"></i>
+      </a>
+    </div>
+
     <!-- Config bar -->
     <div class="card p-5">
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">

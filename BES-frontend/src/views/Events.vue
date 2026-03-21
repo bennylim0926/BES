@@ -78,7 +78,7 @@ onMounted(async () => {
         v-model="search"
         type="text"
         placeholder="Search events…"
-        class="input-base pl-10"
+        class="input-base !pl-10"
       />
     </div>
 

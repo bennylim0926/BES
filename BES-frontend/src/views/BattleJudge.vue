@@ -34,7 +34,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="judge-root">
+  <div class="judge-root" role="main" aria-label="Battle Judge voting panel">
 
     <!-- ── Header bar ─────────────────────────────── -->
     <header class="judge-header">
@@ -43,8 +43,8 @@ onMounted(async () => {
         <span class="brand-wordmark">BATTLE JUDGE</span>
         <span class="brand-pip pip-blue"></span>
       </div>
-      <div class="selector-wrap">
-        <span class="selector-eyebrow">VOTING AS</span>
+      <div class="selector-wrap" role="group" aria-label="Voting as">
+        <span class="selector-eyebrow" aria-hidden="true">VOTING AS</span>
         <div class="w-52">
           <ReusableDropdown
             v-model="selectedJudge"
@@ -57,33 +57,40 @@ onMounted(async () => {
     </header>
 
     <!-- ── Voting panels ──────────────────────────── -->
-    <div class="panels-wrap">
+    <div class="panels-wrap" role="group" aria-label="Vote options">
 
       <!-- ── Left ── -->
       <button
         class="vote-panel left-panel"
         :class="{ 'is-active': active === 0, 'is-confirmed': confirmed === 0 }"
         @click="handleClick(0)"
+        :aria-label="confirmed === 0 ? 'Left — vote confirmed' : active === 0 ? 'Left — tap again to confirm' : 'Vote Left'"
+        :aria-pressed="active === 0 || confirmed === 0"
       >
-        <div class="panel-fill left-fill"></div>
-        <div class="edge-accent left-accent"></div>
-        <div class="panel-shimmer"></div>
+        <div class="panel-fill left-fill" aria-hidden="true"></div>
+        <div class="edge-accent left-accent" aria-hidden="true"></div>
+        <div class="panel-shimmer" aria-hidden="true"></div>
 
         <div class="panel-inner">
-          <p class="dir-label">LEFT</p>
-          <div class="img-frame">
+          <p class="dir-label" aria-hidden="true">LEFT</p>
+          <div class="img-frame" aria-hidden="true">
             <div class="img-halo red-halo"></div>
-            <img :src="leftHand" class="panel-img left-img" alt="Left" />
+            <img :src="leftHand" class="panel-img left-img" alt="" />
           </div>
-          <div class="feedback-row" :class="{ visible: active === 0 || confirmed === 0 }">
+          <div
+            class="feedback-row"
+            :class="{ visible: active === 0 || confirmed === 0 }"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <template v-if="confirmed === 0">
-              <span class="check-mark">✓</span> VOTE LOCKED
+              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
             </template>
             <template v-else-if="active === 0">TAP AGAIN TO CONFIRM</template>
           </div>
         </div>
 
-        <div class="pulse-ring left-ring"></div>
+        <div class="pulse-ring left-ring" aria-hidden="true"></div>
       </button>
 
       <!-- ── Tie ── -->
@@ -91,25 +98,32 @@ onMounted(async () => {
         class="vote-panel tie-panel"
         :class="{ 'is-active': active === -1, 'is-confirmed': confirmed === -1 }"
         @click="handleClick(-1)"
+        :aria-label="confirmed === -1 ? 'Tie — vote confirmed' : active === -1 ? 'Tie — tap again to confirm' : 'Vote Tie'"
+        :aria-pressed="active === -1 || confirmed === -1"
       >
-        <div class="panel-fill tie-fill"></div>
-        <div class="panel-shimmer"></div>
+        <div class="panel-fill tie-fill" aria-hidden="true"></div>
+        <div class="panel-shimmer" aria-hidden="true"></div>
 
         <div class="panel-inner">
-          <p class="dir-label">TIE</p>
-          <div class="img-frame">
+          <p class="dir-label" aria-hidden="true">TIE</p>
+          <div class="img-frame" aria-hidden="true">
             <div class="img-halo neutral-halo"></div>
-            <img :src="tie" class="panel-img" alt="Tie" />
+            <img :src="tie" class="panel-img" alt="" />
           </div>
-          <div class="feedback-row" :class="{ visible: active === -1 || confirmed === -1 }">
+          <div
+            class="feedback-row"
+            :class="{ visible: active === -1 || confirmed === -1 }"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <template v-if="confirmed === -1">
-              <span class="check-mark">✓</span> VOTE LOCKED
+              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
             </template>
             <template v-else-if="active === -1">TAP AGAIN TO CONFIRM</template>
           </div>
         </div>
 
-        <div class="pulse-ring neutral-ring"></div>
+        <div class="pulse-ring neutral-ring" aria-hidden="true"></div>
       </button>
 
       <!-- ── Right ── -->
@@ -117,26 +131,33 @@ onMounted(async () => {
         class="vote-panel right-panel"
         :class="{ 'is-active': active === 1, 'is-confirmed': confirmed === 1 }"
         @click="handleClick(1)"
+        :aria-label="confirmed === 1 ? 'Right — vote confirmed' : active === 1 ? 'Right — tap again to confirm' : 'Vote Right'"
+        :aria-pressed="active === 1 || confirmed === 1"
       >
-        <div class="panel-fill right-fill"></div>
-        <div class="edge-accent right-accent"></div>
-        <div class="panel-shimmer"></div>
+        <div class="panel-fill right-fill" aria-hidden="true"></div>
+        <div class="edge-accent right-accent" aria-hidden="true"></div>
+        <div class="panel-shimmer" aria-hidden="true"></div>
 
         <div class="panel-inner">
-          <p class="dir-label">RIGHT</p>
-          <div class="img-frame">
+          <p class="dir-label" aria-hidden="true">RIGHT</p>
+          <div class="img-frame" aria-hidden="true">
             <div class="img-halo blue-halo"></div>
-            <img :src="rightHand" class="panel-img right-img" alt="Right" />
+            <img :src="rightHand" class="panel-img right-img" alt="" />
           </div>
-          <div class="feedback-row" :class="{ visible: active === 1 || confirmed === 1 }">
+          <div
+            class="feedback-row"
+            :class="{ visible: active === 1 || confirmed === 1 }"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <template v-if="confirmed === 1">
-              <span class="check-mark">✓</span> VOTE LOCKED
+              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
             </template>
             <template v-else-if="active === 1">TAP AGAIN TO CONFIRM</template>
           </div>
         </div>
 
-        <div class="pulse-ring blue-ring"></div>
+        <div class="pulse-ring blue-ring" aria-hidden="true"></div>
       </button>
 
     </div>

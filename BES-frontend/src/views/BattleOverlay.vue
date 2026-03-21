@@ -178,6 +178,13 @@ onUnmounted(() => {
 <template>
   <div class="overlay-root">
 
+    <!-- Hidden live region: announces winner/score changes to screen readers -->
+    <div class="sr-only" role="status" aria-live="assertive" aria-atomic="true">
+      <template v-if="currentWinner === 0">{{ leftName }} wins!</template>
+      <template v-else-if="currentWinner === 1">{{ rightName }} wins!</template>
+      <template v-else-if="currentWinner === -1">Tie between {{ leftName }} and {{ rightName }}!</template>
+    </div>
+
     <!-- ══════════════════════════════════════════════════════
          JUDGE PANEL — shared across both modes
          Standard: slides down on Get Score
@@ -187,24 +194,30 @@ onUnmounted(() => {
       v-if="battleJudges?.judges?.length"
       class="judge-panel"
       :class="judgePanelClass"
+      role="region"
+      aria-label="Judges"
+      aria-live="polite"
+      aria-atomic="false"
     >
       <!-- Prismatic border layer -->
-      <div class="judge-border-glow"></div>
+      <div class="judge-border-glow" aria-hidden="true"></div>
 
       <div class="judge-inner">
-        <!-- Header label -->
-        <div class="judges-header">
+        <!-- Header label (decorative) -->
+        <div class="judges-header" aria-hidden="true">
           <span class="judges-line"></span>
           <span class="judges-label">JUDGES</span>
           <span class="judges-line"></span>
         </div>
 
         <!-- Judge cards -->
-        <div class="judge-cards-row">
+        <div class="judge-cards-row" role="list">
           <div
             v-for="(j, index) in battleJudges.judges"
             :key="index"
             class="judge-card"
+            role="listitem"
+            :aria-label="`${j.name}: ${j.vote === 0 ? 'voted left' : j.vote === 1 ? 'voted right' : j.vote === -1 ? 'voted tie' : 'awaiting vote'}`"
             :class="{
               'voted-red':  j.vote === 0,
               'voted-blue': j.vote === 1,
@@ -213,12 +226,12 @@ onUnmounted(() => {
           >
             <!-- Arrow + Name + Arrow -->
             <div class="judge-row">
-              <span class="vote-arrow vote-arrow-left"  :class="{ 'arrow-lit-red':  j.vote === 0 }"></span>
+              <span class="vote-arrow vote-arrow-left"  :class="{ 'arrow-lit-red':  j.vote === 0 }" aria-hidden="true"></span>
               <span class="judge-name">{{ j.name }}</span>
-              <span class="vote-arrow vote-arrow-right" :class="{ 'arrow-lit-blue': j.vote === 1 }"></span>
+              <span class="vote-arrow vote-arrow-right" :class="{ 'arrow-lit-blue': j.vote === 1 }" aria-hidden="true"></span>
             </div>
-            <!-- Vote track bar -->
-            <div class="vote-track">
+            <!-- Vote track bar (decorative) -->
+            <div class="vote-track" aria-hidden="true">
               <div
                 class="vote-fill"
                 :class="{
@@ -250,12 +263,14 @@ onUnmounted(() => {
           'slide-left-out': leftReset,
           'panel-winner':   leftWin,
         }"
+        role="region"
+        :aria-label="`Left: ${leftName || 'TBD'}${leftScore > 0 ? ', score ' + leftScore : ''}${leftWin ? ' — winner' : ''}`"
       >
-        <div class="panel-gradient red-gradient"></div>
-        <div class="panel-vignette"></div>
+        <div class="panel-gradient red-gradient" aria-hidden="true"></div>
+        <div class="panel-vignette" aria-hidden="true"></div>
 
-        <img v-if="imageLeft" :src="imageLeft" alt="" class="battler-img" />
-        <div v-else class="battler-placeholder red-placeholder">
+        <img v-if="imageLeft" :src="imageLeft" :alt="leftName" class="battler-img" />
+        <div v-else class="battler-placeholder red-placeholder" aria-hidden="true">
           <svg viewBox="0 0 100 200" fill="none" xmlns="http://www.w3.org/2000/svg" class="placeholder-svg">
             <circle cx="50" cy="30" r="22" fill="rgba(239,68,68,0.2)" stroke="rgba(239,68,68,0.35)" stroke-width="1.5"/>
             <path d="M18 90 Q50 70 82 90 L88 160 Q70 150 50 155 Q30 150 12 160 Z" fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.28)" stroke-width="1.5"/>
@@ -264,14 +279,14 @@ onUnmounted(() => {
           </svg>
         </div>
 
-        <div class="name-bar red-bar" :class="{ 'bar-win-glow': leftWin }">
+        <div class="name-bar red-bar" :class="{ 'bar-win-glow': leftWin }" aria-hidden="true">
           <span class="name-text">{{ leftName || '???' }}</span>
           <span v-if="leftScore > 0" class="score-badge">{{ leftScore }}</span>
         </div>
       </div>
 
-      <!-- ── VS badge ── -->
-      <div class="vs-badge" :class="{ 'vs-hidden': currentWinner !== -2 }">
+      <!-- ── VS badge (decorative) ── -->
+      <div class="vs-badge" :class="{ 'vs-hidden': currentWinner !== -2 }" aria-hidden="true">
         <span class="vs-deco">◆</span>
         <span class="vs-text">VS</span>
         <span class="vs-deco">◆</span>
@@ -288,12 +303,14 @@ onUnmounted(() => {
           'slide-right-out': rightReset,
           'panel-winner':    rightWin,
         }"
+        role="region"
+        :aria-label="`Right: ${rightName || 'TBD'}${rightScore > 0 ? ', score ' + rightScore : ''}${rightWin ? ' — winner' : ''}`"
       >
-        <div class="panel-gradient blue-gradient"></div>
-        <div class="panel-vignette"></div>
+        <div class="panel-gradient blue-gradient" aria-hidden="true"></div>
+        <div class="panel-vignette" aria-hidden="true"></div>
 
-        <img v-if="imageRight" :src="imageRight" alt="" class="battler-img" />
-        <div v-else class="battler-placeholder blue-placeholder">
+        <img v-if="imageRight" :src="imageRight" :alt="rightName" class="battler-img" />
+        <div v-else class="battler-placeholder blue-placeholder" aria-hidden="true">
           <svg viewBox="0 0 100 200" fill="none" xmlns="http://www.w3.org/2000/svg" class="placeholder-svg">
             <circle cx="50" cy="30" r="22" fill="rgba(59,130,246,0.2)" stroke="rgba(59,130,246,0.35)" stroke-width="1.5"/>
             <path d="M18 90 Q50 70 82 90 L88 160 Q70 150 50 155 Q30 150 12 160 Z" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.28)" stroke-width="1.5"/>
@@ -302,7 +319,7 @@ onUnmounted(() => {
           </svg>
         </div>
 
-        <div class="name-bar blue-bar" :class="{ 'bar-win-glow': rightWin }">
+        <div class="name-bar blue-bar" :class="{ 'bar-win-glow': rightWin }" aria-hidden="true">
           <span class="name-text">{{ rightName || '???' }}</span>
           <span v-if="rightScore > 0" class="score-badge">{{ rightScore }}</span>
         </div>
@@ -322,6 +339,19 @@ onUnmounted(() => {
 
 
 <style>
+/* ── Screen-reader only utility ───────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ── Transparent background (OBS) ─────────────────── */
 html.transparent-page,
 body.transparent-page,

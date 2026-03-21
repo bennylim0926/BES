@@ -60,6 +60,13 @@ const quickActions = computed(() => {
       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
     },
     {
+      icon: 'pi-thumbs-up',
+      title: 'Battle Judge',
+      desc: 'Cast your vote during live battle rounds',
+      route: '/battle/judge',
+      roles: ['ROLE_JUDGE'],
+    },
+    {
       icon: 'pi-cog',
       title: 'Admin',
       desc: 'Manage judges, genres, and system settings',

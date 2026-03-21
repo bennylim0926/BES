@@ -99,7 +99,7 @@ const filteredParticipantsForJudge = computed({
 watch(filteredParticipantsForJudge, (newVal) => {
   const update = newVal.find(c => c.score !== 0)
   if (update) {
-    localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+    localStorage.setItem("currentScore", JSON.stringify({ event: selectedEvent.value, scores: toRaw(newVal) }))
   }
 }, { deep: true });
 
@@ -121,21 +121,32 @@ const filteredParticipantsForEmcee = computed({
   }
 })
 
-watch(selectedEvent, async (newVal) => {
+watch(selectedEvent, async (newVal, oldVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
+    // Reset genre when the event actually changes (not on initial mount)
+    if (oldVal !== undefined && oldVal !== newVal) {
+      selectedGenre.value = ""
+    }
     participants.value = []
     const res = await getRegisteredParticipantsByEvent(newVal)
     if (selectedEvent.value !== newVal) return  // discard stale result if event changed while fetching
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
-    const stored = localStorage.getItem("currentScore")
-    if (stored) {
-      const cached = JSON.parse(stored)
-      participants.value = participants.value.map(p => {
-        const found = cached.find(c => c.rowId === p.rowId)
-        return found ? { ...p, ...found } : p
-      })
-    }
+    // Only restore scores if they belong to this exact event, and only the score field
+    try {
+      const stored = localStorage.getItem("currentScore")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const cached = parsed.event === newVal ? parsed.scores : null
+        if (cached) {
+          participants.value = participants.value.map(p => {
+            const found = cached.find(c => c.participantName === p.participantName &&
+              c.genreName === p.genreName && c.judgeName === p.judgeName)
+            return found ? { ...p, score: found.score } : p
+          })
+        }
+      }
+    } catch { /* ignore malformed cache */ }
   }
 }, { immediate: true });
 
@@ -159,7 +170,7 @@ function transformForTable(data) {
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
-        .map((d, i) => ({ auditionNumber: i + 1, participantName: d.participantName, marked: false }))
+        .map((d) => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
     };
   }
   const auditions = {};
@@ -214,14 +225,49 @@ onMounted(async () => {
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)];
   subscribeToChannel(createClient(), "/topic/audition/",
     (msg) => {
+      if (msg.eventName && msg.eventName !== selectedEvent.value) return
       const idx = participants.value.findIndex(p =>
         p.participantName === msg.name &&
         p.genreName === msg.genre &&
         (p.judgeName === null ? 1 : p.judgeName === msg.judge)
       )
       if (idx !== -1) {
-        participants.value[idx] = { ...participants.value[idx], ...{ auditionNumber: msg.auditionNumber } }
+        participants.value[idx] = { ...participants.value[idx], auditionNumber: msg.auditionNumber }
+      } else if (msg.eventName) {
+        // New walk-in or new genre — add the row
+        participants.value.push({
+          participantName: msg.name,
+          genreName: msg.genre,
+          judgeName: msg.judge || null,
+          auditionNumber: msg.auditionNumber,
+          eventName: msg.eventName,
+          participantId: msg.participantId,
+          eventId: msg.eventId,
+          genreId: msg.genreId,
+          walkin: msg.walkin,
+          emailSent: false,
+          score: 0,
+          rowId: participants.value.length
+        })
       }
+    })
+  subscribeToChannel(createClient(), "/topic/judge-update/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      const idx = participants.value.findIndex(p =>
+        p.participantName === msg.name && p.genreName === msg.genre
+      )
+      if (idx !== -1) {
+        participants.value[idx] = { ...participants.value[idx], judgeName: msg.judge || null }
+      }
+    })
+  subscribeToChannel(createClient(), "/topic/participant-removed/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      participants.value = participants.value.filter(p =>
+        !(p.participantName === msg.name && p.genreName === msg.genre &&
+          (msg.judge ? p.judgeName === msg.judge : true))
+      )
     })
 })
 </script>

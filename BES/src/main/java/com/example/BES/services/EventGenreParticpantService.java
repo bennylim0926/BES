@@ -128,7 +128,12 @@ public class EventGenreParticpantService {
                     "auditionNumber", auditionNumber,
                     "genre", participantInEventGenre.getGenre().getGenreName(),
                     "name", participantInEventGenre.getParticipant().getParticipantName(),
-                    "judge", j != null ? j.getName() : ""));
+                    "judge", j != null ? j.getName() : "",
+                    "eventName", participantInEventGenre.getEvent().getEventName(),
+                    "participantId", participantInEventGenre.getParticipant().getParticipantId(),
+                    "eventId", participantInEventGenre.getEvent().getEventId(),
+                    "genreId", participantInEventGenre.getGenre().getGenreId(),
+                    "walkin", participantInEventGenre.getParticipant().getParticipantEmail() == null));
         }else{
             messagingTemplate.convertAndSend("/topic/error/",
                 Map.of(
@@ -182,7 +187,16 @@ public class EventGenreParticpantService {
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) return;
         String removedGenreName = egp.getGenre().getGenreName();
+        String removedParticipantName = egp.getParticipant().getParticipantName();
+        String removedEventName = egp.getEvent().getEventName();
+        Judge removedJudge = egp.getJudge();
         repo.delete(egp);
+        messagingTemplate.convertAndSend("/topic/participant-removed/",
+            Map.of(
+                "name", removedParticipantName,
+                "genre", removedGenreName,
+                "judge", removedJudge != null ? removedJudge.getName() : "",
+                "eventName", removedEventName));
         Event event = eventRepo.findById(eventId).orElse(null);
         Participant participant = participantRepo.findById(participantId).orElse(null);
         if (event != null && participant != null) {
@@ -237,6 +251,12 @@ public class EventGenreParticpantService {
                 Judge j = judgeRepo.findByName(d.judgeName).orElse(null);
                 egp.setJudge(j);
                 repo.save(egp);
+                messagingTemplate.convertAndSend("/topic/judge-update/",
+                    Map.of(
+                        "name", d.participantName,
+                        "genre", d.genreName,
+                        "judge", j != null ? j.getName() : "",
+                        "eventName", d.eventName));
             }
         }
     }
