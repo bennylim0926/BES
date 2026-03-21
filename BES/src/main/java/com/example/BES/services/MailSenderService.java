@@ -8,8 +8,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import com.example.BES.dtos.GetEmailTemplateDto;
 import com.example.BES.enums.Constant;
-import com.example.BES.enums.EmailTemplates;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.Participant;
 import com.google.zxing.WriterException;
@@ -26,7 +26,7 @@ public class MailSenderService {
     private JavaMailSender mailSender;
 
     @Autowired
-    EmailTemplates emailTemplates;
+    EmailTemplateService emailTemplateService;
 
     @Autowired
     QrCodeService qrService;
@@ -36,7 +36,10 @@ public class MailSenderService {
 
 
     public void sendEmailWithAttachment(String eventName, Participant receiver, List<EventGenreParticipantId> ids) throws MessagingException, WriterException, IOException{
-        EmailTemplates.Template template = emailTemplates.getEvents().get(normalizeKey(eventName)); 
+        GetEmailTemplateDto template = emailTemplateService.getTemplateByEventName(eventName);
+        if (template == null) {
+            throw new RuntimeException("No email template found for event: " + eventName);
+        }
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
         EventGenreParticipantId first = ids.get(0);
@@ -53,6 +56,7 @@ public class MailSenderService {
         messageHelper.setTo(receiver.getParticipantEmail());
         messageHelper.setText(template.getBody().replace("{name}", receiver.getParticipantName()));
         messageHelper.setSubject(template.getSubject());
+
         mailSender.send(mimeMessage);
     }
 

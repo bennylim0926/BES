@@ -1,5 +1,6 @@
 package com.example.BES.respositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,4 +14,5 @@ import com.example.BES.models.Genre;
 @Repository
 public interface EventGenreRepo extends JpaRepository<EventGenre, EventGenreId>{
     Optional<EventGenre> findByEventAndGenre(Event event, Genre genre);
+    List<EventGenre> findByEvent(Event event);
 }

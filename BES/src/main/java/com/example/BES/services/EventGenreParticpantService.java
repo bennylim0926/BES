@@ -2,6 +2,7 @@ package com.example.BES.services;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,7 @@ import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.JudgeRepo;
@@ -53,6 +55,9 @@ public class EventGenreParticpantService {
 
     @Autowired
     JudgeRepo judgeRepo;
+
+    @Autowired
+    EventParticipantRepo eventParticipantRepo;
 
     public EventGenreParticipant addWalkInToEventGenreParticipant(Participant p, String genre, EventParticipant ep, String judge){
         
@@ -144,6 +149,13 @@ public class EventGenreParticpantService {
             seen.putIfAbsent(egp.getId(), egp);
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
+
+        // Build emailSent map from EventParticipant records
+        Map<Long, Boolean> emailSentMap = new java.util.HashMap<>();
+        for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
+            emailSentMap.put(ep.getParticipant().getParticipantId(), ep.isEmailSent());
+        }
+
         List<GetEventGenreParticipantDto> dtos = new ArrayList<>();
         for(EventGenreParticipant res : results){
             GetEventGenreParticipantDto dto = new GetEventGenreParticipantDto();
@@ -151,7 +163,11 @@ public class EventGenreParticpantService {
             dto.participantName = res.getParticipant().getParticipantName();
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
-            dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false; 
+            dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false;
+            dto.participantId = res.getParticipant().getParticipantId();
+            dto.eventId = res.getEvent().getEventId();
+            dto.genreId = res.getGenre().getGenreId();
+            dto.emailSent = emailSentMap.getOrDefault(res.getParticipant().getParticipantId(), false);
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();
@@ -159,6 +175,59 @@ public class EventGenreParticpantService {
             dtos.add(dto);
         }
         return dtos;
+    }
+
+    public void removeParticipantFromGenre(long participantId, long eventId, long genreId) {
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genreId, participantId);
+        EventGenreParticipant egp = repo.findById(id).orElse(null);
+        if (egp == null) return;
+        String removedGenreName = egp.getGenre().getGenreName();
+        repo.delete(egp);
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event != null && participant != null) {
+            EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+            if (ep != null && ep.getGenre() != null) {
+                String updated = Arrays.stream(ep.getGenre().split(","))
+                    .map(String::trim)
+                    .filter(g -> !g.equalsIgnoreCase(removedGenreName))
+                    .collect(Collectors.joining(", "));
+                ep.setGenre(updated);
+                eventParticipantRepo.save(ep);
+            }
+        }
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void addGenreToExistingParticipant(long participantId, long eventId, String genreName) {
+        Genre genre = genreRepo.findByGenreName(genreName).orElse(null);
+        if (genre == null) throw new RuntimeException("Genre not found: " + genreName);
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genre.getGenreId(), participantId);
+        if (repo.existsById(id)) return;
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event == null || participant == null) throw new RuntimeException("Event or Participant not found");
+        EventGenreParticipant egp = new EventGenreParticipant();
+        egp.setId(id);
+        egp.setEvent(event);
+        egp.setGenre(genre);
+        egp.setParticipant(participant);
+        repo.save(egp);
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+        if (ep != null) {
+            String current = ep.getGenre();
+            if (current == null || current.isBlank()) {
+                ep.setGenre(genreName);
+            } else if (Arrays.stream(current.split(",")).map(String::trim).noneMatch(g -> g.equalsIgnoreCase(genreName))) {
+                ep.setGenre(current + ", " + genreName);
+            }
+            eventParticipantRepo.save(ep);
+        }
+        AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
+        dto.participantId = participantId;
+        dto.eventId = eventId;
+        dto.genreId = genre.getGenreId();
+        getAuditionNumViaQR(dto);
     }
 
     public void updateParticipantsJudgeService(UpdateParticipantJudgeDto dto){

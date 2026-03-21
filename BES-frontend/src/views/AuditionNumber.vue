@@ -18,14 +18,26 @@ const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
 
-// Group completed assignments by participant name, newest first
+// Group completed assignments by participant name, newest-update first.
+// Per participant, only the latest assignment per genre is kept.
 const groupedHistory = computed(() => {
+  const order = []
+  // map: name -> Map<genre, latest entry>
   const map = new Map()
   for (const a of assignments.value) {
-    if (!map.has(a.name)) map.set(a.name, [])
-    map.get(a.name).push(a)
+    if (map.has(a.name)) {
+      const idx = order.indexOf(a.name)
+      order.splice(idx, 1)
+    } else {
+      map.set(a.name, new Map())
+    }
+    order.push(a.name)
+    map.get(a.name).set(a.genre, a)  // overwrite with latest for this genre
   }
-  return [...map.entries()].map(([name, entries]) => ({ name, entries })).reverse()
+  return order.reverse().map(name => ({
+    name,
+    entries: [...map.get(name).values()]
+  }))
 })
 
 const openModal = (title, message) => {

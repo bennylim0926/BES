@@ -1,0 +1,2 @@
+ALTER TABLE event
+  ADD COLUMN payment_required BOOLEAN NOT NULL DEFAULT FALSE;

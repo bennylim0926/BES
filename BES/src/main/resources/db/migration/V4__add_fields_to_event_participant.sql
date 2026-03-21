@@ -1,0 +1,4 @@
+ALTER TABLE event_participant
+  ADD COLUMN payment_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN email_sent       BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN screenshot_url   VARCHAR(2048);

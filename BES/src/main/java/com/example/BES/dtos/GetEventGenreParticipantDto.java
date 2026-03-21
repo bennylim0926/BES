@@ -7,4 +7,8 @@ public class GetEventGenreParticipantDto {
     public String judgeName;
     public Integer auditionNumber;
     public Boolean walkin;
+    public Long participantId;
+    public Long eventId;
+    public Long genreId;
+    public boolean emailSent;
 }

@@ -6,4 +6,5 @@ public class SheetHeader {
     public static final String PAYMENT_STATUS = "payment status";
     public static final String CATEGORIES = "categories";
     public static final String LOCAL_OVERSEAS = "local/overseas";
+    public static final String SCREENSHOT = "screenshot";
 }

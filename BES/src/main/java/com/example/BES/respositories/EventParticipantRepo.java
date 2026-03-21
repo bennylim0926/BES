@@ -14,4 +14,5 @@ import com.example.BES.models.Participant;
 public interface EventParticipantRepo extends JpaRepository<EventParticipant, Long> {
     Optional<EventParticipant> findByEventAndParticipant(Event event_id, Participant participant_id);
     List<EventParticipant> findByEvent(Event event_id);
+    List<EventParticipant> findByEventAndPaymentVerifiedFalse(Event event);
 }

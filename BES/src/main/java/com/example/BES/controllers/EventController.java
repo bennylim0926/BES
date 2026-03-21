@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 // import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,8 +33,11 @@ import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.dtos.GetParticipatnScoreDto;
+import com.example.BES.dtos.GetUnverifiedParticipantDto;
+import com.example.BES.dtos.UpdateParticipantGenreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
+import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
@@ -46,6 +50,9 @@ import com.example.BES.services.JudgeService;
 import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
+import com.example.BES.services.EmailTemplateService;
+import com.example.BES.dtos.GetEmailTemplateDto;
+import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
@@ -87,6 +94,9 @@ public class EventController {
     @Autowired
     ScoreService scoreService;
 
+    @Autowired
+    EmailTemplateService emailTemplateService;
+
     private static final Gson gson = new Gson();
 
     @Operation(summary = "Check Event Exists", description = "Returns true if an event with the given name exists")
@@ -106,6 +116,12 @@ public class EventController {
     @GetMapping("/genre")
     public ResponseEntity<List<GetGenreDto>> getAllGenres() {
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
+    }
+
+    @Operation(summary = "Get Genres by Event", description = "Returns genres linked to a specific event")
+    @GetMapping("/{eventName}/genres")
+    public ResponseEntity<List<GetGenreDto>> getGenresByEvent(@PathVariable String eventName) {
+        return new ResponseEntity<>(eventGenreService.getGenresByEventService(eventName), HttpStatus.OK);
     }
 
     @Operation(summary = "Create Event", description = "Creates a new event")
@@ -178,6 +194,41 @@ public class EventController {
             return new ResponseEntity<>(
                     gson.toJson("The record is empty, please verify the payment in the google sheet"),
                     HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @Operation(summary = "Get Unverified Participants (DB)", description = "Returns participants with payment not yet verified, sourced from DB")
+    @GetMapping("/{eventName}/unverified-participants")
+    public ResponseEntity<List<GetUnverifiedParticipantDto>> getUnverifiedParticipantsDb(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(registerService.getUnverifiedParticipantsFromDb(eventName), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error fetching unverified participants", e);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
+        }
+    }
+
+    @Operation(summary = "Verify and Email Participant", description = "Marks a participant as payment-verified and sends QR email")
+    @PostMapping("/participants/verify-email")
+    public ResponseEntity<String> verifyAndEmailParticipant(@RequestBody VerifyParticipantDto dto) {
+        try {
+            registerService.verifyAndEmail(dto.getParticipantId(), dto.getEventId());
+            return new ResponseEntity<>(gson.toJson("Verified and email sent"), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error in verify-email", e);
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Verify and Email Batch", description = "Marks a batch of participants as payment-verified and sends QR emails")
+    @PostMapping("/participants/verify-email-batch")
+    public ResponseEntity<String> verifyAndEmailBatch(@RequestBody List<VerifyParticipantDto> list) {
+        try {
+            registerService.verifyAndEmailBatch(list);
+            return new ResponseEntity<>(gson.toJson("Batch verified and emails sent"), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error in verify-email-batch", e);
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -275,6 +326,53 @@ public class EventController {
         } catch (Exception e) {
             System.out.println(e.getMessage());
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Get Email Template", description = "Returns the email template for the given event")
+    @GetMapping("/{eventName}/email-template")
+    public ResponseEntity<GetEmailTemplateDto> getEmailTemplate(@PathVariable String eventName) {
+        GetEmailTemplateDto dto = emailTemplateService.getTemplateByEventName(eventName);
+        if (dto == null) {
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntity<>(dto, HttpStatus.OK);
+    }
+
+    @Operation(summary = "Update Email Template", description = "Updates the email template for the given event")
+    @PostMapping("/{eventName}/email-template")
+    public ResponseEntity<GetEmailTemplateDto> updateEmailTemplate(
+            @PathVariable String eventName,
+            @RequestBody UpdateEmailTemplateDto dto) {
+        try {
+            return new ResponseEntity<>(emailTemplateService.updateTemplate(eventName, dto), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
+    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{genreId}")
+    public ResponseEntity<Void> removeParticipantGenre(
+            @PathVariable Long participantId,
+            @PathVariable Long eventId,
+            @PathVariable Long genreId) {
+        try {
+            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, genreId);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (Exception e) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Add Genre to Existing Participant", description = "Adds a new genre to an already-registered participant and assigns an audition number via WebSocket")
+    @PostMapping("/participant-genre")
+    public ResponseEntity<String> addGenreToParticipant(@RequestBody UpdateParticipantGenreDto dto) {
+        try {
+            eventGenreParticipantService.addGenreToExistingParticipant(dto.participantId, dto.eventId, dto.genreName);
+            return new ResponseEntity<>(gson.toJson("Genre added"), HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
     }
 }

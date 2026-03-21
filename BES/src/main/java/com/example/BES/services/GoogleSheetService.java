@@ -25,16 +25,14 @@ import com.example.BES.mapper.RegistrationDtoMapper;
 import com.example.BES.parsers.GoogleSheetParser;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
-import com.google.zxing.WriterException;
-
-import jakarta.mail.MessagingException;
 
 @Service
 public class GoogleSheetService {
     // if any new category just add here and update the constructor to map the function
     // need to update dto as well
     private static final String CATEGORY_KEYWORD = "categor";
-    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL,SheetHeader.NAME,SheetHeader.PAYMENT_STATUS,SheetHeader.CATEGORIES,SheetHeader.LOCAL_OVERSEAS));    
+    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL,SheetHeader.NAME,SheetHeader.PAYMENT_STATUS,SheetHeader.CATEGORIES,SheetHeader.LOCAL_OVERSEAS));
+    private final static List<String> SCREENSHOT_KEYWORDS = new ArrayList<>(Arrays.asList("screenshot", "receipt", "proof"));
     
     @Autowired
     private GoogleSheetClient sheetClient;
@@ -114,19 +112,21 @@ public class GoogleSheetService {
         }
     }
 
-    public List<AddParticipantDto> getAllPaidParticipants(AddParticipantToEventDto dto)
-        throws IOException, MessagingException, WriterException{
-        List<AddParticipantDto> paidRegisteredParticipants = new ArrayList<>();    
+    public List<AddParticipantDto> getAllImportableParticipants(AddParticipantToEventDto dto)
+        throws IOException {
+        List<AddParticipantDto> importable = new ArrayList<>();
         Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
         List<List<String>> resultString = getsheetAllRows(dto.fileId);
-        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);                   
-        for(List<String> res : resultString){
-            AddParticipantDto participants = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
-            if(participants.getPaymentStatus()){
-                paidRegisteredParticipants.add(participants);
+        List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);
+        for (List<String> res : resultString) {
+            AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            String name = participant.getParticipantName();
+            String email = participant.getParticipantEmail();
+            if (name != null && !name.isBlank() && email != null && !email.isBlank()) {
+                importable.add(participant);
             }
-        }                   
-        return paidRegisteredParticipants;
+        }
+        return importable;
     }
 
     public Integer getSheetSizeService(String fileId) throws IOException{
@@ -152,6 +152,13 @@ public class GoogleSheetService {
             for(String keyword: PAYMENT_KEYWORDS){
                 if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
                     colIndexMap.put(keyword, i);
+                }
+            }
+            String headerLower = headers.get(i).toLowerCase();
+            for (String screenshotKw : SCREENSHOT_KEYWORDS) {
+                if (headerLower.contains(screenshotKw) && !colIndexMap.containsKey(SheetHeader.SCREENSHOT)) {
+                    colIndexMap.put(SheetHeader.SCREENSHOT, i);
+                    break;
                 }
             }
         }

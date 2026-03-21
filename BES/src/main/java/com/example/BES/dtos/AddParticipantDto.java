@@ -18,4 +18,5 @@ public class AddParticipantDto {
     public String residency;
     public List<String> genres;
     public Boolean paymentStatus;
+    public String screenshotUrl;
 }

@@ -23,6 +23,7 @@ public class Event {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long eventId;
     private String eventName;
+    private boolean paymentRequired = false;
 
     @OneToMany(mappedBy = "event")
     private List<EventGenre> eventGenres;

@@ -211,7 +211,7 @@ export const insertPaymenColumnInSheet = async (fileId) =>{
   }
 }
 
-export const insertEventInTable = async (eventName) =>{
+export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   try{
     await fetch(`${domain}/api/v1/event`, {
       method: 'POST',
@@ -222,6 +222,7 @@ export const insertEventInTable = async (eventName) =>{
       },
       body: JSON.stringify({
           eventName: eventName,
+          paymentRequired: paymentRequired,
       })
   })
   }catch(e){
@@ -488,6 +489,126 @@ export const getSmokeList = async()=>{
       console.log(e)
   }
 }
+export const getEmailTemplate = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/email-template`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const updateEmailTemplate = async (eventName, subject, body) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/email-template`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ subject, body })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const getUnverifiedParticipants = async (fileId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/sheets/participants/unverified/${fileId}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getUnverifiedParticipantsDB = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/unverified-participants`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const verifyAndEmailParticipant = async (participantId, eventId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participants/verify-email`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId, eventId })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const verifyAndEmailBatch = async (list) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participants/verify-email-batch`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(list)
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const getGenresByEvent = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const removeParticipantGenre = async (participantId, eventId, genreId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participant-genre/${participantId}/${eventId}/${genreId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const addGenreToParticipant = async (participantId, eventId, genreName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participant-genre`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ participantId, eventId, genreName })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
 export const updateSmokeList  = async(battlers)=>{
   try{
     return await fetch(`${domain}/api/v1/battle/smoke`,{

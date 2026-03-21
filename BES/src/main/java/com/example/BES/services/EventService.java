@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Example;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.models.Event;
@@ -18,12 +17,16 @@ public class EventService {
     @Autowired
     EventRepo repo;
 
+    @Autowired
+    EmailTemplateService emailTemplateService;
+
     public void createEventService(AddEventDto dto){
+        if (repo.findByEventName(dto.eventName).isPresent()) return;
         Event newEvent = new Event();
         newEvent.setEventName(dto.eventName);
-        if(!repo.exists(Example.of(newEvent))){
-            repo.save(newEvent);
-        }
+        newEvent.setPaymentRequired(dto.paymentRequired);
+        Event saved = repo.save(newEvent);
+        emailTemplateService.createDefaultTemplate(saved);
     }
 
     public AddEventDto findEventbyNameSerivce(String eventName){
@@ -43,6 +46,7 @@ public class EventService {
             GetEventDto dto = new GetEventDto();
             dto.setId(event.getEventId());
             dto.setName(event.getEventName());
+            dto.setPaymentRequired(event.isPaymentRequired());
             dtos.add(dto);
         }
         return dtos;
