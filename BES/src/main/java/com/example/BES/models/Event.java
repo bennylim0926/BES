@@ -1,6 +1,7 @@
 package com.example.BES.models;
 import java.util.List;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,6 +25,9 @@ public class Event {
     private Long eventId;
     private String eventName;
     private boolean paymentRequired = false;
+
+    @Column(length = 4)
+    private String accessCode = "0000";
 
     @OneToMany(mappedBy = "event")
     private List<EventGenre> eventGenres;

@@ -1,15 +1,14 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { fetchAllFolderEvents, getParticipantScore } from '@/utils/api';
+import { getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkAuthStatus } from '@/utils/auth';
+import { checkAuthStatus, getActiveEvent } from '@/utils/auth';
 import UpdateScoreForm from '@/components/UpdateScoreForm.vue';
 
-const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
-const allEvents = ref([])
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
 const selectedParticipant = ref("")
@@ -42,16 +41,9 @@ const filteredParticipantsForScore = computed({
   }
 })
 
-const fetchEventsAndInit = async () => {
-  allEvents.value = await fetchAllFolderEvents()
-  const savedEvent = localStorage.getItem("selectedEvent")
-  selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
-}
-
 onMounted(async () => {
-  const ok = await checkAuthStatus(["admin", "emcee", "organiser"])
+  const ok = await checkAuthStatus(["ROLE_ADMIN", "ROLE_EMCEE", "ROLE_ORGANISER", "ROLE_JUDGE"])
   if (!ok) return
-  await fetchEventsAndInit()
 })
 
 function transformForScore(data) {
@@ -117,7 +109,10 @@ function transformForScore(data) {
     <!-- Filter card -->
     <div class="card p-5 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <ReusableDropdown v-model="selectedEvent"      labelId="Event"    :options="allEvents.map(e => e.folderName)" />
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+        </div>
         <ReusableDropdown v-model="selectedGenre"      labelId="Genre"    :options="uniqueGenres" />
         <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
       </div>

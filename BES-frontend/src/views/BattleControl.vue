@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, fetchAllFolderEvents, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -10,7 +10,7 @@ import { useBattleLogic } from '@/utils/battleLogic'
 import { subscribeToChannel, createClient } from '@/utils/websocket'
 
 const { selectedEvent, selectedGenre, iintialiseDropdown, selectedJudge } = useDropdowns()
-const { allJudges, fetchAllJudges, allEvents, participants } = useEventUtils()
+const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
 
 const battleJudges = ref([])
@@ -186,11 +186,6 @@ function setWinner(roundKey, matchIdx, slotIdx) {
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
 }
 
-const fetchEventsAndInit = async () => {
-  allEvents.value = await fetchAllFolderEvents()
-  const savedEvent = localStorage.getItem("selectedEvent")
-  selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
-}
 
 const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName)
@@ -272,10 +267,9 @@ watch(topSize, async (newVal) => {
 }, { immediate: true })
 
 onMounted(async () => {
-  await fetchEventsAndInit()
+  iintialiseDropdown()
   await fetchAllJudges()
   battleJudges.value = await getBattleJudges()
-  iintialiseDropdown()
 })
 </script>
 
@@ -291,7 +285,10 @@ onMounted(async () => {
     <!-- Config bar -->
     <div class="card p-5">
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
-        <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+        </div>
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
         <ReusableDropdown v-model="topSize" labelId="Format" :options="sizes" />
       </div>

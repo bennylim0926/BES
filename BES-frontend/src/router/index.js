@@ -14,7 +14,9 @@ import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";
 import Chart from "@/views/Chart.vue";
 import AdminPage from "@/views/AdminPage.vue";
+import EventSelector from "@/views/EventSelector.vue";
 import { whoami } from "@/utils/api";
+import { getActiveEvent } from "@/utils/auth";
 
 const routes = [
     {
@@ -26,7 +28,8 @@ const routes = [
         path: '/events',
         name: 'Event',
         component: Event,
-      },
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
+    },
     {
         path: '/events/:eventName',
         name: 'Event Details',
@@ -34,27 +37,32 @@ const routes = [
         props: route =>({
             eventName: route.params.eventName,
             folderID: route.query.folderID
-        })
+        }),
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
     },
     {
         path: '/event/audition-number',
         name: 'Audition Number',
-        component: AuditionNumber
+        component: AuditionNumber,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
     },
     {
         path: '/event/update-event-details',
         name: 'Update Event Details',
-        component: UpdateEventDetails
+        component: UpdateEventDetails,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     },
     {
         path: '/event/audition-list',
         name: 'Audition List',
-        component: AuditionList
+        component: AuditionList,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'], requiresEvent: true }
     },
     {
         path: '/event/score',
         name: 'Score',
-        component: Score
+        component: Score,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_ORGANISER'], requiresEvent: true }
     },
     {
         path: '/login',
@@ -64,7 +72,7 @@ const routes = [
     {
         path: '/403',
         name: 'Forbidden',
-        component: ForbiddenPage    
+        component: ForbiddenPage
     },
     {
         path: '/battle/overlay',
@@ -79,7 +87,8 @@ const routes = [
     {
         path: '/battle/control',
         name: "Battle Control",
-        component: BattleControl
+        component: BattleControl,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     },
     {
         path: '/battle/chart',
@@ -89,7 +98,13 @@ const routes = [
     {
         path: '/admin',
         name: "Admin Page",
-        component: AdminPage
+        component: AdminPage,
+        meta: { allowedRoles: ['ROLE_ADMIN'] }
+    },
+    {
+        path: '/event/select',
+        name: 'EventSelector',
+        component: EventSelector
     }
 ]
 
@@ -98,13 +113,22 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'Smoke']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
     try {
         const user = await whoami()
         if (!user || !user.authenticated) return { name: 'Login' }
+
+        const userRole = user.role?.[0]?.authority
+        if (to.meta?.allowedRoles && !to.meta.allowedRoles.includes(userRole)) {
+            return { name: 'Forbidden' }
+        }
+
+        if (to.meta?.requiresEvent && !getActiveEvent()) {
+            return { name: 'EventSelector', query: { redirect: to.fullPath } }
+        }
     } catch {
         return { name: 'Login' }
     }

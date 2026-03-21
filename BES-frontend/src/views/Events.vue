@@ -1,14 +1,16 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchAllFolderEvents } from '@/utils/api'
+import { fetchAllFolderEvents, fetchAllEvents, whoami, updateEventAccessCode } from '@/utils/api'
 import { checkAuthStatus } from '@/utils/auth'
 import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
 
 const events = ref([])
+const dbEvents = ref([])
 const search  = ref('')
 const router  = useRouter()
+const isAdmin = ref(false)
 
 const filtered = computed(() =>
   events.value.filter(e =>
@@ -16,15 +18,40 @@ const filtered = computed(() =>
   )
 )
 
+function getAccessCode(folderName) {
+  if (!isAdmin.value) return null
+  const match = dbEvents.value.find(e => e.name === folderName)
+  return match?.accessCode ?? null
+}
+
+function getDbEventId(folderName) {
+  const match = dbEvents.value.find(e => e.name === folderName)
+  return match?.id ?? null
+}
+
+async function handleUpdateCode(folderName, newCode) {
+  const id = getDbEventId(folderName)
+  if (!id) return
+  await updateEventAccessCode(id, newCode)
+  // update local cache
+  const idx = dbEvents.value.findIndex(e => e.name === folderName)
+  if (idx !== -1) dbEvents.value[idx] = { ...dbEvents.value[idx], accessCode: newCode }
+}
+
 async function goToEventDetails(eventName, folderID) {
   await useDelay().wait(200)
   router.push({ name: 'Event Details', params: { eventName }, query: { folderID } })
 }
 
 onMounted(async () => {
-  const ok = await checkAuthStatus(['admin', 'organiser'])
+  const ok = await checkAuthStatus(['ROLE_ADMIN', 'ROLE_ORGANISER'])
   if (!ok) return
+  const user = await whoami()
+  isAdmin.value = user?.role?.[0]?.authority === 'ROLE_ADMIN'
   events.value = await fetchAllFolderEvents()
+  if (isAdmin.value) {
+    dbEvents.value = await fetchAllEvents() ?? []
+  }
 })
 </script>
 
@@ -64,7 +91,9 @@ onMounted(async () => {
         v-for="event in filtered"
         :key="event.folderID"
         :buttonName="event.folderName"
+        :accessCode="getAccessCode(event.folderName)"
         @onClick="goToEventDetails(event.folderName, event.folderID)"
+        @updateCode="(code) => handleUpdateCode(event.folderName, code)"
       />
     </div>
 

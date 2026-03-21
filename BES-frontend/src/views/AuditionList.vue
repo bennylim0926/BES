@@ -2,24 +2,23 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { fetchAllFolderEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
+import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
 import { createClient, subscribeToChannel } from '@/utils/websocket';
 import { ref, computed, onMounted, watch, toRaw } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import Timer from '@/components/Timer.vue';
-import { checkAuthStatus } from '@/utils/auth';
+import { checkAuthStatus, getActiveEvent } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 import 'primeicons/primeicons.css'
 
 const roles = ref(["Emcee", "Judge"])
-const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
 const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
-const allEvents = ref([])
 const participants = ref([])
 
 const modalTitle = ref("")
@@ -31,13 +30,17 @@ const dynamicCallBack = ref(() => {})
 
 const dynamicRole = async () => {
   const res = await whoami()
-  if (res.username === "emcee") {
+  const authority = res.role?.[0]?.authority
+  if (authority === "ROLE_EMCEE") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
-  } else if (res.username === "judge") {
+  } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
-  } else if (res.username === "admin") {
+  } else if (authority === "ROLE_ORGANISER") {
+    roles.value = ["Emcee"]
+    selectedRole.value = "Emcee"
+  } else if (authority === "ROLE_ADMIN") {
     roles.value = ["Emcee", "Judge"]
     selectedRole.value = localStorage.getItem("selectedRole") || ""
   }
@@ -203,17 +206,10 @@ const resetScore = () => {
 
 const showFilters = ref(true)
 
-const fetchEventsAndInit = async () => {
-  allEvents.value = await fetchAllFolderEvents()
-  const savedEvent = localStorage.getItem("selectedEvent")
-  selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
-}
-
 onMounted(async () => {
-  const ok = await checkAuthStatus(["admin", "emcee", "judge"])
+  const ok = await checkAuthStatus(["ROLE_ADMIN", "ROLE_EMCEE", "ROLE_JUDGE", "ROLE_ORGANISER"])
   if (!ok) return
   await dynamicRole()
-  await fetchEventsAndInit()
   const res = await getAllJudges()
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)];
   subscribeToChannel(createClient(), "/topic/audition/",
@@ -299,7 +295,10 @@ onMounted(async () => {
         <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <ReusableDropdown v-model="selectedRole"  labelId="Role"  :options="roles" />
           <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-          <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+            <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+          </div>
           <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
         </div>
 

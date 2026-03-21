@@ -11,7 +11,8 @@ import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-// import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.UpdateAccessCodeDto;
+import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
@@ -108,8 +111,33 @@ public class EventController {
 
     @Operation(summary = "Get All Events", description = "Returns a list of all events")
     @GetMapping("/events")
-    public ResponseEntity<List<GetEventDto>> getAllEvents() {
-        return new ResponseEntity<>(eventService.getAllEvents(), HttpStatus.OK);
+    public ResponseEntity<List<GetEventDto>> getAllEvents(Authentication authentication) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        return new ResponseEntity<>(eventService.getAllEvents(isAdmin), HttpStatus.OK);
+    }
+
+    @Operation(summary = "Verify Event Access Code", description = "Checks if the provided code matches the event's access code")
+    @PostMapping("/verify-access-code")
+    public ResponseEntity<?> verifyAccessCode(@RequestBody VerifyAccessCodeDto dto) {
+        try {
+            boolean valid = eventService.verifyAccessCode(dto.eventId, dto.accessCode);
+            return ResponseEntity.ok(java.util.Map.of("valid", valid));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Update Event Access Code", description = "Updates the access code for an event (admin only)")
+    @PostMapping("/access-code")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateAccessCode(@RequestBody UpdateAccessCodeDto dto) {
+        try {
+            eventService.updateAccessCode(dto.eventId, dto.newCode);
+            return ResponseEntity.ok(java.util.Map.of("message", "Access code updated"));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
+        }
     }
 
     @Operation(summary = "Get All Genres", description = "Returns all available genres in the system")

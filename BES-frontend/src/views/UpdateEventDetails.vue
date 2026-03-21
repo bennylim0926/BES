@@ -4,12 +4,10 @@ import { onMounted, ref, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
-import { checkAuthStatus } from '@/utils/auth';
+import { checkAuthStatus, getActiveEvent } from '@/utils/auth';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
-
-const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
-const allEvents = ref([])
 const participants = ref([])
 const allJudges = ref([])
 const showCreateNewEntry = ref(false)
@@ -92,23 +90,6 @@ const fetchAllParticipantInEvent = async (eventName) => {
   }
 }
 
-const fetchAllEvents = async () => {
-  try {
-    const res = await fetch('/api/v1/folders', { credentials: "include" });
-    if (!res.ok) throw new Error('Failed to fetch event data');
-    const result = await res.json();
-    allEvents.value = result;
-    if (!selectedEvent.value && allEvents.value.length > 0) {
-      selectedEvent.value = allEvents.value[0].folderName;
-    }
-    if (selectedEvent.value) {
-      await fetchAllParticipantInEvent(selectedEvent.value);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
-
 const fetchAllJudges = async () => {
   try {
     const res = await fetch('/api/v1/event/judges', { credentials: "include" })
@@ -121,9 +102,11 @@ const fetchAllJudges = async () => {
 }
 
 onMounted(async () => {
-  const ok = await checkAuthStatus(["admin", "organiser"])
+  const ok = await checkAuthStatus(["ROLE_ADMIN", "ROLE_ORGANISER"])
   if (!ok) return
-  fetchAllEvents()
+  if (selectedEvent.value) {
+    await fetchAllParticipantInEvent(selectedEvent.value)
+  }
   fetchAllJudges()
 })
 </script>
@@ -152,13 +135,9 @@ onMounted(async () => {
     <!-- Filter bar -->
     <div class="card p-5 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <ReusableDropdown
-            v-model="selectedEvent"
-            labelId="Event"
-            :options="allEvents.map(e => e.folderName)"
-            placeholder="Select event…"
-          />
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
         <div>
           <ReusableDropdown

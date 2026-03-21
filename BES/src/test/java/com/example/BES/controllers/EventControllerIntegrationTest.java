@@ -93,7 +93,8 @@ public class EventControllerIntegrationTest {
         dto.setId(1L);
         dto.setName("Mock Event");
 
-        when(eventService.getAllEvents()).thenReturn(List.of(dto));
+        when(eventService.getAllEvents(false)).thenReturn(List.of(dto));
+        when(eventService.getAllEvents(true)).thenReturn(List.of(dto));
 
         mockMvc.perform(get("/api/v1/event/events"))
                 .andExpect(status().isOk())

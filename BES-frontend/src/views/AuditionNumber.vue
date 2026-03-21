@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue"
 import ActionDoneModal from './ActionDoneModal.vue';
 import { createClient, deactivateClient, subscribeToChannel } from "@/utils/websocket";
-import { checkAuthStatus } from "@/utils/auth";
 
 const loading = ref(false)
 const fakeNumber = ref(null)
@@ -89,9 +88,7 @@ const onRepeatAudition = (msg) => {
   openModal(`Hey ${msg.name}!`, `Your audition number is ${msg.genre} #${msg.audition}${judgeLabel}`)
 }
 
-onMounted(async () => {
-  const ok = await checkAuthStatus(["admin", "organiser"])
-  if (!ok) return
+onMounted(() => {
   subscribeToChannel(createClient(), "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
   subscribeToChannel(createClient(), "/topic/error/", (msg) => onRepeatAudition(msg))
 })

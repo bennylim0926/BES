@@ -626,3 +626,37 @@ export const updateSmokeList  = async(battlers)=>{
 
   }
 }
+
+export const verifyEventAccessCode = async (eventId, accessCode) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/verify-access-code`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventId, accessCode })
+    })
+    return await res.json()
+  } catch (err) {
+    console.log(err)
+  }
+}
+
+export const updateEventAccessCode = async (eventId, newCode) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/access-code`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventId, newCode })
+    })
+    return await res.json()
+  } catch (err) {
+    console.log(err)
+  }
+}

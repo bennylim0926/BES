@@ -33,6 +33,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/battle/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                     .formLogin(AbstractHttpConfigurer::disable)
                     .httpBasic(AbstractHttpConfigurer::disable)
@@ -62,7 +63,7 @@ public class SecurityConfig {
         UserDetails organiser = User.builder()
             .username("organiser")
             .password(pwdEncoder().encode("bes_organiser_818"))
-            .roles("Organiser")
+            .roles("ORGANISER")
             .build();
         return new InMemoryUserDetailsManager(admin, emcee, judge, organiser);
     }

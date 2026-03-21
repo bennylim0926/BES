@@ -55,7 +55,7 @@ public class AdminControllerIntegrationTest {
     private ScoreService scoreService;
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testCreateGenre_Success() throws Exception {
         GetGenreDto responseDto = new GetGenreDto();
         responseDto.id = 1L;
@@ -73,7 +73,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testUpdateGenre_Success() throws Exception {
         Genre updatedGenre = new Genre(1L, "Breakdance", null);
 
@@ -93,7 +93,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testUpdateGenre_NotFound() throws Exception {
         when(genreService.updateGenreService(any(UpdateGenreDto.class))).thenReturn(null);
 
@@ -110,7 +110,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testDeleteGenre_Success() throws Exception {
         when(genreService.deleteGenreService(any(DeleteGenreDto.class))).thenReturn("Hip Hop");
 
@@ -125,7 +125,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testDeleteGenre_NotDeleted() throws Exception {
         when(genreService.deleteGenreService(any(DeleteGenreDto.class))).thenReturn("");
         
@@ -139,7 +139,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testAddJudge_Success() throws Exception {
         GetJudgeDto responseDto = new GetJudgeDto();
         responseDto.judgeId = 1L;
@@ -157,7 +157,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testUpdateJudge_Success() throws Exception {
         Judge updatedJudge = new Judge(1L, "Judge Judy", null);
 
@@ -177,7 +177,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testUpdateJudge_NotFound() throws Exception {
         when(judgeService.updateJudgeService(any(UpdateJudgeDto.class))).thenReturn(null);
 
@@ -194,7 +194,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testDeleteJudge_Success() throws Exception {
         when(judgeService.deleteJudgeService(any(DeleteJudgeDto.class))).thenReturn("Judge Judy");
 
@@ -209,7 +209,7 @@ public class AdminControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "admin")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     public void testDeleteScoreByEvent_Success() throws Exception {
         when(scoreService.deleteScoreByEventService(any(DeleteScoreByEventDto.class))).thenReturn(15);
 
