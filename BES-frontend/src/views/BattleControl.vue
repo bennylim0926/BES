@@ -288,37 +288,37 @@ onMounted(async () => {
         href="/battle/overlay"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
-               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
                transition-all duration-200"
       >
         <i class="pi pi-desktop text-xs"></i>
         Stream Overlay
-        <i class="pi pi-external-link text-xs text-surface-400"></i>
+        <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
         href="/battle/overlay?isSmoke=true"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
-               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
                transition-all duration-200"
       >
         <i class="pi pi-desktop text-xs"></i>
         Smoke Overlay
-        <i class="pi pi-external-link text-xs text-surface-400"></i>
+        <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
         href="/battle/judge"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
-               text-sm font-semibold text-surface-700 hover:border-primary-400 hover:text-primary-600
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
                transition-all duration-200"
       >
         <i class="pi pi-users text-xs"></i>
         Judge View
-        <i class="pi pi-external-link text-xs text-surface-400"></i>
+        <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
     </div>
 
@@ -326,7 +326,7 @@ onMounted(async () => {
     <div class="card p-5">
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
         <div class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
           <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
         <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
@@ -334,7 +334,7 @@ onMounted(async () => {
       </div>
 
       <!-- Judge management -->
-      <div class="flex flex-wrap items-end gap-3 pt-4 border-t border-surface-100">
+      <div class="flex flex-wrap items-end gap-3 pt-4 border-t border-surface-600/30">
         <div class="w-48">
           <ReusableDropdown v-model="selectedJudge" labelId="Add Judge" :options="allJudgeOptions" />
         </div>
@@ -352,8 +352,8 @@ onMounted(async () => {
           <span
             v-for="(j, index) in battleJudges?.judges || []"
             :key="index"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-100
-                   text-sm font-medium text-surface-700 border border-surface-200"
+            class="badge-neutral inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-700
+                   text-sm font-medium text-content-secondary border border-surface-600"
           >
             {{ j.name }}
             <button
@@ -361,7 +361,7 @@ onMounted(async () => {
               class="w-4 h-4 rounded-full flex items-center justify-center
                      hover:bg-surface-300 transition-colors"
             >
-              <i class="pi pi-times text-xs text-surface-500"></i>
+              <i class="pi pi-times text-xs text-content-muted"></i>
             </button>
           </span>
         </div>
@@ -370,16 +370,16 @@ onMounted(async () => {
 
     <!-- Bracket setup -->
     <div class="card p-5">
-      <h2 class="font-heading font-bold text-surface-800 mb-4">Bracket</h2>
+      <h2 class="font-heading font-bold text-content-secondary mb-4">Bracket</h2>
 
       <!-- Standard bracket -->
       <div v-if="Number(topSize) !== 7" class="flex flex-wrap gap-4">
         <div
           v-for="(size, idx) in roundSizes"
           :key="idx"
-          class="bg-surface-50 rounded-xl p-4 border border-surface-200 min-w-[200px]"
+          class="bg-surface-900 rounded-xl p-4 border border-surface-600 min-w-[200px]"
         >
-          <div class="font-heading font-bold text-sm text-surface-600 mb-3 uppercase tracking-wider">
+          <div class="font-heading font-bold text-sm text-content-muted mb-3 uppercase tracking-wider">
             Top {{ size }}
           </div>
           <div
@@ -404,7 +404,7 @@ onMounted(async () => {
                 class="w-4 h-4 accent-primary-600"
               />
             </div>
-            <span class="text-xs font-bold text-surface-400">vs</span>
+            <span class="text-xs font-bold text-content-muted">vs</span>
             <div class="flex items-center gap-1 flex-1">
               <select
                 class="input-base text-sm py-1.5 px-2 flex-1"
@@ -434,8 +434,8 @@ onMounted(async () => {
       </div>
 
       <!-- 7 to Smoke bracket -->
-      <div v-else class="bg-surface-50 rounded-xl p-4 border border-surface-200">
-        <div class="font-heading font-bold text-sm text-surface-600 mb-3 uppercase tracking-wider">
+      <div v-else class="bg-surface-900 rounded-xl p-4 border border-surface-600">
+        <div class="font-heading font-bold text-sm text-content-muted mb-3 uppercase tracking-wider">
           7 to Smoke
         </div>
         <div class="flex gap-6">
@@ -468,16 +468,16 @@ onMounted(async () => {
 
     <!-- Live match tracker -->
     <div class="card p-5">
-      <h2 class="font-heading font-bold text-surface-800 mb-4">Live Match</h2>
+      <h2 class="font-heading font-bold text-content-secondary mb-4">Live Match</h2>
 
       <!-- Winner announcement -->
       <div
         class="px-4 py-3 rounded-xl text-center text-sm font-semibold mb-4"
         :class="{
-          'bg-surface-100 text-surface-600': winnerVariant === 'ongoing',
-          'bg-amber-50 text-amber-700 border border-amber-200': winnerVariant === 'wait',
-          'bg-primary-50 text-primary-700 border border-primary-200': winnerVariant === 'winner',
-          'bg-surface-50 text-surface-600 border border-surface-200': winnerVariant === 'tie',
+          'bg-amber-950 text-amber-400 border border-amber-700/50': winnerVariant === 'ongoing',
+          'bg-amber-950 text-amber-400 border border-amber-700/50': winnerVariant === 'wait',
+          'bg-primary-100 text-primary-400 border border-primary-500/40': winnerVariant === 'winner',
+          'bg-surface-700 text-content-secondary border border-surface-500': winnerVariant === 'tie',
         }"
       >
         {{ winnerAnnouncement }}
@@ -486,31 +486,31 @@ onMounted(async () => {
       <!-- Match pairs (standard) -->
       <div v-if="!isSmoke" class="grid grid-cols-3 gap-3 mb-4">
         <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Previous</div>
+          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Previous</div>
           <template v-if="previousBattlePair">
-            <span class="font-bold text-surface-800">{{ previousBattlePair[0] }}</span>
-            <span class="text-surface-400 mx-2">vs</span>
-            <span class="font-bold text-surface-800">{{ previousBattlePair[1] }}</span>
+            <span class="font-bold text-content-secondary">{{ previousBattlePair[0] }}</span>
+            <span class="text-content-muted mx-2">vs</span>
+            <span class="font-bold text-content-secondary">{{ previousBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-surface-300">—</span>
+          <span v-else class="text-content-disabled">—</span>
         </div>
         <div class="card p-4 text-sm ring-2 ring-primary-200">
           <div class="text-xs font-semibold text-primary-500 uppercase tracking-wider mb-2">Current</div>
           <template v-if="currentBattlePair">
-            <span class="font-bold text-surface-900">{{ currentBattlePair[0] }}</span>
-            <span class="text-surface-400 mx-2">vs</span>
-            <span class="font-bold text-surface-900">{{ currentBattlePair[1] }}</span>
+            <span class="font-bold text-content-primary">{{ currentBattlePair[0] }}</span>
+            <span class="text-content-muted mx-2">vs</span>
+            <span class="font-bold text-content-primary">{{ currentBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-surface-300">—</span>
+          <span v-else class="text-content-disabled">—</span>
         </div>
         <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Next</div>
+          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Next</div>
           <template v-if="nextBattlePair">
-            <span class="font-bold text-surface-800">{{ nextBattlePair[0] }}</span>
-            <span class="text-surface-400 mx-2">vs</span>
-            <span class="font-bold text-surface-800">{{ nextBattlePair[1] }}</span>
+            <span class="font-bold text-content-secondary">{{ nextBattlePair[0] }}</span>
+            <span class="text-content-muted mx-2">vs</span>
+            <span class="font-bold text-content-secondary">{{ nextBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-surface-300">—</span>
+          <span v-else class="text-content-disabled">—</span>
         </div>
       </div>
 
@@ -519,15 +519,15 @@ onMounted(async () => {
         <div class="card p-4 text-sm ring-2 ring-primary-200">
           <div class="text-xs font-semibold text-primary-500 uppercase tracking-wider mb-2">Current Match</div>
           <template v-if="currentBattlePair">
-            <span class="font-bold text-surface-900">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
-            <span class="text-surface-400 mx-2">vs</span>
-            <span class="font-bold text-surface-900">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
+            <span class="font-bold text-content-primary">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
+            <span class="text-content-muted mx-2">vs</span>
+            <span class="font-bold text-content-primary">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
           </template>
         </div>
         <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Queue</div>
-          <span v-if="nextBattlePair" class="text-surface-600">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
-          <span v-else class="text-surface-300">—</span>
+          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Queue</div>
+          <span v-if="nextBattlePair" class="text-content-muted">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
+          <span v-else class="text-content-disabled">—</span>
         </div>
       </div>
 
@@ -536,8 +536,8 @@ onMounted(async () => {
         <template v-if="Number(currentWinner) !== -2 && Number(currentWinner) !== -3 && (Number(currentWinner) !== -1 || isSmoke)">
           <button
             @click="prevPair"
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
-                   text-sm font-semibold text-surface-700 hover:border-surface-300 transition-all"
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+                   text-sm font-semibold text-content-secondary hover:border-surface-500 transition-all"
           >
             <i class="pi pi-chevron-left text-xs"></i>
             Previous
@@ -564,8 +564,8 @@ onMounted(async () => {
 
         <button
           @click="clearLocalStorage"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 bg-white
-                 text-sm font-semibold text-red-600 hover:bg-red-50 transition-all"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 bg-surface-800
+                 text-sm font-semibold text-red-400 hover:bg-red-950 transition-all"
         >
           <i class="pi pi-refresh text-xs"></i>
           Reset Bracket
@@ -573,8 +573,8 @@ onMounted(async () => {
 
         <!-- File upload -->
         <label
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-200 bg-white
-                 text-sm font-semibold text-surface-700 hover:border-surface-300 cursor-pointer transition-all"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+                 text-sm font-semibold text-content-secondary hover:border-surface-500 cursor-pointer transition-all"
         >
           <i class="pi pi-upload text-xs"></i>
           Upload Images
@@ -583,27 +583,27 @@ onMounted(async () => {
       </div>
 
       <!-- Uploaded images list -->
-      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4 border-t border-surface-100">
+      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4 border-t border-surface-600/30">
         <div class="flex items-center gap-2 mb-3">
-          <i class="pi pi-images text-surface-500 text-sm"></i>
-          <span class="text-sm font-semibold text-surface-700">Uploaded Images</span>
-          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-100
-                       text-xs font-bold text-surface-600">{{ uploadedFiles.length }}</span>
+          <i class="pi pi-images text-content-muted text-sm"></i>
+          <span class="text-sm font-semibold text-content-secondary">Uploaded Images</span>
+          <span class="badge-neutral inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-700
+                       text-xs font-bold text-content-muted">{{ uploadedFiles.length }}</span>
         </div>
         <div class="flex flex-wrap gap-2">
           <div
             v-for="(name, idx) in uploadedFiles"
             :key="idx"
-            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-surface-200
-                   bg-surface-50 text-sm text-surface-700"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-surface-600
+                   bg-surface-900 text-sm text-content-secondary"
           >
             <span class="max-w-[160px] truncate">{{ name }}</span>
             <button
               @click="removeUploadedFile(idx)"
               class="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full
-                     hover:bg-surface-200 transition-colors"
+                     hover:bg-surface-600 transition-colors"
             >
-              <i class="pi pi-times text-xs text-surface-400"></i>
+              <i class="pi pi-times text-xs text-content-muted"></i>
             </button>
           </div>
         </div>

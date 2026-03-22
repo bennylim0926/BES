@@ -4,7 +4,7 @@ import { onMounted, ref, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
-import { checkAuthStatus, getActiveEvent } from '@/utils/auth';
+import { getActiveEvent } from '@/utils/auth';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
@@ -102,8 +102,6 @@ const fetchAllJudges = async () => {
 }
 
 onMounted(async () => {
-  const ok = await checkAuthStatus(["ROLE_ADMIN", "ROLE_ORGANISER"])
-  if (!ok) return
   if (selectedEvent.value) {
     await fetchAllParticipantInEvent(selectedEvent.value)
   }
@@ -136,7 +134,7 @@ onMounted(async () => {
     <div class="card p-5 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
           <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
         <div>
@@ -150,11 +148,11 @@ onMounted(async () => {
       </div>
 
       <!-- Participant count -->
-      <div class="flex items-center gap-2 mt-4 pt-4 border-t border-surface-100">
-        <i class="pi pi-users text-surface-400 text-sm"></i>
-        <span class="text-sm text-surface-600">
-          Showing <strong class="text-surface-900">{{ filteredParticipants.length }}</strong>
-          of <strong class="text-surface-900">{{ participants.length }}</strong> participants
+      <div class="flex items-center gap-2 mt-4 pt-4 border-t border-surface-600/30">
+        <i class="pi pi-users text-content-muted text-sm"></i>
+        <span class="text-sm text-content-muted">
+          Showing <strong class="text-content-primary">{{ filteredParticipants.length }}</strong>
+          of <strong class="text-content-primary">{{ participants.length }}</strong> participants
         </span>
       </div>
     </div>
@@ -177,10 +175,10 @@ onMounted(async () => {
         v-if="participants.length === 0 && selectedEvent"
         class="flex flex-col items-center justify-center py-20 text-center"
       >
-        <div class="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
-          <i class="pi pi-users text-surface-400 text-xl"></i>
+        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+          <i class="pi pi-users text-content-muted text-xl"></i>
         </div>
-        <p class="font-heading font-semibold text-surface-700">No participants found</p>
+        <p class="font-heading font-semibold text-content-secondary">No participants found</p>
         <p class="text-muted text-sm mt-1">Select a different event or add a participant</p>
       </div>
     </div>
@@ -204,7 +202,7 @@ onMounted(async () => {
     @accept="handleAccept"
     @close="handleAccept"
   >
-    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
+    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
 
   <CreateParticipantForm

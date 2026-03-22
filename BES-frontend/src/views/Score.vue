@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { getParticipantScore } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkAuthStatus, getActiveEvent } from '@/utils/auth';
+import { getActiveEvent } from '@/utils/auth';
 import UpdateScoreForm from '@/components/UpdateScoreForm.vue';
 
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
@@ -41,10 +41,6 @@ const filteredParticipantsForScore = computed({
   }
 })
 
-onMounted(async () => {
-  const ok = await checkAuthStatus(["ROLE_ADMIN", "ROLE_EMCEE", "ROLE_ORGANISER", "ROLE_JUDGE"])
-  if (!ok) return
-})
 
 function transformForScore(data) {
   const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))];
@@ -110,7 +106,7 @@ function transformForScore(data) {
     <div class="card p-5 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-surface-500 uppercase tracking-wide">Event</span>
+          <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
           <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
         <ReusableDropdown v-model="selectedGenre"      labelId="Genre"    :options="uniqueGenres" />
@@ -127,35 +123,41 @@ function transformForScore(data) {
           class="grid grid-cols-3 gap-4 mb-6"
         >
           <!-- 2nd place -->
-          <div class="stat-card p-5 text-center order-1">
-            <div class="text-2xl font-heading font-extrabold text-surface-400 mb-1">2</div>
-            <div class="font-heading font-bold text-surface-800 text-sm leading-tight mb-2">
+          <div class="stat-card p-5 text-center order-1 border-t-2 border-t-content-secondary">
+            <div class="text-2xl font-heading font-extrabold text-content-muted mb-1">2</div>
+            <div class="font-heading font-bold text-content-secondary text-sm leading-tight mb-2">
               {{ filteredParticipantsForScore.rows[1].participantName }}
             </div>
-            <div class="text-2xl font-extrabold text-surface-700">
+            <div class="text-2xl font-source font-extrabold text-content-secondary">
               {{ filteredParticipantsForScore.rows[1].totalScore }}
             </div>
           </div>
           <!-- 1st place -->
-          <div class="stat-card p-5 text-center order-2 ring-2 ring-primary-500/30 relative">
+          <div
+            class="stat-card p-5 text-center order-2 ring-2 ring-primary-500/30 relative border-t-2 border-t-accent-500 animate-float"
+            style="box-shadow: 0 0 0 1px rgba(6,182,212,0.3), 0 8px 40px rgba(6,182,212,0.15);"
+          >
             <div class="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span class="px-2 py-0.5 rounded-full bg-primary-600 text-white text-xs font-bold">1st</span>
+              <span
+                class="px-2 py-0.5 rounded-full bg-primary-600 text-white text-xs font-bold"
+                style="box-shadow: 0 0 12px rgba(6,182,212,0.5);"
+              >1st</span>
             </div>
-            <div class="text-2xl font-heading font-extrabold text-primary-600 mb-1">1</div>
-            <div class="font-heading font-bold text-surface-900 text-sm leading-tight mb-2">
+            <div class="text-2xl font-heading font-extrabold text-primary-400 mb-1">1</div>
+            <div class="font-heading font-bold text-content-primary text-sm leading-tight mb-2">
               {{ filteredParticipantsForScore.rows[0].participantName }}
             </div>
-            <div class="text-3xl font-extrabold text-primary-600">
+            <div class="text-4xl font-source font-extrabold text-primary-400">
               {{ filteredParticipantsForScore.rows[0].totalScore }}
             </div>
           </div>
           <!-- 3rd place -->
-          <div class="stat-card p-5 text-center order-3">
-            <div class="text-2xl font-heading font-extrabold text-surface-300 mb-1">3</div>
-            <div class="font-heading font-bold text-surface-700 text-sm leading-tight mb-2">
+          <div class="stat-card p-5 text-center order-3 border-t-2 border-t-accent-700">
+            <div class="text-2xl font-heading font-extrabold text-surface-600 mb-1">3</div>
+            <div class="font-heading font-bold text-content-muted text-sm leading-tight mb-2">
               {{ filteredParticipantsForScore.rows[2].participantName }}
             </div>
-            <div class="text-2xl font-extrabold text-surface-600">
+            <div class="text-2xl font-source font-extrabold text-content-muted">
               {{ filteredParticipantsForScore.rows[2].totalScore }}
             </div>
           </div>
@@ -171,10 +173,10 @@ function transformForScore(data) {
 
       <!-- Empty state -->
       <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
-          <i class="pi pi-chart-bar text-surface-400 text-xl"></i>
+        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+          <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="font-heading font-semibold text-surface-700">No scores yet</p>
+        <p class="font-heading font-semibold text-content-secondary">No scores yet</p>
         <p class="text-muted text-sm mt-1">Select an event and genre to view scores</p>
       </div>
     </template>
@@ -187,10 +189,10 @@ function transformForScore(data) {
         class="mb-8"
       >
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-full bg-surface-800 flex items-center justify-center">
-            <i class="pi pi-user text-white text-xs"></i>
+          <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
+            <i class="pi pi-user text-content-secondary text-xs"></i>
           </div>
-          <h2 class="font-heading font-bold text-surface-800">{{ judge }}</h2>
+          <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
           <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
         </div>
         <DynamicTable
