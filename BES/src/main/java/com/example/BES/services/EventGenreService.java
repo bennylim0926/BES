@@ -1,10 +1,14 @@
 package com.example.BES.services;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventGenreId;
@@ -23,6 +27,19 @@ public class EventGenreService {
 
     @Autowired
     GenreRepo genreRepo;
+
+    public List<GetGenreDto> getGenresByEventService(String eventName) {
+        Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (e == null) return new ArrayList<>();
+        List<GetGenreDto> dtos = new ArrayList<>();
+        for (EventGenre eg : eventGenreRepo.findByEvent(e)) {
+            GetGenreDto dto = new GetGenreDto();
+            dto.id = eg.getGenre().getGenreId();
+            dto.genreName = eg.getGenre().getGenreName();
+            dtos.add(dto);
+        }
+        return dtos;
+    }
 
     public void addGenreToEventService(AddGenreToEventDto dto){
         Event e = eventRepo.findByEventName(dto.eventName).orElse(null);

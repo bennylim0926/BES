@@ -50,7 +50,7 @@ const quickActions = computed(() => {
       title: 'Audition List',
       desc: 'Manage auditions, score participants, and run the timer',
       route: '/event/audition-list',
-      roles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_JUDGE'],
+      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'],
     },
     {
       icon: 'pi-bolt',
@@ -58,6 +58,13 @@ const quickActions = computed(() => {
       desc: 'Run the bracket, manage rounds and voting',
       route: '/battle/control',
       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
+    },
+    {
+      icon: 'pi-thumbs-up',
+      title: 'Battle Judge',
+      desc: 'Cast your vote during live battle rounds',
+      route: '/battle/judge',
+      roles: ['ROLE_JUDGE'],
     },
     {
       icon: 'pi-cog',

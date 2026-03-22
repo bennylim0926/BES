@@ -93,7 +93,8 @@ public class EventControllerIntegrationTest {
         dto.setId(1L);
         dto.setName("Mock Event");
 
-        when(eventService.getAllEvents()).thenReturn(List.of(dto));
+        when(eventService.getAllEvents(false)).thenReturn(List.of(dto));
+        when(eventService.getAllEvents(true)).thenReturn(List.of(dto));
 
         mockMvc.perform(get("/api/v1/event/events"))
                 .andExpect(status().isOk())
@@ -171,6 +172,16 @@ public class EventControllerIntegrationTest {
                 .content(json))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$").value("Participants list updated!"));
+    }
+
+    @Test
+    @WithMockUser
+    public void testRegisterParticipantAllGenres() throws Exception {
+        doNothing().when(eventGenreParticipantService).getAllAuditionNumsViaQR(1L, 2L);
+
+        mockMvc.perform(get("/api/v1/event/register-participant/1/2"))
+               .andExpect(status().isCreated())
+               .andExpect(jsonPath("$").value("registered"));
     }
 
     @Test

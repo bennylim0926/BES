@@ -2,24 +2,23 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { fetchAllFolderEvents, getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
-import { createClient, subscribeToChannel } from '@/utils/websocket';
-import { ref, computed, onMounted, watch, toRaw } from 'vue';
+import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
+import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import Timer from '@/components/Timer.vue';
-import { checkAuthStatus } from '@/utils/auth';
+import { getActiveEvent } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 import 'primeicons/primeicons.css'
 
 const roles = ref(["Emcee", "Judge"])
-const selectedEvent = ref(localStorage.getItem("selectedEvent") || "")
+const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
 const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
-const allEvents = ref([])
 const participants = ref([])
 
 const modalTitle = ref("")
@@ -31,13 +30,17 @@ const dynamicCallBack = ref(() => {})
 
 const dynamicRole = async () => {
   const res = await whoami()
-  if (res.username === "emcee") {
+  const authority = res.role?.[0]?.authority
+  if (authority === "ROLE_EMCEE") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
-  } else if (res.username === "judge") {
+  } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
-  } else if (res.username === "admin") {
+  } else if (authority === "ROLE_ORGANISER") {
+    roles.value = ["Emcee"]
+    selectedRole.value = "Emcee"
+  } else if (authority === "ROLE_ADMIN") {
     roles.value = ["Emcee", "Judge"]
     selectedRole.value = localStorage.getItem("selectedRole") || ""
   }
@@ -96,7 +99,7 @@ const filteredParticipantsForJudge = computed({
 watch(filteredParticipantsForJudge, (newVal) => {
   const update = newVal.find(c => c.score !== 0)
   if (update) {
-    localStorage.setItem("currentScore", JSON.stringify(toRaw(newVal)))
+    localStorage.setItem("currentScore", JSON.stringify({ event: selectedEvent.value, scores: toRaw(newVal) }))
   }
 }, { deep: true });
 
@@ -118,20 +121,30 @@ const filteredParticipantsForEmcee = computed({
   }
 })
 
-watch(selectedEvent, async (newVal) => {
+watch(selectedEvent, async (newVal, oldVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
+    if (oldVal !== undefined && oldVal !== newVal) {
+      selectedGenre.value = ""
+    }
     participants.value = []
     const res = await getRegisteredParticipantsByEvent(newVal)
+    if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
-    const stored = localStorage.getItem("currentScore")
-    if (stored) {
-      const cached = JSON.parse(stored)
-      participants.value = participants.value.map(p => {
-        const found = cached.find(c => c.rowId === p.rowId)
-        return found ? { ...p, ...found } : p
-      })
-    }
+    try {
+      const stored = localStorage.getItem("currentScore")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const cached = parsed.event === newVal ? parsed.scores : null
+        if (cached) {
+          participants.value = participants.value.map(p => {
+            const found = cached.find(c => c.participantName === p.participantName &&
+              c.genreName === p.genreName && c.judgeName === p.judgeName)
+            return found ? { ...p, score: found.score } : p
+          })
+        }
+      }
+    } catch { /* ignore malformed cache */ }
   }
 }, { immediate: true });
 
@@ -155,7 +168,7 @@ function transformForTable(data) {
       ],
       rows: data
         .sort((a, b) => a.auditionNumber - b.auditionNumber)
-        .map(d => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
+        .map((d) => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
     };
   }
   const auditions = {};
@@ -202,29 +215,66 @@ const resetScore = () => {
 
 const showFilters = ref(true)
 
-const fetchEventsAndInit = async () => {
-  allEvents.value = await fetchAllFolderEvents()
-  const savedEvent = localStorage.getItem("selectedEvent")
-  selectedEvent.value = savedEvent || (allEvents.value[0]?.folderName || "")
-}
+const wsClients = []
+
+onUnmounted(() => {
+  wsClients.forEach(c => deactivateClient(c))
+})
 
 onMounted(async () => {
-  const ok = await checkAuthStatus(["admin", "emcee", "judge"])
-  if (!ok) return
   await dynamicRole()
-  await fetchEventsAndInit()
   const res = await getAllJudges()
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)];
-  subscribeToChannel(createClient(), "/topic/audition/",
+  const c1 = createClient()
+  wsClients.push(c1)
+  subscribeToChannel(c1, "/topic/audition/",
     (msg) => {
+      if (msg.eventName && msg.eventName !== selectedEvent.value) return
       const idx = participants.value.findIndex(p =>
         p.participantName === msg.name &&
         p.genreName === msg.genre &&
         (p.judgeName === null ? 1 : p.judgeName === msg.judge)
       )
       if (idx !== -1) {
-        participants.value[idx] = { ...participants.value[idx], ...{ auditionNumber: msg.auditionNumber } }
+        participants.value[idx] = { ...participants.value[idx], auditionNumber: msg.auditionNumber }
+      } else if (msg.eventName) {
+        participants.value.push({
+          participantName: msg.name,
+          genreName: msg.genre,
+          judgeName: msg.judge || null,
+          auditionNumber: msg.auditionNumber,
+          eventName: msg.eventName,
+          participantId: msg.participantId,
+          eventId: msg.eventId,
+          genreId: msg.genreId,
+          walkin: msg.walkin,
+          emailSent: false,
+          score: 0,
+          rowId: participants.value.length
+        })
       }
+    })
+  const c2 = createClient()
+  wsClients.push(c2)
+  subscribeToChannel(c2, "/topic/judge-update/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      const idx = participants.value.findIndex(p =>
+        p.participantName === msg.name && p.genreName === msg.genre
+      )
+      if (idx !== -1) {
+        participants.value[idx] = { ...participants.value[idx], judgeName: msg.judge || null }
+      }
+    })
+  const c3 = createClient()
+  wsClients.push(c3)
+  subscribeToChannel(c3, "/topic/participant-removed/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      participants.value = participants.value.filter(p =>
+        !(p.participantName === msg.name && p.genreName === msg.genre &&
+          (msg.judge ? p.judgeName === msg.judge : true))
+      )
     })
 })
 </script>
@@ -248,8 +298,8 @@ onMounted(async () => {
           @click="showFilters = !showFilters"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all duration-200"
           :class="showFilters
-            ? 'bg-surface-800 text-white border-surface-800'
-            : 'bg-white text-surface-700 border-surface-200 hover:border-surface-300'"
+            ? 'bg-surface-600 text-content-primary border-surface-500'
+            : 'bg-surface-800 text-content-secondary border-surface-600 hover:border-surface-500'"
         >
           <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
           Filters
@@ -259,8 +309,8 @@ onMounted(async () => {
         <template v-if="selectedRole === 'Judge'">
           <button
             @click="showMiniMenu = !showMiniMenu"
-            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-surface-200 bg-white
-                   text-sm font-semibold text-surface-700 hover:border-surface-300 transition-all duration-200"
+            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-surface-600 bg-surface-800
+                   text-sm font-semibold text-content-secondary hover:border-surface-500 transition-all duration-200"
           >
             <i class="pi pi-search text-xs"></i>
             Jump
@@ -268,15 +318,15 @@ onMounted(async () => {
           <button
             @click="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
             class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary-600 text-white text-sm
-                   font-semibold hover:bg-primary-700 shadow-sm transition-all duration-200"
+                   font-semibold hover:bg-primary-700 shadow-sm transition-all duration-200 btn-glow"
           >
             <i class="pi pi-send text-xs"></i>
             Submit
           </button>
           <button
             @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
-            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-200 bg-white
-                   text-sm font-semibold text-red-600 hover:bg-red-50 transition-all duration-200"
+            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-800/50 bg-transparent
+                   text-sm font-semibold text-red-400 hover:bg-red-950 transition-all duration-200"
           >
             <i class="pi pi-undo text-xs"></i>
             Reset
@@ -298,12 +348,15 @@ onMounted(async () => {
         <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <ReusableDropdown v-model="selectedRole"  labelId="Role"  :options="roles" />
           <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-          <ReusableDropdown v-model="selectedEvent" labelId="Event" :options="allEvents.map(e => e.folderName)" />
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
+            <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+          </div>
           <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
         </div>
 
         <!-- Current judge selector (judge role only) -->
-        <div v-if="selectedRole === 'Judge'" class="mt-4 pt-4 border-t border-surface-100">
+        <div v-if="selectedRole === 'Judge'" class="mt-4 pt-4 border-t border-surface-600/30">
           <div class="max-w-xs">
             <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
           </div>
@@ -313,7 +366,7 @@ onMounted(async () => {
 
     <!-- Emcee view: Timer + table -->
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmcee.rows.length > 0">
-      <div class="sticky top-4 z-20 mb-4">
+      <div class="sticky top-[72px] z-20 mb-4">
         <Timer />
       </div>
       <DynamicTable
@@ -338,10 +391,10 @@ onMounted(async () => {
       v-else-if="selectedRole && selectedGenre"
       class="flex flex-col items-center justify-center py-24 text-center"
     >
-      <div class="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
-        <i class="pi pi-list text-surface-400 text-xl"></i>
+      <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+        <i class="pi pi-list text-content-muted text-xl"></i>
       </div>
-      <p class="font-heading font-semibold text-surface-700">No participants found</p>
+      <p class="font-heading font-semibold text-content-secondary">No participants found</p>
       <p class="text-muted text-sm mt-1">Select a different event or genre</p>
     </div>
 
@@ -350,10 +403,10 @@ onMounted(async () => {
       v-else-if="!selectedRole"
       class="flex flex-col items-center justify-center py-24 text-center"
     >
-      <div class="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center mb-4">
-        <i class="pi pi-filter text-primary-500 text-xl"></i>
+      <div class="w-14 h-14 rounded-2xl bg-primary-100 flex items-center justify-center mb-4">
+        <i class="pi pi-filter text-primary-400 text-xl"></i>
       </div>
-      <p class="font-heading font-semibold text-surface-700">Select your role to begin</p>
+      <p class="font-heading font-semibold text-content-secondary">Select your role to begin</p>
       <p class="text-muted text-sm mt-1">Choose Emcee or Judge in the filter panel above</p>
     </div>
 
@@ -366,6 +419,6 @@ onMounted(async () => {
     @accept="() => { dynamicCallBack() }"
     @close="() => { showModal = false }"
   >
-    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
+    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
 </template>

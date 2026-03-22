@@ -159,10 +159,10 @@ onMounted(async () => {
     <!-- Judges section -->
     <section class="card p-6">
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
-          <i class="pi pi-user text-primary-600 text-sm"></i>
+        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
+          <i class="pi pi-user text-primary-400 text-sm"></i>
         </div>
-        <h2 class="font-heading font-bold text-surface-800 text-lg">Judges</h2>
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Judges</h2>
         <span class="badge-neutral text-xs">{{ judges.length }}</span>
       </div>
 
@@ -190,23 +190,23 @@ onMounted(async () => {
         <div
           v-for="j in judges"
           :key="j.judgeId"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-200 bg-white hover:border-surface-300 transition-all"
+          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800 hover:border-surface-500 transition-all"
         >
           <button
             @click="selectId(j.judgeId, 'judge')"
-            class="text-sm font-medium text-surface-800 hover:text-primary-600 text-left truncate flex-1 transition-colors"
+            class="text-sm font-medium text-content-secondary hover:text-primary-400 text-left truncate flex-1 transition-colors"
           >
             {{ j.judgeName }}
           </button>
           <button
             @click="confirmRemoveJudge(j.judgeId, 'Remove Judge?', `Are you sure you want to remove ${j.judgeName}?`)"
             class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-surface-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
           >
             <i class="pi pi-times text-xs"></i>
           </button>
         </div>
-        <div v-if="judges.length === 0" class="col-span-full text-sm text-surface-400 py-4">
+        <div v-if="judges.length === 0" class="col-span-full text-sm text-content-muted py-4">
           No judges added yet
         </div>
       </div>
@@ -215,10 +215,10 @@ onMounted(async () => {
     <!-- Genres section -->
     <section class="card p-6">
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
-          <i class="pi pi-tag text-primary-600 text-sm"></i>
+        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
+          <i class="pi pi-tag text-primary-400 text-sm"></i>
         </div>
-        <h2 class="font-heading font-bold text-surface-800 text-lg">Genres</h2>
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Genres</h2>
         <span class="badge-neutral text-xs">{{ genres.length }}</span>
       </div>
 
@@ -246,23 +246,23 @@ onMounted(async () => {
         <div
           v-for="g in genres"
           :key="g.id"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-200 bg-white hover:border-surface-300 transition-all"
+          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800 hover:border-surface-500 transition-all"
         >
           <button
             @click="selectId(g.id, 'genre')"
-            class="text-sm font-medium text-surface-800 hover:text-primary-600 text-left truncate flex-1 transition-colors"
+            class="text-sm font-medium text-content-secondary hover:text-primary-400 text-left truncate flex-1 transition-colors"
           >
             {{ g.genreName }}
           </button>
           <button
             @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
             class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-surface-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
           >
             <i class="pi pi-times text-xs"></i>
           </button>
         </div>
-        <div v-if="genres.length === 0" class="col-span-full text-sm text-surface-400 py-4">
+        <div v-if="genres.length === 0" class="col-span-full text-sm text-content-muted py-4">
           No genres added yet
         </div>
       </div>
@@ -271,12 +271,12 @@ onMounted(async () => {
     <!-- Reset Scores section -->
     <section class="card p-6">
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
-          <i class="pi pi-trash text-red-500 text-sm"></i>
+        <div class="w-8 h-8 rounded-xl bg-red-950 flex items-center justify-center">
+          <i class="pi pi-trash text-red-400 text-sm"></i>
         </div>
         <div>
-          <h2 class="font-heading font-bold text-surface-800 text-lg">Reset Scores</h2>
-          <p class="text-xs text-surface-400">Permanently removes all scores for an event</p>
+          <h2 class="font-heading font-bold text-content-secondary text-lg">Reset Scores</h2>
+          <p class="text-xs text-content-muted">Permanently removes all scores for an event</p>
         </div>
       </div>
 
@@ -284,13 +284,13 @@ onMounted(async () => {
         <div
           v-for="e in events"
           :key="e.id"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-200 bg-white"
+          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800"
         >
-          <span class="text-sm font-medium text-surface-700 truncate flex-1">{{ e.name }}</span>
+          <span class="text-sm font-medium text-content-secondary truncate flex-1">{{ e.name }}</span>
           <button
             @click="confirmResetScore(e.id, 'Reset Scores?', `This will permanently delete all scores for ${e.name}.`)"
-            class="ml-2 flex-shrink-0 px-2 py-1 rounded-lg text-xs font-semibold text-red-600
-                   hover:bg-red-50 transition-all"
+            class="ml-2 flex-shrink-0 px-2 py-1 rounded-lg text-xs font-semibold text-red-400
+                   hover:bg-red-950 transition-all"
           >
             Reset
           </button>
@@ -301,10 +301,10 @@ onMounted(async () => {
     <!-- Images section -->
     <section class="card p-6">
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-surface-100 flex items-center justify-center">
-          <i class="pi pi-image text-surface-600 text-sm"></i>
+        <div class="icon-wrap w-8 h-8 rounded-xl bg-surface-700 flex items-center justify-center">
+          <i class="pi pi-image text-content-muted text-sm"></i>
         </div>
-        <h2 class="font-heading font-bold text-surface-800 text-lg">Uploaded Images</h2>
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Uploaded Images</h2>
         <span class="badge-neutral text-xs">{{ images.length }}</span>
       </div>
 
@@ -312,18 +312,18 @@ onMounted(async () => {
         <div
           v-for="img in images"
           :key="img"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-200 bg-white"
+          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800"
         >
-          <span class="text-sm text-surface-700 truncate flex-1">{{ img }}</span>
+          <span class="text-sm text-content-secondary truncate flex-1">{{ img }}</span>
           <button
             @click="confirmRemoveImage(img, `Delete ${img}?`, 'Are you sure you want to delete this image?')"
             class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-surface-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
           >
             <i class="pi pi-times text-xs"></i>
           </button>
         </div>
-        <div v-if="images.length === 0" class="col-span-full text-sm text-surface-400 py-4">
+        <div v-if="images.length === 0" class="col-span-full text-sm text-content-muted py-4">
           No images uploaded
         </div>
       </div>
@@ -338,7 +338,7 @@ onMounted(async () => {
     @accept="() => { dynamicHandler() }"
     @close="() => { showModal = false }"
   >
-    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
+    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
 
   <UpdateFieldForm

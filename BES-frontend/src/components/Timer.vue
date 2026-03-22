@@ -42,28 +42,32 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="card p-4">
+  <div
+    class="card p-4 backdrop-blur-md"
+    style="box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);"
+    :class="isRunning && isNearEnd ? 'animate-glow-pulse' : ''"
+  >
     <div class="flex items-center gap-4">
       <!-- Countdown display -->
       <div class="flex-shrink-0 text-center min-w-[80px]">
         <div
-          class="text-4xl font-heading font-extrabold tabular-nums transition-all duration-500"
+          class="text-5xl font-heading font-extrabold tabular-nums transition-all duration-500"
           :class="{
-            'text-surface-900': !isNearEnd && !isFinished,
-            'text-red-500 animate-pulse': isNearEnd,
-            'text-primary-600': isFinished,
+            'text-content-primary': !isNearEnd && !isFinished,
+            'text-red-400 animate-pulse': isNearEnd,
+            'text-primary-400': isFinished,
           }"
         >
           {{ isFinished ? "Done" : displayTime }}
         </div>
-        <div class="text-xs text-surface-400 mt-0.5">
+        <div class="text-xs text-content-muted mt-0.5">
           {{ selectedTime > 0 ? `of ${selectedTime}s` : 'seconds' }}
         </div>
       </div>
 
       <!-- Progress bar -->
       <div class="flex-1">
-        <div class="h-1.5 bg-surface-100 rounded-full overflow-hidden mb-3">
+        <div class="h-1.5 bg-surface-600 rounded-full overflow-hidden mb-3">
           <div
             class="h-full rounded-full transition-all duration-1000"
             :class="isNearEnd ? 'bg-red-400' : 'bg-primary-500'"
@@ -79,8 +83,8 @@ onBeforeUnmount(() => {
             @click="startTimer(t)"
             class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150"
             :class="selectedTime === t && isRunning
-              ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-              : 'bg-white border-surface-200 text-surface-700 hover:border-primary-300 hover:bg-primary-50'"
+              ? 'bg-primary-600 text-white border-primary-600 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+              : 'bg-surface-700 border-surface-600 text-content-secondary hover:border-primary-500/50 hover:bg-surface-600'"
           >
             {{ t }}s
           </button>

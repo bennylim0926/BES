@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { logout, whoami } from './utils/api'
-import { useAuthStore } from './utils/auth'
+import { useAuthStore, getActiveEvent } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -62,8 +62,17 @@ const logoutNow = async () => {
   authStore.logout()
 }
 
+const activeEvent = ref(getActiveEvent())
+
+function changeEvent() {
+  router.push({ name: 'EventSelector' })
+}
+
 // ── Watchers ───────────────────────────────────────────────────────────────
-watch(route, () => { isOpen.value = false })
+watch(route, () => {
+  isOpen.value = false
+  activeEvent.value = getActiveEvent()
+})
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -151,7 +160,7 @@ onMounted(async () => {
           </router-link>
 
           <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
+            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
             to="/event/audition-list"
             v-slot="{ isActive }"
           >
@@ -216,8 +225,23 @@ onMounted(async () => {
 
         </div>
 
-        <!-- Desktop Right: Role Badge + Auth -->
+        <!-- Desktop Right: Event Chip + Role Badge + Auth -->
         <div class="hidden md:flex items-center gap-3">
+
+          <!-- Active event chip -->
+          <button
+            v-if="isAuthenticated && activeEvent"
+            @click="changeEvent"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                   bg-surface-100 border border-surface-200 text-surface-700
+                   text-xs font-medium hover:bg-primary-50 hover:border-primary-200
+                   hover:text-primary-700 transition-all duration-200 max-w-[160px]"
+            title="Click to change event"
+          >
+            <i class="pi pi-calendar-clock text-xs flex-shrink-0"></i>
+            <span class="truncate">{{ activeEvent.name }}</span>
+            <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60"></i>
+          </button>
 
           <!-- Role badge — single neutral style for all roles; label is the differentiator -->
           <span
@@ -326,7 +350,7 @@ onMounted(async () => {
           </router-link>
 
           <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
+            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
             to="/event/audition-list"
             v-slot="{ isActive }"
           >
@@ -397,6 +421,20 @@ onMounted(async () => {
 
         <!-- Mobile auth row -->
         <div class="px-3 py-3 border-t border-surface-100">
+          <!-- Active event chip (mobile) -->
+          <button
+            v-if="isAuthenticated && activeEvent"
+            @click="changeEvent"
+            class="w-full flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl
+                   bg-surface-50 border border-surface-200 text-surface-700
+                   text-sm font-medium hover:bg-primary-50 hover:border-primary-200
+                   hover:text-primary-700 transition-all duration-200"
+            title="Click to change event"
+          >
+            <i class="pi pi-calendar-clock text-sm flex-shrink-0"></i>
+            <span class="truncate flex-1 text-left">{{ activeEvent.name }}</span>
+            <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60"></i>
+          </button>
           <div v-if="isAuthenticated" class="flex items-center justify-between">
             <span
               v-if="roleDisplay"

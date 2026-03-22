@@ -1,12 +1,13 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
-import { onMounted, ref, reactive } from 'vue';
+import { onMounted, ref, reactive, watch } from 'vue';
 import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
 
 const props = defineProps({
   show:  { type: Boolean, default: false },
   title: { type: String, default: 'New Participant' },
-  event: { type: String, default: '' }
+  event: { type: String, default: '' },
+  eventGenres: { type: Array, default: null }
 })
 
 const emit = defineEmits(['createNewEntry', 'close'])
@@ -23,15 +24,27 @@ const submitNewEntry = async () => {
     showError.value = true
     return
   }
-  emit("createNewEntry")
-  createTable.genres.forEach(async (g) => await addWalkinToSystem(name.value, props.event, g, selectedJudge.value))
+  for (const g of createTable.genres) {
+    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value)
+  }
   name.value = ""
   createTable.genres = []
+  emit("createNewEntry")
 }
 
+// Watch eventGenres prop so genres update when the parent fetches them
+watch(() => props.eventGenres, (newGenres) => {
+  if (newGenres && newGenres.length > 0) {
+    genreOptions.value = newGenres.map(g => g.genreName)
+  }
+}, { immediate: true })
+
 onMounted(async () => {
-  const genres = await fetchAllGenres()
-  genreOptions.value = genres.map(g => g.genreName)
+  // Fallback to all genres only if no event-specific genres were provided
+  if (!props.eventGenres || props.eventGenres.length === 0) {
+    const genres = await fetchAllGenres()
+    genreOptions.value = genres.map(g => g.genreName)
+  }
   const res = await getAllJudges()
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)]
 })
