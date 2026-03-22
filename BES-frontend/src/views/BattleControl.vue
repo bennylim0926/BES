@@ -138,6 +138,110 @@ const topParticipants = computed(() => {
   return [...new Set(participants.value.filter(p => p.genreName === selectedGenre.value).map(p => p.participantName))]
 })
 
+// Bracket seeding
+const bracketSize = computed(() => Number(topSize.value) === 7 ? 8 : Number(topSize.value))
+
+// Load resolved tie-breaker list from Score.vue if one exists for this event+genre+bracketSize
+const resolvedParticipants = ref(null)
+const loadResolvedParticipants = () => {
+  const key = `tbResolved_${selectedEvent.value}_${selectedGenre.value}_${bracketSize.value}`
+  const saved = localStorage.getItem(key)
+  resolvedParticipants.value = saved ? JSON.parse(saved) : null
+}
+watch([selectedEvent, selectedGenre, bracketSize], loadResolvedParticipants, { immediate: true })
+
+const topNParticipants = computed(() => {
+  if (resolvedParticipants.value) return resolvedParticipants.value.slice(0, bracketSize.value)
+  return topParticipants.value.slice(0, bracketSize.value)
+})
+const seeds = ref([])
+const activeSeedIdx = ref(null)
+
+const seededNames = computed(() => new Set(seeds.value.filter(Boolean)))
+const availableForSeeding = computed(() => topNParticipants.value.filter(p => !seededNames.value.has(p)))
+const allSeeded = computed(() => seeds.value.every(Boolean))
+
+const resetSeeds = () => {
+  seeds.value = Array(bracketSize.value).fill(null)
+  activeSeedIdx.value = null
+}
+const rankAsc = ref(false) // false = desc (highest first), true = asc (lowest first)
+const autoFillSeeds = () => {
+  const pool = topNParticipants.value
+  const ordered = rankAsc.value ? [...pool].reverse() : pool
+  seeds.value = [...ordered, ...Array(Math.max(0, bracketSize.value - ordered.length)).fill(null)]
+  activeSeedIdx.value = null
+}
+
+const highVsLowFill = () => {
+  const pool = topNParticipants.value
+  const n = pool.length
+  const result = Array(bracketSize.value).fill(null)
+  for (let i = 0; i < Math.ceil(n / 2); i++) {
+    result[i * 2] = pool[i]
+    if (n - 1 - i !== i) result[i * 2 + 1] = pool[n - 1 - i]
+  }
+  seeds.value = result
+  activeSeedIdx.value = null
+}
+
+const randomFill = () => {
+  const pool = [...topNParticipants.value].sort(() => Math.random() - 0.5)
+  seeds.value = [...pool, ...Array(Math.max(0, bracketSize.value - pool.length)).fill(null)]
+  activeSeedIdx.value = null
+}
+const clickSeedSlot = (idx) => {
+  if (seeds.value[idx]) {
+    const s = [...seeds.value]; s[idx] = null; seeds.value = s
+    activeSeedIdx.value = null
+  } else {
+    activeSeedIdx.value = activeSeedIdx.value === idx ? null : idx
+  }
+}
+const assignSeed = (name) => {
+  if (activeSeedIdx.value === null) return
+  const s = [...seeds.value]; s[activeSeedIdx.value] = name; seeds.value = s
+  const next = s.findIndex((v, i) => i > activeSeedIdx.value && !v)
+  activeSeedIdx.value = next !== -1 ? next : null
+}
+const applyToFirstRound = () => {
+  if (isSmoke.value) {
+    rounds.value = seeds.value.map((name, i) => ({
+      name: name ?? rounds.value[i]?.name ?? null,
+      score: rounds.value[i]?.score ?? 0,
+    }))
+    return
+  }
+  const key = `Top${bracketSize.value}`
+  if (!rounds.value[key]) return
+  for (let i = 0; i < bracketSize.value / 2; i++) {
+    rounds.value[key][i][0] = seeds.value[i * 2] ?? null
+    rounds.value[key][i][1] = seeds.value[i * 2 + 1] ?? null
+  }
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+}
+
+watch([bracketSize, selectedGenre], resetSeeds, { immediate: true })
+
+// 7 to Smoke slot picker
+const activeSmokeIdx = ref(null)
+const smokeSeededNames = computed(() => new Set((Array.isArray(rounds.value) ? rounds.value : []).map(r => r.name).filter(Boolean)))
+const availableForSmoke = computed(() => topNParticipants.value.filter(p => !smokeSeededNames.value.has(p)))
+const clickSmokeSlot = (idx) => {
+  if (Array.isArray(rounds.value) && rounds.value[idx]?.name) {
+    rounds.value[idx].name = null
+    activeSmokeIdx.value = null
+  } else {
+    activeSmokeIdx.value = activeSmokeIdx.value === idx ? null : idx
+  }
+}
+const assignSmokeSlot = (name) => {
+  if (activeSmokeIdx.value === null || !Array.isArray(rounds.value)) return
+  rounds.value[activeSmokeIdx.value].name = name
+  const next = rounds.value.findIndex((r, i) => i > activeSmokeIdx.value && !r.name)
+  activeSmokeIdx.value = next !== -1 ? next : null
+}
+
 const sizes = ref([7, 8, 16, 32])
 
 function initRounds() {
@@ -370,97 +474,275 @@ onMounted(async () => {
 
     <!-- Bracket setup -->
     <div class="card p-5">
-      <h2 class="font-heading font-bold text-content-secondary mb-4">Bracket</h2>
+      <h2 class="font-heading font-bold text-content-secondary mb-5">Bracket</h2>
 
-      <!-- Standard bracket -->
+      <!-- ── Seeding panel ─────────────────────────────── -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-sm font-bold text-content-primary">
+              Participant Seeding
+              <span class="ml-2 text-xs font-normal text-content-muted">
+                {{ seededNames.size }} / {{ bracketSize }} selected
+              </span>
+            </h3>
+            <p class="text-xs text-content-muted mt-0.5">
+              Select {{ bracketSize }} participants, then apply to bracket
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Fill strategy buttons -->
+            <div class="flex rounded-xl border border-surface-600/60 overflow-hidden bg-surface-800/60 text-xs font-semibold">
+              <button
+                @click="autoFillSeeds"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-content-secondary border-r border-surface-600/60
+                       hover:bg-surface-700 hover:text-content-primary transition-all"
+                :title="rankAsc ? 'Lowest score first — click to fill' : 'Highest score first — click to fill'"
+              >
+                <i :class="rankAsc ? 'pi pi-sort-amount-up' : 'pi pi-sort-amount-down'" class="text-xs"></i>
+                By Rank
+                <button
+                  @click.stop="rankAsc = !rankAsc; autoFillSeeds()"
+                  class="ml-0.5 px-1 py-0.5 rounded text-xs font-mono text-primary-400 hover:bg-primary-500/20 transition-all"
+                  :title="rankAsc ? 'Switch to highest first' : 'Switch to lowest first'"
+                >{{ rankAsc ? '↑' : '↓' }}</button>
+              </button>
+              <button
+                @click="highVsLowFill"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-content-secondary border-r border-surface-600/60
+                       hover:bg-surface-700 hover:text-content-primary transition-all"
+                title="Pair highest with lowest (1st vs last, 2nd vs 2nd-last...)"
+              >
+                <i class="pi pi-arrows-v text-xs"></i>
+                High ↔ Low
+              </button>
+              <button
+                @click="randomFill"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-content-secondary
+                       hover:bg-surface-700 hover:text-content-primary transition-all"
+                title="Random shuffle"
+              >
+                <i class="pi pi-refresh text-xs"></i>
+                Random
+              </button>
+            </div>
+
+            <button
+              @click="applyToFirstRound"
+              :disabled="!allSeeded"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                     disabled:opacity-30 disabled:cursor-not-allowed"
+              :class="allSeeded
+                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                : 'bg-surface-700 text-content-muted border border-surface-600'"
+            >
+              <i class="pi pi-check text-xs"></i>
+              Apply to Bracket
+            </button>
+          </div>
+        </div>
+
+        <!-- Seed slots grid -->
+        <div class="grid grid-cols-4 gap-2 mb-3">
+          <button
+            v-for="(name, i) in seeds"
+            :key="i"
+            @click="clickSeedSlot(i)"
+            class="relative flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150"
+            :class="[
+              activeSeedIdx === i
+                ? 'border-primary-500/70 bg-primary-500/10 ring-1 ring-primary-500/30'
+                : name
+                  ? 'border-surface-600/60 bg-surface-700/60 hover:border-surface-500'
+                  : 'border-dashed border-surface-600/40 bg-surface-800/30 hover:border-surface-500/60',
+            ]"
+          >
+            <span
+              class="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-source font-bold"
+              :class="name ? 'bg-primary-500/20 text-primary-400' : 'bg-surface-700 text-surface-500'"
+            >{{ i + 1 }}</span>
+            <span
+              class="text-sm font-semibold truncate flex-1"
+              :class="name ? 'text-content-primary' : 'text-content-muted'"
+            >{{ name || 'Empty' }}</span>
+            <i v-if="name" class="pi pi-times text-xs text-surface-500 hover:text-red-400 transition-colors flex-shrink-0"></i>
+          </button>
+        </div>
+
+        <!-- Available participants picker -->
+        <Transition name="fade-down">
+          <div v-if="activeSeedIdx !== null" class="rounded-xl border border-primary-500/30 bg-surface-800/80 p-3">
+            <p class="text-xs font-semibold text-primary-400 mb-2 uppercase tracking-wider">
+              Selecting for slot #{{ activeSeedIdx + 1 }} — click a participant
+            </p>
+            <div v-if="availableForSeeding.length" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="p in availableForSeeding"
+                :key="p"
+                @click="assignSeed(p)"
+                class="px-3 py-1.5 rounded-lg border border-surface-600/60 bg-surface-700/60 text-sm font-semibold
+                       text-content-secondary hover:border-primary-500/60 hover:bg-primary-500/10 hover:text-primary-400
+                       transition-all duration-150"
+              >{{ p }}</button>
+            </div>
+            <p v-else class="text-xs text-content-muted">All participants have been assigned.</p>
+          </div>
+        </Transition>
+      </div>
+
+      <div class="h-px bg-surface-600/30 mb-5"></div>
+
+      <!-- ── Standard bracket ──────────────────────────── -->
       <div v-if="Number(topSize) !== 7" class="flex flex-wrap gap-4">
         <div
           v-for="(size, idx) in roundSizes"
           :key="idx"
-          class="bg-surface-900 rounded-xl p-4 border border-surface-600 min-w-[200px]"
+          class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50 min-w-[240px] flex-1"
         >
-          <div class="font-heading font-bold text-sm text-content-muted mb-3 uppercase tracking-wider">
+          <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-3">
             Top {{ size }}
           </div>
+
           <div
             v-for="(match, mIdx) in rounds[`Top${size}`]"
             :key="mIdx"
-            class="flex items-center gap-2 mb-2"
+            class="mb-3 rounded-xl border border-surface-600/40 bg-surface-800/50 overflow-hidden"
           >
-            <div class="flex items-center gap-1 flex-1">
+            <!-- Player 0 -->
+            <div
+              class="flex items-center gap-2 px-3 py-2.5 transition-colors"
+              :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : ''"
+            >
+              <i
+                class="pi pi-crown text-xs flex-shrink-0 transition-colors"
+                :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"
+              ></i>
               <select
-                class="input-base text-sm py-1.5 px-2 flex-1"
+                class="flex-1 bg-transparent text-sm font-semibold outline-none cursor-pointer
+                       text-content-primary disabled:text-content-muted"
+                :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : ''"
                 v-model="rounds[`Top${size}`][mIdx][0]"
                 @change="updateMatch(`Top${size}`, mIdx, 0, rounds[`Top${size}`][mIdx][0])"
               >
-                <option :value="null" disabled>Select…</option>
-                <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
+                <option :value="null" disabled>Select participant…</option>
+                <option v-for="p in topNParticipants" :key="p" :value="p">{{ p }}</option>
               </select>
-              <input
-                type="checkbox"
-                :checked="match[2] === match[0]"
+              <button
                 :disabled="!match[0]"
-                @change="setWinner(`Top${size}`, mIdx, 0)"
-                class="w-4 h-4 accent-primary-600"
-              />
+                @click="setWinner(`Top${size}`, mIdx, 0)"
+                class="flex-shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold transition-all
+                       disabled:opacity-20 disabled:cursor-not-allowed"
+                :class="match[2] === match[0] && match[0]
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+              >{{ match[2] === match[0] && match[0] ? 'Winner' : 'Win' }}</button>
             </div>
-            <span class="text-xs font-bold text-content-muted">vs</span>
-            <div class="flex items-center gap-1 flex-1">
+
+            <!-- VS divider -->
+            <div class="flex items-center gap-2 px-3 py-1 border-y border-surface-600/30 bg-surface-900/30">
+              <div class="flex-1 h-px bg-surface-600/20"></div>
+              <span class="text-xs font-bold text-surface-500">VS</span>
+              <div class="flex-1 h-px bg-surface-600/20"></div>
+            </div>
+
+            <!-- Player 1 -->
+            <div
+              class="flex items-center gap-2 px-3 py-2.5 transition-colors"
+              :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : ''"
+            >
+              <i
+                class="pi pi-crown text-xs flex-shrink-0 transition-colors"
+                :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"
+              ></i>
               <select
-                class="input-base text-sm py-1.5 px-2 flex-1"
+                class="flex-1 bg-transparent text-sm font-semibold outline-none cursor-pointer text-content-primary"
+                :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : ''"
                 v-model="rounds[`Top${size}`][mIdx][1]"
                 @change="updateMatch(`Top${size}`, mIdx, 1, rounds[`Top${size}`][mIdx][1])"
               >
-                <option :value="null" disabled>Select…</option>
-                <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
+                <option :value="null" disabled>Select participant…</option>
+                <option v-for="p in topNParticipants" :key="p" :value="p">{{ p }}</option>
               </select>
-              <input
-                type="checkbox"
-                :checked="match[2] === match[1]"
+              <button
                 :disabled="!match[1]"
-                @change="setWinner(`Top${size}`, mIdx, 1)"
-                class="w-4 h-4 accent-primary-600"
-              />
+                @click="setWinner(`Top${size}`, mIdx, 1)"
+                class="flex-shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold transition-all
+                       disabled:opacity-20 disabled:cursor-not-allowed"
+                :class="match[2] === match[1] && match[1]
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+              >{{ match[2] === match[1] && match[1] ? 'Winner' : 'Win' }}</button>
             </div>
           </div>
+
           <button
             @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
-            class="w-full mt-2 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
-                   hover:bg-primary-700 transition-all duration-200"
+            class="w-full mt-1 py-2.5 rounded-xl bg-primary-600 text-white text-xs font-bold
+                   hover:bg-primary-700 active:bg-primary-800 transition-all duration-200"
           >
+            <i class="pi pi-play text-xs mr-1.5"></i>
             Start Round
           </button>
         </div>
       </div>
 
-      <!-- 7 to Smoke bracket -->
-      <div v-else class="bg-surface-900 rounded-xl p-4 border border-surface-600">
-        <div class="font-heading font-bold text-sm text-content-muted mb-3 uppercase tracking-wider">
-          7 to Smoke
+      <!-- ── 7 to Smoke bracket ──────────────────────────── -->
+      <div v-else class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50">
+        <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-4">7 to Smoke</div>
+
+        <!-- Slot grid -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <button
+            v-for="(match, mIdx) in (Array.isArray(rounds.value) ? rounds.value : [])"
+            :key="mIdx"
+            @click="clickSmokeSlot(mIdx)"
+            class="relative flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150"
+            :class="[
+              activeSmokeIdx === mIdx
+                ? 'border-primary-500/70 bg-primary-500/10 ring-1 ring-primary-500/30'
+                : match.name
+                  ? 'border-surface-600/60 bg-surface-700/60 hover:border-surface-500'
+                  : 'border-dashed border-surface-600/40 bg-surface-800/30 hover:border-surface-500/60',
+            ]"
+          >
+            <span
+              class="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-source font-bold"
+              :class="match.name ? 'bg-primary-500/20 text-primary-400' : 'bg-surface-700 text-surface-500'"
+            >{{ mIdx + 1 }}</span>
+            <span
+              class="text-sm font-semibold truncate flex-1"
+              :class="match.name ? 'text-content-primary' : 'text-content-muted'"
+            >{{ match.name || 'Empty' }}</span>
+            <i v-if="match.name" class="pi pi-times text-xs text-surface-500 hover:text-red-400 transition-colors flex-shrink-0"></i>
+          </button>
         </div>
-        <div class="flex gap-6">
-          <div class="flex flex-col gap-2">
-            <div v-for="(match, mIdx) in rounds.slice(0, 2)" :key="'left-'+mIdx">
-              <select class="input-base text-sm py-1.5 px-2" v-model="rounds[mIdx].name">
-                <option :value="null" disabled>Select…</option>
-                <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
-              </select>
+
+        <!-- Participant picker -->
+        <Transition name="fade-down">
+          <div v-if="activeSmokeIdx !== null" class="rounded-xl border border-primary-500/30 bg-surface-800/80 p-3 mb-3">
+            <p class="text-xs font-semibold text-primary-400 mb-2 uppercase tracking-wider">
+              Selecting for slot #{{ activeSmokeIdx + 1 }} — click a participant
+            </p>
+            <div v-if="availableForSmoke.length" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="p in availableForSmoke"
+                :key="p"
+                @click="assignSmokeSlot(p)"
+                class="px-3 py-1.5 rounded-lg border border-surface-600/60 bg-surface-700/60 text-sm font-semibold
+                       text-content-secondary hover:border-primary-500/60 hover:bg-primary-500/10 hover:text-primary-400
+                       transition-all duration-150"
+              >{{ p }}</button>
             </div>
+            <p v-else class="text-xs text-content-muted">All participants have been assigned.</p>
           </div>
-          <div class="flex flex-col gap-2">
-            <div v-for="(match, mIdx) in rounds.slice(2)" :key="'right-'+mIdx">
-              <select class="input-base text-sm py-1.5 px-2" v-model="rounds[mIdx+2].name">
-                <option :value="null" disabled>Select…</option>
-                <option v-for="p in topParticipants" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        </Transition>
+
         <button
           @click="initiateBattlePair(0, 0)"
-          class="mt-3 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
+          class="w-full py-2.5 rounded-xl bg-primary-600 text-white text-xs font-bold
                  hover:bg-primary-700 transition-all duration-200"
         >
+          <i class="pi pi-play text-xs mr-1.5"></i>
           Start Round
         </button>
       </div>

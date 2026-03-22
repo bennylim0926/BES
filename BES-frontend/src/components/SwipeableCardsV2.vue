@@ -27,17 +27,6 @@ const observeCards = async () => {
   cards.forEach((card) => observer.observe(card))
 }
 
-const addByZeroOne = (source, max) => {
-  if (source.score < max) {
-    source.score = parseFloat((source.score + 0.1).toFixed(1));
-  }
-};
-const minusByZeroOne = (source) => {
-  if (source.score > 0) {
-    source.score = parseFloat((source.score - 0.1).toFixed(1));
-  }
-};
-
 const updateDecimal = (score, num) => {
   if (score === 10) return 10
   const wholeNum = Math.floor(score)
@@ -64,43 +53,45 @@ onMounted(observeCards)
       >
         <!-- Score card -->
         <div
-          class="rounded-2xl border shadow-sm p-5 md:p-8 transition-all duration-200"
+          class="rounded-2xl border p-5 md:p-8 transition-all duration-200"
           :class="idx === currentIndex
-            ? 'bg-white border-primary-200 shadow-md'
-            : 'bg-surface-50 border-surface-200 opacity-70'"
+            ? 'bg-surface-800 border-primary-500/40 shadow-[0_0_0_1px_rgba(6,182,212,0.2),0_8px_32px_rgba(6,182,212,0.12)]'
+            : 'bg-surface-900 border-surface-600/30 opacity-50'"
         >
           <!-- Participant info -->
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex items-start justify-between mb-5">
             <div>
-              <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-1">
-                Audition #{{ card.auditionNumber }}
+              <div class="inline-flex items-center px-2.5 py-1 rounded-lg bg-surface-700/60 border border-surface-600/50 mb-2">
+                <span class="text-xs font-bold text-primary-400 uppercase tracking-widest">
+                  Audition #{{ card.auditionNumber }}
+                </span>
               </div>
-              <h3 class="font-heading font-bold text-xl text-surface-900">
+              <h3 class="font-heading font-bold text-2xl text-content-primary leading-tight">
                 {{ card.participantName }}
               </h3>
             </div>
             <!-- Score display -->
-            <div class="text-right">
-              <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-1">Score</div>
+            <div class="text-right flex-shrink-0 ml-4">
+              <div class="text-xs font-bold text-content-muted uppercase tracking-widest mb-1">Score</div>
               <div
-                class="text-4xl font-heading font-extrabold tabular-nums"
-                :class="card.score === 0 ? 'text-surface-300' : 'text-primary-600'"
+                class="text-6xl font-source font-extrabold tabular-nums leading-none"
+                :class="card.score === 0 ? 'text-surface-500' : 'text-primary-400'"
               >
                 {{ card.score === 0 ? '—' : card.score }}
               </div>
             </div>
           </div>
 
-          <div class="h-px bg-surface-100 mb-4"></div>
+          <div class="h-px bg-surface-600/50 mb-4"></div>
 
           <!-- Full score button -->
           <button
             :disabled="idx !== currentIndex"
             @click="card.score = 10"
-            class="w-full py-3 mb-4 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-600
+            class="w-full py-3 mb-4 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-400
                    hover:bg-primary-600 hover:text-white active:bg-primary-700 active:text-white
                    disabled:opacity-30 disabled:cursor-not-allowed
-                   transition-all duration-200"
+                   transition-all duration-200 btn-glow"
           >
             10 — Full Score
           </button>
@@ -108,8 +99,8 @@ onMounted(observeCards)
           <!-- Scoring grid -->
           <div class="grid grid-cols-2 gap-3">
             <!-- Whole numbers 1-9 -->
-            <div>
-              <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2 text-center">
+            <div class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-3">
+              <div class="text-xs font-bold text-content-secondary uppercase tracking-widest mb-2.5 text-center">
                 Whole
               </div>
               <div class="grid grid-cols-3 gap-1.5">
@@ -120,8 +111,8 @@ onMounted(observeCards)
                   @click="card.score = Number(value)"
                   class="py-2.5 rounded-xl text-sm font-bold border transition-all duration-150"
                   :class="Math.floor(card.score) === value && card.score === value
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white border-surface-200 text-surface-700 hover:border-primary-300 hover:bg-primary-50 disabled:opacity-30'"
+                    ? 'bg-primary-600 text-white border-primary-600 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
+                    : 'bg-surface-600/60 border-surface-500/50 text-content-primary hover:border-primary-500/60 hover:bg-surface-600 disabled:opacity-30'"
                 >
                   {{ value }}
                 </button>
@@ -129,8 +120,8 @@ onMounted(observeCards)
             </div>
 
             <!-- Decimals .1-.9 -->
-            <div>
-              <div class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2 text-center">
+            <div class="bg-primary-500/8 border border-primary-500/25 rounded-xl p-3">
+              <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-2.5 text-center">
                 Decimal
               </div>
               <div class="grid grid-cols-3 gap-1.5">
@@ -141,36 +132,13 @@ onMounted(observeCards)
                   @click="card.score = updateDecimal(card.score, value)"
                   class="py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150"
                   :class="(card.score * 10 % 10).toFixed(0) == value
-                    ? 'bg-surface-800 text-white border-surface-800'
-                    : 'bg-white border-surface-200 text-surface-600 hover:border-surface-300 hover:bg-surface-50 disabled:opacity-30'"
+                    ? 'bg-primary-500/30 text-primary-300 border-primary-500/60 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
+                    : 'bg-primary-500/5 border-primary-500/15 text-primary-300/70 hover:border-primary-500/40 hover:bg-primary-500/15 disabled:opacity-30'"
                 >
                   .{{ value }}
                 </button>
               </div>
             </div>
-          </div>
-
-          <!-- Fine-tune: ±0.1 -->
-          <div class="flex items-center justify-center gap-3 mt-4">
-            <button
-              :disabled="idx !== currentIndex"
-              @click="minusByZeroOne(card)"
-              class="w-10 h-10 rounded-full border border-surface-200 flex items-center justify-center
-                     text-surface-600 hover:border-surface-400 hover:bg-surface-50
-                     disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <i class="pi pi-minus text-xs"></i>
-            </button>
-            <span class="text-xs text-surface-400 font-medium">Fine tune ±0.1</span>
-            <button
-              :disabled="idx !== currentIndex"
-              @click="addByZeroOne(card, 10)"
-              class="w-10 h-10 rounded-full border border-surface-200 flex items-center justify-center
-                     text-surface-600 hover:border-surface-400 hover:bg-surface-50
-                     disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <i class="pi pi-plus text-xs"></i>
-            </button>
           </div>
         </div>
 
@@ -182,7 +150,7 @@ onMounted(observeCards)
             class="h-1 rounded-full transition-all duration-300"
             :class="i === currentIndex
               ? 'w-6 bg-primary-500'
-              : 'w-1.5 bg-surface-300'"
+              : 'w-1.5 bg-surface-600'"
           ></div>
         </div>
       </div>

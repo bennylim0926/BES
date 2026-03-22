@@ -32,18 +32,18 @@ const moveTo = (index) => {
         v-for="(card, idx) in props.cards"
         :key="idx"
         @click="moveTo(idx)"
-        class="flex items-center justify-between p-3 rounded-xl border border-surface-200
-               text-left hover:bg-primary-50 hover:border-primary-200
-               active:bg-primary-100 transition-all duration-150"
+        class="flex items-center justify-between p-3 rounded-xl border border-surface-600/50
+               bg-surface-700/50 text-left hover:bg-surface-600/60 hover:border-primary-500/40
+               active:bg-surface-600 transition-all duration-150"
       >
         <div>
-          <div class="text-sm font-semibold text-surface-800">
+          <div class="text-sm font-semibold text-content-primary">
             #{{ card.auditionNumber }} · {{ card.participantName }}
           </div>
         </div>
         <span
           class="text-sm font-bold ml-2 flex-shrink-0"
-          :class="card.score === 0 ? 'text-red-400' : 'text-primary-600'"
+          :class="card.score === 0 ? 'text-red-400' : 'text-primary-400'"
         >
           {{ card.score === 0 ? '—' : card.score }}
         </span>
