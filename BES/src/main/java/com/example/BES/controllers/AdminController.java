@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
+import com.example.BES.dtos.admin.AddFeedbackGroupDto;
+import com.example.BES.dtos.admin.AddFeedbackTagDto;
+import com.example.BES.dtos.admin.DeleteFeedbackGroupDto;
+import com.example.BES.dtos.admin.DeleteFeedbackTagDto;
+import com.example.BES.dtos.admin.GetFeedbackGroupDto;
 import com.example.BES.dtos.admin.AddGenreDto;
 import com.example.BES.dtos.admin.DeleteGenreDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
@@ -24,6 +30,7 @@ import com.example.BES.dtos.admin.UpdateGenreDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
+import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
@@ -42,6 +49,38 @@ public class AdminController {
 
     @Autowired
     ScoreService scoreService;
+
+    @Autowired
+    AuditionFeedbackService feedbackService;
+
+    // ── Feedback Tag Groups ──────────────────────────────────────────────────
+
+    @GetMapping("/feedback-groups")
+    public ResponseEntity<List<GetFeedbackGroupDto>> getFeedbackGroups() {
+        return ResponseEntity.ok(feedbackService.getAllFeedbackGroups());
+    }
+
+    @PostMapping("/feedback-group")
+    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackGroup(@RequestBody AddFeedbackGroupDto dto) {
+        return ResponseEntity.ok(feedbackService.addFeedbackGroup(dto.getName()));
+    }
+
+    @DeleteMapping("/feedback-group")
+    public ResponseEntity<?> deleteFeedbackGroup(@RequestBody DeleteFeedbackGroupDto dto) {
+        feedbackService.deleteFeedbackGroup(dto.getId());
+        return ResponseEntity.ok(Map.of("message", "deleted"));
+    }
+
+    @PostMapping("/feedback-tag")
+    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackTag(@RequestBody AddFeedbackTagDto dto) {
+        return ResponseEntity.ok(feedbackService.addFeedbackTag(dto.getGroupId(), dto.getLabel()));
+    }
+
+    @DeleteMapping("/feedback-tag")
+    public ResponseEntity<?> deleteFeedbackTag(@RequestBody DeleteFeedbackTagDto dto) {
+        feedbackService.deleteFeedbackTag(dto.getId());
+        return ResponseEntity.ok(Map.of("message", "deleted"));
+    }
 
     // Create Genre
     @PostMapping("/genre")

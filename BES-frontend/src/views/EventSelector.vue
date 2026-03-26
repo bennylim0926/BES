@@ -34,7 +34,6 @@ const handleSubmit = async () => {
   isLoading.value = true
   try {
     if (isAdmin.value || alreadyVerified.value) {
-      // Admin bypasses code check; already-verified event skips re-entry
       setActiveEvent(selectedEventId.value, selectedEvent.value.name)
       markEventVerified(selectedEventId.value)
       router.push(route.query.redirect || '/')
@@ -66,7 +65,7 @@ const handleSubmit = async () => {
 
         <!-- Header -->
         <div class="mb-8">
-          <h1 class="font-heading font-bold text-surface-900 text-2xl mb-1">Select Event</h1>
+          <h1 class="font-heading font-bold text-content-primary text-2xl mb-1">Select Event</h1>
           <p class="text-muted text-sm">Choose the event you are working on today</p>
         </div>
 
@@ -74,7 +73,7 @@ const handleSubmit = async () => {
 
           <!-- Event list -->
           <div>
-            <label class="block text-sm font-semibold text-surface-700 mb-2">Event</label>
+            <label class="block text-sm font-semibold text-content-secondary mb-2">Event</label>
             <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
               <button
                 v-for="event in events"
@@ -84,14 +83,14 @@ const handleSubmit = async () => {
                 :class="[
                   'w-full text-left px-4 py-3 rounded-xl border transition-all duration-150',
                   selectedEventId === event.id
-                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                    : 'border-surface-200 bg-white hover:border-primary-300 hover:bg-surface-50 text-surface-800'
+                    ? 'border-primary-500 bg-primary-100 text-primary-400 font-semibold'
+                    : 'border-surface-600 bg-surface-700 hover:border-primary-500/50 hover:bg-surface-600 text-content-primary'
                 ]"
               >
                 <span class="font-heading text-sm">{{ event.name }}</span>
                 <span
                   v-if="isAdmin && event.accessCode"
-                  class="ml-2 font-source text-xs text-surface-500 tracking-widest"
+                  class="ml-2 font-source text-xs text-content-muted tracking-widest"
                 >
                   ({{ event.accessCode }})
                 </span>
@@ -103,15 +102,15 @@ const handleSubmit = async () => {
           <!-- Already verified chip -->
           <div
             v-if="alreadyVerified && !isAdmin"
-            class="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950 border border-emerald-800/50"
           >
-            <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
-            <span class="text-emerald-700 text-sm font-medium">Already verified — you can proceed directly</span>
+            <i class="pi pi-check-circle text-emerald-400 text-sm"></i>
+            <span class="text-emerald-400 text-sm font-medium">Already verified — you can proceed directly</span>
           </div>
 
           <!-- Access code input (non-admin, not yet verified) -->
           <div v-if="selectedEventId !== null && !isAdmin && !alreadyVerified">
-            <label class="block text-sm font-semibold text-surface-700 mb-2">Access Code</label>
+            <label class="block text-sm font-semibold text-content-secondary mb-2">Access Code</label>
             <input
               v-model="accessCode"
               type="text"
@@ -124,13 +123,17 @@ const handleSubmit = async () => {
           </div>
 
           <!-- Error -->
-          <p v-if="error" class="text-sm text-red-600 font-medium">{{ error }}</p>
+          <p v-if="error" class="text-sm text-red-400 font-medium">{{ error }}</p>
 
           <!-- Submit -->
           <button
             type="submit"
             :disabled="isLoading || !selectedEventId"
-            class="btn-primary w-full active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white
+                   bg-primary-600 hover:bg-primary-700 active:scale-95
+                   disabled:opacity-50 disabled:cursor-not-allowed
+                   transition-all duration-200 btn-glow
+                   flex items-center justify-center gap-2"
           >
             <span v-if="isLoading">
               <i class="pi pi-spin pi-spinner mr-2"></i>Verifying…

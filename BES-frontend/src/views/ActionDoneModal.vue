@@ -10,10 +10,10 @@ const props = defineProps({
 defineEmits(['close', 'accept'])
 
 const iconConfig = {
-  info:    { icon: 'pi-info-circle',         color: 'text-primary-500',   bg: 'bg-primary-50'  },
-  success: { icon: 'pi-check-circle',         color: 'text-emerald-500',   bg: 'bg-emerald-50'  },
-  error:   { icon: 'pi-times-circle',         color: 'text-red-500',       bg: 'bg-red-50'      },
-  warning: { icon: 'pi-exclamation-triangle', color: 'text-amber-500',     bg: 'bg-amber-50'    },
+  info:    { icon: 'pi-info-circle',         color: 'text-primary-400',   bg: 'bg-primary-100'  },
+  success: { icon: 'pi-check-circle',         color: 'text-emerald-400',   bg: 'bg-emerald-950'  },
+  error:   { icon: 'pi-times-circle',         color: 'text-red-400',       bg: 'bg-red-950'      },
+  warning: { icon: 'pi-exclamation-triangle', color: 'text-amber-400',     bg: 'bg-amber-950'    },
 }
 </script>
 
@@ -33,14 +33,14 @@ const iconConfig = {
     >
       <!-- Backdrop -->
       <div
-        class="absolute inset-0 bg-surface-900/50 backdrop-blur-sm"
+        class="absolute inset-0 bg-surface-950/80 backdrop-blur-sm"
         @click="$emit('close')"
       ></div>
 
       <!-- Card (scale-in on mount) -->
       <div
         class="relative w-full max-w-md max-h-[90vh] overflow-y-auto
-               bg-white rounded-2xl shadow-2xl border border-surface-200/60
+               bg-surface-800 rounded-2xl shadow-2xl border border-surface-600/40
                animate-scale-in"
       >
         <!-- Header -->
@@ -58,15 +58,15 @@ const iconConfig = {
                 ]"
               ></i>
             </div>
-            <h3 class="text-lg font-heading font-bold text-surface-900 leading-snug">
+            <h3 class="text-lg font-heading font-bold text-content-primary leading-snug">
               {{ title }}
             </h3>
           </div>
 
           <button
             @click="$emit('close')"
-            class="flex-shrink-0 ml-4 p-1.5 rounded-lg text-surface-400
-                   hover:text-surface-600 hover:bg-surface-100
+            class="flex-shrink-0 ml-4 p-1.5 rounded-lg text-content-muted
+                   hover:text-content-secondary hover:bg-surface-700
                    transition-colors duration-150"
           >
             <i class="pi pi-times text-sm"></i>
@@ -74,7 +74,7 @@ const iconConfig = {
         </div>
 
         <!-- Body -->
-        <div class="px-6 pb-2 text-surface-600 text-sm leading-relaxed whitespace-pre-line">
+        <div class="px-6 pb-2 text-content-secondary text-sm leading-relaxed whitespace-pre-line">
           <slot />
         </div>
 

@@ -32,6 +32,7 @@ public class ScoreService {
         List<Score> scoreList = repo.findbyEvent(eventName);
         List<GetParticipatnScoreDto> scoreListDto = new ArrayList<>();
         for(Score s : scoreList){
+            if (s.getJudge() == null || s.getEventGenreParticipant() == null) continue;
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
             dto.eventName = s.getEventGenreParticipant().getEvent().getEventName();
             dto.genreName = s.getEventGenreParticipant().getGenre().getGenreName();
@@ -47,6 +48,7 @@ public class ScoreService {
         for(ParticipantScoreDto d : dto.participantScore){
             EventGenreParticipant record = eventGenreParticpantRepo.findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName).orElse(null);
             Judge judge = judgeRepo.findByName(dto.judgeName).orElse(null);
+            if(record == null || judge == null) continue;
             Score score = repo.findByEventGenreParticipantAndJudge(record,judge).orElse(null);
             if(score == null){
                 Score newScore = new Score();

@@ -58,6 +58,12 @@ const editScore = (name) => {
   showSubmitScore.value = !showSubmitScore.value
 }
 
+const onScoreUpdated = async () => {
+  showSubmitScore.value = false
+  const res = await getParticipantScore(selectedEvent.value)
+  participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+}
+
 const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName);
   return [...new Set(genres)].sort();
@@ -436,23 +442,34 @@ function transformForScore(data) {
 
     <!-- By Judge: separate tables per judge -->
     <template v-if="selectedTabulation === 'By Judge'">
-      <div
-        v-for="(group, judge) in filteredParticipantsForScore.byJudge"
-        :key="judge"
-        class="mb-8"
-      >
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
-            <i class="pi pi-user text-content-secondary text-xs"></i>
+      <template v-if="filteredParticipantsForScore.byJudge && Object.keys(filteredParticipantsForScore.byJudge).length > 0">
+        <div
+          v-for="(group, judge) in filteredParticipantsForScore.byJudge"
+          :key="judge"
+          class="mb-8"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
+              <i class="pi pi-user text-content-secondary text-xs"></i>
+            </div>
+            <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
+            <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
           </div>
-          <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
-          <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
+          <DynamicTable
+            @onClick="editScore"
+            v-model:tableValue="group.rows"
+            :tableConfig="group.columns"
+          />
         </div>
-        <DynamicTable
-          @onClick="editScore"
-          v-model:tableValue="group.rows"
-          :tableConfig="group.columns"
-        />
+      </template>
+
+      <!-- Empty state -->
+      <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+          <i class="pi pi-chart-bar text-content-muted text-xl"></i>
+        </div>
+        <p class="font-heading font-semibold text-content-secondary">No scores yet</p>
+        <p class="text-muted text-sm mt-1">Select an event and genre to view scores</p>
       </div>
     </template>
 
@@ -464,7 +481,7 @@ function transformForScore(data) {
     title="Update Score"
     :genre="selectedGenre"
     :name="selectedParticipant"
-    @updateScore="showSubmitScore = false"
+    @updateScore="onScoreUpdated"
     @close="showSubmitScore = false"
   />
 </template>

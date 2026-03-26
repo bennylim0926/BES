@@ -3,10 +3,11 @@ import { ref, nextTick, onMounted } from 'vue';
 import { capsFirstLetter } from '@/utils/utils';
 
 const props = defineProps({
-  cards: { type: Array, required: true },
+  cards:        { type: Array,  required: true },
+  feedbackData: { type: Object, default: () => new Map() }, // Map of auditionNumber → { tagIds, note, tagLabels }
 });
 
-const emit = defineEmits(['update:cards']);
+const emit = defineEmits(['update:cards', 'open-feedback', 'remove-tag']);
 
 const scrollRef = ref(null)
 const currentIndex = ref(0)
@@ -70,15 +71,72 @@ onMounted(observeCards)
                 {{ card.participantName }}
               </h3>
             </div>
-            <!-- Score display -->
-            <div class="text-right flex-shrink-0 ml-4">
-              <div class="text-xs font-bold text-content-muted uppercase tracking-widest mb-1">Score</div>
-              <div
-                class="text-6xl font-source font-extrabold tabular-nums leading-none"
-                :class="card.score === 0 ? 'text-surface-500' : 'text-primary-400'"
+            <!-- Score display + feedback button -->
+            <div class="text-right flex-shrink-0 ml-4 flex flex-col items-end gap-2">
+              <!-- Feedback button -->
+              <button
+                @click.stop="emit('open-feedback', card)"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all duration-150"
+                :class="feedbackData?.get(card.auditionNumber)
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                  : 'bg-surface-700/60 border-surface-600/50 text-surface-400 hover:text-primary-400 hover:border-primary-500/50'"
+                title="Leave feedback"
               >
-                {{ card.score === 0 ? '—' : card.score }}
+                <i class="pi pi-comment text-xs" />
+                <span>{{ feedbackData?.get(card.auditionNumber) ? 'Edit Feedback' : 'Feedback' }}</span>
+              </button>
+              <!-- Score display -->
+              <div>
+                <div class="text-xs font-bold text-content-muted uppercase tracking-widest mb-1">Score</div>
+                <div
+                  class="text-6xl font-source font-extrabold tabular-nums leading-none"
+                  :class="card.score === 0 ? 'text-surface-500' : 'text-primary-400'"
+                >
+                  {{ card.score === 0 ? '—' : card.score }}
+                </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Feedback preview -->
+          <div
+            v-if="feedbackData?.get(card.auditionNumber)"
+            class="mb-4 p-3 rounded-xl bg-surface-700/30 border border-surface-600/40"
+          >
+            <!-- Tags -->
+            <div
+              v-if="feedbackData.get(card.auditionNumber).tagLabels?.length"
+              class="flex flex-wrap gap-1.5"
+              :class="feedbackData.get(card.auditionNumber).note ? 'mb-2' : ''"
+            >
+              <span
+                v-for="tag in feedbackData.get(card.auditionNumber).tagLabels"
+                :key="tag.id"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary-500/15 text-primary-300 border border-primary-500/30"
+              >
+                {{ tag.label }}
+                <button
+                  @click.stop="emit('remove-tag', { auditionNumber: card.auditionNumber, tagId: tag.id })"
+                  class="ml-0.5 text-primary-400/50 hover:text-red-400 transition-colors"
+                  title="Remove tag"
+                >
+                  <i class="pi pi-times text-[10px]" />
+                </button>
+              </span>
+            </div>
+            <!-- Note -->
+            <div v-if="feedbackData.get(card.auditionNumber).note" class="flex items-start gap-2">
+              <i class="pi pi-align-left text-xs text-surface-400 mt-0.5 flex-shrink-0" />
+              <p class="text-xs text-surface-300 leading-relaxed flex-1 line-clamp-2">
+                {{ feedbackData.get(card.auditionNumber).note }}
+              </p>
+              <button
+                @click.stop="emit('open-feedback', card)"
+                class="text-surface-400 hover:text-primary-400 transition-colors flex-shrink-0"
+                title="Edit note"
+              >
+                <i class="pi pi-pencil text-xs" />
+              </button>
             </div>
           </div>
 

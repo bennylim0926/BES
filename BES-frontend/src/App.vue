@@ -68,6 +68,22 @@ function changeEvent() {
   router.push({ name: 'EventSelector' })
 }
 
+// ── Theme ───────────────────────────────────────────────────────────────────
+const theme = ref(localStorage.getItem('bes-theme') || 'dark')
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t)
+  localStorage.setItem('bes-theme', t)
+}
+
+function toggleTheme() {
+  const html = document.documentElement
+  html.classList.add('theme-transition')
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  applyTheme(theme.value)
+  setTimeout(() => html.classList.remove('theme-transition'), 300)
+}
+
 // ── Watchers ───────────────────────────────────────────────────────────────
 watch(route, () => {
   isOpen.value = false
@@ -76,6 +92,7 @@ watch(route, () => {
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(async () => {
+  applyTheme(theme.value)
   try {
     const res = await whoami()
     authStore.login(res)
@@ -92,9 +109,9 @@ onMounted(async () => {
   <nav
     v-if="!hideNav"
     class="fixed top-0 left-0 w-full z-40
-           bg-white/85 backdrop-blur-lg
-           border-b border-surface-200/80
-           shadow-[0_1px_12px_rgba(0,0,0,0.06)]
+           bg-surface-900/90 backdrop-blur-lg
+           border-b border-surface-600/30
+           shadow-[0_1px_20px_rgba(0,0,0,0.5)]
            transition-all duration-300"
   >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -105,9 +122,10 @@ onMounted(async () => {
           <div
             class="w-8 h-8 rounded-lg bg-primary-500 text-white
                    flex items-center justify-center font-anton text-xl
-                   shadow-md group-hover:scale-105 transition-transform duration-200"
+                   group-hover:scale-105 transition-transform duration-200"
+            style="box-shadow: 0 0 12px rgba(6,182,212,0.4);"
           >B</div>
-          <span class="font-anton text-2xl text-surface-900 tracking-wide translate-y-[2px]">
+          <span class="font-anton text-2xl text-content-primary tracking-wide translate-y-[2px]">
             BES
           </span>
         </router-link>
@@ -120,8 +138,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-home text-xs"></i> Home
             </span>
@@ -136,8 +154,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-calendar text-xs"></i> Events
             </span>
@@ -152,8 +170,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-users text-xs"></i> Participants
             </span>
@@ -168,8 +186,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-list text-xs"></i> Audition
             </span>
@@ -184,8 +202,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-chart-bar text-xs"></i> Scoreboard
             </span>
@@ -200,8 +218,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-bolt text-xs"></i> Battle
             </span>
@@ -216,8 +234,8 @@ onMounted(async () => {
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                      transition-all duration-200 cursor-pointer"
               :class="isActive
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'"
+                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
             >
               <i class="pi pi-cog text-xs"></i> Admin
             </span>
@@ -233,9 +251,9 @@ onMounted(async () => {
             v-if="isAuthenticated && activeEvent"
             @click="changeEvent"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                   bg-surface-100 border border-surface-200 text-surface-700
-                   text-xs font-medium hover:bg-primary-50 hover:border-primary-200
-                   hover:text-primary-700 transition-all duration-200 max-w-[160px]"
+                   bg-surface-700 border border-surface-600 text-content-secondary
+                   text-xs font-medium hover:bg-primary-100 hover:border-primary-500/50
+                   hover:text-primary-400 transition-all duration-200 max-w-[160px]"
             title="Click to change event"
           >
             <i class="pi pi-calendar-clock text-xs flex-shrink-0"></i>
@@ -247,15 +265,26 @@ onMounted(async () => {
           <span
             v-if="isAuthenticated && roleDisplay"
             class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                   bg-surface-100 text-surface-600 border border-surface-200"
+                   bg-surface-700 text-content-secondary border border-surface-600"
           >
             {{ roleDisplay.label }}
           </span>
 
+          <!-- Theme toggle -->
+          <button
+            @click="toggleTheme"
+            class="inline-flex items-center justify-center w-9 h-9 rounded-lg
+                   text-content-muted hover:text-content-primary hover:bg-surface-700
+                   transition-all duration-200"
+            :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          >
+            <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+          </button>
+
           <router-link v-if="!isAuthenticated" to="/login">
             <span
               class="px-4 py-2 rounded-lg text-sm font-semibold text-white
-                     bg-primary-500 hover:bg-primary-600 transition-colors shadow-sm cursor-pointer"
+                     bg-primary-500 hover:bg-primary-600 transition-colors shadow-sm cursor-pointer btn-glow"
             >
               Login
             </span>
@@ -265,7 +294,7 @@ onMounted(async () => {
             v-if="isAuthenticated"
             @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
             class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                   text-surface-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200"
           >
             <i class="pi pi-sign-out text-xs"></i>
             <span>Logout</span>
@@ -277,7 +306,7 @@ onMounted(async () => {
         <button
           @click="isOpen = !isOpen"
           class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg
-                 text-surface-500 hover:text-surface-900 hover:bg-surface-100
+                 text-content-muted hover:text-content-primary hover:bg-surface-700
                  transition-colors focus:outline-none"
         >
           <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'"></i>
@@ -297,8 +326,8 @@ onMounted(async () => {
     >
       <div
         v-show="isOpen"
-        class="md:hidden border-t border-surface-200
-               bg-white/95 backdrop-blur-md shadow-lg"
+        class="md:hidden border-t border-surface-600/30
+               bg-surface-900/98 backdrop-blur-md shadow-lg"
       >
         <div class="px-3 py-3 space-y-0.5">
 
@@ -308,9 +337,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-home w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-home w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Home
             </span>
           </router-link>
@@ -325,9 +354,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-calendar w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-calendar w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Events
             </span>
           </router-link>
@@ -342,9 +371,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-users w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-users w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Participants
             </span>
           </router-link>
@@ -359,9 +388,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-list w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-list w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Audition
             </span>
           </router-link>
@@ -376,9 +405,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-chart-bar w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-chart-bar w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Scoreboard
             </span>
           </router-link>
@@ -393,9 +422,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-bolt w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-bolt w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Battle
             </span>
           </router-link>
@@ -410,9 +439,9 @@ onMounted(async () => {
                      transition-colors duration-150 cursor-pointer"
               :class="isActive
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-700 hover:bg-surface-100'"
+                : 'text-content-secondary hover:bg-surface-700/60'"
             >
-              <i class="pi pi-cog w-4" :class="isActive ? 'text-white' : 'text-surface-400'"></i>
+              <i class="pi pi-cog w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
               Admin
             </span>
           </router-link>
@@ -420,15 +449,15 @@ onMounted(async () => {
         </div>
 
         <!-- Mobile auth row -->
-        <div class="px-3 py-3 border-t border-surface-100">
+        <div class="px-3 py-3 border-t border-surface-600/30">
           <!-- Active event chip (mobile) -->
           <button
             v-if="isAuthenticated && activeEvent"
             @click="changeEvent"
             class="w-full flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl
-                   bg-surface-50 border border-surface-200 text-surface-700
-                   text-sm font-medium hover:bg-primary-50 hover:border-primary-200
-                   hover:text-primary-700 transition-all duration-200"
+                   bg-surface-700 border border-surface-600 text-content-secondary
+                   text-sm font-medium hover:bg-primary-100 hover:border-primary-500/50
+                   hover:text-primary-400 transition-all duration-200"
             title="Click to change event"
           >
             <i class="pi pi-calendar-clock text-sm flex-shrink-0"></i>
@@ -436,17 +465,29 @@ onMounted(async () => {
             <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60"></i>
           </button>
           <div v-if="isAuthenticated" class="flex items-center justify-between">
-            <span
-              v-if="roleDisplay"
-              class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                     bg-surface-100 text-surface-600 border border-surface-200"
-            >
-              {{ roleDisplay.label }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span
+                v-if="roleDisplay"
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
+                       bg-surface-700 text-content-secondary border border-surface-600"
+              >
+                {{ roleDisplay.label }}
+              </span>
+              <!-- Theme toggle (mobile) -->
+              <button
+                @click="toggleTheme"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg
+                       text-content-muted hover:text-content-primary hover:bg-surface-700
+                       transition-all duration-200"
+                :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+              >
+                <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+              </button>
+            </div>
             <button
               @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
               class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
-                     text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
+                     text-red-400 bg-red-950 hover:bg-red-900 transition-colors cursor-pointer"
             >
               <i class="pi pi-sign-out"></i> Logout
             </button>
@@ -454,7 +495,7 @@ onMounted(async () => {
           <router-link v-else to="/login">
             <span
               class="flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold
-                     text-white bg-primary-500 hover:bg-primary-600 transition-colors w-full"
+                     text-white bg-primary-500 hover:bg-primary-600 transition-colors w-full btn-glow"
             >
               Login
             </span>
@@ -476,9 +517,13 @@ onMounted(async () => {
   <!-- Navbar height spacer -->
   <div v-if="!hideNav" class="h-16"></div>
 
-  <!-- Main Content -->
+  <!-- Main Content with page transitions -->
   <main>
-    <router-view />
+    <RouterView v-slot="{ Component, route }">
+      <Transition name="page-fade">
+        <component :is="Component" :key="route.path" />
+      </Transition>
+    </RouterView>
   </main>
 
   <!-- Global Logout Confirmation Modal -->
@@ -489,6 +534,6 @@ onMounted(async () => {
     @accept="handleAccept"
     @close="showModal = false"
   >
-    <p class="text-surface-600 leading-relaxed">{{ modalMessage }}</p>
+    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
 </template>

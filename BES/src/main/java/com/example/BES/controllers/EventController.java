@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +21,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.GetJudgingModeDto;
+import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
@@ -44,6 +48,7 @@ import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
+import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
@@ -54,7 +59,9 @@ import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
+import com.example.BES.dtos.GetAuditionFeedbackDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
+import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
@@ -100,6 +107,9 @@ public class EventController {
     @Autowired
     EmailTemplateService emailTemplateService;
 
+    @Autowired
+    AuditionFeedbackService feedbackService;
+
     private static final Gson gson = new Gson();
 
     @Operation(summary = "Check Event Exists", description = "Returns true if an event with the given name exists")
@@ -123,6 +133,28 @@ public class EventController {
         try {
             boolean valid = eventService.verifyAccessCode(dto.eventId, dto.accessCode);
             return ResponseEntity.ok(java.util.Map.of("valid", valid));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Judging Mode", description = "Returns the current judging mode (SOLO/PAIR) for an event")
+    @GetMapping("/judging-mode/{eventName}")
+    public ResponseEntity<GetJudgingModeDto> getJudgingMode(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(eventService.getJudgingMode(eventName), HttpStatus.OK);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return new ResponseEntity<>(null, e.getStatusCode());
+        }
+    }
+
+    @Operation(summary = "Set Judging Mode", description = "Sets the judging mode (SOLO/PAIR) for an event (admin only)")
+    @PostMapping("/judging-mode")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setJudgingMode(@RequestBody UpdateJudgingModeDto dto) {
+        try {
+            eventService.setJudgingMode(dto.eventName, dto.judgingMode);
+            return ResponseEntity.ok(java.util.Map.of("message", "Judging mode updated"));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
         }
@@ -402,5 +434,22 @@ public class EventController {
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
+    }
+
+    @Operation(summary = "Submit Audition Feedback", description = "Saves or updates judge feedback tags and note for a participant")
+    @PostMapping("/feedback")
+    public ResponseEntity<?> submitFeedback(@RequestBody SubmitAuditionFeedbackDto dto) {
+        feedbackService.submitFeedback(dto);
+        return ResponseEntity.ok(Map.of("message", "feedback saved"));
+    }
+
+    @Operation(summary = "Get Audition Feedback", description = "Returns existing feedback tag IDs and note for a participant/judge combination")
+    @GetMapping("/feedback")
+    public ResponseEntity<GetAuditionFeedbackDto> getFeedback(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String judgeName,
+            @RequestParam Integer auditionNumber) {
+        return ResponseEntity.ok(feedbackService.getFeedback(eventName, genreName, judgeName, auditionNumber));
     }
 }

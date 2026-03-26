@@ -1,5 +1,3 @@
-import { file } from "@primeuix/themes/aura/fileupload"
-
 // const domain = "http://localhost:5050"
 const domain = ""
 
@@ -317,11 +315,11 @@ export const getParticipantScore = async(eventName) =>{
       })
       if(res.ok){
           return await res.json()
-      }else if (res.status === 404) {
-          return []
       }
+      return []
     }catch(e){
         console.log(e)
+        return []
     }
 }
 
@@ -658,5 +656,59 @@ export const updateEventAccessCode = async (eventId, newCode) => {
     return await res.json()
   } catch (err) {
     console.log(err)
+  }
+}
+
+export const getJudgingMode = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/judging-mode/${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const setJudgingMode = async (eventName, mode) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/judging-mode`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventName, judgingMode: mode })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const submitAuditionFeedback = async (eventName, genreName, judgeName, auditionNumber, tagIds, note) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/feedback`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName, judgeName, auditionNumber, tagIds, note })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const getAuditionFeedback = async (eventName, genreName, judgeName, auditionNumber) => {
+  try {
+    const params = new URLSearchParams({ eventName, genreName, judgeName, auditionNumber })
+    const res = await fetch(`${domain}/api/v1/event/feedback?${params}`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
   }
 }

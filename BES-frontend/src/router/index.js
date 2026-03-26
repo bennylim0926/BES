@@ -16,7 +16,7 @@ import Chart from "@/views/Chart.vue";
 import AdminPage from "@/views/AdminPage.vue";
 import EventSelector from "@/views/EventSelector.vue";
 import { whoami } from "@/utils/api";
-import { getActiveEvent } from "@/utils/auth";
+import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
 const routes = [
     {
@@ -118,7 +118,12 @@ const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'S
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
     try {
-        const user = await whoami()
+        const authStore = useAuthStore()
+        let user = authStore.user
+        if (!user) {
+            user = await whoami()
+            if (user?.authenticated) authStore.login(user)
+        }
         if (!user || !user.authenticated) return { name: 'Login' }
 
         const userRole = user.role?.[0]?.authority

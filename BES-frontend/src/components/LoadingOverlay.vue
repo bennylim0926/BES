@@ -1,12 +1,12 @@
 <template>
   <div
     class="fixed inset-0 z-[100] flex items-center justify-center
-           bg-surface-900/40 backdrop-blur-sm"
+           bg-surface-950/70 backdrop-blur-sm"
   >
     <!-- Floating card -->
     <div
-      class="flex items-center gap-3.5 bg-white rounded-2xl
-             px-7 py-5 shadow-2xl border border-surface-200/60
+      class="flex items-center gap-3.5 bg-surface-800 rounded-2xl
+             px-7 py-5 shadow-2xl border border-surface-600/40
              animate-scale-in"
     >
       <!-- Circular spinner -->
@@ -30,7 +30,7 @@
         />
       </svg>
 
-      <span class="text-surface-700 font-semibold text-sm tracking-wide">
+      <span class="text-content-secondary font-semibold text-sm tracking-wide">
         <slot>Loading…</slot>
       </span>
     </div>

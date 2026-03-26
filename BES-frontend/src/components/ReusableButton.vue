@@ -2,7 +2,7 @@
 /**
  * Button variants follow the 60-30-10 color rule:
  *   primary   → cyan brand color  (the ONE "do this" action)
- *   secondary → dark navy fill    (strong secondary — no competing hue)
+ *   secondary → dark surface fill  (strong secondary — no competing hue)
  *   ghost     → transparent + cyan text  (soft tertiary)
  *   outline   → bordered, neutral text   (low-emphasis action)
  *   danger    → red fill          (destructive / irreversible only)
@@ -25,16 +25,16 @@ const sizeMap = {
 }
 
 const variantMap = {
-  // Cyan brand — primary-600 base (primary-500 fails WCAG contrast with white text)
-  primary:   'bg-primary-600 hover:bg-primary-700 active:bg-primary-700 text-white shadow-sm hover:shadow-md focus:ring-primary-600/40',
-  // Dark navy — secondary solid action (no hue conflict with cyan)
-  secondary: 'bg-surface-800 hover:bg-surface-900 active:bg-surface-900 text-white shadow-sm hover:shadow-md focus:ring-surface-700/40',
+  // Cyan brand — primary-600 base
+  primary:   'bg-primary-600 hover:bg-primary-700 active:bg-primary-700 text-white shadow-sm hover:shadow-md focus:ring-primary-600/40 btn-glow',
+  // Dark surface — secondary solid action
+  secondary: 'bg-surface-600 hover:bg-surface-500 active:bg-surface-500 text-content-primary shadow-sm hover:shadow-md focus:ring-surface-500/40',
   // Transparent — tertiary / text-button style
-  ghost:     'bg-transparent text-primary-600 hover:bg-primary-50 active:bg-primary-100 focus:ring-primary-500/40',
+  ghost:     'bg-transparent text-primary-400 hover:bg-primary-100 active:bg-primary-100 focus:ring-primary-500/40',
   // Bordered — secondary action with low fill weight
-  outline:   'bg-white border border-surface-300 text-surface-700 hover:bg-surface-50 hover:border-surface-400 active:bg-surface-100 focus:ring-surface-400/40',
+  outline:   'bg-transparent border border-surface-500 text-content-secondary hover:bg-surface-700 hover:border-surface-400 active:bg-surface-700 focus:ring-surface-400/40',
   // Red — destructive actions only
-  danger:    'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white shadow-sm hover:shadow-md focus:ring-red-500/40',
+  danger:    'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white shadow-sm hover:shadow-md focus:ring-red-500/40 btn-glow',
 }
 </script>
 
@@ -46,7 +46,7 @@ const variantMap = {
              transition-all duration-200
              active:scale-95
              disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
-             focus:outline-none focus:ring-2 focus:ring-offset-1"
+             focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-surface-800"
       :class="[sizeMap[props.size], variantMap[props.variant]]"
       @click="emit('onClick')"
     >

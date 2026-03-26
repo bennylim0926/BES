@@ -15,7 +15,9 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Data
@@ -54,6 +56,8 @@ public class EventGenreParticipant {
     private Judge judge;
 
     // NEW: multiple aspect scores
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "eventGenreParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Score> scores;
 }

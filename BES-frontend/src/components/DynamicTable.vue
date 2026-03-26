@@ -61,10 +61,10 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 </script>
 
 <template>
-  <div class="w-full overflow-x-auto rounded-xl border border-surface-200/80 shadow-sm">
-    <table class="min-w-full text-sm text-surface-900">
+  <div class="w-full overflow-x-auto rounded-xl border border-surface-600/50 shadow-sm">
+    <table class="min-w-full text-sm text-content-primary">
       <thead>
-        <tr class="bg-surface-800 text-white">
+        <tr class="bg-surface-900 text-content-secondary">
           <th
             v-for="col in props.tableConfig"
             :key="col.key"
@@ -74,11 +74,11 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
           </th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-surface-100">
+      <tbody class="divide-y divide-surface-600/30">
         <tr
           v-for="(row, rowIndex) in rows"
           :key="rowIndex"
-          class="bg-white even:bg-surface-50 hover:bg-primary-50 transition-colors duration-150"
+          class="bg-surface-800 even:bg-surface-700/40 hover:bg-primary-100/30 transition-colors duration-150"
         >
           <td
             v-for="col in props.tableConfig"
@@ -87,7 +87,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
           >
             <!-- Read-only -->
             <template v-if="col.readonly">
-              <span class="text-surface-700">
+              <span class="text-content-secondary">
                 {{ row[col.key] !== null && row[col.key] !== undefined && row[col.key] !== ''
                   ? capsFirst(row[col.key])
                   : '—' }}
@@ -98,7 +98,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
             <template v-else-if="col.type === 'link'">
               <button
                 @click="emit('onClick', row[col.key])"
-                class="text-primary-600 hover:text-primary-700 font-medium hover:underline focus:outline-none"
+                class="text-primary-400 hover:text-primary-300 font-medium hover:underline focus:outline-none"
               >
                 {{ row[col.key] }}
               </button>
@@ -139,7 +139,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
               <button
                 @click="row[col.key] = !row[col.key]"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-                :class="row[col.key] ? 'bg-primary-500' : 'bg-surface-300'"
+                :class="row[col.key] ? 'bg-primary-500' : 'bg-surface-500'"
               >
                 <span
                   class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
@@ -150,7 +150,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
 
             <!-- Fallback -->
             <template v-else>
-              <span class="text-surface-700">{{ row[col.key] }}</span>
+              <span class="text-content-secondary">{{ row[col.key] }}</span>
             </template>
           </td>
         </tr>
@@ -159,7 +159,7 @@ const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type:
         <tr v-if="rows.length === 0">
           <td
             :colspan="props.tableConfig.length"
-            class="px-4 py-10 text-center text-surface-400 text-sm"
+            class="px-4 py-10 text-center text-content-muted text-sm"
           >
             <i class="pi pi-inbox text-2xl block mb-2 opacity-40"></i>
             No data available

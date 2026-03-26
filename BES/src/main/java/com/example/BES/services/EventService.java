@@ -6,12 +6,14 @@ import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.example.BES.models.Event;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
+import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.respositories.EventRepo;
 
 @Service
@@ -21,6 +23,9 @@ public class EventService {
 
     @Autowired
     EmailTemplateService emailTemplateService;
+
+    @Autowired
+    SimpMessagingTemplate messagingTemplate;
 
     public void createEventService(AddEventDto dto){
         if (repo.findByEventName(dto.eventName).isPresent()) return;
@@ -66,6 +71,21 @@ public class EventService {
         Event event = repo.findById(eventId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         return event.getAccessCode().equals(code);
+    }
+
+    public GetJudgingModeDto getJudgingMode(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        return new GetJudgingModeDto(event.getEventName(), event.getJudgingMode());
+    }
+
+    public void setJudgingMode(String eventName, String mode) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        event.setJudgingMode(mode);
+        repo.save(event);
+        messagingTemplate.convertAndSend("/topic/judging-mode/",
+            java.util.Map.of("eventName", eventName, "judgingMode", mode));
     }
 
     public void updateAccessCode(Long eventId, String newCode){
