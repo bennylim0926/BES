@@ -14,7 +14,7 @@ public class EventParticipantDtoMapper {
         List<GetParticipantByEventDto> res = new ArrayList<>();
         for(EventParticipant eP : results){
             GetParticipantByEventDto dto = new GetParticipantByEventDto();
-            dto.name = eP.getParticipant().getParticipantName();
+            dto.name = eP.getDisplayName();
             dto.residency = eP.getResidency();
             dto.genre = eP.getGenre();
             res.add(dto);

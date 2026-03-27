@@ -50,6 +50,9 @@ public class EventGenreParticipant {
     })
     private EventGenre eventGenre;
 
+    @Column(name = "display_name")
+    private String displayName;
+
     private Integer auditionNumber;
     @ManyToOne
     @JoinColumn(name = "judge_id", nullable = true)

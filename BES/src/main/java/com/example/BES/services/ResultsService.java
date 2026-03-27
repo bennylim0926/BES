@@ -51,7 +51,10 @@ public class ResultsService {
 
             List<GetResultsDto.ScoreEntry> scoreEntries = scores.stream()
                 .filter(s -> s.getJudge() != null)
-                .map(s -> new GetResultsDto.ScoreEntry(s.getJudge().getName(), s.getValue()))
+                .map(s -> new GetResultsDto.ScoreEntry(
+                        s.getJudge().getName(),
+                        s.getValue(),
+                        s.getAspect() != null ? s.getAspect() : ""))
                 .collect(Collectors.toList());
 
             List<GetResultsDto.FeedbackEntry> feedbackEntries = new ArrayList<>();
@@ -73,7 +76,7 @@ public class ResultsService {
         }
 
         return new GetResultsDto(
-            ep.getParticipant().getParticipantName(),
+            ep.getDisplayName(),
             ep.getEvent().getEventName(),
             genreResults
         );

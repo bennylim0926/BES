@@ -38,10 +38,30 @@ const lookup = async () => {
   }
 }
 
+const isMultiCriteria = (scores) => scores?.some(s => s.aspect && s.aspect !== '')
+
 const totalScore = (scores) => {
   if (!scores || scores.length === 0) return '—'
+  if (isMultiCriteria(scores)) {
+    // For multi-criteria: sum the per-judge averages
+    const byJudge = groupScoresByJudge(scores)
+    const total = Object.values(byJudge).reduce((acc, aspects) => {
+      const vals = Object.values(aspects)
+      return acc + vals.reduce((s, v) => s + v, 0) / vals.length
+    }, 0)
+    return Number(total.toFixed(1))
+  }
   const sum = scores.reduce((acc, s) => acc + (s.score ?? 0), 0)
   return Number(sum.toFixed(1))
+}
+
+const groupScoresByJudge = (scores) => {
+  const byJudge = {}
+  for (const s of scores) {
+    if (!byJudge[s.judgeName]) byJudge[s.judgeName] = {}
+    byJudge[s.judgeName][s.aspect || 'Score'] = s.score
+  }
+  return byJudge
 }
 
 const groupTags = (tags) => {
@@ -148,16 +168,43 @@ const groupTags = (tags) => {
           <!-- Scores -->
           <div v-if="genre.scores && genre.scores.length > 0" class="mb-4">
             <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">Scores</p>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <div
-                v-for="score in genre.scores"
-                :key="score.judgeName"
-                class="rounded-xl bg-surface-700/50 border border-surface-600/40 px-3 py-2.5"
-              >
-                <p class="text-xs text-content-muted truncate">{{ score.judgeName }}</p>
-                <p class="font-source font-bold text-content-primary text-lg">{{ score.score }}</p>
+
+            <!-- Multi-criteria: group by judge, show per-criterion rows -->
+            <template v-if="isMultiCriteria(genre.scores)">
+              <div class="space-y-3">
+                <div
+                  v-for="(aspects, judge) in groupScoresByJudge(genre.scores)"
+                  :key="judge"
+                  class="rounded-xl bg-surface-700/50 border border-surface-600/40 px-3 py-2.5"
+                >
+                  <p class="text-xs font-semibold text-content-muted mb-2">{{ judge }}</p>
+                  <div class="space-y-1">
+                    <div
+                      v-for="(score, aspect) in aspects"
+                      :key="aspect"
+                      class="flex items-center justify-between"
+                    >
+                      <span class="text-xs text-content-secondary">{{ aspect }}</span>
+                      <span class="font-source font-bold text-primary-400 text-sm">{{ score }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </template>
+
+            <!-- Legacy: single score per judge -->
+            <template v-else>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div
+                  v-for="score in genre.scores"
+                  :key="score.judgeName"
+                  class="rounded-xl bg-surface-700/50 border border-surface-600/40 px-3 py-2.5"
+                >
+                  <p class="text-xs text-content-muted truncate">{{ score.judgeName }}</p>
+                  <p class="font-source font-bold text-content-primary text-lg">{{ score.score }}</p>
+                </div>
+              </div>
+            </template>
           </div>
           <div v-else class="mb-4">
             <p class="text-sm text-content-muted italic">No scores recorded yet</p>

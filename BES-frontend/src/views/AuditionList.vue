@@ -2,7 +2,7 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback } from '@/utils/api';
+import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
@@ -214,12 +214,22 @@ function transformForTable(data) {
   };
 }
 
-const submitScore = async (eventName, genreName, judgeName, participants) => {
+const submitScore = async (eventName, genreName, judgeName, participantList) => {
   if (judgeName === "") {
     openModal("Missing Judge", "Please select a judge before submitting.", "warning")
     return
   }
-  const p = participants.map(obj => ({ ...obj, score: parseFloat(obj.score) }))
+  const hasCriteria = criteria.value.length > 0
+  const p = participantList.map(obj => {
+    if (hasCriteria && obj.criteriaScores) {
+      return {
+        participantName: obj.participantName,
+        score: null,
+        aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(obj.criteriaScores[c.name] ?? 0) }))
+      }
+    }
+    return { participantName: obj.participantName, score: parseFloat(obj.score) }
+  })
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
   if (res.ok) {
     openModal("Scores Submitted", "All scores have been saved successfully.", "success")
@@ -227,9 +237,33 @@ const submitScore = async (eventName, genreName, judgeName, participants) => {
 }
 
 const resetScore = () => {
-  localStorage.removeItem("currentScore");
-  participants.value = participants.value.map(obj => ({ ...obj, score: 0 }))
+  localStorage.removeItem("currentScore")
+  participants.value = participants.value.map(obj => {
+    const cs = {}
+    if (obj.criteriaScores) {
+      Object.keys(obj.criteriaScores).forEach(k => { cs[k] = 0 })
+    }
+    return { ...obj, score: 0, criteriaScores: cs }
+  })
 }
+
+// ── Scoring criteria ─────────────────────────────────────────────────────────
+const criteria = ref([])
+
+const loadCriteria = async () => {
+  if (!selectedEvent.value || !selectedGenre.value) { criteria.value = []; return }
+  criteria.value = await getScoringCriteria(selectedEvent.value, selectedGenre.value)
+  // Re-initialize criteriaScores on each participant for the active genre
+  participants.value = participants.value.map(p => {
+    if (p.genreName !== selectedGenre.value) return p
+    const cs = {}
+    criteria.value.forEach(c => { cs[c.name] = p.criteriaScores?.[c.name] ?? 0 })
+    return { ...p, criteriaScores: cs }
+  })
+}
+
+watch([selectedEvent, selectedGenre], loadCriteria, { immediate: true })
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Feedback state ──────────────────────────────────────────────────────────
 const tagGroups = ref([])
@@ -509,6 +543,7 @@ onMounted(async () => {
         v-if="judgingMode === 'PAIR'"
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
+        :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
       />
@@ -516,6 +551,7 @@ onMounted(async () => {
         v-else
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
+        :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
       />

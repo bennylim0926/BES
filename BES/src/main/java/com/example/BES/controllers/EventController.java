@@ -26,6 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.AddScoringCriteriaDto;
+import com.example.BES.dtos.GetScoringCriteriaDto;
+import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
@@ -50,6 +53,7 @@ import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.EventGenreParticpantService;
+import com.example.BES.services.ScoringCriteriaService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
@@ -110,6 +114,9 @@ public class EventController {
 
     @Autowired
     AuditionFeedbackService feedbackService;
+
+    @Autowired
+    ScoringCriteriaService scoringCriteriaService;
 
     private static final Gson gson = new Gson();
 
@@ -496,5 +503,65 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> getParticipantRefs(@PathVariable String eventName) {
         return ResponseEntity.ok(eventParticipantService.getParticipantRefs(eventName));
+    }
+
+    @Operation(summary = "Get Scoring Criteria", description = "Returns scoring criteria for an event and optional genre. Without strict=true, genre-specific criteria take priority and fall back to event-level.")
+    @GetMapping("/{eventName}/criteria")
+    public ResponseEntity<List<GetScoringCriteriaDto>> getScoringCriteria(
+            @PathVariable String eventName,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false, defaultValue = "false") boolean strict) {
+        if (strict) {
+            return ResponseEntity.ok(scoringCriteriaService.getStrictCriteria(eventName, genre));
+        }
+        return ResponseEntity.ok(scoringCriteriaService.getCriteria(eventName, genre));
+    }
+
+    @Operation(summary = "Add Scoring Criterion", description = "Adds a scoring criterion to an event (admin/organiser only)")
+    @PostMapping("/{eventName}/criteria")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> addScoringCriteria(
+            @PathVariable String eventName,
+            @RequestBody AddScoringCriteriaDto dto) {
+        try {
+            dto.eventName = eventName;
+            return ResponseEntity.ok(scoringCriteriaService.addCriteria(dto));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Update Scoring Criterion", description = "Updates name and/or weight of a criterion (admin/organiser only)")
+    @org.springframework.web.bind.annotation.PutMapping("/{eventName}/criteria/{criteriaId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateScoringCriteria(
+            @PathVariable String eventName,
+            @PathVariable Long criteriaId,
+            @RequestBody UpdateScoringCriteriaDto dto) {
+        try {
+            return ResponseEntity.ok(scoringCriteriaService.updateCriteria(criteriaId, dto));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Delete Scoring Criterion", description = "Removes a scoring criterion by ID (admin/organiser only)")
+    @DeleteMapping("/{eventName}/criteria/{criteriaId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteScoringCriteria(
+            @PathVariable String eventName,
+            @PathVariable Long criteriaId) {
+        scoringCriteriaService.removeCriteria(criteriaId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Delete All Criteria for Genre", description = "Removes all criteria for a specific genre (or event-level if no genre) (admin/organiser only)")
+    @DeleteMapping("/{eventName}/criteria")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteAllCriteriaForGenre(
+            @PathVariable String eventName,
+            @RequestParam(required = false) String genre) {
+        scoringCriteriaService.deleteAllCriteria(eventName, genre);
+        return ResponseEntity.noContent().build();
     }
 }

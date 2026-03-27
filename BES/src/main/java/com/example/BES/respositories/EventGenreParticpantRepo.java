@@ -24,7 +24,7 @@ public interface EventGenreParticpantRepo extends JpaRepository<EventGenrePartic
        FROM EventGenreParticipant e
        WHERE LOWER(e.event.eventName) = LOWER(:eventName)
          AND LOWER(e.genre.genreName) = LOWER(:genreName)
-         AND LOWER(e.participant.participantName) = LOWER(:participantName)
+         AND LOWER(e.displayName) = LOWER(:participantName)
        """)
     Optional<EventGenreParticipant> findByEventGenreParticipant(@Param("eventName") String eventName, 
                                                               @Param("genreName") String genreName, 

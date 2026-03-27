@@ -38,5 +38,8 @@ public class EventParticipant {
 
     @Column(name = "reference_code", unique = true)
     private String referenceCode;
+
+    @Column(name = "display_name")
+    private String displayName;
 }
 

@@ -74,7 +74,7 @@ public class EventParticpantService {
         for (EventParticipant ep : eps) {
             if (ep.getReferenceCode() == null) continue;
             Map<String, String> entry = new HashMap<>();
-            entry.put("participantName", ep.getParticipant().getParticipantName());
+            entry.put("participantName", ep.getDisplayName());
             entry.put("referenceCode", ep.getReferenceCode());
             result.add(entry);
         }
@@ -91,6 +91,7 @@ public class EventParticpantService {
             e = new EventParticipant();
             e.setEvent(event);
             e.setParticipant(p);
+            e.setDisplayName(p.getParticipantName());
             e.setReferenceCode(ReferenceCodeUtil.generate());
         }
         return eventParticipantRepo.save(e);

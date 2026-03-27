@@ -3,6 +3,8 @@ package com.example.BES.services;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.models.Participant;
@@ -14,13 +16,17 @@ public class ParticipantService {
     ParticipantRepo repo;
 
     public Participant addParticpantService(AddParticipantDto dto){
-        Participant participant = repo.findByParticipantName(dto.participantName).orElse(new Participant());
-        if(participant.getParticipantName() == null){
-            participant.setParticipantEmail(dto.getParticipantEmail());
-            participant.setParticipantName(dto.getParticipantName());
-            participant = repo.save(participant);
+        String email = dto.getParticipantEmail();
+        if (email != null && !email.isBlank()) {
+            Optional<Participant> byEmail = repo.findByParticipantEmail(email);
+            if (byEmail.isPresent()) {
+                return byEmail.get(); // same email = same person regardless of name
+            }
         }
-        return participant;
+        Participant participant = new Participant();
+        participant.setParticipantEmail(email);
+        participant.setParticipantName(dto.getParticipantName());
+        return repo.save(participant);
     }
 
     public Participant addWalkInService(AddWalkInDto dto){

@@ -76,7 +76,7 @@ public class RegistrationService {
                 // Case B: payment verified but email not yet sent — retry
                 try {
                     List<EventGenreParticipantId> ids = getIdsForParticipant(event.getEventId(), toAddParticipant.getParticipantId());
-                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode());
+                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode(), ep.getDisplayName());
                     ep.setEmailSent(true);
                     eventParticipantRepo.save(ep);
                 } catch (Exception e) {
@@ -87,6 +87,7 @@ public class RegistrationService {
                 ep = new EventParticipant();
                 ep.setParticipant(toAddParticipant);
                 ep.setEvent(event);
+                ep.setDisplayName(participant.getParticipantName());
                 ep.setResidency(participant.getResidency());
                 ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
                 ep.setPaymentVerified(!event.isPaymentRequired());
@@ -111,6 +112,7 @@ public class RegistrationService {
                         egp.setEvent(event);
                         egp.setGenre(genre);
                         egp.setParticipant(toAddParticipant);
+                        egp.setDisplayName(participant.getParticipantName());
                         eventGenreParticipantRepo.save(egp);
                     }
                 }
@@ -118,7 +120,7 @@ public class RegistrationService {
                 // Send email only if payment verified
                 if (ep.isPaymentVerified() && !ids.isEmpty()) {
                     try {
-                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode());
+                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode(), ep.getDisplayName());
                         ep.setEmailSent(true);
                         eventParticipantRepo.save(ep);
                     } catch (Exception e) {
@@ -144,7 +146,7 @@ public class RegistrationService {
 
         if (!ep.isEmailSent()) {
             List<EventGenreParticipantId> ids = getIdsForParticipant(eventId, participantId);
-            mailService.sendEmailWithAttachment(event.getEventName(), participant, ids, ep.getReferenceCode());
+            mailService.sendEmailWithAttachment(event.getEventName(), participant, ids, ep.getReferenceCode(), ep.getDisplayName());
             ep.setEmailSent(true);
         }
 
@@ -168,7 +170,7 @@ public class RegistrationService {
             GetUnverifiedParticipantDto dto = new GetUnverifiedParticipantDto();
             dto.participantId = ep.getParticipant().getParticipantId();
             dto.eventId = ep.getEvent().getEventId();
-            dto.name = ep.getParticipant().getParticipantName();
+            dto.name = ep.getDisplayName();
             List<EventGenreParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
             dto.genres = egps.stream()

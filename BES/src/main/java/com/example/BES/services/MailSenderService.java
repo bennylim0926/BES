@@ -35,7 +35,7 @@ public class MailSenderService {
     private Environment env;
 
 
-    public void sendEmailWithAttachment(String eventName, Participant receiver, List<EventGenreParticipantId> ids, String referenceCode) throws MessagingException, WriterException, IOException{
+    public void sendEmailWithAttachment(String eventName, Participant receiver, List<EventGenreParticipantId> ids, String referenceCode, String displayName) throws MessagingException, WriterException, IOException{
         GetEmailTemplateDto template = emailTemplateService.getTemplateByEventName(eventName);
         if (template == null) {
             throw new RuntimeException("No email template found for event: " + eventName);
@@ -55,7 +55,7 @@ public class MailSenderService {
         messageHelper.setFrom(Constant.SENDER_EMAIL.getLabel());
         messageHelper.setTo(receiver.getParticipantEmail());
         String body = template.getBody()
-            .replace("{name}", receiver.getParticipantName())
+            .replace("{name}", displayName != null ? displayName : receiver.getParticipantName())
             .replace("{refCode}", referenceCode != null ? referenceCode : "");
         messageHelper.setText(body);
         messageHelper.setSubject(template.getSubject());

@@ -18,6 +18,7 @@ import jakarta.transaction.Transactional;
 @Repository
 public interface ScoreRepo extends JpaRepository<Score, Long>{
     Optional<Score> findByEventGenreParticipantAndJudge(EventGenreParticipant eventGenreParticipant, Judge j);
+    Optional<Score> findByEventGenreParticipantAndJudgeAndAspect(EventGenreParticipant eventGenreParticipant, Judge j, String aspect);
     List<Score> findByEventGenreParticipant(EventGenreParticipant eventGenreParticipant);
     
     @Query(value =

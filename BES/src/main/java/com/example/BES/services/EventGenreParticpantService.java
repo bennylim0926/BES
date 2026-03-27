@@ -72,6 +72,7 @@ public class EventGenreParticpantService {
             egp.setEvent(ep.getEvent());
             egp.setParticipant(p);
             egp.setGenre(g);
+            egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
         }
         return repo.save(egp);
     }
@@ -127,7 +128,7 @@ public class EventGenreParticpantService {
                 Map.of(
                     "auditionNumber", auditionNumber,
                     "genre", participantInEventGenre.getGenre().getGenreName(),
-                    "name", participantInEventGenre.getParticipant().getParticipantName(),
+                    "name", participantInEventGenre.getDisplayName(),
                     "judge", j != null ? j.getName() : "",
                     "eventName", participantInEventGenre.getEvent().getEventName(),
                     "participantId", participantInEventGenre.getParticipant().getParticipantId(),
@@ -139,7 +140,7 @@ public class EventGenreParticpantService {
                 Map.of(
                     "audition", participantInEventGenre.getAuditionNumber(),
                     "genre", participantInEventGenre.getGenre().getGenreName(),
-                    "name", participantInEventGenre.getParticipant().getParticipantName(),
+                    "name", participantInEventGenre.getDisplayName(),
                     "judge", j != null ? j.getName() : ""));
         }
     }
@@ -167,7 +168,7 @@ public class EventGenreParticpantService {
         for(EventGenreParticipant res : results){
             GetEventGenreParticipantDto dto = new GetEventGenreParticipantDto();
             dto.eventName = res.getEvent().getEventName();
-            dto.participantName = res.getParticipant().getParticipantName();
+            dto.participantName = res.getDisplayName();
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
             dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false;
@@ -190,7 +191,7 @@ public class EventGenreParticpantService {
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) return;
         String removedGenreName = egp.getGenre().getGenreName();
-        String removedParticipantName = egp.getParticipant().getParticipantName();
+        String removedParticipantName = egp.getDisplayName();
         String removedEventName = egp.getEvent().getEventName();
         Judge removedJudge = egp.getJudge();
         repo.delete(egp);
@@ -224,13 +225,14 @@ public class EventGenreParticpantService {
         Event event = eventRepo.findById(eventId).orElse(null);
         Participant participant = participantRepo.findById(participantId).orElse(null);
         if (event == null || participant == null) throw new RuntimeException("Event or Participant not found");
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
         EventGenreParticipant egp = new EventGenreParticipant();
         egp.setId(id);
         egp.setEvent(event);
         egp.setGenre(genre);
         egp.setParticipant(participant);
+        egp.setDisplayName(ep != null ? ep.getDisplayName() : participant.getParticipantName());
         repo.save(egp);
-        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
         if (ep != null) {
             String current = ep.getGenre();
             if (current == null || current.isBlank()) {

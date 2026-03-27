@@ -40,14 +40,17 @@ public class GetResultsDto {
     public static class ScoreEntry {
         private String judgeName;
         private Double score;
+        private String aspect;  // empty string for legacy; criterion name for multi-criteria
 
-        public ScoreEntry(String judgeName, Double score) {
+        public ScoreEntry(String judgeName, Double score, String aspect) {
             this.judgeName = judgeName;
             this.score = score;
+            this.aspect = aspect;
         }
 
         public String getJudgeName() { return judgeName; }
         public Double getScore() { return score; }
+        public String getAspect() { return aspect; }
     }
 
     public static class FeedbackEntry {

@@ -7,7 +7,8 @@ import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
-import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
+import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
+import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
 
 const fileId = ref('')
 const modalTitle = ref("")
@@ -43,6 +44,9 @@ const paymentRequired = ref(false)
 
 const showModal = ref(false)
 const handleAccept = () => { showModal.value = false }
+
+// Scoring criteria modal
+const showCriteriaModal = ref(false)
 
 // Walk-in form
 const showWalkInForm = ref(false)
@@ -776,7 +780,17 @@ onMounted(async () => {
 
     <!-- Genre breakdown -->
     <div v-if="completeBreakdown.length > 0" class="mb-8">
-      <h2 class="font-heading font-bold text-content-secondary text-lg mb-4">Genre Breakdown</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Genre Breakdown</h2>
+        <button
+          @click="showCriteriaModal = true"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-600 bg-surface-700/60
+                 text-xs font-semibold text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all duration-150"
+        >
+          <i class="pi pi-sliders-h text-xs" />
+          Scoring Criteria
+        </button>
+      </div>
       <div class="space-y-2">
         <div
           v-for="genre in completeBreakdown"
@@ -837,6 +851,7 @@ onMounted(async () => {
                 </div>
               </template>
             </div>
+
           </div>
         </div>
       </div>
@@ -1155,4 +1170,11 @@ onMounted(async () => {
       </div>
     </div>
   </Teleport>
+
+  <!-- Scoring Criteria Modal -->
+  <ScoringCriteriaModal
+    v-model="showCriteriaModal"
+    :eventName="props.eventName"
+    :genres="completeBreakdown.map(g => g.genre)"
+  />
 </template>
