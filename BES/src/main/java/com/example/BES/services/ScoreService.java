@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AspectScoreDto;
 import com.example.BES.dtos.GetParticipatnScoreDto;
@@ -46,6 +47,7 @@ public class ScoreService {
         return scoreListDto;
     }
 
+    @Transactional
     public void updateParticipantScoreService(UpdateParticipantsScoreDto dto) {
         for (ParticipantScoreDto d : dto.participantScore) {
             EventGenreParticipant record = eventGenreParticpantRepo
@@ -71,19 +73,14 @@ public class ScoreService {
                     }
                 }
             } else {
-                // Legacy single-score mode
-                Score score = repo.findByEventGenreParticipantAndJudge(record, judge).orElse(null);
-                if (score == null) {
-                    Score newScore = new Score();
-                    newScore.setJudge(judge);
-                    newScore.setEventGenreParticipant(record);
-                    newScore.setAspect("");
-                    newScore.setValue(d.score);
-                    repo.save(newScore);
-                } else {
-                    score.setValue(d.score);
-                    repo.save(score);
-                }
+                // Legacy single-score mode: delete any existing rows (could be aspect-based) then save one row
+                repo.deleteByEventGenreParticipantAndJudge(record, judge);
+                Score newScore = new Score();
+                newScore.setJudge(judge);
+                newScore.setEventGenreParticipant(record);
+                newScore.setAspect("");
+                newScore.setValue(d.score);
+                repo.save(newScore);
             }
         }
     }
