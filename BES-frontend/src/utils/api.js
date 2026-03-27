@@ -1,5 +1,3 @@
-import { file } from "@primeuix/themes/aura/fileupload"
-
 // const domain = "http://localhost:5050"
 const domain = ""
 
@@ -317,11 +315,11 @@ export const getParticipantScore = async(eventName) =>{
       })
       if(res.ok){
           return await res.json()
-      }else if (res.status === 404) {
-          return []
       }
+      return []
     }catch(e){
         console.log(e)
+        return []
     }
 }
 
@@ -658,5 +656,207 @@ export const updateEventAccessCode = async (eventId, newCode) => {
     return await res.json()
   } catch (err) {
     console.log(err)
+  }
+}
+
+export const getJudgingMode = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/judging-mode/${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const setJudgingMode = async (eventName, mode) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/judging-mode`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventName, judgingMode: mode })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const submitAuditionFeedback = async (eventName, genreName, judgeName, auditionNumber, tagIds, note) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/feedback`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName, judgeName, auditionNumber, tagIds, note })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const getAuditionFeedback = async (eventName, genreName, judgeName, auditionNumber) => {
+  try {
+    const params = new URLSearchParams({ eventName, genreName, judgeName, auditionNumber })
+    const res = await fetch(`${domain}/api/v1/event/feedback?${params}`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const getParticipantFeedback = async (eventName, genreName, participantName) => {
+  try {
+    const params = new URLSearchParams({ eventName, genreName, participantName })
+    const res = await fetch(`${domain}/api/v1/event/feedback/participant?${params}`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getResultsStatus = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-status`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const releaseResults = async (eventName, released) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-results`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ released })
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const getParticipantRefs = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/participant-refs`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getScoringCriteria = async (eventName, genreName) => {
+  try {
+    const params = genreName ? `?genre=${encodeURIComponent(genreName)}` : ''
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria${params}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getScoringCriteriaStrict = async (eventName, genreName) => {
+  try {
+    const base = `${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria?strict=true`
+    const url = genreName ? `${base}&genre=${encodeURIComponent(genreName)}` : base
+    const res = await fetch(url, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const addScoringCriteria = async (eventName, payload) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const updateScoringCriteria = async (eventName, criteriaId, payload) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria/${criteriaId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const deleteScoringCriteria = async (eventName, criteriaId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria/${criteriaId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+}
+
+export const deleteAllCriteriaForGenre = async (eventName, genreName) => {
+  try {
+    const params = genreName ? `?genre=${encodeURIComponent(genreName)}` : ''
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/criteria${params}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+}
+
+export const getResultsByRefCode = async (refCode) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/results?ref=${encodeURIComponent(refCode)}`)
+    if (res.ok) return await res.json()
+    const body = await res.json().catch(() => ({}))
+    return { error: body.error || 'Results not found or not yet released' }
+  } catch (e) {
+    console.log(e)
+    return { error: 'Network error' }
   }
 }

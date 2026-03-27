@@ -36,8 +36,8 @@ const updateScore = async () => {
     showError.value = true
     return
   }
-  emit("updateScore")
   await submitParticipantScore(props.event, props.genre, selectedJudge.value, [{ participantName: props.name, score: scoreInput.value }])
+  emit("updateScore")
 }
 
 onMounted(async () => {
@@ -56,13 +56,13 @@ onMounted(async () => {
   >
     <div class="space-y-4 mt-1">
       <!-- Participant name -->
-      <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-50 border border-surface-200">
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-900 border border-surface-600">
         <div class="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
-          <i class="pi pi-user text-primary-600 text-xs"></i>
+          <i class="pi pi-user text-primary-400 text-xs"></i>
         </div>
         <div>
-          <div class="text-xs text-surface-400">Participant</div>
-          <div class="font-heading font-bold text-surface-900 text-sm">{{ props.name }}</div>
+          <div class="text-xs text-content-muted">Participant</div>
+          <div class="font-heading font-bold text-content-primary text-sm">{{ props.name }}</div>
         </div>
       </div>
 

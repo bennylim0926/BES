@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +21,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.AddScoringCriteriaDto;
+import com.example.BES.dtos.GetScoringCriteriaDto;
+import com.example.BES.dtos.UpdateScoringCriteriaDto;
+import com.example.BES.dtos.GetJudgingModeDto;
+import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
@@ -44,7 +51,9 @@ import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
+import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.EventGenreParticpantService;
+import com.example.BES.services.ScoringCriteriaService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
@@ -54,7 +63,10 @@ import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
+import com.example.BES.dtos.GetAuditionFeedbackDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
+import com.example.BES.dtos.GetParticipantFeedbackDto;
+import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
@@ -100,6 +112,12 @@ public class EventController {
     @Autowired
     EmailTemplateService emailTemplateService;
 
+    @Autowired
+    AuditionFeedbackService feedbackService;
+
+    @Autowired
+    ScoringCriteriaService scoringCriteriaService;
+
     private static final Gson gson = new Gson();
 
     @Operation(summary = "Check Event Exists", description = "Returns true if an event with the given name exists")
@@ -123,6 +141,28 @@ public class EventController {
         try {
             boolean valid = eventService.verifyAccessCode(dto.eventId, dto.accessCode);
             return ResponseEntity.ok(java.util.Map.of("valid", valid));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Judging Mode", description = "Returns the current judging mode (SOLO/PAIR) for an event")
+    @GetMapping("/judging-mode/{eventName}")
+    public ResponseEntity<GetJudgingModeDto> getJudgingMode(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(eventService.getJudgingMode(eventName), HttpStatus.OK);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return new ResponseEntity<>(null, e.getStatusCode());
+        }
+    }
+
+    @Operation(summary = "Set Judging Mode", description = "Sets the judging mode (SOLO/PAIR) for an event (admin only)")
+    @PostMapping("/judging-mode")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setJudgingMode(@RequestBody UpdateJudgingModeDto dto) {
+        try {
+            eventService.setJudgingMode(dto.eventName, dto.judgingMode);
+            return ResponseEntity.ok(java.util.Map.of("message", "Judging mode updated"));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
         }
@@ -402,5 +442,126 @@ public class EventController {
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
+    }
+
+    @Operation(summary = "Submit Audition Feedback", description = "Saves or updates judge feedback tags and note for a participant")
+    @PostMapping("/feedback")
+    public ResponseEntity<?> submitFeedback(@RequestBody SubmitAuditionFeedbackDto dto) {
+        feedbackService.submitFeedback(dto);
+        return ResponseEntity.ok(Map.of("message", "feedback saved"));
+    }
+
+    @Operation(summary = "Get Audition Feedback", description = "Returns existing feedback tag IDs and note for a participant/judge combination")
+    @GetMapping("/feedback")
+    public ResponseEntity<GetAuditionFeedbackDto> getFeedback(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String judgeName,
+            @RequestParam Integer auditionNumber) {
+        return ResponseEntity.ok(feedbackService.getFeedback(eventName, genreName, judgeName, auditionNumber));
+    }
+
+    @Operation(summary = "Get All Judge Feedback for Participant", description = "Returns feedback from all judges for a given participant in a specific event genre")
+    @GetMapping("/feedback/participant")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetParticipantFeedbackDto>> getParticipantFeedback(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String participantName) {
+        return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, genreName, participantName));
+    }
+
+    @Operation(summary = "Get Results Release Status", description = "Returns whether results have been released for the event")
+    @GetMapping("/{eventName}/results-status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> getResultsStatus(@PathVariable String eventName) {
+        try {
+            boolean released = eventService.isResultsReleased(eventName);
+            return ResponseEntity.ok(Map.of("released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Release or Retract Results", description = "Toggles whether results are visible on the public results portal")
+    @PostMapping("/{eventName}/release-results")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> releaseResults(
+            @PathVariable String eventName,
+            @RequestBody Map<String, Boolean> body) {
+        try {
+            boolean released = Boolean.TRUE.equals(body.get("released"));
+            eventService.releaseResults(eventName, released);
+            return ResponseEntity.ok(Map.of("message", "Results release updated", "released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Participant Reference Codes", description = "Returns a list of participant names and their reference codes for the event")
+    @GetMapping("/{eventName}/participant-refs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> getParticipantRefs(@PathVariable String eventName) {
+        return ResponseEntity.ok(eventParticipantService.getParticipantRefs(eventName));
+    }
+
+    @Operation(summary = "Get Scoring Criteria", description = "Returns scoring criteria for an event and optional genre. Without strict=true, genre-specific criteria take priority and fall back to event-level.")
+    @GetMapping("/{eventName}/criteria")
+    public ResponseEntity<List<GetScoringCriteriaDto>> getScoringCriteria(
+            @PathVariable String eventName,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false, defaultValue = "false") boolean strict) {
+        if (strict) {
+            return ResponseEntity.ok(scoringCriteriaService.getStrictCriteria(eventName, genre));
+        }
+        return ResponseEntity.ok(scoringCriteriaService.getCriteria(eventName, genre));
+    }
+
+    @Operation(summary = "Add Scoring Criterion", description = "Adds a scoring criterion to an event (admin/organiser only)")
+    @PostMapping("/{eventName}/criteria")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> addScoringCriteria(
+            @PathVariable String eventName,
+            @RequestBody AddScoringCriteriaDto dto) {
+        try {
+            dto.eventName = eventName;
+            return ResponseEntity.ok(scoringCriteriaService.addCriteria(dto));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Update Scoring Criterion", description = "Updates name and/or weight of a criterion (admin/organiser only)")
+    @org.springframework.web.bind.annotation.PutMapping("/{eventName}/criteria/{criteriaId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateScoringCriteria(
+            @PathVariable String eventName,
+            @PathVariable Long criteriaId,
+            @RequestBody UpdateScoringCriteriaDto dto) {
+        try {
+            return ResponseEntity.ok(scoringCriteriaService.updateCriteria(criteriaId, dto));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Delete Scoring Criterion", description = "Removes a scoring criterion by ID (admin/organiser only)")
+    @DeleteMapping("/{eventName}/criteria/{criteriaId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteScoringCriteria(
+            @PathVariable String eventName,
+            @PathVariable Long criteriaId) {
+        scoringCriteriaService.removeCriteria(criteriaId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Delete All Criteria for Genre", description = "Removes all criteria for a specific genre (or event-level if no genre) (admin/organiser only)")
+    @DeleteMapping("/{eventName}/criteria")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteAllCriteriaForGenre(
+            @PathVariable String eventName,
+            @RequestParam(required = false) String genre) {
+        scoringCriteriaService.deleteAllCriteria(eventName, genre);
+        return ResponseEntity.noContent().build();
     }
 }

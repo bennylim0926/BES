@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
+import { useScrollReveal } from '@/utils/useScrollReveal'
 
 const router    = useRouter()
 const authStore = useAuthStore()
+const { revealRef } = useScrollReveal()
 
 const role = computed(() =>
   authStore.user ? authStore.user['role'][0]['authority'] : ''
@@ -90,27 +92,31 @@ const quickActions = computed(() => {
       <p class="text-muted mt-1">Battle Event System — your quick access dashboard</p>
     </div>
 
-    <!-- Quick action cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+    <!-- Quick action cards with scroll reveal -->
+    <div
+      :ref="revealRef"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12"
+    >
       <button
-        v-for="action in quickActions"
+        v-for="(action, i) in quickActions"
         :key="action.title"
         @click="$router.push(action.route)"
-        class="group card-hover text-left p-6 hover:border-primary-200 focus:outline-none
-               focus:ring-2 focus:ring-primary-500/30"
+        class="group card-hover text-left p-6 focus:outline-none
+               focus:ring-2 focus:ring-primary-500/30 reveal"
+        :class="`reveal-delay-${Math.min(i + 1, 4)}`"
       >
         <!-- Icon -->
-        <div class="w-11 h-11 rounded-xl bg-primary-50 group-hover:bg-primary-100
+        <div class="w-11 h-11 rounded-xl bg-primary-100 group-hover:bg-primary-200
                     flex items-center justify-center mb-4 transition-colors duration-200">
-          <i class="pi text-primary-600 text-xl" :class="action.icon"></i>
+          <i class="pi text-primary-400 text-xl" :class="action.icon"></i>
         </div>
         <!-- Text -->
-        <h3 class="font-heading font-bold text-surface-900 text-base mb-1">
+        <h3 class="font-heading font-bold text-content-primary text-base mb-1">
           {{ action.title }}
         </h3>
-        <p class="text-surface-500 text-sm leading-relaxed">{{ action.desc }}</p>
+        <p class="text-content-muted text-sm leading-relaxed">{{ action.desc }}</p>
         <!-- Arrow -->
-        <div class="flex items-center gap-1 mt-4 text-primary-600 text-xs font-semibold
+        <div class="flex items-center gap-1 mt-4 text-primary-400 text-xs font-semibold
                     opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           Open <i class="pi pi-arrow-right text-xs"></i>
         </div>
@@ -122,36 +128,36 @@ const quickActions = computed(() => {
       <details class="group">
         <summary
           class="flex items-center justify-between px-6 py-4 cursor-pointer
-                 list-none select-none hover:bg-surface-50 transition-colors"
+                 list-none select-none hover:bg-surface-700/40 transition-colors"
         >
           <div class="flex items-center gap-2.5">
-            <i class="pi pi-book text-surface-500 text-sm"></i>
-            <span class="font-heading font-semibold text-surface-800 text-sm">How to Use</span>
+            <i class="pi pi-book text-content-muted text-sm"></i>
+            <span class="font-heading font-semibold text-content-secondary text-sm">How to Use</span>
           </div>
-          <i class="pi pi-chevron-down text-surface-400 text-xs
+          <i class="pi pi-chevron-down text-content-muted text-xs
                     group-open:rotate-180 transition-transform duration-200"></i>
         </summary>
 
-        <div class="px-6 pb-6 pt-2 border-t border-surface-100">
-          <div class="prose prose-sm max-w-none text-surface-600 space-y-6">
+        <div class="px-6 pb-6 pt-2 border-t border-surface-600/30">
+          <div class="prose prose-sm max-w-none text-content-secondary space-y-6">
 
             <!-- Before Event Day -->
             <section>
-              <h2 class="font-heading font-bold text-surface-800 text-base mb-3">Before Event Day</h2>
-              <ol class="list-decimal list-inside space-y-1.5 text-sm">
+              <h2 class="font-heading font-bold text-content-secondary text-base mb-3">Before Event Day</h2>
+              <ol class="list-decimal list-inside space-y-1.5 text-sm text-content-muted">
                 <li>Each folder should contain one response form.</li>
-                <li>Each response should contain at least: <strong>Name, Category/Categories, Email</strong>.</li>
+                <li>Each response should contain at least: <strong class="text-content-secondary">Name, Category/Categories, Email</strong>.</li>
                 <li>Go to <em>Events</em> and choose one.</li>
                 <li>The first table shows participant breakdown for each genre.</li>
               </ol>
-              <div class="mt-4 pl-4 border-l-2 border-surface-200 space-y-3 text-sm">
+              <div class="mt-4 pl-4 border-l-2 border-surface-600/30 space-y-3 text-sm">
                 <div>
-                  <p class="font-semibold text-surface-700 mb-1">If there is a record of this event:</p>
-                  <p>A table will be shown with participants and categories joined.</p>
+                  <p class="font-semibold text-content-secondary mb-1">If there is a record of this event:</p>
+                  <p class="text-content-muted">A table will be shown with participants and categories joined.</p>
                 </div>
                 <div>
-                  <p class="font-semibold text-surface-700 mb-1">Else:</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                  <p class="font-semibold text-content-secondary mb-1">Else:</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Choose categories.</li>
                     <li>Name the judges.</li>
                     <li>Insert a record in the database.</li>
@@ -159,8 +165,8 @@ const quickActions = computed(() => {
                   </ol>
                 </div>
                 <div>
-                  <p class="font-semibold text-surface-700 mb-1">If different judges per category:</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                  <p class="font-semibold text-content-secondary mb-1">If different judges per category:</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Go to <em>Participants</em>.</li>
                     <li>Assign judges to each participant and press the update button.</li>
                   </ol>
@@ -170,34 +176,34 @@ const quickActions = computed(() => {
 
             <!-- On Event Day -->
             <section>
-              <h2 class="font-heading font-bold text-surface-800 text-base mb-3">On the Event Day</h2>
+              <h2 class="font-heading font-bold text-content-secondary text-base mb-3">On the Event Day</h2>
               <div class="grid sm:grid-cols-2 gap-4 text-sm">
-                <div class="bg-surface-50 rounded-xl p-4">
-                  <p class="font-semibold text-surface-700 mb-2">Event Organiser</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                <div class="bg-surface-700/50 rounded-xl p-4">
+                  <p class="font-semibold text-content-secondary mb-2">Event Organiser</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Display <em>Audition Number</em> screen.</li>
                     <li>Scan QR → audition number + category shown.</li>
                     <li>Give wrist tag with number.</li>
                   </ol>
                 </div>
-                <div class="bg-surface-50 rounded-xl p-4">
-                  <p class="font-semibold text-surface-700 mb-2">Emcee</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                <div class="bg-surface-700/50 rounded-xl p-4">
+                  <p class="font-semibold text-content-secondary mb-2">Emcee</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Go to <em>Audition List</em>, update the filter.</li>
                     <li>Use the timer for countdown.</li>
                   </ol>
                 </div>
-                <div class="bg-surface-50 rounded-xl p-4">
-                  <p class="font-semibold text-surface-700 mb-2">Judge</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                <div class="bg-surface-700/50 rounded-xl p-4">
+                  <p class="font-semibold text-content-secondary mb-2">Judge</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Go to <em>Audition List</em>, update the filter.</li>
                     <li>Ensure <em>Current Judge</em> is selected.</li>
                     <li>Give score and submit.</li>
                   </ol>
                 </div>
-                <div class="bg-surface-50 rounded-xl p-4">
-                  <p class="font-semibold text-surface-700 mb-2">When Audition Ends</p>
-                  <ol class="list-decimal list-inside space-y-1">
+                <div class="bg-surface-700/50 rounded-xl p-4">
+                  <p class="font-semibold text-content-secondary mb-2">When Audition Ends</p>
+                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
                     <li>Go to <em>Scoreboard</em> to get top-n participants.</li>
                     <li>If judges were assigned, choose <em>By Judge</em>.</li>
                   </ol>

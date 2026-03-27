@@ -149,3 +149,55 @@ export const deleteImage = async(name)=>{
     }catch(err){
     }
 }
+
+export const getFeedbackGroups = async () => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/feedback-groups`, { credentials: 'include' })
+        if (res.ok) return await res.json()
+        return []
+    } catch (err) { return [] }
+}
+
+export const addFeedbackGroup = async (name) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/feedback-group`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        })
+    } catch (err) {}
+}
+
+export const deleteFeedbackGroup = async (id) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/feedback-group`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        })
+    } catch (err) {}
+}
+
+export const addFeedbackTag = async (groupId, label) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/feedback-tag`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupId, label })
+        })
+    } catch (err) {}
+}
+
+export const deleteFeedbackTag = async (id) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/feedback-tag`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        })
+    } catch (err) {}
+}

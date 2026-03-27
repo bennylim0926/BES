@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { getParticipantScore } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria } from '@/utils/api';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { getActiveEvent } from '@/utils/auth';
+import { useAuthStore } from '@/utils/auth';
 import UpdateScoreForm from '@/components/UpdateScoreForm.vue';
 
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
@@ -15,6 +16,28 @@ const tabulationMethod = ref(["By Total", "By Judge"])
 const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 const selectedParticipant = ref("")
 const showSubmitScore = ref(false)
+
+// Auth
+const authStore = useAuthStore()
+const userRole = computed(() => authStore.user?.role?.[0]?.authority)
+const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
+
+// Results release state (admin/organiser only)
+const resultsReleased = ref(false)
+const refsMap = ref({}) // participantName -> referenceCode
+
+// Criteria for the selected genre (used for multi-aspect score aggregation)
+const criteriaForGenre = ref([])
+
+// Score breakdown modal
+const showBreakdown = ref(false)
+const breakdownParticipant = ref('')
+
+// Feedback panel state
+const showFeedbackPanel = ref(false)
+const feedbackParticipant = ref('')
+const feedbackData = ref([])
+const feedbackLoading = ref(false)
 
 // Tie-breaker resolution state
 const tieBreakerWinners = ref(new Set())
@@ -58,21 +81,47 @@ const editScore = (name) => {
   showSubmitScore.value = !showSubmitScore.value
 }
 
+const onScoreUpdated = async () => {
+  showSubmitScore.value = false
+  const res = await getParticipantScore(selectedEvent.value)
+  participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+}
+
 const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName);
   return [...new Set(genres)].sort();
 })
+
+// Load admin/organiser specific data for an event
+const loadAdminData = async (eventName) => {
+  if (!isAdminOrOrganiser.value || !eventName) return
+  const [status, refs] = await Promise.all([
+    getResultsStatus(eventName),
+    getParticipantRefs(eventName)
+  ])
+  resultsReleased.value = status?.released ?? false
+  refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
+}
 
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
     const res = await getParticipantScore(newVal)
     participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+    await loadAdminData(newVal)
   }
 }, { immediate: true });
 
-watch(selectedGenre, (newVal) => {
-  if (newVal) { localStorage.setItem("selectedGenre", newVal); selectedTopN.value = 'All' }
+watch(selectedGenre, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("selectedGenre", newVal)
+    selectedTopN.value = 'All'
+    if (selectedEvent.value && newVal !== 'All') {
+      criteriaForGenre.value = await getScoringCriteria(selectedEvent.value, newVal)
+    } else {
+      criteriaForGenre.value = []
+    }
+  }
 }, { immediate: true });
 watch(selectedTabulation, (newVal) => {
   if (newVal) { localStorage.setItem("selectedTabMethod", newVal); selectedTopN.value = 'All' }
@@ -165,17 +214,130 @@ const finalRows = computed(() => {
   return [...above, ...winners].map((r, i) => ({ ...r, id: i + 1 }))
 })
 
+// Judge column keys for the custom admin table
+const judgeColumnKeys = computed(() => {
+  if (!topNResult.value.columns) return []
+  return topNResult.value.columns
+    .filter(c => !['id', 'participantName', 'totalScore'].includes(c.key))
+    .map(c => c.key)
+})
+
+// Release results toggle
+const toggleRelease = async () => {
+  const newVal = !resultsReleased.value
+  const res = await releaseResults(selectedEvent.value, newVal)
+  if (res !== null) {
+    resultsReleased.value = newVal
+    if (newVal) {
+      // Refresh refs in case new participants were added
+      const refs = await getParticipantRefs(selectedEvent.value)
+      refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
+    }
+  }
+}
+
+// Score breakdown: raw per-aspect scores for a participant grouped by judge
+const breakdownRows = computed(() => {
+  if (!breakdownParticipant.value) return {}
+  const raw = participants.value.filter(
+    p => p.participantName === breakdownParticipant.value && p.genreName === selectedGenre.value
+  )
+  const byJudge = {}
+  raw.forEach(d => {
+    if (!d.judgeName) return
+    if (!byJudge[d.judgeName]) byJudge[d.judgeName] = {}
+    const aspect = d.aspect || ''
+    byJudge[d.judgeName][aspect || 'Score'] = d.score
+  })
+  return byJudge
+})
+
+const viewBreakdown = (name) => {
+  breakdownParticipant.value = name
+  showBreakdown.value = true
+}
+
+// Open feedback panel for a participant
+const viewFeedback = async (name) => {
+  feedbackParticipant.value = name
+  feedbackData.value = []
+  feedbackLoading.value = true
+  showFeedbackPanel.value = true
+  const res = await getParticipantFeedback(selectedEvent.value, selectedGenre.value, name)
+  feedbackData.value = res ?? []
+  feedbackLoading.value = false
+}
+
+// Open QR page in new tab
+const openQR = (name) => {
+  const ref = refsMap.value[name]
+  if (ref) {
+    window.open(`/results-qr?ref=${encodeURIComponent(ref)}&name=${encodeURIComponent(name)}`, '_blank')
+  }
+}
+
+// Group feedback tags by group name for display
+const groupTags = (tags) => {
+  const groups = {}
+  for (const tag of tags) {
+    if (!groups[tag.groupName]) groups[tag.groupName] = []
+    groups[tag.groupName].push(tag)
+  }
+  return groups
+}
+
+// Compute a judge's aggregate score for one participant from multi-aspect data
+function aggregateJudgeScore(aspectMap) {
+  const criteria = criteriaForGenre.value
+  if (!criteria || criteria.length === 0) {
+    // No criteria defined — sum all aspect values (should be one entry)
+    return Object.values(aspectMap).reduce((s, v) => s + (v ?? 0), 0)
+  }
+  const hasWeights = criteria.some(c => c.weight != null)
+  const totalWeight = hasWeights
+    ? criteria.reduce((s, c) => s + (c.weight ?? 1), 0)
+    : criteria.length
+  let weighted = 0
+  criteria.forEach(c => {
+    const score = aspectMap[c.name] ?? 0
+    weighted += score * (hasWeights ? (c.weight ?? 1) : 1)
+  })
+  return weighted / totalWeight
+}
+
 function transformForScore(data) {
-  const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))];
-  const byTotal = {}
+  const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))]
+  const isMultiAspect = data.some(d => d.aspect && d.aspect !== '')
+
   if (selectedTabulation.value === 'By Total') {
-    data.forEach(d => {
-      if (!byTotal[d.participantName]) {
-        byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0 }
-      }
-      byTotal[d.participantName][d.judgeName] = d.score
-      byTotal[d.participantName].totalScore += d.score;
-    });
+    const byTotal = {}
+
+    if (isMultiAspect) {
+      // Group by participant → judge → aspect
+      const grouped = {}
+      data.forEach(d => {
+        if (!grouped[d.participantName]) grouped[d.participantName] = {}
+        if (!grouped[d.participantName][d.judgeName]) grouped[d.participantName][d.judgeName] = {}
+        grouped[d.participantName][d.judgeName][d.aspect] = d.score
+      })
+      Object.entries(grouped).forEach(([name, judgeMap]) => {
+        byTotal[name] = { participantName: name, totalScore: 0 }
+        Object.entries(judgeMap).forEach(([judge, aspects]) => {
+          const agg = aggregateJudgeScore(aspects)
+          byTotal[name][judge] = Number(agg.toFixed(2))
+          byTotal[name].totalScore += agg
+        })
+      })
+    } else {
+      data.forEach(d => {
+        if (!byTotal[d.participantName]) {
+          byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0 }
+        }
+        byTotal[d.participantName][d.judgeName] = d.score
+        byTotal[d.participantName].totalScore += d.score
+      })
+    }
+
     const rows = Object.values(byTotal)
       .map(r => ({ ...r, totalScore: Number(r.totalScore.toFixed(1)) }))
       .sort((a, b) => b.totalScore - a.totalScore)
@@ -187,28 +349,55 @@ function transformForScore(data) {
         { key: 'totalScore', label: 'Total Score', type: 'text', readonly: true },
         ...judges.map(j => ({ key: j, label: j, type: 'text', readonly: true }))
       ],
-      rows
+      rows,
+      isMultiAspect,
     }
   } else {
     const byJudge = {}
-    data.forEach(d => {
-      if (!byJudge[d.judgeName]) {
-        byJudge[d.judgeName] = {
+    if (isMultiAspect) {
+      // Aggregate per participant+judge first
+      const grouped = {}
+      data.forEach(d => {
+        if (!grouped[d.judgeName]) grouped[d.judgeName] = {}
+        if (!grouped[d.judgeName][d.participantName]) grouped[d.judgeName][d.participantName] = {}
+        grouped[d.judgeName][d.participantName][d.aspect] = d.score
+      })
+      Object.entries(grouped).forEach(([judge, participantMap]) => {
+        byJudge[judge] = {
           columns: [
             { key: 'id', label: 'Rank', type: 'text', readonly: true },
             { key: 'participantName', label: 'Participant', type: 'link' },
-            { key: 'score', label: 'Score', type: 'text', readonly: true },
+            { key: 'score', label: 'Score (avg)', type: 'text', readonly: true },
           ],
-          rows: []
+          rows: Object.entries(participantMap).map(([name, aspects]) => ({
+            participantName: name,
+            score: Number(aggregateJudgeScore(aspects).toFixed(2))
+          }))
         }
-      }
-      byJudge[d.judgeName].rows.push({ participantName: d.participantName, score: d.score });
-    });
-    Object.values(byJudge).forEach(group => {
-      group.rows = group.rows
-        .sort((a, b) => b.score - a.score)
-        .map((r, i) => ({ ...r, id: i + 1 }))
-    })
+        byJudge[judge].rows = byJudge[judge].rows
+          .sort((a, b) => b.score - a.score)
+          .map((r, i) => ({ ...r, id: i + 1 }))
+      })
+    } else {
+      data.forEach(d => {
+        if (!byJudge[d.judgeName]) {
+          byJudge[d.judgeName] = {
+            columns: [
+              { key: 'id', label: 'Rank', type: 'text', readonly: true },
+              { key: 'participantName', label: 'Participant', type: 'link' },
+              { key: 'score', label: 'Score', type: 'text', readonly: true },
+            ],
+            rows: []
+          }
+        }
+        byJudge[d.judgeName].rows.push({ participantName: d.participantName, score: d.score })
+      })
+      Object.values(byJudge).forEach(group => {
+        group.rows = group.rows
+          .sort((a, b) => b.score - a.score)
+          .map((r, i) => ({ ...r, id: i + 1 }))
+      })
+    }
     return { byJudge }
   }
 }
@@ -235,6 +424,26 @@ function transformForScore(data) {
         <ReusableDropdown v-model="selectedGenre"      labelId="Genre"    :options="uniqueGenres" />
         <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
         <ReusableDropdown v-model="selectedTopN"       labelId="Show Top" :options="topNOptions" />
+      </div>
+
+      <!-- Release Results toggle (admin/organiser only) -->
+      <div v-if="isAdminOrOrganiser" class="mt-4 pt-4 border-t border-surface-700/50 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Results Portal</p>
+          <p class="text-xs text-content-muted mt-0.5">
+            {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
+          </p>
+        </div>
+        <button
+          @click="toggleRelease"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200"
+          :class="resultsReleased
+            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15'
+            : 'bg-surface-700/50 border-surface-600/50 text-content-muted hover:border-surface-500 hover:bg-surface-700'"
+        >
+          <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'"></i>
+          {{ resultsReleased ? 'Released' : 'Release Results' }}
+        </button>
       </div>
     </div>
 
@@ -409,12 +618,96 @@ function transformForScore(data) {
           </div>
         </div>
 
-        <!-- Full rankings table -->
-        <DynamicTable
-          @onClick="editScore"
-          v-model:tableValue="finalRows"
-          :tableConfig="topNResult.columns"
-        />
+        <!-- Full rankings table: custom for admin/organiser, standard for others -->
+        <template v-if="isAdminOrOrganiser">
+          <div class="w-full overflow-x-auto rounded-xl border border-surface-600/50 shadow-sm">
+            <table class="min-w-full text-sm text-content-primary">
+              <thead>
+                <tr class="bg-surface-900 text-content-secondary">
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Rank</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Participant</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Total Score</th>
+                  <th
+                    v-for="judge in judgeColumnKeys"
+                    :key="judge"
+                    class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
+                  >{{ judge }}</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-surface-600/30">
+                <tr
+                  v-for="row in finalRows"
+                  :key="row.id"
+                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-primary-100/30 transition-colors duration-150"
+                >
+                  <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="text-content-secondary">{{ row.id }}</span>
+                  </td>
+                  <td class="px-4 py-3 whitespace-nowrap">
+                    <button
+                      @click="editScore(row.participantName)"
+                      class="text-primary-400 hover:text-primary-300 font-medium hover:underline focus:outline-none"
+                    >{{ row.participantName }}</button>
+                  </td>
+                  <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="text-content-secondary">{{ row.totalScore }}</span>
+                  </td>
+                  <td
+                    v-for="judge in judgeColumnKeys"
+                    :key="judge"
+                    class="px-4 py-3 whitespace-nowrap"
+                  >
+                    <span class="text-content-secondary">{{ row[judge] !== undefined && row[judge] !== null ? row[judge] : '—' }}</span>
+                  </td>
+                  <td class="px-4 py-3 whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                      <!-- Score breakdown button (multi-criteria only) -->
+                      <button
+                        v-if="topNResult.isMultiAspect"
+                        @click="viewBreakdown(row.participantName)"
+                        title="View score breakdown"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                      >
+                        <i class="pi pi-chart-bar text-sm"></i>
+                      </button>
+                      <!-- Feedback button -->
+                      <button
+                        @click="viewFeedback(row.participantName)"
+                        title="View judge feedback"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                      >
+                        <i class="pi pi-comment text-sm"></i>
+                      </button>
+                      <!-- QR button: only visible when results are released and ref code exists -->
+                      <button
+                        v-if="resultsReleased && refsMap[row.participantName]"
+                        @click="openQR(row.participantName)"
+                        title="Show QR code for results portal"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-emerald-400 hover:bg-surface-700 transition-colors"
+                      >
+                        <i class="pi pi-qrcode text-sm"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="finalRows.length === 0">
+                  <td :colspan="3 + judgeColumnKeys.length + 1" class="px-4 py-10 text-center text-content-muted text-sm">
+                    <i class="pi pi-inbox text-2xl block mb-2 opacity-40"></i>
+                    No data available
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+        <template v-else>
+          <DynamicTable
+            @onClick="editScore"
+            v-model:tableValue="finalRows"
+            :tableConfig="topNResult.columns"
+          />
+        </template>
 
         <p
           v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
@@ -436,23 +729,34 @@ function transformForScore(data) {
 
     <!-- By Judge: separate tables per judge -->
     <template v-if="selectedTabulation === 'By Judge'">
-      <div
-        v-for="(group, judge) in filteredParticipantsForScore.byJudge"
-        :key="judge"
-        class="mb-8"
-      >
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
-            <i class="pi pi-user text-content-secondary text-xs"></i>
+      <template v-if="filteredParticipantsForScore.byJudge && Object.keys(filteredParticipantsForScore.byJudge).length > 0">
+        <div
+          v-for="(group, judge) in filteredParticipantsForScore.byJudge"
+          :key="judge"
+          class="mb-8"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
+              <i class="pi pi-user text-content-secondary text-xs"></i>
+            </div>
+            <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
+            <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
           </div>
-          <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
-          <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
+          <DynamicTable
+            @onClick="editScore"
+            v-model:tableValue="group.rows"
+            :tableConfig="group.columns"
+          />
         </div>
-        <DynamicTable
-          @onClick="editScore"
-          v-model:tableValue="group.rows"
-          :tableConfig="group.columns"
-        />
+      </template>
+
+      <!-- Empty state -->
+      <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+          <i class="pi pi-chart-bar text-content-muted text-xl"></i>
+        </div>
+        <p class="font-heading font-semibold text-content-secondary">No scores yet</p>
+        <p class="text-muted text-sm mt-1">Select an event and genre to view scores</p>
       </div>
     </template>
 
@@ -464,7 +768,154 @@ function transformForScore(data) {
     title="Update Score"
     :genre="selectedGenre"
     :name="selectedParticipant"
-    @updateScore="showSubmitScore = false"
+    @updateScore="onScoreUpdated"
     @close="showSubmitScore = false"
   />
+
+  <!-- Feedback Panel Modal -->
+  <Teleport to="body">
+    <div
+      v-if="showFeedbackPanel"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    >
+      <!-- Backdrop -->
+      <div
+        class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        @click="showFeedbackPanel = false"
+      ></div>
+
+      <!-- Panel -->
+      <div class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
+          <div>
+            <h3 class="font-heading font-bold text-content-primary">Judge Feedback</h3>
+            <p class="text-xs text-content-muted mt-0.5">
+              {{ feedbackParticipant }}
+              <span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
+            </p>
+          </div>
+          <button
+            @click="showFeedbackPanel = false"
+            class="w-8 h-8 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+          >
+            <i class="pi pi-times text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="overflow-y-auto px-5 py-4 flex-1">
+          <!-- Loading -->
+          <div v-if="feedbackLoading" class="flex items-center justify-center py-12">
+            <i class="pi pi-spin pi-spinner text-primary-400 text-2xl"></i>
+          </div>
+
+          <!-- No feedback empty state -->
+          <div
+            v-else-if="feedbackData.length === 0"
+            class="flex flex-col items-center justify-center py-12 text-center"
+          >
+            <div class="w-12 h-12 rounded-2xl bg-surface-700 flex items-center justify-center mb-3">
+              <i class="pi pi-comment text-content-muted text-lg"></i>
+            </div>
+            <p class="font-heading font-semibold text-content-secondary text-sm">No feedback yet</p>
+            <p class="text-xs text-content-muted mt-1">Judges haven't submitted feedback for this participant</p>
+          </div>
+
+          <!-- Feedback list -->
+          <div v-else class="space-y-5">
+            <div
+              v-for="item in feedbackData"
+              :key="item.judgeName"
+              class="rounded-xl border border-surface-600/40 bg-surface-700/30 p-4"
+            >
+              <!-- Judge name -->
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-7 h-7 rounded-full bg-surface-600 flex items-center justify-center flex-shrink-0">
+                  <i class="pi pi-user text-content-secondary" style="font-size: 11px"></i>
+                </div>
+                <span class="font-heading font-bold text-content-primary text-sm">{{ item.judgeName }}</span>
+              </div>
+
+              <!-- Tags grouped by group -->
+              <template v-if="item.tags && item.tags.length > 0">
+                <div
+                  v-for="(tags, groupName) in groupTags(item.tags)"
+                  :key="groupName"
+                  class="mb-2"
+                >
+                  <p class="text-xs text-content-muted font-semibold uppercase tracking-wide mb-1.5">{{ groupName }}</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="tag in tags"
+                      :key="tag.label"
+                      class="text-xs px-2.5 py-1 rounded-full font-medium border"
+                      :class="groupName === 'Strengths'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30'"
+                    >{{ tag.label }}</span>
+                  </div>
+                </div>
+              </template>
+              <p v-else-if="!item.note" class="text-xs text-content-muted italic">No tags selected</p>
+
+              <!-- Judge note -->
+              <div v-if="item.note" class="mt-3 pt-3 border-t border-surface-600/40">
+                <p class="text-xs text-content-muted font-semibold uppercase tracking-wide mb-1">Note</p>
+                <p class="text-sm text-content-secondary italic">"{{ item.note }}"</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Score Breakdown Modal -->
+  <Teleport to="body">
+    <div
+      v-if="showBreakdown"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    >
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBreakdown = false"></div>
+      <div class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
+          <div>
+            <h3 class="font-heading font-bold text-content-primary">Score Breakdown</h3>
+            <p class="text-xs text-content-muted mt-0.5">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
+          </div>
+          <button
+            @click="showBreakdown = false"
+            class="w-8 h-8 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+          >
+            <i class="pi pi-times text-sm"></i>
+          </button>
+        </div>
+        <!-- Content -->
+        <div class="overflow-y-auto px-5 py-4 flex-1 space-y-5">
+          <div
+            v-for="(aspects, judge) in breakdownRows"
+            :key="judge"
+            class="rounded-xl border border-surface-600/40 bg-surface-700/20 p-4"
+          >
+            <p class="text-xs font-bold text-content-secondary mb-3">{{ judge }}</p>
+            <div class="space-y-1.5">
+              <div
+                v-for="(score, aspect) in aspects"
+                :key="aspect"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-700/50"
+              >
+                <span class="text-sm text-content-secondary">{{ aspect }}</span>
+                <span class="font-source font-bold text-primary-400 text-sm">{{ score }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="Object.keys(breakdownRows).length === 0" class="text-center py-10">
+            <p class="text-sm text-content-muted">No score data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

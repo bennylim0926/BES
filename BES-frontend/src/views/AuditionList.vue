@@ -2,13 +2,17 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami } from '@/utils/api';
+import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
+import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
+import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import Timer from '@/components/Timer.vue';
 import { getActiveEvent } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
+import PairScoreCards from '@/components/PairScoreCards.vue';
+import EmceeRoundView from '@/components/EmceeRoundView.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 import 'primeicons/primeicons.css'
 
@@ -20,6 +24,8 @@ const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
 const participants = ref([])
+const judgingMode = ref("SOLO")
+const isAdmin = ref(false)
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -43,6 +49,7 @@ const dynamicRole = async () => {
   } else if (authority === "ROLE_ADMIN") {
     roles.value = ["Emcee", "Judge"]
     selectedRole.value = localStorage.getItem("selectedRole") || ""
+    isAdmin.value = true
   }
 }
 
@@ -103,6 +110,13 @@ watch(filteredParticipantsForJudge, (newVal) => {
   }
 }, { deep: true });
 
+const filteredParticipantsForEmceeView = computed(() => {
+  const base = filteredJudge.value === ""
+    ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null)
+    : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null)
+  return base.sort((a, b) => a.auditionNumber - b.auditionNumber)
+})
+
 const filteredParticipantsForEmcee = computed({
   get() {
     if (filteredJudge.value === "") {
@@ -128,9 +142,13 @@ watch(selectedEvent, async (newVal, oldVal) => {
       selectedGenre.value = ""
     }
     participants.value = []
-    const res = await getRegisteredParticipantsByEvent(newVal)
+    const [res, modeRes] = await Promise.all([
+      getRegisteredParticipantsByEvent(newVal),
+      getJudgingMode(newVal)
+    ])
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
+    if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
     try {
       const stored = localStorage.getItem("currentScore")
       if (stored) {
@@ -140,7 +158,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
           participants.value = participants.value.map(p => {
             const found = cached.find(c => c.participantName === p.participantName &&
               c.genreName === p.genreName && c.judgeName === p.judgeName)
-            return found ? { ...p, score: found.score } : p
+            return found ? { ...p, score: found.score, absent: found.absent } : p
           })
         }
       }
@@ -196,12 +214,22 @@ function transformForTable(data) {
   };
 }
 
-const submitScore = async (eventName, genreName, judgeName, participants) => {
+const submitScore = async (eventName, genreName, judgeName, participantList) => {
   if (judgeName === "") {
     openModal("Missing Judge", "Please select a judge before submitting.", "warning")
     return
   }
-  const p = participants.map(obj => ({ ...obj, score: parseFloat(obj.score) }))
+  const hasCriteria = criteria.value.length > 0
+  const p = participantList.map(obj => {
+    if (hasCriteria && obj.criteriaScores) {
+      return {
+        participantName: obj.participantName,
+        score: null,
+        aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(obj.criteriaScores[c.name] ?? 0) }))
+      }
+    }
+    return { participantName: obj.participantName, score: parseFloat(obj.score) }
+  })
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
   if (res.ok) {
     openModal("Scores Submitted", "All scores have been saved successfully.", "success")
@@ -209,9 +237,113 @@ const submitScore = async (eventName, genreName, judgeName, participants) => {
 }
 
 const resetScore = () => {
-  localStorage.removeItem("currentScore");
-  participants.value = participants.value.map(obj => ({ ...obj, score: 0 }))
+  localStorage.removeItem("currentScore")
+  participants.value = participants.value.map(obj => {
+    const cs = {}
+    if (obj.criteriaScores) {
+      Object.keys(obj.criteriaScores).forEach(k => { cs[k] = 0 })
+    }
+    return { ...obj, score: 0, criteriaScores: cs }
+  })
 }
+
+// ── Scoring criteria ─────────────────────────────────────────────────────────
+const criteria = ref([])
+
+const loadCriteria = async () => {
+  if (!selectedEvent.value || !selectedGenre.value) { criteria.value = []; return }
+  criteria.value = await getScoringCriteria(selectedEvent.value, selectedGenre.value)
+  // Re-initialize criteriaScores on each participant for the active genre
+  participants.value = participants.value.map(p => {
+    if (p.genreName !== selectedGenre.value) return p
+    const cs = {}
+    criteria.value.forEach(c => { cs[c.name] = p.criteriaScores?.[c.name] ?? 0 })
+    return { ...p, criteriaScores: cs }
+  })
+}
+
+watch([selectedEvent, selectedGenre], loadCriteria, { immediate: true })
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Feedback state ──────────────────────────────────────────────────────────
+const tagGroups = ref([])
+const feedbackGiven = ref(new Map())  // auditionNumber → { tagIds, note, tagLabels: [{id, label}] }
+const feedbackPopout = ref({ visible: false, participant: null, existing: null })
+
+const resolveTagLabels = (tagIds) => {
+  const labels = []
+  for (const group of tagGroups.value) {
+    for (const tag of group.tags ?? []) {
+      if (tagIds.includes(tag.id)) labels.push({ id: tag.id, label: tag.label })
+    }
+  }
+  return labels
+}
+
+const openFeedbackPopout = (card) => {
+  const existing = feedbackGiven.value.get(card.auditionNumber)
+  feedbackPopout.value = {
+    visible: true,
+    participant: card,
+    existing: existing ? { tagIds: existing.tagIds, note: existing.note } : null
+  }
+}
+
+const saveFeedback = async ({ tagIds, note }) => {
+  const card = feedbackPopout.value.participant
+  await submitAuditionFeedback(
+    selectedEvent.value, selectedGenre.value, currentJudge.value,
+    card.auditionNumber, tagIds, note
+  )
+  const newMap = new Map(feedbackGiven.value)
+  if (tagIds.length || note) {
+    newMap.set(card.auditionNumber, { tagIds, note: note ?? null, tagLabels: resolveTagLabels(tagIds) })
+  } else {
+    newMap.delete(card.auditionNumber)
+  }
+  feedbackGiven.value = newMap
+  feedbackPopout.value.visible = false
+}
+
+const removeTag = async ({ auditionNumber, tagId }) => {
+  const existing = feedbackGiven.value.get(auditionNumber)
+  if (!existing) return
+  const newTagIds = existing.tagIds.filter(id => id !== tagId)
+  await submitAuditionFeedback(
+    selectedEvent.value, selectedGenre.value, currentJudge.value,
+    auditionNumber, newTagIds, existing.note
+  )
+  const newMap = new Map(feedbackGiven.value)
+  if (newTagIds.length || existing.note) {
+    newMap.set(auditionNumber, { tagIds: newTagIds, note: existing.note, tagLabels: resolveTagLabels(newTagIds) })
+  } else {
+    newMap.delete(auditionNumber)
+  }
+  feedbackGiven.value = newMap
+}
+
+// Reload feedback data when judge or genre changes
+const loadFeedbackGiven = async () => {
+  if (!selectedEvent.value || !selectedGenre.value || !currentJudge.value) {
+    feedbackGiven.value = new Map()
+    return
+  }
+  const newMap = new Map()
+  for (const p of filteredParticipantsForJudge.value) {
+    const fb = await getAuditionFeedback(selectedEvent.value, selectedGenre.value, currentJudge.value, p.auditionNumber)
+    if (fb && (fb.tagIds?.length || fb.note)) {
+      newMap.set(p.auditionNumber, {
+        tagIds: fb.tagIds ?? [],
+        note: fb.note ?? null,
+        tagLabels: resolveTagLabels(fb.tagIds ?? [])
+      })
+    }
+  }
+  feedbackGiven.value = newMap
+}
+
+watch([currentJudge, selectedGenre], loadFeedbackGiven)
+// ───────────────────────────────────────────────────────────────────────────
 
 const showFilters = ref(true)
 
@@ -223,8 +355,18 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
-  const res = await getAllJudges()
-  allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)];
+  const [judgeRes, groupRes] = await Promise.all([getAllJudges(), getFeedbackGroups()])
+  allJudges.value = ["", ...Object.values(judgeRes).map(item => item.judgeName)]
+  tagGroups.value = groupRes ?? []
+
+  // On page refresh, judge/genre/event are restored from localStorage so the watch
+  // on [currentJudge, selectedGenre] never fires. Load feedback once participants arrive.
+  if (selectedEvent.value && selectedGenre.value && currentJudge.value) {
+    const stopOnce = watch(participants, (list) => {
+      if (list.length > 0) { loadFeedbackGiven(); stopOnce() }
+    }, { immediate: true })
+  }
+
   const c1 = createClient()
   wsClients.push(c1)
   subscribeToChannel(c1, "/topic/audition/",
@@ -275,6 +417,13 @@ onMounted(async () => {
         !(p.participantName === msg.name && p.genreName === msg.genre &&
           (msg.judge ? p.judgeName === msg.judge : true))
       )
+    })
+  const c4 = createClient()
+  wsClients.push(c4)
+  subscribeToChannel(c4, "/topic/judging-mode/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      judgingMode.value = msg.judgingMode
     })
 })
 </script>
@@ -353,6 +502,13 @@ onMounted(async () => {
             <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
           </div>
           <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+          <ReusableDropdown
+            v-if="isAdmin && selectedEvent"
+            v-model="judgingMode"
+            labelId="Judging Mode"
+            :options="['SOLO', 'PAIR']"
+            @update:modelValue="(val) => setJudgingMode(selectedEvent, val)"
+          />
         </div>
 
         <!-- Current judge selector (judge role only) -->
@@ -364,31 +520,46 @@ onMounted(async () => {
       </div>
     </Transition>
 
-    <!-- Emcee view: Timer + table -->
-    <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmcee.rows.length > 0">
+    <!-- Emcee view: Timer + round view -->
+    <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <div class="sticky top-[72px] z-20 mb-4">
         <Timer />
       </div>
-      <DynamicTable
-        v-model:tableValue="filteredParticipantsForEmcee.rows"
-        :tableConfig="filteredParticipantsForEmcee.columns"
+      <EmceeRoundView
+        :participants="filteredParticipantsForEmceeView"
+        :mode="judgingMode"
       />
     </template>
 
     <!-- Judge view: swipeable score cards -->
-    <template v-else-if="selectedRole === 'Judge' && filteredParticipantsForEmcee.rows.length > 0">
+    <template v-else-if="selectedRole === 'Judge' && filteredParticipantsForJudge.length > 0">
       <MiniScoreMenu
         :cards="filteredParticipantsForJudge"
         :show="showMiniMenu"
         title="Jump to Participant"
         @close="showMiniMenu = false"
       />
-      <SwipeableCardsV2 :cards="filteredParticipantsForJudge" />
+      <PairScoreCards
+        v-if="judgingMode === 'PAIR'"
+        :cards="filteredParticipantsForJudge"
+        :feedbackData="feedbackGiven"
+        :criteria="criteria"
+        @open-feedback="openFeedbackPopout"
+        @remove-tag="removeTag"
+      />
+      <SwipeableCardsV2
+        v-else
+        :cards="filteredParticipantsForJudge"
+        :feedbackData="feedbackGiven"
+        :criteria="criteria"
+        @open-feedback="openFeedbackPopout"
+        @remove-tag="removeTag"
+      />
     </template>
 
     <!-- Empty state -->
     <div
-      v-else-if="selectedRole && selectedGenre"
+      v-else-if="selectedRole && selectedGenre && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
       class="flex flex-col items-center justify-center py-24 text-center"
     >
       <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
@@ -421,4 +592,13 @@ onMounted(async () => {
   >
     <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
+
+  <FeedbackPopout
+    :visible="feedbackPopout.visible"
+    :participant="feedbackPopout.participant"
+    :tagGroups="tagGroups"
+    :existingFeedback="feedbackPopout.existing"
+    @close="feedbackPopout.visible = false"
+    @save="saveFeedback"
+  />
 </template>

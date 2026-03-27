@@ -7,7 +7,8 @@ import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
-import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
+import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
+import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
 
 const fileId = ref('')
 const modalTitle = ref("")
@@ -44,8 +45,12 @@ const paymentRequired = ref(false)
 const showModal = ref(false)
 const handleAccept = () => { showModal.value = false }
 
+// Scoring criteria modal
+const showCriteriaModal = ref(false)
+
 // Walk-in form
 const showWalkInForm = ref(false)
+const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
 
 // Genre adjustment modal
 const showAdjustModal = ref(false)
@@ -182,6 +187,7 @@ const registeredList = computed(() => {
     .map(([name, rows]) => ({
       name,
       walkin: rows[0].walkin,
+      referenceCode: rows[0].referenceCode || null,
       entries: rows
         .filter(r => r.auditionNumber !== null)
         .map(r => ({ genre: r.genreName, auditionNumber: r.auditionNumber }))
@@ -725,6 +731,22 @@ onMounted(async () => {
                   v-if="p.walkin"
                   class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600"
                 >walk-in</span>
+                <!-- Hold-to-reveal reference code for walk-ins -->
+                <span
+                  v-if="p.walkin && p.referenceCode"
+                  class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                  @mousedown="revealingRef = p.name"
+                  @mouseup="revealingRef = null"
+                  @mouseleave="revealingRef = null"
+                  @touchstart.prevent="revealingRef = p.name"
+                  @touchend="revealingRef = null"
+                  @touchcancel="revealingRef = null"
+                  title="Hold to reveal reference code"
+                >
+                  <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
+                  <span v-if="revealingRef === p.name" class="font-source tracking-widest text-primary-400">{{ p.referenceCode }}</span>
+                  <span v-else class="text-content-muted">Hold for ref code</span>
+                </span>
                 <span
                   v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
                   class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
@@ -758,7 +780,17 @@ onMounted(async () => {
 
     <!-- Genre breakdown -->
     <div v-if="completeBreakdown.length > 0" class="mb-8">
-      <h2 class="font-heading font-bold text-content-secondary text-lg mb-4">Genre Breakdown</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Genre Breakdown</h2>
+        <button
+          @click="showCriteriaModal = true"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-600 bg-surface-700/60
+                 text-xs font-semibold text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all duration-150"
+        >
+          <i class="pi pi-sliders-h text-xs" />
+          Scoring Criteria
+        </button>
+      </div>
       <div class="space-y-2">
         <div
           v-for="genre in completeBreakdown"
@@ -819,6 +851,7 @@ onMounted(async () => {
                 </div>
               </template>
             </div>
+
           </div>
         </div>
       </div>
@@ -1103,7 +1136,7 @@ onMounted(async () => {
           <div>
             <label class="block text-sm font-semibold text-content-secondary mb-1.5">
               Body
-              <span class="font-normal text-content-muted ml-1">— use <code class="font-source text-xs bg-surface-700 px-1 rounded">{name}</code> for participant name</span>
+              <span class="font-normal text-content-muted ml-1">— use <code class="font-source text-xs bg-surface-700 px-1 rounded">{name}</code> for participant name, <code class="font-source text-xs bg-surface-700 px-1 rounded">{refCode}</code> for results reference code</span>
             </label>
             <textarea
               v-model="templateBody"
@@ -1137,4 +1170,11 @@ onMounted(async () => {
       </div>
     </div>
   </Teleport>
+
+  <!-- Scoring Criteria Modal -->
+  <ScoringCriteriaModal
+    v-model="showCriteriaModal"
+    :eventName="props.eventName"
+    :genres="completeBreakdown.map(g => g.genre)"
+  />
 </template>

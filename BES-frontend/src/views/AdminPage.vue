@@ -1,6 +1,6 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue';
-import { addGenre, addJudge, deleteGenre, deleteImage, deleteJudge, deleteScore, getAllImages, updateGenre, updateJudge } from '@/utils/adminApi';
+import { addGenre, addJudge, deleteGenre, deleteImage, deleteJudge, deleteScore, getAllImages, updateGenre, updateJudge, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -55,6 +55,9 @@ const judges = ref([])
 const genres = ref([])
 const events = ref([])
 const images = ref([])
+const feedbackGroups = ref([])
+const addGroupInput = ref('')
+const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
 
 const confirmResetScore = (id, title, message) => {
@@ -139,11 +142,45 @@ const submitDeleteImage = async (name) => {
   if (res.ok) images.value = images.value.filter(i => i != name)
 }
 
+const submitAddGroup = async () => {
+  if (checkInputNull(addGroupInput.value)) {
+    openModal("Validation Error", "Group name cannot be empty.", "error")
+    return
+  }
+  const res = await addFeedbackGroup(addGroupInput.value)
+  if (res?.ok) feedbackGroups.value = await res.json()
+  addGroupInput.value = ''
+}
+
+const submitDeleteGroup = async (id) => {
+  const res = await deleteFeedbackGroup(id)
+  if (res?.ok) feedbackGroups.value = feedbackGroups.value.filter(g => g.id !== id)
+}
+
+const submitAddTag = async (groupId) => {
+  const label = addTagInputs.value[groupId] ?? ''
+  if (checkInputNull(label)) return
+  const res = await addFeedbackTag(groupId, label)
+  if (res?.ok) feedbackGroups.value = await res.json()
+  addTagInputs.value[groupId] = ''
+}
+
+const submitDeleteTag = async (tagId) => {
+  const res = await deleteFeedbackTag(tagId)
+  if (res?.ok) {
+    feedbackGroups.value = feedbackGroups.value.map(g => ({
+      ...g,
+      tags: g.tags.filter(t => t.id !== tagId)
+    }))
+  }
+}
+
 onMounted(async () => {
   genres.value = await fetchAllGenres() ?? []
   judges.value = await getAllJudges() ?? []
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
+  feedbackGroups.value = await getFeedbackGroups() ?? []
 })
 </script>
 
@@ -295,6 +332,99 @@ onMounted(async () => {
             Reset
           </button>
         </div>
+      </div>
+    </section>
+
+    <!-- Feedback Tags section -->
+    <section class="card p-6">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
+          <i class="pi pi-comment text-primary-400 text-sm"></i>
+        </div>
+        <h2 class="font-heading font-bold text-content-secondary text-lg">Feedback Tags</h2>
+        <span class="badge-neutral text-xs">{{ feedbackGroups.length }} groups</span>
+      </div>
+
+      <!-- Add group -->
+      <div class="flex gap-3 mb-6">
+        <input
+          v-model="addGroupInput"
+          type="text"
+          placeholder="New group name…"
+          class="input-base flex-1 max-w-xs"
+          @keyup.enter="submitAddGroup"
+        />
+        <button
+          @click="submitAddGroup"
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium
+                 bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+        >
+          <i class="pi pi-plus text-xs"></i>
+          Add Group
+        </button>
+      </div>
+
+      <!-- Groups list -->
+      <div class="space-y-5">
+        <div
+          v-for="group in feedbackGroups"
+          :key="group.id"
+          class="border border-surface-600/50 rounded-xl p-4 bg-surface-700/20"
+        >
+          <!-- Group header -->
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-content-primary">{{ group.name }}</h3>
+            <button
+              @click="submitDeleteGroup(group.id)"
+              class="w-6 h-6 rounded-full flex items-center justify-center
+                     text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+              title="Delete group"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Tags -->
+          <div class="flex flex-wrap gap-2 mb-3">
+            <div
+              v-for="tag in group.tags"
+              :key="tag.id"
+              class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
+                     bg-surface-600/60 border border-surface-500/50 text-content-secondary"
+            >
+              {{ tag.label }}
+              <button
+                @click="submitDeleteTag(tag.id)"
+                class="text-surface-400 hover:text-red-400 transition-colors leading-none"
+              >
+                <i class="pi pi-times" style="font-size: 0.6rem"></i>
+              </button>
+            </div>
+            <p v-if="!group.tags?.length" class="text-xs text-content-muted py-1">No tags yet</p>
+          </div>
+
+          <!-- Add tag input -->
+          <div class="flex gap-2">
+            <input
+              v-model="addTagInputs[group.id]"
+              type="text"
+              :placeholder="`Add tag to ${group.name}…`"
+              class="input-base flex-1 text-sm py-1.5"
+              @keyup.enter="submitAddTag(group.id)"
+            />
+            <button
+              @click="submitAddTag(group.id)"
+              class="px-3 py-1.5 rounded-xl text-xs font-medium
+                     bg-surface-600 text-content-secondary hover:bg-surface-500 transition-colors"
+            >
+              <i class="pi pi-plus text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <p v-if="feedbackGroups.length === 0" class="text-sm text-content-muted py-2">
+          No groups configured. Create groups above, then add tags to each.
+        </p>
       </div>
     </section>
 

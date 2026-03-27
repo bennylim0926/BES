@@ -84,8 +84,8 @@ onMounted(async () => {
             :key="g"
             class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
             :class="createTable.genres.includes(g)
-              ? 'bg-primary-50 border-primary-300 text-primary-700'
-              : 'bg-white border-surface-200 text-surface-700 hover:border-surface-300'"
+              ? 'bg-primary-100 border-primary-400 text-primary-400'
+              : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
           >
             <input
               type="checkbox"

@@ -282,11 +282,24 @@ function setWinner(roundKey, matchIdx, slotIdx) {
   match[2] = winner
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
   const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (!nextRoundSize) return
+  if (!nextRoundSize) { localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value))); return }
   const nextRoundKey = `Top${nextRoundSize}`
   const nextMatchIdx = Math.floor(matchIdx / 2)
   const nextSlotIdx = matchIdx % 2
   rounds.value[nextRoundKey][nextMatchIdx][nextSlotIdx] = winner
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+}
+
+function clearWinner(roundKey, matchIdx) {
+  const match = rounds.value[roundKey][matchIdx]
+  const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
+  const nextRoundSize = roundSizes.value[roundIndex + 1]
+  if (nextRoundSize) {
+    const nextMatchIdx = Math.floor(matchIdx / 2)
+    const nextSlotIdx = matchIdx % 2
+    rounds.value[`Top${nextRoundSize}`][nextMatchIdx][nextSlotIdx] = null
+  }
+  match[2] = null
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
 }
 
@@ -593,11 +606,12 @@ onMounted(async () => {
       <div class="h-px bg-surface-600/30 mb-5"></div>
 
       <!-- ── Standard bracket ──────────────────────────── -->
-      <div v-if="Number(topSize) !== 7" class="flex flex-wrap gap-4">
+      <div v-if="Number(topSize) !== 7" class="overflow-x-auto -mx-1 px-1 pb-2">
+        <div class="flex gap-4" :style="`min-width: ${roundSizes.length * 220}px`">
         <div
           v-for="(size, idx) in roundSizes"
           :key="idx"
-          class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50 min-w-[240px] flex-1"
+          class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50 flex-1 min-w-[200px]"
         >
           <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-3">
             Top {{ size }}
@@ -618,7 +632,7 @@ onMounted(async () => {
                 :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"
               ></i>
               <select
-                class="flex-1 bg-transparent text-sm font-semibold outline-none cursor-pointer
+                class="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none cursor-pointer
                        text-content-primary disabled:text-content-muted"
                 :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : ''"
                 v-model="rounds[`Top${size}`][mIdx][0]"
@@ -629,13 +643,14 @@ onMounted(async () => {
               </select>
               <button
                 :disabled="!match[0]"
-                @click="setWinner(`Top${size}`, mIdx, 0)"
-                class="flex-shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold transition-all
+                @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 0)"
+                class="flex-shrink-0 w-14 py-0.5 rounded-lg text-xs font-bold text-center transition-all
                        disabled:opacity-20 disabled:cursor-not-allowed"
                 :class="match[2] === match[0] && match[0]
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40'
                   : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-              >{{ match[2] === match[0] && match[0] ? 'Winner' : 'Win' }}</button>
+                :title="match[2] === match[0] && match[0] ? 'Click to unselect winner' : 'Set as winner'"
+              >{{ match[2] === match[0] && match[0] ? '✓ Win' : 'Win' }}</button>
             </div>
 
             <!-- VS divider -->
@@ -655,7 +670,7 @@ onMounted(async () => {
                 :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"
               ></i>
               <select
-                class="flex-1 bg-transparent text-sm font-semibold outline-none cursor-pointer text-content-primary"
+                class="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none cursor-pointer text-content-primary"
                 :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : ''"
                 v-model="rounds[`Top${size}`][mIdx][1]"
                 @change="updateMatch(`Top${size}`, mIdx, 1, rounds[`Top${size}`][mIdx][1])"
@@ -665,13 +680,14 @@ onMounted(async () => {
               </select>
               <button
                 :disabled="!match[1]"
-                @click="setWinner(`Top${size}`, mIdx, 1)"
-                class="flex-shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold transition-all
+                @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 1)"
+                class="flex-shrink-0 w-14 py-0.5 rounded-lg text-xs font-bold text-center transition-all
                        disabled:opacity-20 disabled:cursor-not-allowed"
                 :class="match[2] === match[1] && match[1]
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40'
                   : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-              >{{ match[2] === match[1] && match[1] ? 'Winner' : 'Win' }}</button>
+                :title="match[2] === match[1] && match[1] ? 'Click to unselect winner' : 'Set as winner'"
+              >{{ match[2] === match[1] && match[1] ? '✓ Win' : 'Win' }}</button>
             </div>
           </div>
 
@@ -683,6 +699,7 @@ onMounted(async () => {
             <i class="pi pi-play text-xs mr-1.5"></i>
             Start Round
           </button>
+        </div>
         </div>
       </div>
 

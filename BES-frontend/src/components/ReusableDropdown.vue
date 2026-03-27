@@ -16,7 +16,7 @@ if (!currentSelected.value && props.options.length > 0) {
 
 <template>
   <div>
-    <label class="block mb-1.5 text-sm font-medium text-surface-700">
+    <label class="block mb-1.5 text-sm font-medium text-content-secondary">
       {{ labelId }}
     </label>
 
@@ -25,7 +25,7 @@ if (!currentSelected.value && props.options.length > 0) {
 
         <!-- Trigger Button -->
         <ListboxButton
-          class="w-full flex items-center justify-between rounded-xl border bg-white px-4 py-2.5
+          class="w-full flex items-center justify-between rounded-xl border bg-surface-800 px-4 py-2.5
                  text-left text-sm shadow-sm
                  hover:border-primary-400
                  focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
@@ -33,13 +33,13 @@ if (!currentSelected.value && props.options.length > 0) {
           :class="[
             open
               ? 'border-primary-500 ring-2 ring-primary-500/30'
-              : 'border-surface-200',
-            currentSelected ? 'text-surface-900' : 'text-surface-400'
+              : 'border-surface-600',
+            currentSelected ? 'text-content-primary' : 'text-content-disabled'
           ]"
         >
           <span class="truncate">{{ currentSelected || placeholder }}</span>
           <i
-            class="pi pi-chevron-down flex-shrink-0 text-surface-400 text-xs
+            class="pi pi-chevron-down flex-shrink-0 text-content-muted text-xs
                    transition-transform duration-200"
             :class="open ? 'rotate-180' : ''"
           ></i>
@@ -56,8 +56,8 @@ if (!currentSelected.value && props.options.length > 0) {
         >
           <ListboxOptions
             class="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto
-                   rounded-xl border border-surface-200 bg-white
-                   shadow-xl shadow-surface-900/10
+                   rounded-xl border border-surface-600 bg-surface-800
+                   shadow-xl shadow-black/40
                    py-1 focus:outline-none"
           >
             <ListboxOption
@@ -71,12 +71,12 @@ if (!currentSelected.value && props.options.length > 0) {
                        cursor-pointer text-sm select-none
                        transition-colors duration-100"
                 :class="[
-                  active   ? 'bg-primary-50 text-primary-700' : 'text-surface-700',
+                  active   ? 'bg-primary-100 text-primary-400' : 'text-content-secondary',
                   selected ? 'font-semibold' : 'font-normal'
                 ]"
               >
                 {{ option }}
-                <i v-if="selected" class="pi pi-check text-primary-500 text-xs flex-shrink-0"></i>
+                <i v-if="selected" class="pi pi-check text-primary-400 text-xs flex-shrink-0"></i>
               </li>
             </ListboxOption>
           </ListboxOptions>

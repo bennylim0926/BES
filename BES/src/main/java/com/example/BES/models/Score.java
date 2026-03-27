@@ -9,7 +9,9 @@ import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Data
@@ -23,6 +25,8 @@ public class Score {
     private String aspect;   // e.g. "Musicality", "Creativity"
     private Double value;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @ManyToOne
     @JoinColumns({
         @JoinColumn(name = "event_id", referencedColumnName = "event_id"),
