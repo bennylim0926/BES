@@ -200,6 +200,9 @@ const swipeHint = computed(() => {
                   <div class="font-heading font-bold text-xl text-content-primary truncate leading-tight">
                     {{ slot.participantName }}
                   </div>
+                  <div v-if="slot.memberNames?.length" class="text-xs text-primary-300/80 truncate mt-0.5">
+                    <i class="pi pi-users mr-1" style="font-size:0.6rem"></i>{{ slot.memberNames.join(', ') }}
+                  </div>
                   <div v-if="slot.judgeName" class="text-xs text-content-muted truncate mt-0.5">
                     {{ slot.judgeName }}
                   </div>
@@ -269,6 +272,9 @@ const swipeHint = computed(() => {
               <div class="flex-1 min-w-0">
                 <div class="font-heading font-bold text-base text-content-primary truncate leading-tight">
                   {{ slot.participantName }}
+                </div>
+                <div v-if="slot.memberNames?.length" class="text-xs text-primary-300/80 truncate mt-0.5">
+                  <i class="pi pi-users mr-1" style="font-size:0.6rem"></i>{{ slot.memberNames.join(', ') }}
                 </div>
                 <div v-if="slot.judgeName" class="text-xs text-content-muted truncate mt-0.5">
                   {{ slot.judgeName }}

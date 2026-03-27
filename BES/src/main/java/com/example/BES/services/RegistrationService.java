@@ -18,11 +18,13 @@ import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
+import com.example.BES.models.EventParticipantTeamMember;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventParticipantRepo;
+import com.example.BES.respositories.EventParticipantTeamMemberRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ParticipantRepo;
@@ -56,6 +58,9 @@ public class RegistrationService {
     EventGenreParticpantRepo eventGenreParticipantRepo;
 
     @Autowired
+    EventParticipantTeamMemberRepo teamMemberRepo;
+
+    @Autowired
     GenreRepo genreRepo;
 
     public void addParticipantToEvent(AddParticipantToEventDto dto)
@@ -75,8 +80,8 @@ public class RegistrationService {
                 if (!ep.isPaymentVerified()) continue; // Case C: waiting for manual verification
                 // Case B: payment verified but email not yet sent — retry
                 try {
-                    List<EventGenreParticipantId> ids = getIdsForParticipant(event.getEventId(), toAddParticipant.getParticipantId());
-                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode(), ep.getDisplayName());
+                    List<EventGenreParticipant> egps = getEgpsForParticipant(event.getEventId(), toAddParticipant.getParticipantId());
+                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ep, egps, ep.getReferenceCode());
                     ep.setEmailSent(true);
                     eventParticipantRepo.save(ep);
                 } catch (Exception e) {
@@ -87,7 +92,9 @@ public class RegistrationService {
                 ep = new EventParticipant();
                 ep.setParticipant(toAddParticipant);
                 ep.setEvent(event);
-                ep.setDisplayName(participant.getParticipantName());
+                ep.setStageName(participant.getStageName());
+                ep.setTeamName(participant.getTeamName());
+                ep.setDisplayName(resolveEmailDisplayName(participant));
                 ep.setResidency(participant.getResidency());
                 ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
                 ep.setPaymentVerified(!event.isPaymentRequired());
@@ -95,37 +102,51 @@ public class RegistrationService {
                 ep.setScreenshotUrl(participant.getScreenshotUrl());
                 ep.setReferenceCode(ReferenceCodeUtil.generate());
 
-                // Save EP before sending email (DB state first)
+                // Save EP before saving team members (need EP id)
                 eventParticipantRepo.save(ep);
 
+                // Save team member records
+                if (participant.getMemberNames() != null && !participant.getMemberNames().isEmpty()) {
+                    for (String memberName : participant.getMemberNames()) {
+                        teamMemberRepo.save(new EventParticipantTeamMember(ep, memberName));
+                    }
+                }
+
                 // Save EGP entries
-                List<EventGenreParticipantId> ids = new ArrayList<>();
+                List<EventGenreParticipant> egps = new ArrayList<>();
                 if (participant.getGenres() != null) {
                     for (String genreName : participant.getGenres()) {
                         Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
                         if (genre == null) continue;
                         EventGenreParticipantId id = new EventGenreParticipantId(
                             event.getEventId(), genre.getGenreId(), toAddParticipant.getParticipantId());
-                        ids.add(id);
                         EventGenreParticipant egp = new EventGenreParticipant();
                         egp.setId(id);
                         egp.setEvent(event);
                         egp.setGenre(genre);
                         egp.setParticipant(toAddParticipant);
-                        egp.setDisplayName(participant.getParticipantName());
+
+                        String format = participant.getGenreFormats() != null
+                            ? participant.getGenreFormats().getOrDefault(genreName, null)
+                            : null;
+                        egp.setFormat(format);
+                        egp.setDisplayName(isTeamFormat(format)
+                            ? orElse(participant.getTeamName(), participant.getParticipantName())
+                            : orElse(participant.getStageName(), participant.getParticipantName()));
+
                         eventGenreParticipantRepo.save(egp);
+                        egps.add(egp);
                     }
                 }
 
-                // Send email only if payment verified
-                if (ep.isPaymentVerified() && !ids.isEmpty()) {
+                // Send email only if payment verified and EGPs exist
+                if (ep.isPaymentVerified() && !egps.isEmpty()) {
                     try {
-                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode(), ep.getDisplayName());
+                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ep, egps, ep.getReferenceCode());
                         ep.setEmailSent(true);
                         eventParticipantRepo.save(ep);
                     } catch (Exception e) {
                         log.error("Failed to send email for {}", toAddParticipant.getParticipantEmail(), e);
-                        // emailSent stays false; will retry on next import run
                     }
                 }
             }
@@ -145,8 +166,8 @@ public class RegistrationService {
         ep.setPaymentVerified(true);
 
         if (!ep.isEmailSent()) {
-            List<EventGenreParticipantId> ids = getIdsForParticipant(eventId, participantId);
-            mailService.sendEmailWithAttachment(event.getEventName(), participant, ids, ep.getReferenceCode(), ep.getDisplayName());
+            List<EventGenreParticipant> egps = getEgpsForParticipant(eventId, participantId);
+            mailService.sendEmailWithAttachment(event.getEventName(), participant, ep, egps, ep.getReferenceCode());
             ep.setEmailSent(true);
         }
 
@@ -182,10 +203,25 @@ public class RegistrationService {
         return result;
     }
 
-    private List<EventGenreParticipantId> getIdsForParticipant(long eventId, long participantId) {
-        return eventGenreParticipantRepo.findByEventIdAndParticipantId(eventId, participantId)
-            .stream()
-            .map(EventGenreParticipant::getId)
-            .collect(Collectors.toList());
+    private List<EventGenreParticipant> getEgpsForParticipant(long eventId, long participantId) {
+        return eventGenreParticipantRepo.findByEventIdAndParticipantId(eventId, participantId);
+    }
+
+    /** A format is "team" if it is non-null and not "1v1". */
+    private boolean isTeamFormat(String format) {
+        return format != null && !format.equalsIgnoreCase("1v1");
+    }
+
+    /** Returns preferred if non-blank, otherwise fallback. */
+    private String orElse(String preferred, String fallback) {
+        return (preferred != null && !preferred.isBlank()) ? preferred : fallback;
+    }
+
+    /** Email display name: always the individual (stageName → participantName). */
+    private String resolveEmailDisplayName(AddParticipantDto dto) {
+        if (dto.getStageName() != null && !dto.getStageName().isBlank()) {
+            return dto.getStageName();
+        }
+        return dto.getParticipantName();
     }
 }

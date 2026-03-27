@@ -156,12 +156,26 @@ public class EventGenreParticpantService {
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
 
-        // Build emailSent and referenceCode maps from EventParticipant records
+        // Build per-participant maps from EventParticipant records
         Map<Long, Boolean> emailSentMap = new java.util.HashMap<>();
         Map<Long, String> refCodeMap = new java.util.HashMap<>();
+        Map<Long, java.util.List<String>> memberNamesMap = new java.util.HashMap<>();
         for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
-            emailSentMap.put(ep.getParticipant().getParticipantId(), ep.isEmailSent());
-            refCodeMap.put(ep.getParticipant().getParticipantId(), ep.getReferenceCode());
+            long pid = ep.getParticipant().getParticipantId();
+            emailSentMap.put(pid, ep.isEmailSent());
+            refCodeMap.put(pid, ep.getReferenceCode());
+            // Build full team roster: leader first, then additional members
+            List<String> allMembers = new ArrayList<>();
+            String leaderName = (ep.getStageName() != null && !ep.getStageName().isBlank())
+                ? ep.getStageName()
+                : ep.getParticipant().getParticipantName();
+            allMembers.add(leaderName);
+            if (ep.getTeamMembers() != null) {
+                ep.getTeamMembers().stream()
+                    .map(com.example.BES.models.EventParticipantTeamMember::getMemberName)
+                    .forEach(allMembers::add);
+            }
+            memberNamesMap.put(pid, allMembers);
         }
 
         List<GetEventGenreParticipantDto> dtos = new ArrayList<>();
@@ -172,14 +186,20 @@ public class EventGenreParticpantService {
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
             dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false;
-            dto.participantId = res.getParticipant().getParticipantId();
+            long pid = res.getParticipant().getParticipantId();
+            dto.participantId = pid;
             dto.eventId = res.getEvent().getEventId();
             dto.genreId = res.getGenre().getGenreId();
-            dto.emailSent = emailSentMap.getOrDefault(res.getParticipant().getParticipantId(), false);
-            dto.referenceCode = refCodeMap.get(res.getParticipant().getParticipantId());
+            dto.emailSent = emailSentMap.getOrDefault(pid, false);
+            dto.referenceCode = refCodeMap.get(pid);
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();
+            }
+            // Only expose member names for team-format EGPs (format != "1v1")
+            String fmt = res.getFormat();
+            if (fmt != null && !fmt.equalsIgnoreCase("1v1")) {
+                dto.memberNames = memberNamesMap.get(pid);
             }
             dtos.add(dto);
         }

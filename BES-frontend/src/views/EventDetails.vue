@@ -121,18 +121,19 @@ const genreCounts = computed(() => {
   return counts
 })
 
-const totalWalkIn = computed(() => {
-  const uniqueParticipants = [
-    ...new Map(verifiedDbParticipants.value.map(p => [p.participantName, p])).values()
-  ]
-  return uniqueParticipants.filter(p => p.walkin == true).length
-})
+const totalWalkIn = computed(() =>
+  new Set(
+    verifiedDbParticipants.value
+      .filter(p => p.walkin)
+      .map(p => p.participantId)
+  ).size
+)
 
 const totalDbRegistered = computed(() => {
   const grouped = {}
   verifiedDbParticipants.value.forEach(p => {
-    if (!grouped[p.participantName]) grouped[p.participantName] = []
-    grouped[p.participantName].push(p)
+    if (!grouped[p.participantId]) grouped[p.participantId] = []
+    grouped[p.participantId].push(p)
   })
   // Walk-ins always count as registered (they showed up in person).
   // Form participants count only when all genres have audition numbers.
@@ -146,7 +147,7 @@ const totalVerified = computed(() =>
   new Set(
     verifiedDbParticipants.value
       .filter(p => !p.walkin)
-      .map(p => p.participantName)
+      .map(p => p.participantId)
   ).size
 )
 
@@ -155,8 +156,8 @@ const totalNotShownUp = computed(() => {
   verifiedDbParticipants.value
     .filter(p => !p.walkin)
     .forEach(p => {
-      if (!grouped[p.participantName]) grouped[p.participantName] = []
-      grouped[p.participantName].push(p)
+      if (!grouped[p.participantId]) grouped[p.participantId] = []
+      grouped[p.participantId].push(p)
     })
   return Object.values(grouped)
     .filter(rows => rows.every(r => r.auditionNumber === null)).length
@@ -172,7 +173,11 @@ const notShownUpList = computed(() => {
     })
   return Object.entries(grouped)
     .filter(([, rows]) => rows.every(r => r.auditionNumber === null))
-    .map(([name, rows]) => ({ name, genres: rows.map(r => r.genreName) }))
+    .map(([name, rows]) => ({
+      name,
+      genres: rows.map(r => r.genreName),
+      memberNames: rows.find(r => r.memberNames?.length)?.memberNames || []
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
@@ -188,6 +193,7 @@ const registeredList = computed(() => {
       name,
       walkin: rows[0].walkin,
       referenceCode: rows[0].referenceCode || null,
+      memberNames: rows.find(r => r.memberNames?.length)?.memberNames || [],
       entries: rows
         .filter(r => r.auditionNumber !== null)
         .map(r => ({ genre: r.genreName, auditionNumber: r.auditionNumber }))
@@ -350,14 +356,13 @@ const addGenre = async (genreName) => {
   adjustLoading.value = false
 }
 
-const emailedCount = computed(() => {
-  const names = new Set(
+const emailedCount = computed(() =>
+  new Set(
     verifiedDbParticipants.value
       .filter(p => !p.walkin && p.emailSent)
-      .map(p => p.participantName)
-  )
-  return names.size
-})
+      .map(p => p.participantId)
+  ).size
+)
 
 const toggleUnverifiedSelect = (participantId) => {
   if (selectedUnverified.value.has(participantId)) {
@@ -600,6 +605,10 @@ onMounted(async () => {
                   class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-surface-800 border border-surface-600 text-content-muted"
                 >{{ g }}</span>
               </div>
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted mt-0.5">
+                <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <span>{{ p.memberNames.join(', ') }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -770,6 +779,11 @@ onMounted(async () => {
                   <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
                   <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
                 </span>
+              </div>
+              <!-- Row 3: team members (only for team entries) -->
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
+                <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <span>{{ p.memberNames.join(', ') }}</span>
               </div>
             </div>
           </div>

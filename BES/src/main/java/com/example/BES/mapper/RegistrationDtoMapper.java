@@ -15,17 +15,46 @@ public class RegistrationDtoMapper {
     public AddParticipantDto mapRow(List<String> row,
                                         Map<String,Integer> colIndexMap,
                                         List<Integer> categoriesCols,
-                                        List<String> genres){
+                                        List<String> genres,
+                                        List<Integer> memberCols) {
         AddParticipantDto dto = new AddParticipantDto();
 
         Integer nameIdx = colIndexMap.get(SheetHeader.NAME);
         Integer emailIdx = colIndexMap.get(SheetHeader.EMAIL);
+        Integer stageNameIdx = colIndexMap.get(SheetHeader.STAGE_NAME);
+        Integer teamNameIdx = colIndexMap.get(SheetHeader.TEAM_NAME);
+
+        // Fallback: if no primary name column, use team name as participant identity
+        if (nameIdx == null && teamNameIdx != null) {
+            nameIdx = teamNameIdx;
+        }
 
         if (nameIdx == null || emailIdx == null) return dto;
         if (row.size() <= nameIdx || row.size() <= emailIdx) return dto;
 
         dto.setParticipantName(row.get(nameIdx));
         dto.setParticipantEmail(row.get(emailIdx));
+
+        // Stage name: dedicated column if present, otherwise single name doubles as stage name
+        if (stageNameIdx != null && row.size() > stageNameIdx && !row.get(stageNameIdx).isBlank()) {
+            dto.setStageName(row.get(stageNameIdx));
+        } else {
+            dto.setStageName(row.get(nameIdx));
+        }
+
+        // Team name
+        if (teamNameIdx != null && row.size() > teamNameIdx && !row.get(teamNameIdx).isBlank()) {
+            dto.setTeamName(row.get(teamNameIdx));
+        }
+
+        // Member names (additional team members beyond the leader)
+        List<String> memberNames = new ArrayList<>();
+        for (Integer idx : memberCols) {
+            if (row.size() > idx && !row.get(idx).isBlank()) {
+                memberNames.add(row.get(idx));
+            }
+        }
+        dto.setMemberNames(memberNames);
 
         if (colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)) {
             int residencyIdx = colIndexMap.get(SheetHeader.LOCAL_OVERSEAS);
@@ -48,14 +77,17 @@ public class RegistrationDtoMapper {
             }
         }
 
-        List<String> categories = new ArrayList<>();
-        for (Integer i : categoriesCols){
-            if (row.size() > i) {
-                categories = GoogleSheetParser.normalizeGenre(row.get(i).toLowerCase(), genres);
-                if(!categories.isEmpty()) break;
+        // Genre formats: parse raw category cell into genre → format map
+        Map<String, String> genreFormats = new java.util.HashMap<>();
+        for (Integer i : categoriesCols) {
+            if (row.size() > i && !row.get(i).isBlank()) {
+                genreFormats = GoogleSheetParser.parseGenreFormats(row.get(i), genres);
+                if (!genreFormats.isEmpty()) break;
             }
         }
-        dto.setGenres(categories);
+        dto.setGenreFormats(genreFormats);
+        dto.setGenres(new ArrayList<>(genreFormats.keySet()));
+
         return dto;
     }
 }
