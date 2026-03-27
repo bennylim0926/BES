@@ -1,4 +1,5 @@
 package com.example.BES.models;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,5 +35,8 @@ public class EventParticipant {
     private boolean paymentVerified = false;
     private boolean emailSent = false;
     private String screenshotUrl;
+
+    @Column(name = "reference_code", unique = true)
+    private String referenceCode;
 }
 

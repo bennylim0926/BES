@@ -88,6 +88,19 @@ public class EventService {
             java.util.Map.of("eventName", eventName, "judgingMode", mode));
     }
 
+    public void releaseResults(String eventName, boolean released) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        event.setResultsReleased(released);
+        repo.save(event);
+    }
+
+    public boolean isResultsReleased(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        return event.isResultsReleased();
+    }
+
     public void updateAccessCode(Long eventId, String newCode){
         if (newCode == null || !newCode.matches("\\d{4}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Access code must be exactly 4 digits");

@@ -20,6 +20,7 @@ import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
+import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
@@ -75,7 +76,7 @@ public class RegistrationService {
                 // Case B: payment verified but email not yet sent — retry
                 try {
                     List<EventGenreParticipantId> ids = getIdsForParticipant(event.getEventId(), toAddParticipant.getParticipantId());
-                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids);
+                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode());
                     ep.setEmailSent(true);
                     eventParticipantRepo.save(ep);
                 } catch (Exception e) {
@@ -91,6 +92,7 @@ public class RegistrationService {
                 ep.setPaymentVerified(!event.isPaymentRequired());
                 ep.setEmailSent(false);
                 ep.setScreenshotUrl(participant.getScreenshotUrl());
+                ep.setReferenceCode(ReferenceCodeUtil.generate());
 
                 // Save EP before sending email (DB state first)
                 eventParticipantRepo.save(ep);
@@ -116,7 +118,7 @@ public class RegistrationService {
                 // Send email only if payment verified
                 if (ep.isPaymentVerified() && !ids.isEmpty()) {
                     try {
-                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids);
+                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ids, ep.getReferenceCode());
                         ep.setEmailSent(true);
                         eventParticipantRepo.save(ep);
                     } catch (Exception e) {
@@ -142,7 +144,7 @@ public class RegistrationService {
 
         if (!ep.isEmailSent()) {
             List<EventGenreParticipantId> ids = getIdsForParticipant(eventId, participantId);
-            mailService.sendEmailWithAttachment(event.getEventName(), participant, ids);
+            mailService.sendEmailWithAttachment(event.getEventName(), participant, ids, ep.getReferenceCode());
             ep.setEmailSent(true);
         }
 

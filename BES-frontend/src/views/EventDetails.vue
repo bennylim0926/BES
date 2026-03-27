@@ -46,6 +46,7 @@ const handleAccept = () => { showModal.value = false }
 
 // Walk-in form
 const showWalkInForm = ref(false)
+const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
 
 // Genre adjustment modal
 const showAdjustModal = ref(false)
@@ -182,6 +183,7 @@ const registeredList = computed(() => {
     .map(([name, rows]) => ({
       name,
       walkin: rows[0].walkin,
+      referenceCode: rows[0].referenceCode || null,
       entries: rows
         .filter(r => r.auditionNumber !== null)
         .map(r => ({ genre: r.genreName, auditionNumber: r.auditionNumber }))
@@ -725,6 +727,22 @@ onMounted(async () => {
                   v-if="p.walkin"
                   class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600"
                 >walk-in</span>
+                <!-- Hold-to-reveal reference code for walk-ins -->
+                <span
+                  v-if="p.walkin && p.referenceCode"
+                  class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                  @mousedown="revealingRef = p.name"
+                  @mouseup="revealingRef = null"
+                  @mouseleave="revealingRef = null"
+                  @touchstart.prevent="revealingRef = p.name"
+                  @touchend="revealingRef = null"
+                  @touchcancel="revealingRef = null"
+                  title="Hold to reveal reference code"
+                >
+                  <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
+                  <span v-if="revealingRef === p.name" class="font-source tracking-widest text-primary-400">{{ p.referenceCode }}</span>
+                  <span v-else class="text-content-muted">Hold for ref code</span>
+                </span>
                 <span
                   v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
                   class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
@@ -1103,7 +1121,7 @@ onMounted(async () => {
           <div>
             <label class="block text-sm font-semibold text-content-secondary mb-1.5">
               Body
-              <span class="font-normal text-content-muted ml-1">— use <code class="font-source text-xs bg-surface-700 px-1 rounded">{name}</code> for participant name</span>
+              <span class="font-normal text-content-muted ml-1">— use <code class="font-source text-xs bg-surface-700 px-1 rounded">{name}</code> for participant name, <code class="font-source text-xs bg-surface-700 px-1 rounded">{refCode}</code> for results reference code</span>
             </label>
             <textarea
               v-model="templateBody"

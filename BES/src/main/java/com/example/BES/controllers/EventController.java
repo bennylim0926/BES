@@ -61,6 +61,7 @@ import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
 import com.example.BES.dtos.GetAuditionFeedbackDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
+import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.google.gson.Gson;
@@ -451,5 +452,49 @@ public class EventController {
             @RequestParam String judgeName,
             @RequestParam Integer auditionNumber) {
         return ResponseEntity.ok(feedbackService.getFeedback(eventName, genreName, judgeName, auditionNumber));
+    }
+
+    @Operation(summary = "Get All Judge Feedback for Participant", description = "Returns feedback from all judges for a given participant in a specific event genre")
+    @GetMapping("/feedback/participant")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetParticipantFeedbackDto>> getParticipantFeedback(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String participantName) {
+        return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, genreName, participantName));
+    }
+
+    @Operation(summary = "Get Results Release Status", description = "Returns whether results have been released for the event")
+    @GetMapping("/{eventName}/results-status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> getResultsStatus(@PathVariable String eventName) {
+        try {
+            boolean released = eventService.isResultsReleased(eventName);
+            return ResponseEntity.ok(Map.of("released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Release or Retract Results", description = "Toggles whether results are visible on the public results portal")
+    @PostMapping("/{eventName}/release-results")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> releaseResults(
+            @PathVariable String eventName,
+            @RequestBody Map<String, Boolean> body) {
+        try {
+            boolean released = Boolean.TRUE.equals(body.get("released"));
+            eventService.releaseResults(eventName, released);
+            return ResponseEntity.ok(Map.of("message", "Results release updated", "released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Participant Reference Codes", description = "Returns a list of participant names and their reference codes for the event")
+    @GetMapping("/{eventName}/participant-refs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> getParticipantRefs(@PathVariable String eventName) {
+        return ResponseEntity.ok(eventParticipantService.getParticipantRefs(eventName));
     }
 }

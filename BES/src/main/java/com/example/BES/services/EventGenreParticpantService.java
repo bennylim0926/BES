@@ -155,10 +155,12 @@ public class EventGenreParticpantService {
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
 
-        // Build emailSent map from EventParticipant records
+        // Build emailSent and referenceCode maps from EventParticipant records
         Map<Long, Boolean> emailSentMap = new java.util.HashMap<>();
+        Map<Long, String> refCodeMap = new java.util.HashMap<>();
         for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
             emailSentMap.put(ep.getParticipant().getParticipantId(), ep.isEmailSent());
+            refCodeMap.put(ep.getParticipant().getParticipantId(), ep.getReferenceCode());
         }
 
         List<GetEventGenreParticipantDto> dtos = new ArrayList<>();
@@ -173,6 +175,7 @@ public class EventGenreParticpantService {
             dto.eventId = res.getEvent().getEventId();
             dto.genreId = res.getGenre().getGenreId();
             dto.emailSent = emailSentMap.getOrDefault(res.getParticipant().getParticipantId(), false);
+            dto.referenceCode = refCodeMap.get(res.getParticipant().getParticipantId());
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();

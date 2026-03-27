@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.mapper.EventParticipantDtoMapper;
+import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
@@ -65,6 +66,21 @@ public class EventParticpantService {
         return res;
     }
 
+    public List<Map<String, String>> getParticipantRefs(String eventName) {
+        Event event = eventRepo.findByEventName(eventName).orElse(null);
+        if (event == null) return new ArrayList<>();
+        List<EventParticipant> eps = eventParticipantRepo.findByEvent(event);
+        List<Map<String, String>> result = new ArrayList<>();
+        for (EventParticipant ep : eps) {
+            if (ep.getReferenceCode() == null) continue;
+            Map<String, String> entry = new HashMap<>();
+            entry.put("participantName", ep.getParticipant().getParticipantName());
+            entry.put("referenceCode", ep.getReferenceCode());
+            result.add(entry);
+        }
+        return result;
+    }
+
     public EventParticipant addNewWalkInInEventService(Participant p, String eventName, String genre){
         Event event = eventRepo.findByEventName(eventName).orElse(null);
         if(event == null){
@@ -75,6 +91,7 @@ public class EventParticpantService {
             e = new EventParticipant();
             e.setEvent(event);
             e.setParticipant(p);
+            e.setReferenceCode(ReferenceCodeUtil.generate());
         }
         return eventParticipantRepo.save(e);
     }

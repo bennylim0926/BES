@@ -1,6 +1,7 @@
 package com.example.BES.services;
 
 import com.example.BES.dtos.GetAuditionFeedbackDto;
+import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.admin.GetFeedbackGroupDto;
 import com.example.BES.dtos.admin.GetFeedbackTagDto;
@@ -103,6 +104,23 @@ public class AuditionFeedbackService {
         feedback.setTags(selectedTags);
         feedback.setNote(dto.getNote());
         feedbackRepo.save(feedback);
+    }
+
+    public List<GetParticipantFeedbackDto> getAllFeedbackForParticipant(
+            String eventName, String genreName, String participantName) {
+        EventGenreParticipant egp = egpRepo.findByEventGenreParticipant(eventName, genreName, participantName).orElse(null);
+        if (egp == null) return new ArrayList<>();
+
+        List<AuditionFeedback> feedbacks = feedbackRepo.findByEventGenreParticipant(egp);
+        List<GetParticipantFeedbackDto> result = new ArrayList<>();
+        for (AuditionFeedback f : feedbacks) {
+            List<GetParticipantFeedbackDto.TagEntry> tagEntries = new ArrayList<>();
+            for (FeedbackTag t : f.getTags()) {
+                tagEntries.add(new GetParticipantFeedbackDto.TagEntry(t.getLabel(), t.getGroup().getName()));
+            }
+            result.add(new GetParticipantFeedbackDto(f.getJudge().getName(), tagEntries, f.getNote()));
+        }
+        return result;
     }
 
     public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,

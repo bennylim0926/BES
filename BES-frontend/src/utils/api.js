@@ -712,3 +712,65 @@ export const getAuditionFeedback = async (eventName, genreName, judgeName, audit
     return null
   }
 }
+
+export const getParticipantFeedback = async (eventName, genreName, participantName) => {
+  try {
+    const params = new URLSearchParams({ eventName, genreName, participantName })
+    const res = await fetch(`${domain}/api/v1/event/feedback/participant?${params}`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getResultsStatus = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-status`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const releaseResults = async (eventName, released) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-results`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ released })
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const getParticipantRefs = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/participant-refs`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const getResultsByRefCode = async (refCode) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/results?ref=${encodeURIComponent(refCode)}`)
+    if (res.ok) return await res.json()
+    const body = await res.json().catch(() => ({}))
+    return { error: body.error || 'Results not found or not yet released' }
+  } catch (e) {
+    console.log(e)
+    return { error: 'Network error' }
+  }
+}

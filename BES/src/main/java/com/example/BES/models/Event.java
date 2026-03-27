@@ -32,6 +32,9 @@ public class Event {
     @Column(name = "judging_mode", length = 10)
     private String judgingMode = "SOLO";
 
+    @Column(name = "results_released")
+    private boolean resultsReleased = false;
+
     @OneToMany(mappedBy = "event")
     private List<EventGenre> eventGenres;
 

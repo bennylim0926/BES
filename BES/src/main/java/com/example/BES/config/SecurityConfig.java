@@ -3,6 +3,7 @@ package com.example.BES.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -33,6 +34,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/battle/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/results").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                     .formLogin(AbstractHttpConfigurer::disable)

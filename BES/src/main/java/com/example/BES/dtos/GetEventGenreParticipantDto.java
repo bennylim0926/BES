@@ -11,4 +11,5 @@ public class GetEventGenreParticipantDto {
     public Long eventId;
     public Long genreId;
     public boolean emailSent;
+    public String referenceCode;
 }
