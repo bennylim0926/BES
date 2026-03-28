@@ -266,7 +266,7 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
   }
 }
 
-export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName)=>{
+export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '')=>{
   try{
   return await fetch(`${domain}/api/v1/event/walkins/`, {
     method: 'POST',
@@ -279,7 +279,9 @@ export const addWalkinToSystem = async (participantName, eventName, genreName, j
         name: participantName,
         eventName: eventName,
         genre: genreName,
-        judgeName: judgeName
+        judgeName: judgeName,
+        teamMembers: teamMembers,
+        teamName: teamName
     })
   })
   }catch(e){
@@ -510,6 +512,19 @@ export const updateEmailTemplate = async (eventName, subject, body) => {
       },
       body: JSON.stringify({ subject, body })
     })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const resetEmailTemplate = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/email-template/reset`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
   } catch (e) {
     console.log(e)
   }

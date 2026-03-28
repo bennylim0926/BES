@@ -150,7 +150,7 @@ public class EventControllerIntegrationTest {
         egp.setParticipant(p);
 
         when(participantService.addWalkInService(any())).thenReturn(p);
-        when(eventParticipantService.addNewWalkInInEventService(any(), any(), any())).thenReturn(ep);
+        when(eventParticipantService.addNewWalkInInEventService(any(), any(), any(), any(), any())).thenReturn(ep);
         when(eventGenreParticipantService.addWalkInToEventGenreParticipant(any(), any(), any(), any())).thenReturn(egp);
 
         mockMvc.perform(post("/api/v1/event/walkins/")

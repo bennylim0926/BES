@@ -21,6 +21,7 @@ import com.example.BES.dtos.GetEventGenreParticipantDto;
 import com.example.BES.dtos.ParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
@@ -28,6 +29,7 @@ import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
@@ -59,6 +61,9 @@ public class EventGenreParticpantService {
     @Autowired
     EventParticipantRepo eventParticipantRepo;
 
+    @Autowired
+    EventGenreRepo eventGenreRepo;
+
     public EventGenreParticipant addWalkInToEventGenreParticipant(Participant p, String genre, EventParticipant ep, String judge){
         
         Genre g = genreRepo.findByGenreName(genre).orElse(null);
@@ -73,6 +78,10 @@ public class EventGenreParticpantService {
             egp.setParticipant(p);
             egp.setGenre(g);
             egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
+            EventGenre eg = eventGenreRepo.findByEventAndGenre(ep.getEvent(), g).orElse(null);
+            if (eg != null) {
+                egp.setFormat(eg.getFormat());
+            }
         }
         return repo.save(egp);
     }

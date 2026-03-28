@@ -236,7 +236,7 @@ public class EventController {
     public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre);
+            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
             EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep,
                     dto.judgeName);
             AddParticipantToEventGenreDto auditionDto = new AddParticipantToEventGenreDto();
@@ -414,6 +414,16 @@ public class EventController {
             @RequestBody UpdateEmailTemplateDto dto) {
         try {
             return new ResponseEntity<>(emailTemplateService.updateTemplate(eventName, dto), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Reset Email Template", description = "Regenerates the smart default email template based on current event genre formats")
+    @PostMapping("/{eventName}/email-template/reset")
+    public ResponseEntity<GetEmailTemplateDto> resetEmailTemplate(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(emailTemplateService.resetToSmartDefault(eventName), HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }

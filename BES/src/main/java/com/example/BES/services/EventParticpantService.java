@@ -15,6 +15,7 @@ import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
+import com.example.BES.models.EventParticipantTeamMember;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventParticipantRepo;
@@ -81,7 +82,7 @@ public class EventParticpantService {
         return result;
     }
 
-    public EventParticipant addNewWalkInInEventService(Participant p, String eventName, String genre){
+    public EventParticipant addNewWalkInInEventService(Participant p, String eventName, String genre, List<String> teamMembers, String teamName){
         Event event = eventRepo.findByEventName(eventName).orElse(null);
         if(event == null){
             return null;
@@ -91,8 +92,23 @@ public class EventParticpantService {
             e = new EventParticipant();
             e.setEvent(event);
             e.setParticipant(p);
-            e.setDisplayName(p.getParticipantName());
+            e.setStageName(p.getParticipantName());
+            if (teamName != null && !teamName.isBlank()) {
+                e.setTeamName(teamName);
+                e.setDisplayName(teamName);
+            } else {
+                e.setDisplayName(p.getParticipantName());
+            }
             e.setReferenceCode(ReferenceCodeUtil.generate());
+            EventParticipant saved = eventParticipantRepo.save(e);
+            if (teamMembers != null) {
+                for (String memberName : teamMembers) {
+                    if (memberName != null && !memberName.isBlank()) {
+                        saved.getTeamMembers().add(new EventParticipantTeamMember(saved, memberName));
+                    }
+                }
+            }
+            return eventParticipantRepo.save(saved);
         }
         return eventParticipantRepo.save(e);
     }

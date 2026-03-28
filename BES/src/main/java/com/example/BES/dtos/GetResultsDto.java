@@ -19,19 +19,22 @@ public class GetResultsDto {
 
     public static class GenreResult {
         private String genreName;
+        private String format;
         private Integer auditionNumber;
         private List<ScoreEntry> scores;
         private List<FeedbackEntry> feedback;
 
-        public GenreResult(String genreName, Integer auditionNumber,
+        public GenreResult(String genreName, String format, Integer auditionNumber,
                            List<ScoreEntry> scores, List<FeedbackEntry> feedback) {
             this.genreName = genreName;
+            this.format = format;
             this.auditionNumber = auditionNumber;
             this.scores = scores;
             this.feedback = feedback;
         }
 
         public String getGenreName() { return genreName; }
+        public String getFormat() { return format; }
         public Integer getAuditionNumber() { return auditionNumber; }
         public List<ScoreEntry> getScores() { return scores; }
         public List<FeedbackEntry> getFeedback() { return feedback; }

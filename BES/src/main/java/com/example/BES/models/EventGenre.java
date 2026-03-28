@@ -12,6 +12,7 @@ import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Data
@@ -31,6 +32,10 @@ public class EventGenre {
     @JoinColumn(name = "genre_id")
     private Genre genre;
 
+    @Column(name = "format")
+    private String format;
+
+    @ToString.Exclude
     @OneToMany(mappedBy = "eventGenre")
-    private List<EventGenreParticipant> participants; 
+    private List<EventGenreParticipant> participants;
 }

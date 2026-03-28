@@ -2,6 +2,7 @@ package com.example.BES.services;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,7 +64,15 @@ public class MailSenderService {
 
         String displayName = ep.getDisplayName() != null ? ep.getDisplayName() : receiver.getParticipantName();
 
-        String body = template.getBody()
+        boolean hasTeam = egps.stream().anyMatch(egp -> isTeamFormat(egp.getFormat()));
+        boolean hasSolo = egps.stream().anyMatch(egp -> !isTeamFormat(egp.getFormat()));
+
+        String body = template.getBody();
+        // Process conditional blocks before variable substitution
+        body = processConditionalBlock(body, "team", hasTeam);
+        body = processConditionalBlock(body, "solo", hasSolo);
+        // Variable substitution
+        body = body
             .replace("{name}",            displayName)
             .replace("{stageName}",       ep.getStageName()  != null ? ep.getStageName()  : "")
             .replace("{teamName}",        ep.getTeamName()   != null ? ep.getTeamName()   : "")
@@ -94,6 +103,21 @@ public class MailSenderService {
 
     private boolean isTeamFormat(String format) {
         return format != null && !format.equalsIgnoreCase("1v1");
+    }
+
+    /**
+     * If condition is true: strip the open/close tags and keep the content.
+     * If condition is false: remove the entire block including its content.
+     */
+    private String processConditionalBlock(String body, String tag, boolean condition) {
+        String openTag  = "\\{if:" + tag + "\\}";
+        String closeTag = "\\{endif:" + tag + "\\}";
+        if (condition) {
+            return body.replaceAll(openTag, "").replaceAll(closeTag, "");
+        } else {
+            return Pattern.compile(openTag + ".*?" + closeTag, Pattern.DOTALL)
+                          .matcher(body).replaceAll("");
+        }
     }
 
     public static String normalizeKey(String key) {

@@ -2,7 +2,7 @@
 import { ref, onMounted, reactive, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch } from '@/utils/api';
 import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
@@ -86,6 +86,16 @@ const saveTemplate = async () => {
     openModal('Template Saved', 'Email template updated successfully.', 'success')
   } else {
     openModal('Error', 'Failed to save email template.', 'error')
+  }
+}
+
+const resetTemplate = async () => {
+  templateLoading.value = true
+  const tpl = await resetEmailTemplate(props.eventName)
+  templateLoading.value = false
+  if (tpl) {
+    templateSubject.value = tpl.subject
+    templateBody.value = tpl.body
   }
 }
 
@@ -1148,10 +1158,27 @@ onMounted(async () => {
             />
           </div>
           <div>
-            <label class="block text-sm font-semibold text-content-secondary mb-1.5">
-              Body
-              <span class="font-normal text-content-muted ml-1">— use <code class="font-source text-xs bg-surface-700 px-1 rounded">{name}</code> for participant name, <code class="font-source text-xs bg-surface-700 px-1 rounded">{refCode}</code> for results reference code</span>
-            </label>
+            <label class="block text-sm font-semibold text-content-secondary mb-2">Body</label>
+
+            <!-- Variable reference -->
+            <div class="mb-3 p-3 rounded-xl bg-surface-900/60 border border-surface-600/40 space-y-2 text-xs text-content-muted">
+              <p class="font-semibold text-content-secondary uppercase tracking-wider text-[10px]">Available Variables</p>
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{name}</code> — display name (team name or stage name)</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{stageName}</code> — representative's stage name</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{teamName}</code> — crew/team name</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{members}</code> — all team members (comma-separated)</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{soloCategories}</code> — solo (1v1) categories entered</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{teamCategories}</code> — team categories entered</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{refCode}</code> — results reference code</div>
+              </div>
+              <p class="font-semibold text-content-secondary uppercase tracking-wider text-[10px] pt-1">Conditional Blocks (for mixed events)</p>
+              <div class="space-y-1">
+                <div><code class="font-source bg-surface-700 px-1 rounded text-amber-300">{if:team}...{endif:team}</code> — shown only if participant has team categories</div>
+                <div><code class="font-source bg-surface-700 px-1 rounded text-amber-300">{if:solo}...{endif:solo}</code> — shown only if participant has solo categories</div>
+              </div>
+            </div>
+
             <textarea
               v-model="templateBody"
               rows="10"
@@ -1163,23 +1190,35 @@ onMounted(async () => {
         </div>
 
         <!-- Footer -->
-        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-600/30">
+        <div class="flex items-center justify-between gap-3 px-6 py-4 border-t border-surface-600/30">
           <button
-            @click="showTemplateModal = false"
-            class="px-4 py-2 rounded-xl border border-surface-600 text-sm font-semibold text-content-secondary
-                   hover:bg-surface-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            @click="saveTemplate"
+            @click="resetTemplate"
             :disabled="templateLoading"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold
-                   hover:bg-primary-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-content-muted
+                   hover:text-content-secondary hover:bg-surface-700 disabled:opacity-50 transition-colors"
+            title="Regenerate smart default based on event genre formats"
           >
-            <i class="pi pi-check text-xs"></i>
-            Save Template
+            <i class="pi pi-refresh text-xs"></i>
+            Reset to default
           </button>
+          <div class="flex items-center gap-3">
+            <button
+              @click="showTemplateModal = false"
+              class="px-4 py-2 rounded-xl border border-surface-600 text-sm font-semibold text-content-secondary
+                     hover:bg-surface-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="saveTemplate"
+              :disabled="templateLoading"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold
+                     hover:bg-primary-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <i class="pi pi-check text-xs"></i>
+              Save Template
+            </button>
+          </div>
         </div>
       </div>
     </div>

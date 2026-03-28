@@ -36,6 +36,7 @@ public class EventGenreService {
             GetGenreDto dto = new GetGenreDto();
             dto.id = eg.getGenre().getGenreId();
             dto.genreName = eg.getGenre().getGenreName();
+            dto.format = eg.getFormat();
             dtos.add(dto);
         }
         return dtos;
