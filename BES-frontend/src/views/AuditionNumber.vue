@@ -17,6 +17,8 @@ const modalTitle = ref("")
 const modalMessage = ref("")
 const showModal = ref(false)
 
+const revealingRef = ref(null)
+
 const groupedHistory = computed(() => {
   const order = []
   const map = new Map()
@@ -25,14 +27,15 @@ const groupedHistory = computed(() => {
       const idx = order.indexOf(a.name)
       order.splice(idx, 1)
     } else {
-      map.set(a.name, new Map())
+      map.set(a.name, { refCode: a.refCode || '', genres: new Map() })
     }
     order.push(a.name)
-    map.get(a.name).set(a.genre, a)
+    map.get(a.name).genres.set(a.genre, a)
   }
   return order.reverse().map(name => ({
     name,
-    entries: [...map.get(name).values()]
+    refCode: map.get(name).refCode,
+    entries: [...map.get(name).genres.values()]
   }))
 })
 
@@ -157,7 +160,7 @@ onBeforeUnmount(() => {
               : 'text-sm font-semibold text-content-secondary w-28 shrink-0 truncate'"
           >{{ group.name }}</span>
           <!-- Genre + number pills -->
-          <div class="flex flex-wrap gap-1.5">
+          <div class="flex flex-wrap gap-1.5 flex-1">
             <span
               v-for="a in group.entries"
               :key="a.genre"
@@ -172,6 +175,27 @@ onBeforeUnmount(() => {
               >#{{ a.auditionNumber }}</span>
             </span>
           </div>
+          <!-- Hold-to-reveal ref code -->
+          <span
+            v-if="group.refCode"
+            class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+            @mousedown="revealingRef = group.name"
+            @mouseup="revealingRef = null"
+            @mouseleave="revealingRef = null"
+            @touchstart.prevent="revealingRef = group.name"
+            @touchend="revealingRef = null"
+            @touchcancel="revealingRef = null"
+          >
+            <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
+            <span class="text-content-muted">Ref code</span>
+            <span
+              v-if="revealingRef === group.name"
+              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+            >
+              <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ group.refCode }}</span>
+              <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
+            </span>
+          </span>
         </div>
       </div>
     </div>

@@ -20,6 +20,7 @@ const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
+const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
@@ -55,6 +56,19 @@ const dynamicRole = async () => {
 
 const hasJudge = computed(() => participants.value.some(item => item.judgeName !== null))
 
+const hasTeamAndSoloMix = computed(() => {
+  const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
+  const hasTeam = gp.some(p => p.format && p.format !== '1v1')
+  const hasSolo = gp.some(p => !p.format)
+  return hasTeam && hasSolo
+})
+
+const matchesEntryType = (p) => {
+  if (selectedEntryType.value === 'Teams') return p.format && p.format !== '1v1'
+  if (selectedEntryType.value === 'Solo') return !p.format
+  return true
+}
+
 const openModal = (title, message, variant = 'info') => {
   modalTitle.value = title
   modalMessage.value = message
@@ -89,7 +103,8 @@ const filteredParticipantsForJudge = computed({
       .filter(p =>
         p.genreName === selectedGenre.value &&
         p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value) &&
-        p.auditionNumber !== null
+        p.auditionNumber !== null &&
+        matchesEntryType(p)
       )
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
@@ -112,18 +127,18 @@ watch(filteredParticipantsForJudge, (newVal) => {
 
 const filteredParticipantsForEmceeView = computed(() => {
   const base = filteredJudge.value === ""
-    ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null)
-    : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null)
+    ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null && matchesEntryType(p))
+    : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p))
   return base.sort((a, b) => a.auditionNumber - b.auditionNumber)
 })
 
 const filteredParticipantsForEmcee = computed({
   get() {
     if (filteredJudge.value === "") {
-      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null))
+      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null && matchesEntryType(p)))
     }
     return transformForTable(participants.value.filter(p =>
-      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null
+      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p)
     ))
   },
   set(updatedSubset) {
@@ -166,7 +181,10 @@ watch(selectedEvent, async (newVal, oldVal) => {
   }
 }, { immediate: true });
 
-watch(selectedGenre, (newVal) => { if (newVal) localStorage.setItem("selectedGenre", newVal); }, { immediate: true });
+watch(selectedGenre, (newVal) => {
+  if (newVal) localStorage.setItem("selectedGenre", newVal)
+  selectedEntryType.value = 'Teams'
+}, { immediate: true });
 watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
 watch(currentJudge, (newVal) => { if (newVal) localStorage.setItem("currentJudge", newVal); }, { immediate: true });
 
@@ -392,6 +410,7 @@ onMounted(async () => {
           walkin: msg.walkin,
           emailSent: false,
           score: 0,
+          format: msg.format || null,
           rowId: participants.value.length
         })
       }
@@ -502,6 +521,12 @@ onMounted(async () => {
             <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
           </div>
           <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+          <ReusableDropdown
+            v-if="hasTeamAndSoloMix"
+            v-model="selectedEntryType"
+            labelId="Type"
+            :options="['Teams', 'Solo']"
+          />
           <ReusableDropdown
             v-if="isAdmin && selectedEvent"
             v-model="judgingMode"

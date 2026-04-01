@@ -228,7 +228,7 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   }
 }
 
-export const linkGenreToEvent = async(eventName, genres) =>{
+export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
   try{
     return await fetch(`${domain}/api/v1/event/genre`, {
       method: 'POST',
@@ -239,7 +239,8 @@ export const linkGenreToEvent = async(eventName, genres) =>{
       },
       body: JSON.stringify({
           eventName: eventName,
-          genreName: genres
+          genreName: genres,
+          genreFormats: genreFormats
       })
   })
   }catch(e){
@@ -873,5 +874,62 @@ export const getResultsByRefCode = async (refCode) => {
   } catch (e) {
     console.log(e)
     return { error: 'Network error' }
+  }
+}
+export const getPickupCrews = async (eventName, genreName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews/${encodeURIComponent(eventName)}/${encodeURIComponent(genreName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const createPickupCrew = async (eventName, genreName, crewName, memberParticipantIds) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName, crewName, memberParticipantIds })
+    })
+    if (res.ok) return await res.json()
+    const body = await res.json().catch(() => ({}))
+    return { error: body.error || 'Failed to create crew' }
+  } catch (e) {
+    console.log(e)
+    return { error: 'Network error' }
+  }
+}
+
+export const deletePickupCrew = async (crewId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews/${crewId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+}
+
+export const updateEventGenreFormat = async (eventName, genreName, format) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${encodeURIComponent(genreName)}/format`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format })
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
   }
 }

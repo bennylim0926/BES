@@ -15,4 +15,5 @@ public class GetEventGenreParticipantDto {
     public boolean emailSent;
     public String referenceCode;
     public List<String> memberNames; // non-null only for team-format EGPs
+    public String format;            // "2v2"/"3v3" for team entries; null for solo pickup
 }

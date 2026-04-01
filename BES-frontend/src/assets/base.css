@@ -91,6 +91,7 @@
     @apply font-sans bg-surface-950 text-content-primary antialiased leading-relaxed min-h-screen;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    scrollbar-gutter: stable;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -606,15 +607,11 @@ html.theme-transition *::after {
 ───────────────────────────────────────── */
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.15s ease;
 }
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
+.page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
 }
 
 /* ─────────────────────────────────────────

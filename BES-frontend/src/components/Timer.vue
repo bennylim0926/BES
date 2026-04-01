@@ -3,18 +3,30 @@ import { ref, computed, onBeforeUnmount } from "vue";
 import ReusableButton from "./ReusableButton.vue";
 
 const selectedTime = ref(0)
-const timeLeft = ref(0);
-let timer = null;
+const timeLeft = ref(0)
+const countUp = ref(false)
+let timer = null
 
 const isRunning = computed(() => timer !== null)
 const isFinished = computed(() => selectedTime.value > 0 && timeLeft.value >= selectedTime.value)
-const isNearEnd = computed(() => selectedTime.value > 0 && timeLeft.value >= selectedTime.value - 5 && !isFinished.value)
+const isNearEnd = computed(() =>
+  !countUp.value &&
+  selectedTime.value > 0 &&
+  timeLeft.value >= selectedTime.value - 5 &&
+  !isFinished.value
+)
 
 const displayTime = computed(() => {
   if (selectedTime.value === 0) return '—'
-  const remaining = selectedTime.value - timeLeft.value
-  if (remaining <= 0) return '0'
-  return String(remaining)
+  if (countUp.value) {
+    // show elapsed
+    return String(Math.min(timeLeft.value, selectedTime.value))
+  } else {
+    // show remaining
+    const remaining = selectedTime.value - timeLeft.value
+    if (remaining <= 0) return '0'
+    return String(remaining)
+  }
 })
 
 const progressPct = computed(() => {
@@ -23,22 +35,32 @@ const progressPct = computed(() => {
 })
 
 function startTimer(seconds) {
-  if (timer) clearInterval(timer);
+  if (timer) clearInterval(timer)
   selectedTime.value = seconds
-  timeLeft.value = 0;
+  timeLeft.value = 0
   timer = setInterval(() => {
     if (timeLeft.value < seconds) {
-      timeLeft.value++;
+      timeLeft.value++
     } else {
-      clearInterval(timer);
-      timer = null;
+      clearInterval(timer)
+      timer = null
     }
-  }, 1000);
+  }, 1000)
+}
+
+function toggleMode() {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+  selectedTime.value = 0
+  timeLeft.value = 0
+  countUp.value = !countUp.value
 }
 
 onBeforeUnmount(() => {
-  if (timer) clearInterval(timer);
-});
+  if (timer) clearInterval(timer)
+})
 </script>
 
 <template>
@@ -48,7 +70,7 @@ onBeforeUnmount(() => {
     :class="isRunning && isNearEnd ? 'animate-glow-pulse' : ''"
   >
     <div class="flex items-center gap-4">
-      <!-- Countdown display -->
+      <!-- Time display -->
       <div class="flex-shrink-0 text-center min-w-[80px]">
         <div
           class="text-5xl font-heading font-extrabold tabular-nums transition-all duration-500"
@@ -65,7 +87,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Progress bar -->
+      <!-- Progress bar + controls -->
       <div class="flex-1">
         <div class="h-1.5 bg-surface-600 rounded-full overflow-hidden mb-3">
           <div
@@ -75,8 +97,22 @@ onBeforeUnmount(() => {
           ></div>
         </div>
 
-        <!-- Quick-start buttons -->
-        <div class="flex gap-2 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- Mode toggle -->
+          <button
+            @click="toggleMode"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 flex items-center gap-1"
+            :class="countUp
+              ? 'bg-surface-600 border-primary-500/50 text-primary-300'
+              : 'bg-surface-700 border-surface-600 text-content-secondary hover:border-primary-500/50'"
+          >
+            <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="text-[10px]"></i>
+            {{ countUp ? 'Count Up' : 'Count Down' }}
+          </button>
+
+          <div class="w-px h-4 bg-surface-600"></div>
+
+          <!-- Duration presets -->
           <button
             v-for="t in [30, 45, 60, 90]"
             :key="t"

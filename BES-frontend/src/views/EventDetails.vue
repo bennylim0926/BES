@@ -2,7 +2,7 @@
 import { ref, onMounted, reactive, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch, updateEventGenreFormat } from '@/utils/api';
 import { filterObject, useDelay } from '@/utils/utils';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
@@ -39,7 +39,13 @@ const props = defineProps({
 
 const eventName = ref(props.eventName.split(" ").join("%20"));
 
-const createTable = reactive({ genres: [] })
+const createTable = reactive({ genres: [], genreFormats: {} })
+
+watch(() => [...createTable.genres], (newGenres) => {
+  Object.keys(createTable.genreFormats).forEach(g => {
+    if (!newGenres.includes(g)) delete createTable.genreFormats[g]
+  })
+})
 const paymentRequired = ref(false)
 
 const showModal = ref(false)
@@ -297,7 +303,7 @@ const onSubmit = async () => {
   loading.value = true
   await addJudges(inputs.value)
   await insertEventInTable(props.eventName, paymentRequired.value)
-  const resp = await linkGenreToEvent(props.eventName, createTable.genres)
+  const resp = await linkGenreToEvent(props.eventName, createTable.genres, createTable.genreFormats)
   resp.json().then(result => {
     loading.value = false
     getTitle(resp.status)
@@ -365,6 +371,23 @@ const addGenre = async (genreName) => {
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   adjustLoading.value = false
 }
+
+// ── Genre format editing ────────────────────────────────────────────────────
+const formatOptions = ['1v1', '2v2', '3v3', '4v4']
+const editingFormatFor = ref(null)  // genreName currently being edited
+const editingFormatValue = ref('')
+
+const startEditFormat = (genre) => {
+  editingFormatFor.value = genre.genreName
+  editingFormatValue.value = genre.format || ''
+}
+
+const saveFormat = async (genreName) => {
+  await updateEventGenreFormat(props.eventName, genreName, editingFormatValue.value || null)
+  eventGenres.value = await getGenresByEvent(props.eventName)
+  editingFormatFor.value = null
+}
+// ───────────────────────────────────────────────────────────────────────────
 
 const emailedCount = computed(() =>
   new Set(
@@ -753,18 +776,25 @@ onMounted(async () => {
                 <!-- Hold-to-reveal reference code for walk-ins -->
                 <span
                   v-if="p.walkin && p.referenceCode"
-                  class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
                   @mousedown="revealingRef = p.name"
                   @mouseup="revealingRef = null"
                   @mouseleave="revealingRef = null"
                   @touchstart.prevent="revealingRef = p.name"
                   @touchend="revealingRef = null"
                   @touchcancel="revealingRef = null"
-                  title="Hold to reveal reference code"
                 >
                   <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
-                  <span v-if="revealingRef === p.name" class="font-source tracking-widest text-primary-400">{{ p.referenceCode }}</span>
-                  <span v-else class="text-content-muted">Hold for ref code</span>
+                  <span class="text-content-muted">Ref code</span>
+                  <!-- Tooltip above, away from cursor -->
+                  <span
+                    v-if="revealingRef === p.name"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+                  >
+                    <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
+                    <!-- Arrow -->
+                    <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
+                  </span>
                 </span>
                 <span
                   v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
@@ -898,23 +928,35 @@ onMounted(async () => {
           Genres / Categories
         </label>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          <label
+          <div
             v-for="g in genreOptions"
             :key="g.genreName"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150"
+            class="flex flex-col gap-2 px-4 py-3 rounded-xl border transition-all duration-150"
             :class="createTable.genres.includes(g.genreName)
-              ? 'bg-primary-100 border-primary-300 text-primary-400'
-              : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
+              ? 'bg-primary-100 border-primary-300'
+              : 'bg-surface-800 border-surface-600 hover:border-surface-500'"
           >
-            <input
-              type="checkbox"
-              :id="g.genreName"
-              :value="g.genreName"
-              v-model="createTable.genres"
-              class="w-4 h-4 rounded accent-primary-600"
-            />
-            <span class="text-sm font-medium">{{ g.genreName }}</span>
-          </label>
+            <label class="flex items-center gap-2.5 cursor-pointer"
+              :class="createTable.genres.includes(g.genreName) ? 'text-primary-400' : 'text-content-secondary'"
+            >
+              <input
+                type="checkbox"
+                :id="g.genreName"
+                :value="g.genreName"
+                v-model="createTable.genres"
+                class="w-4 h-4 rounded accent-primary-600"
+              />
+              <span class="text-sm font-medium capitalize">{{ g.genreName }}</span>
+            </label>
+            <select
+              v-if="createTable.genres.includes(g.genreName)"
+              v-model="createTable.genreFormats[g.genreName]"
+              class="text-xs px-2 py-1 rounded-lg bg-white/70 border border-primary-300 text-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-500/40 w-full"
+            >
+              <option value="">No format</option>
+              <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -946,6 +988,66 @@ onMounted(async () => {
       </div>
     </div>
 
+  </div>
+
+  <!-- Genre Format Management (shown when event is set up) -->
+  <div v-if="tableExist && eventGenres.length > 0" class="card p-5 mt-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="icon-wrap w-8 h-8 rounded-xl bg-surface-700 flex items-center justify-center">
+        <i class="pi pi-tag text-content-muted text-sm"></i>
+      </div>
+      <div>
+        <h2 class="font-heading font-bold text-content-secondary text-sm">Genre Formats</h2>
+        <p class="text-xs text-content-muted mt-0.5">Set battle format per genre (e.g. 2v2). Required for team vs solo audition splitting.</p>
+      </div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div
+        v-for="g in eventGenres"
+        :key="g.genreName"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-800/60 border border-surface-600/30"
+      >
+        <span class="font-heading font-semibold text-content-secondary text-sm flex-1 capitalize">{{ g.genreName }}</span>
+
+        <!-- Viewing mode -->
+        <template v-if="editingFormatFor !== g.genreName">
+          <span class="font-source text-xs px-2 py-0.5 rounded-md"
+            :class="g.format ? 'bg-primary-500/15 text-primary-400 border border-primary-500/30' : 'bg-surface-700 text-surface-500 border border-surface-600/30'">
+            {{ g.format || 'No format' }}
+          </span>
+          <button
+            @click="startEditFormat(g)"
+            class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 hover:text-content-primary transition-all"
+          >
+            <i class="pi pi-pencil" style="font-size:0.65rem"></i>
+            Edit
+          </button>
+        </template>
+
+        <!-- Editing mode -->
+        <template v-else>
+          <select
+            v-model="editingFormatValue"
+            class="text-xs px-2.5 py-1.5 rounded-lg bg-surface-700 border border-primary-500/50 text-content-primary focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+          >
+            <option value="">No format</option>
+            <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <button
+            @click="saveFormat(g.genreName)"
+            class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold"
+          >
+            Save
+          </button>
+          <button
+            @click="editingFormatFor = null"
+            class="text-xs px-2 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 transition-all"
+          >
+            Cancel
+          </button>
+        </template>
+      </div>
+    </div>
   </div>
 
   <ActionDoneModal

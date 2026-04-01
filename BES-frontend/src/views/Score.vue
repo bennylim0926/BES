@@ -11,6 +11,7 @@ const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("select
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const selectedTopN = ref("All")
+const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
 const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
@@ -92,6 +93,20 @@ const uniqueGenres = computed(() => {
   return [...new Set(genres)].sort();
 })
 
+const hasTeamAndSoloMix = computed(() => {
+  const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
+  const hasTeam = gp.some(p => p.format && p.format !== '1v1')
+  const hasSolo = gp.some(p => !p.format)
+  return hasTeam && hasSolo
+})
+
+const matchesEntryType = (p) => {
+  if (!hasTeamAndSoloMix.value) return true
+  if (selectedEntryType.value === 'Teams') return p.format && p.format !== '1v1'
+  if (selectedEntryType.value === 'Solo') return !p.format
+  return true
+}
+
 // Load admin/organiser specific data for an event
 const loadAdminData = async (eventName) => {
   if (!isAdminOrOrganiser.value || !eventName) return
@@ -116,6 +131,7 @@ watch(selectedGenre, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
     selectedTopN.value = 'All'
+    selectedEntryType.value = 'Teams'
     if (selectedEvent.value && newVal !== 'All') {
       criteriaForGenre.value = await getScoringCriteria(selectedEvent.value, newVal)
     } else {
@@ -132,7 +148,7 @@ watch(tbKey, loadTieBreaker, { immediate: true })
 
 const filteredParticipantsForScore = computed({
   get() {
-    return transformForScore(participants.value.filter(p => p.genreName === selectedGenre.value))
+    return transformForScore(participants.value.filter(p => p.genreName === selectedGenre.value && matchesEntryType(p)))
   }
 })
 
@@ -424,6 +440,12 @@ function transformForScore(data) {
         <ReusableDropdown v-model="selectedGenre"      labelId="Genre"    :options="uniqueGenres" />
         <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
         <ReusableDropdown v-model="selectedTopN"       labelId="Show Top" :options="topNOptions" />
+        <ReusableDropdown
+          v-if="hasTeamAndSoloMix"
+          v-model="selectedEntryType"
+          labelId="Type"
+          :options="['Teams', 'Solo']"
+        />
       </div>
 
       <!-- Release Results toggle (admin/organiser only) -->

@@ -197,8 +197,14 @@ const swipeHint = computed(() => {
                   {{ slot.auditionNumber }}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-heading font-bold text-xl text-content-primary truncate leading-tight">
-                    {{ slot.participantName }}
+                  <div class="flex items-center gap-2 leading-tight">
+                    <div class="font-heading font-bold text-xl text-content-primary truncate">
+                      {{ slot.participantName }}
+                    </div>
+                    <span
+                      v-if="slot.format && slot.format !== '1v1'"
+                      class="flex-shrink-0 px-1.5 py-0.5 rounded-md text-xs font-source font-bold bg-surface-600 text-primary-400 border border-surface-500"
+                    >{{ slot.format }}</span>
                   </div>
                   <div v-if="slot.memberNames?.length" class="text-xs text-primary-300/80 truncate mt-0.5">
                     <i class="pi pi-users mr-1" style="font-size:0.6rem"></i>{{ slot.memberNames.join(', ') }}
@@ -270,8 +276,14 @@ const swipeHint = computed(() => {
                 {{ slot.auditionNumber }}
               </div>
               <div class="flex-1 min-w-0">
-                <div class="font-heading font-bold text-base text-content-primary truncate leading-tight">
-                  {{ slot.participantName }}
+                <div class="flex items-center gap-2 leading-tight">
+                  <div class="font-heading font-bold text-base text-content-primary truncate">
+                    {{ slot.participantName }}
+                  </div>
+                  <span
+                    v-if="slot.format && slot.format !== '1v1'"
+                    class="flex-shrink-0 px-1.5 py-0.5 rounded-md text-xs font-source font-bold bg-surface-600 text-primary-400 border border-surface-500"
+                  >{{ slot.format }}</span>
                 </div>
                 <div v-if="slot.memberNames?.length" class="text-xs text-primary-300/80 truncate mt-0.5">
                   <i class="pi pi-users mr-1" style="font-size:0.6rem"></i>{{ slot.memberNames.join(', ') }}

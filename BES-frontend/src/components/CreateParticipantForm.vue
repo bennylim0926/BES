@@ -20,6 +20,7 @@ const createTable = reactive({ genres: [] })
 const showError = ref(false)
 const teamMemberNames = ref([])
 const teamName = ref("")
+const entryMode = ref('team') // 'team' | 'solo'
 
 // First crew format among selected genres (e.g. "3v3")
 const crewFormat = computed(() => {
@@ -32,9 +33,12 @@ const crewFormat = computed(() => {
   return null
 })
 
+// Show team/solo toggle only when a crew-format genre is selected
+const showEntryModeToggle = computed(() => crewFormat.value !== null)
+
 // How many additional member fields to show (crew size minus the representative)
 const additionalMembersCount = computed(() => {
-  if (!crewFormat.value) return 0
+  if (!crewFormat.value || entryMode.value === 'solo') return 0
   const match = crewFormat.value.match(/^(\d+)v\d+$/i)
   return match ? parseInt(match[1]) - 1 : 0
 })
@@ -45,19 +49,26 @@ watch(additionalMembersCount, (count) => {
   teamMemberNames.value.splice(count)
 })
 
+// Reset entryMode when crew-format genres are all deselected
+watch(showEntryModeToggle, (show) => {
+  if (!show) entryMode.value = 'team'
+})
+
 const submitNewEntry = async () => {
   if (name.value.trim() === "") {
     showError.value = true
     return
   }
-  const members = teamMemberNames.value.filter(m => m.trim() !== "")
+  const members = entryMode.value === 'solo' ? [] : teamMemberNames.value.filter(m => m.trim() !== "")
+  const tName = entryMode.value === 'solo' ? '' : teamName.value
   for (const g of createTable.genres) {
-    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, teamName.value)
+    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName)
   }
   name.value = ""
   teamName.value = ""
   createTable.genres = []
   teamMemberNames.value = []
+  entryMode.value = 'team'
   emit("createNewEntry")
 }
 
@@ -131,7 +142,40 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Team name + members — shown only when a crew-format genre is selected -->
+      <!-- Solo / Team toggle — shown only when a crew-format genre is selected -->
+      <div v-if="showEntryModeToggle">
+        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
+          Entry Type
+          <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ crewFormat }}</span>
+        </label>
+        <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm font-semibold">
+          <button
+            type="button"
+            @click="entryMode = 'team'"
+            class="flex-1 px-4 py-2 transition-all"
+            :class="entryMode === 'team'
+              ? 'bg-primary-600 text-white'
+              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          >
+            Team entry
+          </button>
+          <button
+            type="button"
+            @click="entryMode = 'solo'"
+            class="flex-1 px-4 py-2 border-l border-surface-600/60 transition-all"
+            :class="entryMode === 'solo'
+              ? 'bg-primary-600 text-white'
+              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          >
+            Solo (pickup crew)
+          </button>
+        </div>
+        <p v-if="entryMode === 'solo'" class="text-xs text-content-muted mt-1.5">
+          Auditions individually. Can be grouped into a crew after auditions.
+        </p>
+      </div>
+
+      <!-- Team name + members — shown only when team entry mode and a crew-format genre is selected -->
       <template v-if="additionalMembersCount > 0">
         <div>
           <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">

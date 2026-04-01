@@ -17,6 +17,7 @@ import AdminPage from "@/views/AdminPage.vue";
 import EventSelector from "@/views/EventSelector.vue";
 import Results from "@/views/Results.vue";
 import ResultsQR from "@/views/ResultsQR.vue";
+import CrewFormation from "@/views/CrewFormation.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -117,6 +118,12 @@ const routes = [
         path: '/results-qr',
         name: 'ResultsQR',
         component: ResultsQR
+    },
+    {
+        path: '/event/crew-formation',
+        name: 'Crew Formation',
+        component: CrewFormation,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     }
 ]
 

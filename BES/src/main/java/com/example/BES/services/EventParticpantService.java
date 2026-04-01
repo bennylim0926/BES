@@ -92,6 +92,7 @@ public class EventParticpantService {
             e = new EventParticipant();
             e.setEvent(event);
             e.setParticipant(p);
+            e.setPaymentVerified(true); // walk-ins pay on the day, no verification needed
             e.setStageName(p.getParticipantName());
             if (teamName != null && !teamName.isBlank()) {
                 e.setTeamName(teamName);

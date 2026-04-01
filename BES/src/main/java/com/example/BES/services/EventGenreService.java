@@ -42,6 +42,16 @@ public class EventGenreService {
         return dtos;
     }
 
+    public void updateEventGenreFormat(String eventName, String genreName, String format) {
+        Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        Genre g = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
+        if (e == null || g == null) throw new RuntimeException("Event or genre not found");
+        EventGenre eg = eventGenreRepo.findByEventAndGenre(e, g).orElse(null);
+        if (eg == null) throw new RuntimeException("Genre not linked to this event");
+        eg.setFormat(format == null || format.isBlank() ? null : format.trim());
+        eventGenreRepo.save(eg);
+    }
+
     public void addGenreToEventService(AddGenreToEventDto dto){
         Event e = eventRepo.findByEventName(dto.eventName).orElse(null);
         // Genre g = genreRepo.findByGenreName(dto.genreName.toLowerCase()).orElse(null);
@@ -57,6 +67,10 @@ public class EventGenreService {
             eventGenre.setEvent(e);
             eventGenre.setGenre(g);
             eventGenre.setId(new EventGenreId(e.getEventId(), g.getGenreId()));
+            if (dto.genreFormats != null) {
+                String fmt = dto.genreFormats.get(genre);
+                eventGenre.setFormat(fmt == null || fmt.isBlank() ? null : fmt.trim());
+            }
             eventGenreRepo.save(eventGenre);
         }
     }

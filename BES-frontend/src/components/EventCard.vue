@@ -66,10 +66,15 @@ const cancelEdit = (e) => {
               {{ codeVisible ? codeDisplay : '••••' }}
             </span>
             <button
-              @click.stop="codeVisible = !codeVisible"
+              @mousedown.stop="codeVisible = true"
+              @mouseup.stop="codeVisible = false"
+              @mouseleave.stop="codeVisible = false"
+              @touchstart.prevent.stop="codeVisible = true"
+              @touchend.stop="codeVisible = false"
+              @touchcancel.stop="codeVisible = false"
               class="w-5 h-5 rounded flex items-center justify-center text-content-muted hover:text-primary-400
-                     hover:bg-primary-100 transition-colors duration-150"
-              :title="codeVisible ? 'Hide code' : 'Show code'"
+                     hover:bg-primary-100 transition-colors duration-150 select-none touch-none"
+              title="Hold to reveal code"
             >
               <i class="pi text-xs" :class="codeVisible ? 'pi-eye-slash' : 'pi-eye'"></i>
             </button>

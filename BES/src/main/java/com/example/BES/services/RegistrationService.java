@@ -15,6 +15,7 @@ import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventParticipant;
@@ -23,6 +24,7 @@ import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventParticipantTeamMemberRepo;
 import com.example.BES.respositories.EventRepo;
@@ -62,6 +64,9 @@ public class RegistrationService {
 
     @Autowired
     GenreRepo genreRepo;
+
+    @Autowired
+    EventGenreRepo eventGenreRepo;
 
     public void addParticipantToEvent(AddParticipantToEventDto dto)
     throws IOException, MessagingException, WriterException {
@@ -126,13 +131,26 @@ public class RegistrationService {
                         egp.setGenre(genre);
                         egp.setParticipant(toAddParticipant);
 
-                        String format = participant.getGenreFormats() != null
+                        String rawFormat = participant.getGenreFormats() != null
                             ? participant.getGenreFormats().getOrDefault(genreName, null)
                             : null;
+                        boolean isTeamEntry = isTeamFormat(rawFormat)
+                            && ((participant.getTeamName() != null && !participant.getTeamName().isBlank())
+                                || (participant.getMemberNames() != null && !participant.getMemberNames().isEmpty()));
+                        String format = isTeamEntry ? rawFormat : (isTeamFormat(rawFormat) ? null : rawFormat);
                         egp.setFormat(format);
                         egp.setDisplayName(isTeamFormat(format)
                             ? orElse(participant.getTeamName(), participant.getParticipantName())
                             : orElse(participant.getStageName(), participant.getParticipantName()));
+
+                        // Backfill EventGenre.format from sheet data if not already set
+                        if (rawFormat != null && !rawFormat.isBlank()) {
+                            EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+                            if (eg != null && eg.getFormat() == null) {
+                                eg.setFormat(rawFormat);
+                                eventGenreRepo.save(eg);
+                            }
+                        }
 
                         eventGenreParticipantRepo.save(egp);
                         egps.add(egp);

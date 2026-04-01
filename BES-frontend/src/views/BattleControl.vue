@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -18,6 +18,9 @@ const currentBattle = ref([])
 const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
+
+const pickupCrews = ref([])
+const crewSortMode = ref('leader')  // 'leader' | 'avg'
 
 const uploadedFiles = ref([])
 
@@ -138,6 +141,53 @@ const topParticipants = computed(() => {
   return [...new Set(participants.value.filter(p => p.genreName === selectedGenre.value).map(p => p.participantName))]
 })
 
+// Pre-formed teams: registered with a format (e.g. "2v2"), deduped by name, sorted by avg score
+const preFormedTeams = computed(() => {
+  const seen = new Map()
+  for (const p of participants.value) {
+    if (p.genreName !== selectedGenre.value) continue
+    if (!p.format || p.format === '') continue
+    if (!seen.has(p.participantName)) {
+      seen.set(p.participantName, { name: p.participantName, totalScore: 0, count: 0 })
+    }
+    const entry = seen.get(p.participantName)
+    entry.totalScore += p.score ?? 0
+    entry.count++
+  }
+  return [...seen.values()]
+    .map(e => ({ name: e.name, avgScore: e.count > 0 ? e.totalScore / e.count : 0 }))
+    .sort((a, b) => b.avgScore - a.avgScore)
+})
+
+// Pickup crews sorted by leader score or team avg score
+const sortedPickupCrews = computed(() =>
+  [...pickupCrews.value].sort((a, b) => {
+    const sa = crewSortMode.value === 'leader' ? (a.leaderScore ?? 0) : (a.avgScore ?? 0)
+    const sb = crewSortMode.value === 'leader' ? (b.leaderScore ?? 0) : (b.avgScore ?? 0)
+    return sb - sa
+  })
+)
+
+// True only when BOTH pre-formed teams AND pickup crews exist — Split bracket is only relevant then
+const isMixedBracket = computed(() => preFormedTeams.value.length > 0 && pickupCrews.value.length > 0)
+
+// Pool used by bracket slot dropdowns, seeding picker, and all sort/fill functions.
+// When pre-formed teams exist, exclude raw individual names from the pool — team names only.
+const bracketPool = computed(() => {
+  if (isMixedBracket.value) {
+    return [
+      ...preFormedTeams.value.map(t => t.name),
+      ...sortedPickupCrews.value.map(c => c.crewName),
+    ]
+  }
+  // Pure team genre (pre-formed teams, no pickup crews) — only team names
+  if (preFormedTeams.value.length > 0) {
+    return preFormedTeams.value.map(t => t.name)
+  }
+  // Pure solo genre — original behavior
+  return topNParticipants.value
+})
+
 // Bracket seeding
 const bracketSize = computed(() => Number(topSize.value) === 7 ? 8 : Number(topSize.value))
 
@@ -158,7 +208,7 @@ const seeds = ref([])
 const activeSeedIdx = ref(null)
 
 const seededNames = computed(() => new Set(seeds.value.filter(Boolean)))
-const availableForSeeding = computed(() => topNParticipants.value.filter(p => !seededNames.value.has(p)))
+const availableForSeeding = computed(() => bracketPool.value.filter(p => !seededNames.value.has(p)))
 const allSeeded = computed(() => seeds.value.every(Boolean))
 
 const resetSeeds = () => {
@@ -166,28 +216,74 @@ const resetSeeds = () => {
   activeSeedIdx.value = null
 }
 const rankAsc = ref(false) // false = desc (highest first), true = asc (lowest first)
+// Helper: fill a fixed-length array with items from a pool, padding with nulls
+const fillHalf = (pool, size) => [
+  ...pool.slice(0, size),
+  ...Array(Math.max(0, size - pool.length)).fill(null),
+]
+
 const autoFillSeeds = () => {
-  const pool = topNParticipants.value
-  const ordered = rankAsc.value ? [...pool].reverse() : pool
-  seeds.value = [...ordered, ...Array(Math.max(0, bracketSize.value - ordered.length)).fill(null)]
+  if (isMixedBracket.value) {
+    const half = Math.floor(bracketSize.value / 2)
+    const preformed = preFormedTeams.value.map(t => t.name)
+    const pickup = sortedPickupCrews.value.map(c => c.crewName)
+    const orderedPre = rankAsc.value ? [...preformed].reverse() : preformed
+    const orderedPick = rankAsc.value ? [...pickup].reverse() : pickup
+    seeds.value = [...fillHalf(orderedPre, half), ...fillHalf(orderedPick, half)]
+  } else {
+    const pool = bracketPool.value.slice(0, bracketSize.value)
+    const ordered = rankAsc.value ? [...pool].reverse() : pool
+    seeds.value = [...ordered, ...Array(Math.max(0, bracketSize.value - ordered.length)).fill(null)]
+  }
   activeSeedIdx.value = null
 }
 
 const highVsLowFill = () => {
-  const pool = topNParticipants.value
-  const n = pool.length
-  const result = Array(bracketSize.value).fill(null)
-  for (let i = 0; i < Math.ceil(n / 2); i++) {
-    result[i * 2] = pool[i]
-    if (n - 1 - i !== i) result[i * 2 + 1] = pool[n - 1 - i]
+  const hvl = (pool, size) => {
+    const n = pool.length
+    const result = Array(size).fill(null)
+    for (let i = 0; i < Math.ceil(n / 2); i++) {
+      result[i * 2] = pool[i]
+      if (n - 1 - i !== i) result[i * 2 + 1] = pool[n - 1 - i]
+    }
+    return result
   }
-  seeds.value = result
+  if (isMixedBracket.value) {
+    const half = Math.floor(bracketSize.value / 2)
+    seeds.value = [
+      ...hvl(preFormedTeams.value.map(t => t.name), half),
+      ...hvl(sortedPickupCrews.value.map(c => c.crewName), half),
+    ]
+  } else {
+    seeds.value = hvl(bracketPool.value.slice(0, bracketSize.value), bracketSize.value)
+  }
   activeSeedIdx.value = null
 }
 
 const randomFill = () => {
-  const pool = [...topNParticipants.value].sort(() => Math.random() - 0.5)
-  seeds.value = [...pool, ...Array(Math.max(0, bracketSize.value - pool.length)).fill(null)]
+  if (isMixedBracket.value) {
+    const half = Math.floor(bracketSize.value / 2)
+    const preformed = [...preFormedTeams.value.map(t => t.name)].sort(() => Math.random() - 0.5)
+    const pickup = [...sortedPickupCrews.value.map(c => c.crewName)].sort(() => Math.random() - 0.5)
+    seeds.value = [...fillHalf(preformed, half), ...fillHalf(pickup, half)]
+  } else {
+    const pool = [...bracketPool.value.slice(0, bracketSize.value)].sort(() => Math.random() - 0.5)
+    seeds.value = [...pool, ...Array(Math.max(0, bracketSize.value - pool.length)).fill(null)]
+  }
+  activeSeedIdx.value = null
+}
+
+// Split: pre-formed teams fill the first half of the bracket, pickup crews fill the second half.
+// This guarantees pre-formed teams only face each other and pickup crews only face each other
+// until the final — where one side winner meets the other.
+const splitBracketFill = () => {
+  const half = Math.floor(bracketSize.value / 2)
+  const preformed = preFormedTeams.value.slice(0, half).map(t => t.name)
+  const pickup = sortedPickupCrews.value.slice(0, half).map(c => c.crewName)
+  const newSeeds = Array(bracketSize.value).fill(null)
+  preformed.forEach((name, i) => { newSeeds[i] = name })
+  pickup.forEach((name, i) => { newSeeds[half + i] = name })
+  seeds.value = newSeeds
   activeSeedIdx.value = null
 }
 const clickSeedSlot = (idx) => {
@@ -362,6 +458,7 @@ watch(selectedEvent, async (newVal) => {
     localStorage.setItem("selectedEvent", newVal)
     const res = await getParticipantScore(newVal)
     participants.value = res.sort((a, b) => b.score - a.score)
+    pickupCrews.value = []
   }
 }, { immediate: true })
 
@@ -370,6 +467,9 @@ watch(selectedGenre, async (newVal) => {
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
     rounds.value = JSON.parse(storedRounds) || initRounds()
+    pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
+  } else {
+    pickupCrews.value = []
   }
 }, { immediate: true })
 
@@ -504,6 +604,25 @@ onMounted(async () => {
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <!-- Pickup crew sort toggle — only shown in mixed bracket mode -->
+            <div v-if="isMixedBracket" class="flex items-center gap-1.5 text-xs">
+              <span class="text-content-muted font-semibold">Pickup sort:</span>
+              <div class="flex rounded-lg border border-surface-600/60 overflow-hidden bg-surface-800/60 font-semibold">
+                <button
+                  @click="crewSortMode = 'leader'"
+                  class="px-2.5 py-1 transition-all"
+                  :class="crewSortMode === 'leader' ? 'bg-primary-600 text-white' : 'text-content-muted hover:text-content-primary'"
+                  title="Sort pickup crews by their leader's individual audition score"
+                >Leader</button>
+                <button
+                  @click="crewSortMode = 'avg'"
+                  class="px-2.5 py-1 transition-all"
+                  :class="crewSortMode === 'avg' ? 'bg-primary-600 text-white' : 'text-content-muted hover:text-content-primary'"
+                  title="Sort pickup crews by average score of all members"
+                >Avg</button>
+              </div>
+            </div>
+
             <!-- Fill strategy buttons -->
             <div class="flex rounded-xl border border-surface-600/60 overflow-hidden bg-surface-800/60 text-xs font-semibold">
               <button
@@ -531,12 +650,22 @@ onMounted(async () => {
               </button>
               <button
                 @click="randomFill"
-                class="flex items-center gap-1 px-2.5 py-1.5 text-content-secondary
-                       hover:bg-surface-700 hover:text-content-primary transition-all"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-content-secondary transition-all"
+                :class="isMixedBracket ? 'border-r border-surface-600/60 hover:bg-surface-700 hover:text-content-primary' : 'hover:bg-surface-700 hover:text-content-primary'"
                 title="Random shuffle"
               >
                 <i class="pi pi-refresh text-xs"></i>
                 Random
+              </button>
+              <!-- Split: only shown when both pre-formed teams and pickup crews exist -->
+              <button
+                v-if="isMixedBracket"
+                @click="splitBracketFill"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-primary-400 hover:bg-primary-500/10 transition-all"
+                title="Pre-formed teams on left half, pickup crews on right half — final is pre-formed winner vs pickup winner"
+              >
+                <i class="pi pi-table text-xs"></i>
+                Split
               </button>
             </div>
 
@@ -555,8 +684,75 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Seed slots grid -->
-        <div class="grid grid-cols-4 gap-2 mb-3">
+        <!-- Seed slots: two labeled sections when mixed, single grid otherwise -->
+        <template v-if="isMixedBracket">
+          <!-- Pre-formed teams side (first half) -->
+          <div class="mb-3">
+            <p class="text-xs font-semibold text-primary-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+              <i class="pi pi-users text-xs"></i>
+              Pre-formed Teams — Slots 1–{{ Math.floor(bracketSize / 2) }}
+            </p>
+            <div class="grid grid-cols-4 gap-2">
+              <button
+                v-for="j in Math.floor(bracketSize / 2)"
+                :key="j - 1"
+                @click="clickSeedSlot(j - 1)"
+                class="relative flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150"
+                :class="[
+                  activeSeedIdx === j - 1
+                    ? 'border-primary-500/70 bg-primary-500/10 ring-1 ring-primary-500/30'
+                    : seeds[j - 1]
+                      ? 'border-surface-600/60 bg-surface-700/60 hover:border-surface-500'
+                      : 'border-dashed border-surface-600/40 bg-surface-800/30 hover:border-surface-500/60',
+                ]"
+              >
+                <span
+                  class="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-source font-bold"
+                  :class="seeds[j - 1] ? 'bg-primary-500/20 text-primary-400' : 'bg-surface-700 text-surface-500'"
+                >{{ j }}</span>
+                <span class="text-sm font-semibold truncate flex-1"
+                  :class="seeds[j - 1] ? 'text-content-primary' : 'text-content-muted'"
+                >{{ seeds[j - 1] || 'Empty' }}</span>
+                <i v-if="seeds[j - 1]" class="pi pi-times text-xs text-surface-500 hover:text-red-400 transition-colors flex-shrink-0"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Pickup crews side (second half) -->
+          <div class="mb-3">
+            <p class="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+              <i class="pi pi-users text-xs"></i>
+              Pickup Crews — Slots {{ Math.floor(bracketSize / 2) + 1 }}–{{ bracketSize }}
+            </p>
+            <div class="grid grid-cols-4 gap-2">
+              <button
+                v-for="j in Math.floor(bracketSize / 2)"
+                :key="Math.floor(bracketSize / 2) + j - 1"
+                @click="clickSeedSlot(Math.floor(bracketSize / 2) + j - 1)"
+                class="relative flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150"
+                :class="[
+                  activeSeedIdx === Math.floor(bracketSize / 2) + j - 1
+                    ? 'border-amber-500/70 bg-amber-500/10 ring-1 ring-amber-500/30'
+                    : seeds[Math.floor(bracketSize / 2) + j - 1]
+                      ? 'border-surface-600/60 bg-surface-700/60 hover:border-surface-500'
+                      : 'border-dashed border-surface-600/40 bg-surface-800/30 hover:border-surface-500/60',
+                ]"
+              >
+                <span
+                  class="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-source font-bold"
+                  :class="seeds[Math.floor(bracketSize / 2) + j - 1] ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-700 text-surface-500'"
+                >{{ Math.floor(bracketSize / 2) + j }}</span>
+                <span class="text-sm font-semibold truncate flex-1"
+                  :class="seeds[Math.floor(bracketSize / 2) + j - 1] ? 'text-content-primary' : 'text-content-muted'"
+                >{{ seeds[Math.floor(bracketSize / 2) + j - 1] || 'Empty' }}</span>
+                <i v-if="seeds[Math.floor(bracketSize / 2) + j - 1]" class="pi pi-times text-xs text-surface-500 hover:text-red-400 transition-colors flex-shrink-0"></i>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Standard single grid (pure solo or pure pre-formed) -->
+        <div v-else class="grid grid-cols-4 gap-2 mb-3">
           <button
             v-for="(name, i) in seeds"
             :key="i"
@@ -639,7 +835,7 @@ onMounted(async () => {
                 @change="updateMatch(`Top${size}`, mIdx, 0, rounds[`Top${size}`][mIdx][0])"
               >
                 <option :value="null" disabled>Select participant…</option>
-                <option v-for="p in topNParticipants" :key="p" :value="p">{{ p }}</option>
+                <option v-for="p in bracketPool" :key="p" :value="p">{{ p }}</option>
               </select>
               <button
                 :disabled="!match[0]"
@@ -676,7 +872,7 @@ onMounted(async () => {
                 @change="updateMatch(`Top${size}`, mIdx, 1, rounds[`Top${size}`][mIdx][1])"
               >
                 <option :value="null" disabled>Select participant…</option>
-                <option v-for="p in topNParticipants" :key="p" :value="p">{{ p }}</option>
+                <option v-for="p in bracketPool" :key="p" :value="p">{{ p }}</option>
               </select>
               <button
                 :disabled="!match[1]"
