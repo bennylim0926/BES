@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getBattlePhase, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -18,6 +18,8 @@ const currentBattle = ref([])
 const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
+const battlePhase = ref('IDLE')
+const showResetConfirm = ref(false)
 
 const pickupCrews = ref([])
 const crewSortMode = ref('leader')  // 'leader' | 'avg'
@@ -458,10 +460,20 @@ const submitGetScore = async () => {
   if (data.winner === 1 || data.winner === 0) { setWinner(currentTop.value, currentRound.value, data.winner) }
 }
 
-const clearLocalStorage = () => {
+const openVoting = async () => {
+  await setBattlePhase('VOTING')
+  battlePhase.value = 'VOTING'
+}
+
+const confirmResetBracket = async () => {
+  showResetConfirm.value = false
   localStorage.removeItem(`Top${topSize.value}${selectedGenre.value}Rounds`)
   rounds.value = initRounds()
   broadcastBracket()
+  await setBattlePhase('IDLE')
+  battlePhase.value = 'IDLE'
+  currentWinner.value = -2
+  currentBattle.value = []
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -500,6 +512,11 @@ onMounted(async () => {
   iintialiseDropdown()
   await fetchAllJudges()
   battleJudges.value = await getBattleJudges()
+  const phaseData = await getBattlePhase()
+  battlePhase.value = phaseData?.phase ?? 'IDLE'
+  subscribeToChannel(createClient(), '/topic/battle/phase', (msg) => {
+    battlePhase.value = msg.phase
+  })
 })
 </script>
 
@@ -986,9 +1003,41 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Reset bracket confirmation modal -->
+    <Transition name="fade">
+      <div v-if="showResetConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-surface-800 rounded-2xl border border-surface-600 p-6 max-w-sm w-full mx-4 shadow-xl">
+          <h3 class="font-heading font-bold text-content-primary text-lg mb-2">Reset Bracket?</h3>
+          <p class="text-sm text-content-muted mb-6">This will clear all bracket data and set the battle phase to IDLE. This cannot be undone.</p>
+          <div class="flex gap-3 justify-end">
+            <button
+              @click="showResetConfirm = false"
+              class="px-4 py-2 rounded-xl border border-surface-600 bg-surface-700 text-sm font-semibold
+                     text-content-secondary hover:bg-surface-600 transition-all"
+            >Cancel</button>
+            <button
+              @click="confirmResetBracket"
+              class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all"
+            >Reset</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Live match tracker -->
     <div class="card p-5">
-      <h2 class="font-heading font-bold text-content-secondary mb-4">Live Match</h2>
+      <div class="flex items-center gap-3 mb-4">
+        <h2 class="font-heading font-bold text-content-secondary">Live Match</h2>
+        <span
+          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-surface-700 text-surface-400': battlePhase === 'IDLE',
+            'bg-amber-500/20 text-amber-400 border border-amber-500/40': battlePhase === 'LOCKED',
+            'bg-primary-500/20 text-primary-400 border border-primary-500/40 animate-pulse': battlePhase === 'VOTING',
+            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': battlePhase === 'REVEALED',
+          }"
+        >{{ battlePhase }}</span>
+      </div>
 
       <!-- Winner announcement -->
       <div
@@ -1053,7 +1102,30 @@ onMounted(async () => {
 
       <!-- Action buttons -->
       <div class="flex flex-wrap gap-2">
-        <template v-if="Number(currentWinner) !== -2 && Number(currentWinner) !== -3 && (Number(currentWinner) !== -1 || isSmoke)">
+        <!-- LOCKED: open voting -->
+        <button
+          v-if="battlePhase === 'LOCKED'"
+          @click="openVoting"
+          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
+                 font-semibold hover:bg-primary-700 transition-all shadow-sm"
+        >
+          <i class="pi pi-lock-open text-xs"></i>
+          Open Voting
+        </button>
+
+        <!-- VOTING: get score / rematch -->
+        <button
+          v-if="battlePhase === 'VOTING'"
+          @click="submitGetScore"
+          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
+                 font-semibold hover:bg-primary-700 transition-all shadow-sm"
+        >
+          <i class="pi pi-bolt text-xs"></i>
+          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
+        </button>
+
+        <!-- REVEALED: previous + next -->
+        <template v-if="battlePhase === 'REVEALED'">
           <button
             @click="prevPair"
             class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
@@ -1071,19 +1143,9 @@ onMounted(async () => {
             <i class="pi pi-chevron-right text-xs"></i>
           </button>
         </template>
-        <template v-else>
-          <button
-            @click="submitGetScore"
-            class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                   font-semibold hover:bg-primary-700 transition-all shadow-sm"
-          >
-            <i class="pi pi-bolt text-xs"></i>
-            {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
-          </button>
-        </template>
 
         <button
-          @click="clearLocalStorage"
+          @click="showResetConfirm = true"
           class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 bg-surface-800
                  text-sm font-semibold text-red-400 hover:bg-red-950 transition-all"
         >

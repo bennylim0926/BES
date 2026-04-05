@@ -496,6 +496,24 @@ export const getImage = async (filename) => {
   }
 };
 
+export const getBattlePhase = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/phase`, { credentials: 'include' })
+    return res.ok ? res.json() : { phase: 'IDLE' }
+  } catch (e) { return { phase: 'IDLE' } }
+}
+
+export const setBattlePhase = async (phase) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/phase`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase })
+    })
+  } catch (e) { console.log(e) }
+}
+
 export const getSmokeList = async()=>{
   try{
     const res = await fetch(`${domain}/api/v1/battle/smoke`,{

@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.BES.dtos.battle.DeleteImageDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
+import com.example.BES.dtos.battle.SetBattlePhaseDto;
 import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
@@ -249,6 +250,17 @@ public class BattleController {
         return ResponseEntity.ok(Map.of(
             "message", "List updated"
         ));
+    }
+
+    @GetMapping("/phase")
+    public ResponseEntity<?> getBattlePhase(){
+        return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
+    }
+
+    @PostMapping("/phase")
+    public ResponseEntity<?> setBattlePhase(@RequestBody SetBattlePhaseDto dto){
+        battleService.setBattlePhaseService(dto.getPhase());
+        return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
 
     @GetMapping("/bracket")

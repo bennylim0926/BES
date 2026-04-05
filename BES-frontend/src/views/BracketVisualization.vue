@@ -228,6 +228,10 @@ onMounted(async () => {
       activePair.value = { left: data.left, right: data.right }
     })
 
+    wsClient.subscribe('/topic/battle/phase', () => {
+      // Phase subscription for future phase-aware bracket display
+    })
+
     wsClient.subscribe('/topic/battle/genre', (msg) => {
       const data = JSON.parse(msg.body)
       currentGenre.value = data.genre ?? data.message ?? null

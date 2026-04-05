@@ -32,6 +32,8 @@ public class BattleService {
     private List<String> modes = Arrays.asList("Top32", "Top16", "7-to-Smoke");
     private Object bracketState = null;
     private List<Battler> battlers = new ArrayList<>();
+    // IDLE | LOCKED | VOTING | REVEALED
+    private String battlePhase = "IDLE";
     public List<String> getModes() {
         return modes;
     }
@@ -78,6 +80,9 @@ public class BattleService {
                 "right", currentPair.getRightBattler().getName(),
                 "rightScore", currentPair.getRightBattler().getScore()
             ));
+        // Auto-transition to LOCKED when a new pair is set
+        battlePhase = "LOCKED";
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
     }
 
     public Integer setScoreService(){
@@ -107,6 +112,11 @@ public class BattleService {
                 "left", currentPair.getLeftBattler().getScore(),
                 "right", currentPair.getRightBattler().getScore()
             ));
+        // Auto-transition: winner → REVEALED, tie → stay VOTING
+        if (res == 0 || res == 1) {
+            battlePhase = "REVEALED";
+            messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+        }
         return res;
     }
 
@@ -202,7 +212,18 @@ public class BattleService {
     public void setStatus(String status) {
         this.status = status;
     }
-    
+
+    public String getBattlePhase() {
+        return battlePhase;
+    }
+
+    public void setBattlePhaseService(String phase) {
+        // REVEALED is only set by the backend on score reveal, not manually
+        if ("REVEALED".equals(phase)) return;
+        battlePhase = phase;
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+    }
+
     public class BattleJudge {
         private Long id;
         private String name;

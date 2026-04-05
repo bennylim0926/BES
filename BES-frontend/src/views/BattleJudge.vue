@@ -3,7 +3,8 @@ import leftHand from '@/assets/lefthand.png'
 import rightHand from '@/assets/righthand.png'
 import tie from '@/assets/no.png'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { battleJudgeVote, getBattleJudges } from '@/utils/api'
+import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair } from '@/utils/api'
+import { subscribeToChannel, createClient } from '@/utils/websocket'
 import { computed, onMounted, ref } from 'vue'
 
 const active = ref(null)
@@ -15,7 +16,13 @@ const battleJudgesName = computed(() => {
   return judges.map(j => j.name)
 })
 
+const battlePhase = ref('IDLE')
+const leftName = ref('')
+const rightName = ref('')
+const revealedWinner = ref(-2)
+
 async function handleClick(side) {
+  if (battlePhase.value !== 'VOTING') return
   if (active.value === side) {
     const judges = battleJudges.value?.judges ?? []
     const id = judges.filter(j => j.name === selectedJudge.value).map(j => j.id)
@@ -30,11 +37,48 @@ async function handleClick(side) {
 
 onMounted(async () => {
   battleJudges.value = await getBattleJudges()
+
+  const phaseData = await getBattlePhase()
+  battlePhase.value = phaseData?.phase ?? 'IDLE'
+
+  const pairData = await getCurrentBattlePair()
+  if (pairData) {
+    leftName.value = pairData.left ?? ''
+    rightName.value = pairData.right ?? ''
+  }
+
+  subscribeToChannel(createClient(), '/topic/battle/phase', (msg) => {
+    battlePhase.value = msg.phase
+    if (msg.phase === 'LOCKED') {
+      active.value = null
+      confirmed.value = null
+      revealedWinner.value = -2
+    }
+  })
+
+  subscribeToChannel(createClient(), '/topic/battle/battle-pair', (msg) => {
+    leftName.value = msg.left ?? ''
+    rightName.value = msg.right ?? ''
+  })
+
+  subscribeToChannel(createClient(), '/topic/battle/score', (msg) => {
+    revealedWinner.value = msg.message
+  })
 })
 </script>
 
 <template>
   <div class="judge-root" role="main" aria-label="Battle Judge voting panel">
+
+    <!-- ── IDLE overlay ───────────────────────────── -->
+    <Transition name="phase-fade">
+      <div v-if="battlePhase === 'IDLE'" class="phase-blocker idle-blocker" aria-live="polite">
+        <div class="phase-blocker-inner">
+          <span class="phase-blocker-icon">⏳</span>
+          <p class="phase-blocker-title">Waiting for battle setup…</p>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ── Header bar ─────────────────────────────── -->
     <header class="judge-header">
@@ -43,6 +87,18 @@ onMounted(async () => {
         <span class="brand-wordmark">BATTLE JUDGE</span>
         <span class="brand-pip pip-blue"></span>
       </div>
+
+      <!-- Phase pill + pair names -->
+      <div class="header-center" aria-live="polite">
+        <span
+          class="phase-pill"
+          :class="`phase-pill--${battlePhase.toLowerCase()}`"
+        >{{ battlePhase }}</span>
+        <span v-if="leftName && (battlePhase === 'LOCKED' || battlePhase === 'VOTING')" class="pair-label">
+          {{ leftName }} <span class="vs-sep">vs</span> {{ rightName }}
+        </span>
+      </div>
+
       <div class="selector-wrap" role="group" aria-label="Voting as">
         <span class="selector-eyebrow" aria-hidden="true">VOTING AS</span>
         <div class="w-52">
@@ -58,6 +114,36 @@ onMounted(async () => {
 
     <!-- ── Voting panels ──────────────────────────── -->
     <div class="panels-wrap" role="group" aria-label="Vote options">
+
+      <!-- LOCKED overlay: voting not yet open -->
+      <Transition name="phase-fade">
+        <div v-if="battlePhase === 'LOCKED'" class="panels-overlay locked-overlay" aria-live="polite">
+          <div class="panels-overlay-inner">
+            <i class="overlay-lock-icon">🔒</i>
+            <p class="overlay-title">VOTING NOT OPEN</p>
+            <p class="overlay-sub">Waiting for the organiser to open voting</p>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- REVEALED overlay: winner announced -->
+      <Transition name="phase-fade">
+        <div v-if="battlePhase === 'REVEALED'" class="panels-overlay revealed-overlay" aria-live="assertive">
+          <div class="panels-overlay-inner">
+            <template v-if="revealedWinner === 0">
+              <p class="overlay-winner-name">{{ leftName }}</p>
+              <p class="overlay-winner-label">WINS</p>
+            </template>
+            <template v-else-if="revealedWinner === 1">
+              <p class="overlay-winner-name">{{ rightName }}</p>
+              <p class="overlay-winner-label">WINS</p>
+            </template>
+            <template v-else>
+              <p class="overlay-winner-label">TIE</p>
+            </template>
+          </div>
+        </div>
+      </Transition>
 
       <!-- ── Left ── -->
       <button
@@ -230,11 +316,141 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+/* ── Phase blocker (IDLE — covers entire root) ────── */
+.phase-blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 20, 0.96);
+  backdrop-filter: blur(6px);
+}
+.phase-blocker-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.phase-blocker-icon { font-size: 2.5rem; }
+.phase-blocker-title {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(16px, 3vw, 24px);
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+}
+
+/* ── Header center (phase pill + pair names) ──────── */
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.phase-pill {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.phase-pill--idle    { background: rgba(71,85,105,0.3); color: rgba(148,163,184,0.6); border-color: rgba(71,85,105,0.4); }
+.phase-pill--locked  { background: rgba(245,158,11,0.15); color: rgba(251,191,36,0.9); border-color: rgba(245,158,11,0.4); }
+.phase-pill--voting  { background: rgba(6,182,212,0.15); color: rgba(6,182,212,0.95); border-color: rgba(6,182,212,0.4); animation: votingPulse 1.6s ease-in-out infinite; }
+.phase-pill--revealed { background: rgba(16,185,129,0.15); color: rgba(52,211,153,0.95); border-color: rgba(16,185,129,0.4); }
+
+.pair-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.7);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.vs-sep {
+  color: rgba(255,255,255,0.35);
+  font-weight: 400;
+  margin: 0 4px;
+}
+
 /* ── Panels container ─────────────────────────────── */
 .panels-wrap {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
+}
+
+/* ── Phase overlays (inside panels-wrap) ──────────── */
+.panels-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.locked-overlay  { background: rgba(6, 10, 20, 0.72); backdrop-filter: blur(3px); }
+.revealed-overlay { background: rgba(6, 10, 20, 0.82); backdrop-filter: blur(4px); }
+
+.panels-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 0 20px;
+}
+.overlay-lock-icon { font-size: 2rem; }
+.overlay-title {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(14px, 2.5vw, 20px);
+  letter-spacing: 0.18em;
+  color: rgba(251,191,36,0.85);
+}
+.overlay-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+}
+.overlay-winner-name {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(24px, 5vw, 52px);
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.95);
+  line-height: 1;
+  text-transform: uppercase;
+}
+.overlay-winner-label {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(16px, 3.5vw, 36px);
+  letter-spacing: 0.25em;
+  color: rgba(52,211,153,0.9);
+}
+
+/* ── Phase transition ─────────────────────────────── */
+.phase-fade-enter-active,
+.phase-fade-leave-active { transition: opacity 0.35s ease; }
+.phase-fade-enter-from,
+.phase-fade-leave-to { opacity: 0; }
+
+@keyframes votingPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(6,182,212,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(6,182,212,0); }
 }
 
 .vote-panel {
