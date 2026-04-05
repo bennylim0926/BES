@@ -1,7 +1,7 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattleScore, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -94,6 +94,9 @@ const updateSmokePair = async () => {
 }
 
 const initiateBattlePair = async (top, pairList) => {
+  // Reset winner FIRST so the winnerAnnouncement computed doesn't fire setWinner
+  // with stale winner + new round/top values when reactive state updates below.
+  currentWinner.value = -2
   await resetJudgeVote()
   if (isSmoke.value) {
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
@@ -306,6 +309,7 @@ const applyToFirstRound = () => {
       name: name ?? rounds.value[i]?.name ?? null,
       score: rounds.value[i]?.score ?? 0,
     }))
+    broadcastBracket()
     return
   }
   const key = `Top${bracketSize.value}`
@@ -315,6 +319,7 @@ const applyToFirstRound = () => {
     rounds.value[key][i][1] = seeds.value[i * 2 + 1] ?? null
   }
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
 }
 
 watch([bracketSize, selectedGenre], resetSeeds, { immediate: true })
@@ -346,9 +351,12 @@ function initRounds() {
   return standardBattleRound()
 }
 
+const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value)
+
 function updateMatch(roundKey, matchIdx, slotIdx, value) {
   rounds.value[roundKey][matchIdx][slotIdx] = value
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
 }
 
 async function update7toSmokeMatch(winner) {
@@ -378,12 +386,13 @@ function setWinner(roundKey, matchIdx, slotIdx) {
   match[2] = winner
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
   const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (!nextRoundSize) { localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value))); return }
+  if (!nextRoundSize) { localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value))); broadcastBracket(); return }
   const nextRoundKey = `Top${nextRoundSize}`
   const nextMatchIdx = Math.floor(matchIdx / 2)
   const nextSlotIdx = matchIdx % 2
   rounds.value[nextRoundKey][nextMatchIdx][nextSlotIdx] = winner
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
 }
 
 function clearWinner(roundKey, matchIdx) {
@@ -397,6 +406,7 @@ function clearWinner(roundKey, matchIdx) {
   }
   match[2] = null
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
 }
 
 
@@ -451,6 +461,7 @@ const submitGetScore = async () => {
 const clearLocalStorage = () => {
   localStorage.removeItem(`Top${topSize.value}${selectedGenre.value}Rounds`)
   rounds.value = initRounds()
+  broadcastBracket()
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -468,6 +479,7 @@ watch(selectedGenre, async (newVal) => {
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
     rounds.value = JSON.parse(storedRounds) || initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
+    broadcastBracket()
   } else {
     pickupCrews.value = []
   }
@@ -480,6 +492,7 @@ watch(topSize, async (newVal) => {
     rounds.value = JSON.parse(storedRounds) || initRounds()
     currentBattle.value = []
     currentWinner.value = -2
+    broadcastBracket()
   }
 }, { immediate: true })
 
@@ -535,6 +548,18 @@ onMounted(async () => {
       >
         <i class="pi pi-users text-xs"></i>
         Judge View
+        <i class="pi pi-external-link text-xs text-content-muted"></i>
+      </a>
+      <a
+        href="/battle/bracket"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
+               transition-all duration-200"
+      >
+        <i class="pi pi-sitemap text-xs"></i>
+        Live Bracket
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
     </div>

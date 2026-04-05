@@ -246,6 +246,11 @@ watch(adjustParticipantGenres, (genres) => {
   }
 })
 
+// Clear selected participant when search input is cleared
+watch(adjustSearch, (val) => {
+  if (!val.trim()) adjustParticipant.value = null
+})
+
 function normalizeGenreName(name) {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, '');
   if (normalized.includes('7tosmoke')) return 'smoke';
@@ -1103,42 +1108,46 @@ onMounted(async () => {
         <!-- Body -->
         <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <!-- Search -->
-          <div>
+          <div class="relative">
             <label class="block text-sm font-semibold text-content-secondary mb-1.5">Search Participant</label>
-            <input
-              v-model="adjustSearch"
-              type="text"
-              placeholder="Type a name…"
-              class="w-full px-4 py-2.5 rounded-xl border border-surface-600 text-sm text-content-primary
-                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
-            />
-          </div>
-
-          <!-- Search results (only shown when no participant selected) -->
-          <div v-if="adjustSearchResults.length > 0 && !adjustParticipant" class="flex flex-wrap gap-2">
-            <button
-              v-for="name in adjustSearchResults"
-              :key="name"
-              @click="adjustParticipant = name"
-              class="badge-neutral px-3 py-1.5 rounded-full text-sm font-medium bg-surface-700 text-content-secondary
-                     hover:bg-primary-100 hover:text-primary-400 border border-surface-600 transition-colors"
+            <div class="relative">
+              <input
+                v-model="adjustSearch"
+                type="text"
+                placeholder="Type a name…"
+                autocomplete="off"
+                class="w-full px-4 py-2.5 pr-9 rounded-xl border border-surface-600 text-sm text-content-primary
+                       focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+              />
+              <button
+                v-if="adjustSearch"
+                @click="adjustSearch = ''; adjustParticipant = null"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <!-- Realtime dropdown results -->
+            <div
+              v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant"
+              class="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-surface-600
+                     bg-surface-800 shadow-xl overflow-hidden"
             >
-              {{ name }}
-            </button>
+              <button
+                v-for="name in adjustSearchResults"
+                :key="name"
+                @click="adjustParticipant = name; adjustSearch = name"
+                class="w-full text-left px-4 py-2.5 text-sm font-medium text-content-secondary
+                       hover:bg-primary-500/10 hover:text-primary-400 transition-colors border-b border-surface-700
+                       last:border-b-0"
+              >
+                {{ name }}
+              </button>
+            </div>
           </div>
 
           <!-- Selected participant view -->
           <div v-if="adjustParticipant">
-            <div class="flex items-center gap-2 mb-4">
-              <span class="font-heading font-bold text-content-primary">{{ adjustParticipant }}</span>
-              <button
-                @click="adjustParticipant = null; adjustSearch = ''"
-                class="text-content-muted hover:text-content-secondary transition-colors"
-              >
-                <i class="pi pi-times-circle text-sm"></i>
-              </button>
-            </div>
-
             <!-- Current genres -->
             <div class="mb-5">
               <p class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Current Genres</p>

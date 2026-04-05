@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.BES.dtos.battle.DeleteImageDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
+import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
@@ -248,5 +249,18 @@ public class BattleController {
         return ResponseEntity.ok(Map.of(
             "message", "List updated"
         ));
+    }
+
+    @GetMapping("/bracket")
+    public ResponseEntity<?> getBracketState(){
+        Object state = battleService.getBracketState();
+        if (state == null) return ResponseEntity.ok(Map.of());
+        return ResponseEntity.ok(state);
+    }
+
+    @PostMapping("/bracket")
+    public ResponseEntity<?> setBracketState(@RequestBody SetBracketStateDto dto){
+        battleService.setBracketStateService(dto);
+        return ResponseEntity.ok(Map.of("message", "Bracket state updated"));
     }
 }

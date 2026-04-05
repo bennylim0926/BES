@@ -24,7 +24,7 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 /** Hide the navbar on full-screen / immersive routes */
 const hideNav = computed(() =>
-  ['Login', 'StreamOverlay', 'BattleJudge'].includes(route.name)
+  ['Login', 'StreamOverlay', 'BattleJudge', 'BracketVisualization'].includes(route.name)
 )
 
 /**

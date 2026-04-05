@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
+import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
@@ -29,6 +30,7 @@ public class BattleService {
 
     // top 32, top 16 or 7ts
     private List<String> modes = Arrays.asList("Top32", "Top16", "7-to-Smoke");
+    private Object bracketState = null;
     private List<Battler> battlers = new ArrayList<>();
     public List<String> getModes() {
         return modes;
@@ -161,6 +163,18 @@ public class BattleService {
                 "judge", dto.getId()
             ));
         return code;
+    }
+
+    public Object getBracketState() {
+        return bracketState;
+    }
+
+    public void setBracketStateService(SetBracketStateDto dto) {
+        Map<String, Object> state = new java.util.HashMap<>();
+        state.put("topSize", dto.getTopSize());
+        state.put("rounds", dto.getRounds());
+        this.bracketState = state;
+        messagingTemplate.convertAndSend("/topic/battle/bracket", state);
     }
 
     public String getSelectedMode() {

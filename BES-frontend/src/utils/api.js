@@ -440,6 +440,24 @@ export const setBattleScore = async() =>{
   }
 }
 
+export const setBracketState = async (rounds, topSize) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/bracket`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rounds, topSize: String(topSize) })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getBracketState = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/bracket`, { credentials: 'include' })
+    return res.ok ? res.json() : null
+  } catch (e) { return null }
+}
+
 export const uploadImage = async(file)=>{
   try{
     const formData = new FormData();

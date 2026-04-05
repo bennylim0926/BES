@@ -64,6 +64,7 @@ const hasTeamAndSoloMix = computed(() => {
 })
 
 const matchesEntryType = (p) => {
+  if (!hasTeamAndSoloMix.value) return true
   if (selectedEntryType.value === 'Teams') return p.format && p.format !== '1v1'
   if (selectedEntryType.value === 'Solo') return !p.format
   return true

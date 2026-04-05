@@ -18,6 +18,7 @@ import EventSelector from "@/views/EventSelector.vue";
 import Results from "@/views/Results.vue";
 import ResultsQR from "@/views/ResultsQR.vue";
 import CrewFormation from "@/views/CrewFormation.vue";
+import BracketVisualization from "@/views/BracketVisualization.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -124,6 +125,11 @@ const routes = [
         name: 'Crew Formation',
         component: CrewFormation,
         meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+    },
+    {
+        path: '/battle/bracket',
+        name: 'BracketVisualization',
+        component: BracketVisualization
     }
 ]
 
@@ -132,7 +138,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'Smoke', 'Results', 'ResultsQR']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
