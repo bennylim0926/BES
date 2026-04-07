@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-**BES (Battle Event System)** — a full-stack web app for managing dance battle events (registration, judging, scoring, real-time battle control).
+**BES (Battle Event System)** — a full-stack web app for managing dance battle events (registration, judging, scoring, real-time battle control, results portal).
 
 ## Commands
 
@@ -31,7 +31,7 @@ npm run test:coverage # With coverage
 ### Docker (from root)
 
 ```bash
-docker-compose up --build   # Build and start all services
+docker-compose up --build --no-cache   # Build and start all services (always use --no-cache)
 # backend → port 5050, frontend → ports 80/443, postgres → port 5433
 ```
 
@@ -54,10 +54,10 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 | Package | Purpose |
 |---------|---------|
-| `controllers/` | 7 REST controllers under `/api/v1/` |
-| `services/` | 16 business logic services |
+| `controllers/` | 9 REST controllers under `/api/v1/` |
+| `services/` | 21 business logic services |
 | `respositories/` | Spring Data JPA repos |
-| `models/` | 11 JPA entities → PostgreSQL tables |
+| `models/` | 19 JPA entities → PostgreSQL tables |
 | `dtos/` | ~40 request/response DTOs |
 | `config/` | Security, CORS, WebSocket, Google API config |
 | `mapper/` | Entity ↔ DTO converters |
@@ -67,24 +67,46 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 | Controller | Base Path | Purpose |
 |-----------|-----------|---------|
 | `AuthController` | `/api/v1/auth` | Login, logout, session check |
-| `EventController` | `/api/v1/event` | CRUD events, participants, scores, genres |
-| `BattleController` | `/api/v1/battle` | Battle mode, voting, judges, images |
-| `AdminController` | `/api/v1/admin` | Admin CRUD for genres, judges, scores |
+| `EventController` | `/api/v1/event` | CRUD events, participants, scores, genres, scoring criteria, feedback, pickup crews |
+| `BattleController` | `/api/v1/battle` | Battle mode, voting, judges, images, battle phase state machine |
+| `AdminController` | `/api/v1/admin` | Admin CRUD for genres, judges, scores, feedback groups/tags |
+| `ResultsController` | `/api/v1/results` | Public results by reference code, QR access |
+| `SecurityController` | `/api/v1/security` | CSRF token endpoint |
 | `GoogleDriveFileController` | `/api/v1/files` | Google Drive file listing |
 | `GoogleDriveFolderController` | `/api/v1/folders` | Google Drive folder listing |
 | `GoogleSheetsController` | `/api/v1/sheets` | Google Sheets participant import |
+
+**Key Models:**
+
+| Model | Purpose |
+|-------|---------|
+| `Event` | Event with access code, payment flag, judging mode, results release toggle |
+| `EventParticipant` | Participant linked to event; supports walk-ins, stage name, team format, display name |
+| `EventParticipantTeamMember` | Individual member rows for team entries |
+| `EventGenre` | Genre linked to event with format field |
+| `EventGenreParticipant` | Participant-genre junction with audition number |
+| `Score` | Single overall score per judge/participant/genre |
+| `ScoringCriteria` | Named weighted criteria per event/genre (custom scoring mode) |
+| `AuditionFeedback` | Judge feedback per participant/genre with tags and note |
+| `FeedbackTag` / `FeedbackTagGroup` | Configurable tag taxonomy for feedback |
+| `PickupCrew` / `PickupCrewMember` | Ad-hoc crews formed from individual participants |
+| `EventEmailTemplate` | Customisable per-event email subject/body |
 
 ### Frontend Layout (`BES-frontend/src/`)
 
 | Path | Purpose |
 |------|---------|
-| `views/` | 14 page-level components (Login, MainMenu, BattleControl, etc.) |
-| `components/` | 18 reusable UI components |
-| `utils/api.js` | ~40 frontend→backend fetch functions |
-| `utils/adminApi.js` | ~10 admin-specific API functions |
-| `utils/websocket.js` | WebSocket/STOMP setup |
+| `views/` | 19 page-level components (see Routes section) |
+| `components/` | 22 reusable UI components |
+| `utils/api.js` | ~65 frontend→backend fetch functions |
+| `utils/adminApi.js` | ~14 admin-specific API functions |
+| `utils/auth.js` | Pinia auth store + active event helpers |
 | `utils/battleLogic.js` | Battle game logic |
-| `router/index.js` | Client-side routes |
+| `utils/websocket.js` | WebSocket/STOMP setup |
+| `utils/eventUtils.js` | Shared event/genre helpers |
+| `utils/dropdown.js` | Dropdown state utilities |
+| `utils/useScrollReveal.js` | Scroll-reveal animation composable |
+| `router/index.js` | Client-side routes with RBAC guards |
 
 ### Testing
 
@@ -105,11 +127,94 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 - File naming: `V{version}__{description}.sql` (double underscore, snake_case description)
 - Always add new migrations as new files — never edit existing ones
-- Next version after `V1__baseline.sql` would be `V2__...`
+- Latest migration: `V16__add_pickup_crew.sql` → next is `V17__...`
 
 ### Layer Modification Order
 
 **Always modify bottom-up**: DB migration → JPA entity → service → controller → DTO → frontend API call. Never change the frontend API contract without updating the backend first.
+
+## Routes & Access by Role
+
+Public routes (no authentication required):
+
+| Route | View | Purpose |
+|-------|------|---------|
+| `/login` | `Login` | Login page |
+| `/results` | `Results` | Public results portal (enter reference code) |
+| `/results-qr` | `ResultsQR` | Results via QR scan |
+| `/battle/overlay` | `BattleOverlay` | Stream overlay (OBS/broadcast display) |
+| `/battle/judge` | `BattleJudge` | Battle judge voting screen |
+| `/battle/chart` | `Chart` | 7-to-Smoke live chart |
+| `/battle/bracket` | `BracketVisualization` | Live bracket with winner animation + LED ticker |
+| `/event/select` | `EventSelector` | Select active event (redirected here if no event set) |
+
+Authenticated routes (role-gated):
+
+| Route | Roles | View | Purpose |
+|-------|-------|------|---------|
+| `/` | all | `MainMenu` | Role-filtered quick-action home |
+| `/events` | Admin, Organiser | `Events` | Event list with search |
+| `/events/:eventName` | Admin, Organiser | `EventDetails` | Event overview, genre accordion, Google Drive setup |
+| `/event/audition-number` | Admin, Organiser | `AuditionNumber` | Display audition number on screen |
+| `/event/update-event-details` | Admin, Organiser | `UpdateEventDetails` | Participant table, judge assignment, verification, payment |
+| `/event/audition-list` | Admin, Organiser, Emcee, Judge | `AuditionList` | Role-split view: Judge scores / Emcee timer+status |
+| `/event/score` | Admin, Organiser, Emcee | `Score` | Scoreboard with podium top-3 and by-judge breakdown |
+| `/event/crew-formation` | Admin, Organiser | `CrewFormation` | Form pickup crews from individual participants |
+| `/battle/control` | Admin, Organiser | `BattleControl` | Bracket seeding, battle phases, live match control |
+| `/admin` | Admin only | `AdminPage` | Genre/judge/image/feedback-tag CRUD |
+
+## Workflow by Role
+
+### Admin
+Full access to everything. Also manages global resources on `/admin`: genres, judges, images, and feedback tag groups/tags used across all events.
+
+### Organiser
+Event lifecycle end-to-end:
+1. Create event on `/events` (link Google Drive folder, add genres)
+2. Import participants from Google Sheets or add walk-ins on `EventDetails`
+3. Manage participants on `/event/update-event-details` — assign judges, verify & email, track payment, set stage names/team format
+4. Customise per-event email template
+5. Configure scoring criteria per genre (default single score or weighted multi-criteria)
+6. Run audition day: monitor `/event/audition-list`, check `/event/score` scoreboard
+7. Form pickup crews from individuals on `/event/crew-formation`
+8. Battle day: seed bracket on `/battle/control`, manage battle phases (IDLE → LOCKED → VOTING → REVEALED), watch `/battle/bracket` and `/battle/overlay` for stream
+9. Release results on `/event/score` → results become visible on public `/results` portal via reference code/QR
+
+### Emcee
+Event-day read/announce role:
+- `/event/audition-list` — timer, participant status (scored/unscored), swipe through rounds with `EmceeRoundView`
+- `/event/score` — live scoreboard to announce standings
+
+### Judge
+Scoring only:
+- `/event/audition-list` — `SwipeableCardsV2` score entry (whole + decimal keypads), per-aspect scoring if custom criteria are set, submit audition feedback tags + note via `FeedbackPopout`
+- `/battle/judge` — vote for a battler during VOTING phase; result revealed on REVEALED phase
+
+### Public (no login)
+- `/results` or `/results-qr` — participants look up their own results using a reference code (released by organiser)
+- `/battle/overlay` — OBS browser source for stream
+- `/battle/bracket` — projector/audience bracket display with live winner animation and LED ticker
+- `/battle/chart` — 7-to-Smoke cumulative battle chart
+
+## Feature Overview
+
+| Feature | Location | Notes |
+|---------|----------|-------|
+| Google Sheets import | `EventDetails`, `GoogleSheetsController` | Imports stage name, team format, member roster |
+| Walk-in registration | `EventDetails` → `addWalkinToSystem` | Supports team members, team name |
+| Participant verification + email | `UpdateEventDetails` | Verify individually or batch; uses `EventEmailTemplate` |
+| Payment tracking | `UpdateEventDetails` | Per-participant payment flag |
+| Custom scoring criteria | `ScoringCriteriaModal` / `ScoringCriteriaPanel` | Weighted criteria per event/genre; judge scores per aspect |
+| Audition feedback | `FeedbackPopout` | Tags (grouped taxonomy) + free-text note per judge/participant |
+| Results portal | `/results`, `/results-qr` | Reference code or QR; organiser controls release toggle |
+| Battle phase state machine | `BattleControl` | IDLE → LOCKED → VOTING → REVEALED via WebSocket |
+| Bracket seeding | `BattleControl` | By Rank (asc/desc), High↔Low pairing, Random; slot-picker UI |
+| Tie-breaker persistence | `Score` + localStorage | Tie-breaker selections survive page refresh, scoped per event/genre |
+| Live bracket visualization | `/battle/bracket` | Winner animations, LED ticker |
+| 7-to-Smoke format | `/battle/chart` | Cumulative smoke chart |
+| Pickup crew formation | `/event/crew-formation` | Form named crews from individual participants |
+| Access code | `EventDetails` | Per-event access code, visible to organiser |
+| Judging mode | `EventDetails` | Default (single score) or custom criteria mode |
 
 ## Frontend Design System
 
