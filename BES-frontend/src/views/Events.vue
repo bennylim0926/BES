@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchAllFolderEvents, fetchAllEvents, updateEventAccessCode } from '@/utils/api'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
 
@@ -11,6 +11,13 @@ const dbEvents = ref([])
 const search  = ref('')
 const router  = useRouter()
 const isAdmin = ref(false)
+
+// Only one card expanded at a time (mobile)
+const expandedId = ref(null)
+const toggleExpanded = (id) => { expandedId.value = expandedId.value === id ? null : id }
+const closeExpanded = () => { expandedId.value = null }
+onMounted(()  => document.addEventListener('click', closeExpanded))
+onUnmounted(() => document.removeEventListener('click', closeExpanded))
 
 const filtered = computed(() =>
   events.value.filter(e =>
@@ -42,13 +49,17 @@ async function goToEventDetails(eventName, folderID) {
   router.push({ name: 'Event Details', params: { eventName }, query: { folderID } })
 }
 
+function activateAndGo(folderName, routeName) {
+  const dbEvent = dbEvents.value.find(e => e.name === folderName)
+  if (dbEvent) setActiveEvent(dbEvent.id, dbEvent.name)
+  router.push({ name: routeName })
+}
+
 onMounted(async () => {
   const authStore = useAuthStore()
   isAdmin.value = authStore.user?.role?.[0]?.authority === 'ROLE_ADMIN'
   events.value = await fetchAllFolderEvents()
-  if (isAdmin.value) {
-    dbEvents.value = await fetchAllEvents() ?? []
-  }
+  dbEvents.value = await fetchAllEvents() ?? []
 })
 </script>
 
@@ -82,14 +93,20 @@ onMounted(async () => {
     <!-- Events grid -->
     <div
       v-if="filtered.length"
-      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start"
     >
       <EventCard
         v-for="event in filtered"
         :key="event.folderID"
         :buttonName="event.folderName"
         :accessCode="getAccessCode(event.folderName)"
-        @onClick="goToEventDetails(event.folderName, event.folderID)"
+        :expanded="expandedId === event.folderID"
+        @toggle="toggleExpanded(event.folderID)"
+        @onDetails="goToEventDetails(event.folderName, event.folderID)"
+        @onAudition="activateAndGo(event.folderName, 'Audition List')"
+        @onParticipants="activateAndGo(event.folderName, 'Update Event Details')"
+        @onScoreboard="activateAndGo(event.folderName, 'Score')"
+        @onBattle="activateAndGo(event.folderName, 'Battle Control')"
         @updateCode="(code) => handleUpdateCode(event.folderName, code)"
       />
     </div>

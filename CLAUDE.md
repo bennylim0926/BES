@@ -108,6 +108,19 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 | `utils/useScrollReveal.js` | Scroll-reveal animation composable |
 | `router/index.js` | Client-side routes with RBAC guards |
 
+### Navigation Architecture
+
+**Navbar** (`App.vue`) uses a 3-column grid: Logo (left) · Primary nav (center) · Utilities (right).
+
+- **Primary nav** (center): Home · Events · Admin only — kept minimal
+- **Event chip** (right): Active event dropdown that doubles as section nav — contains Audition, Participants, Scoreboard, Battle links (role-filtered) + "Change Event". Do NOT add event-specific pages back as top-level nav items.
+- **Event switching**: `changeEvent()` always passes `?redirect=<currentPath>` so EventSelector returns the user to the same page after switching.
+
+**EventCard** (`components/EventCard.vue`):
+- Hover (desktop) or tap (mobile) reveals an absolute-positioned action panel that overlaps content below without affecting grid layout
+- `expandedId` state is lifted to `Events.vue` — only one card expands at a time. Cards emit `toggle`; parent manages which is open. Do not move this state back into the card.
+- Action buttons: Details → `/events/:name`, Audition/Participants/Score/Battle → calls `setActiveEvent()` then navigates directly
+
 ### Testing
 
 - **Backend**: JUnit 5 + Spring Boot Test + MockMvc; uses H2 in-memory DB via `@ActiveProfiles("test")`
@@ -215,6 +228,8 @@ Scoring only:
 | Pickup crew formation | `/event/crew-formation` | Form named crews from individual participants |
 | Access code | `EventDetails` | Per-event access code, visible to organiser |
 | Judging mode | `EventDetails` | Default (single score) or custom criteria mode |
+| Judge scoring card | `SwipeableCardsV2` | Minimal padding for mobile; `py-4` keypad buttons, `w-[97%]` card width, `p-2` card padding — do not increase these |
+| Event selector grid | `EventSelector` | ≤4 events → 1 col, 5+ events → 2-col grid; no scroll. Always passes `?redirect=` back to originating page |
 
 ## Frontend Design System
 

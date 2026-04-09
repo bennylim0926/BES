@@ -63,9 +63,16 @@ const logoutNow = async () => {
 }
 
 const activeEvent = ref(getActiveEvent())
+const eventMenuOpen = ref(false)
 
 function changeEvent() {
-  router.push({ name: 'EventSelector' })
+  eventMenuOpen.value = false
+  router.push({ name: 'EventSelector', query: { redirect: router.currentRoute.value.fullPath } })
+}
+
+function goToSection(routeName) {
+  eventMenuOpen.value = false
+  router.push({ name: routeName })
 }
 
 // ── Theme ───────────────────────────────────────────────────────────────────
@@ -87,6 +94,7 @@ function toggleTheme() {
 // ── Watchers ───────────────────────────────────────────────────────────────
 watch(route, () => {
   isOpen.value = false
+  eventMenuOpen.value = false
   activeEvent.value = getActiveEvent()
 })
 
@@ -115,200 +123,130 @@ onMounted(async () => {
            transition-all duration-300"
   >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
+      <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
 
-        <!-- Logo -->
+        <!-- Left: Logo -->
         <router-link to="/" class="flex items-center gap-2 group flex-shrink-0">
-          <div
-            class="w-8 h-8 rounded-lg bg-primary-500 text-white
-                   flex items-center justify-center font-anton text-xl
-                   group-hover:scale-105 transition-transform duration-200"
-            style="box-shadow: 0 0 12px rgba(6,182,212,0.4);"
-          >B</div>
-          <span class="font-anton text-2xl text-content-primary tracking-wide translate-y-[2px]">
-            BES
-          </span>
+          <div class="w-8 h-8 rounded-lg bg-primary-500 text-white flex items-center justify-center font-anton text-xl group-hover:scale-105 transition-transform duration-200"
+            style="box-shadow: 0 0 12px rgba(6,182,212,0.4);">B</div>
+          <span class="font-anton text-2xl text-content-primary tracking-wide translate-y-[2px]">BES</span>
         </router-link>
 
-        <!-- Desktop Nav Links -->
-        <div class="hidden md:flex md:items-center md:gap-1 lg:gap-1.5">
-
+        <!-- Center: Primary nav -->
+        <div class="hidden md:flex items-center justify-center gap-1">
           <router-link to="/" v-slot="{ isActive }">
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
+            <span class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer"
+              :class="isActive ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]' : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'">
               <i class="pi pi-home text-xs"></i> Home
             </span>
           </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/events"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
+          <router-link v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" to="/events" v-slot="{ isActive }">
+            <span class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer"
+              :class="isActive ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]' : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'">
               <i class="pi pi-calendar text-xs"></i> Events
             </span>
           </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/event/update-event-details"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-users text-xs"></i> Participants
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
-            to="/event/audition-list"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-list text-xs"></i> Audition
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_ORGANISER'"
-            to="/event/score"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-chart-bar text-xs"></i> Scoreboard
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/battle/control"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-bolt text-xs"></i> Battle
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN'"
-            to="/admin"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                     transition-all duration-200 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'"
-            >
+          <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
+            <span class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer"
+              :class="isActive ? 'bg-primary-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]' : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60'">
               <i class="pi pi-cog text-xs"></i> Admin
             </span>
           </router-link>
-
         </div>
 
-        <!-- Desktop Right: Event Chip + Role Badge + Auth -->
-        <div class="hidden md:flex items-center gap-3">
+        <!-- Right: Event chip + utilities -->
+        <div class="hidden md:flex items-center gap-2">
 
-          <!-- Active event chip -->
-          <button
-            v-if="isAuthenticated && activeEvent"
-            @click="changeEvent"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                   bg-surface-700 border border-surface-600 text-content-secondary
-                   text-xs font-medium hover:bg-primary-100 hover:border-primary-500/50
-                   hover:text-primary-400 transition-all duration-200 max-w-[160px]"
-            title="Click to change event"
-          >
-            <i class="pi pi-calendar-clock text-xs flex-shrink-0"></i>
-            <span class="truncate">{{ activeEvent.name }}</span>
-            <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60"></i>
-          </button>
+          <!-- Active event dropdown -->
+          <div v-if="isAuthenticated && activeEvent" class="relative">
+            <button @click="eventMenuOpen = !eventMenuOpen"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                     bg-surface-700 border border-surface-600 text-content-secondary
+                     text-xs font-medium hover:bg-surface-600 hover:border-primary-500/50
+                     hover:text-primary-400 transition-all duration-200 max-w-[180px]">
+              <i class="pi pi-calendar-clock text-xs flex-shrink-0"></i>
+              <span class="truncate">{{ activeEvent.name }}</span>
+              <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60 transition-transform duration-200"
+                 :class="eventMenuOpen ? 'rotate-180' : ''"></i>
+            </button>
 
-          <!-- Role badge — single neutral style for all roles; label is the differentiator -->
-          <span
-            v-if="isAuthenticated && roleDisplay"
-            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                   bg-surface-700 text-content-secondary border border-surface-600"
-          >
+            <Transition
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="opacity-0 translate-y-1"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition duration-100 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 translate-y-1"
+            >
+              <div v-if="eventMenuOpen"
+                class="absolute right-0 top-full mt-2 w-48 z-50 bg-surface-800 border border-surface-600/60 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden">
+                <div class="px-3 py-2.5 border-b border-surface-700/60">
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-content-muted mb-0.5">Current Event</p>
+                  <p class="text-sm font-semibold text-content-primary truncate">{{ activeEvent.name }}</p>
+                </div>
+                <div class="py-1">
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
+                    @click="goToSection('Audition List')"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-list text-xs w-4"></i> Audition
+                  </button>
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+                    @click="goToSection('Update Event Details')"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-users text-xs w-4"></i> Participants
+                  </button>
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE'"
+                    @click="goToSection('Score')"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-chart-bar text-xs w-4"></i> Scoreboard
+                  </button>
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+                    @click="goToSection('Battle Control')"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-bolt text-xs w-4"></i> Battle
+                  </button>
+                </div>
+                <div class="border-t border-surface-700/60 py-1">
+                  <button @click="changeEvent"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-muted hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-refresh text-xs w-4"></i> Change Event
+                  </button>
+                </div>
+              </div>
+            </Transition>
+            <div v-if="eventMenuOpen" class="fixed inset-0 z-40" @click="eventMenuOpen = false"></div>
+          </div>
+
+          <!-- Divider -->
+          <div v-if="isAuthenticated" class="h-5 w-px bg-surface-600/60"></div>
+
+          <!-- Role badge -->
+          <span v-if="isAuthenticated && roleDisplay"
+            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-700 text-content-secondary border border-surface-600">
             {{ roleDisplay.label }}
           </span>
 
           <!-- Theme toggle -->
-          <button
-            @click="toggleTheme"
-            class="inline-flex items-center justify-center w-9 h-9 rounded-lg
-                   text-content-muted hover:text-content-primary hover:bg-surface-700
-                   transition-all duration-200"
-            :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-          >
+          <button @click="toggleTheme"
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-all duration-200">
             <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
           </button>
 
           <router-link v-if="!isAuthenticated" to="/login">
-            <span
-              class="px-4 py-2 rounded-lg text-sm font-semibold text-white
-                     bg-primary-500 hover:bg-primary-600 transition-colors shadow-sm cursor-pointer btn-glow"
-            >
-              Login
-            </span>
+            <span class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors shadow-sm cursor-pointer btn-glow">Login</span>
           </router-link>
 
-          <button
-            v-if="isAuthenticated"
+          <button v-if="isAuthenticated"
             @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
-            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
-                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200"
-          >
-            <i class="pi pi-sign-out text-xs"></i>
-            <span>Logout</span>
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200"
+            title="Logout">
+            <i class="pi pi-sign-out text-sm"></i>
           </button>
-
         </div>
 
         <!-- Mobile Hamburger -->
-        <button
-          @click="isOpen = !isOpen"
-          class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg
-                 text-content-muted hover:text-content-primary hover:bg-surface-700
-                 transition-colors focus:outline-none"
-        >
+        <button @click="isOpen = !isOpen"
+          class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors focus:outline-none">
           <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'"></i>
         </button>
 
@@ -329,176 +267,82 @@ onMounted(async () => {
         class="md:hidden border-t border-surface-600/30
                bg-surface-900/98 backdrop-blur-md shadow-lg"
       >
+        <!-- Mobile nav links -->
         <div class="px-3 py-3 space-y-0.5">
-
           <router-link to="/" v-slot="{ isActive }">
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-home w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Home
+            <span class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 cursor-pointer"
+              :class="isActive ? 'bg-primary-500 text-white' : 'text-content-secondary hover:bg-surface-700/60'">
+              <i class="pi pi-home w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i> Home
             </span>
           </router-link>
 
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/events"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-calendar w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Events
+          <router-link v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" to="/events" v-slot="{ isActive }">
+            <span class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 cursor-pointer"
+              :class="isActive ? 'bg-primary-500 text-white' : 'text-content-secondary hover:bg-surface-700/60'">
+              <i class="pi pi-calendar w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i> Events
             </span>
           </router-link>
 
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/event/update-event-details"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-users w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Participants
+          <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
+            <span class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 cursor-pointer"
+              :class="isActive ? 'bg-primary-500 text-white' : 'text-content-secondary hover:bg-surface-700/60'">
+              <i class="pi pi-cog w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i> Admin
             </span>
           </router-link>
 
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
-            to="/event/audition-list"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-list w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Audition
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_EMCEE' || role === 'ROLE_ORGANISER'"
-            to="/event/score"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-chart-bar w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Scoreboard
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-            to="/battle/control"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-bolt w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Battle
-            </span>
-          </router-link>
-
-          <router-link
-            v-if="role === 'ROLE_ADMIN'"
-            to="/admin"
-            v-slot="{ isActive }"
-          >
-            <span
-              class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                     transition-colors duration-150 cursor-pointer"
-              :class="isActive
-                ? 'bg-primary-500 text-white'
-                : 'text-content-secondary hover:bg-surface-700/60'"
-            >
-              <i class="pi pi-cog w-4" :class="isActive ? 'text-white' : 'text-content-muted'"></i>
-              Admin
-            </span>
-          </router-link>
-
+          <!-- Current event section (mobile) -->
+          <template v-if="isAuthenticated && activeEvent">
+            <div class="px-4 pt-3 pb-1">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-content-muted">Current Event</p>
+              <p class="text-sm font-semibold text-primary-400 truncate">{{ activeEvent.name }}</p>
+            </div>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
+              @click="goToSection('Audition List')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-list w-4 text-content-muted"></i> Audition
+            </button>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+              @click="goToSection('Update Event Details')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-users w-4 text-content-muted"></i> Participants
+            </button>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE'"
+              @click="goToSection('Score')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-chart-bar w-4 text-content-muted"></i> Scoreboard
+            </button>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+              @click="goToSection('Battle Control')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-bolt w-4 text-content-muted"></i> Battle
+            </button>
+            <button @click="changeEvent"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-muted hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-refresh w-4"></i> Change Event
+            </button>
+          </template>
         </div>
 
-        <!-- Mobile auth row -->
+        <!-- Mobile bottom row -->
         <div class="px-3 py-3 border-t border-surface-600/30">
-          <!-- Active event chip (mobile) -->
-          <button
-            v-if="isAuthenticated && activeEvent"
-            @click="changeEvent"
-            class="w-full flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl
-                   bg-surface-700 border border-surface-600 text-content-secondary
-                   text-sm font-medium hover:bg-primary-100 hover:border-primary-500/50
-                   hover:text-primary-400 transition-all duration-200"
-            title="Click to change event"
-          >
-            <i class="pi pi-calendar-clock text-sm flex-shrink-0"></i>
-            <span class="truncate flex-1 text-left">{{ activeEvent.name }}</span>
-            <i class="pi pi-chevron-down text-xs flex-shrink-0 opacity-60"></i>
-          </button>
           <div v-if="isAuthenticated" class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span
-                v-if="roleDisplay"
-                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                       bg-surface-700 text-content-secondary border border-surface-600"
-              >
+              <span v-if="roleDisplay"
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-700 text-content-secondary border border-surface-600">
                 {{ roleDisplay.label }}
               </span>
-              <!-- Theme toggle (mobile) -->
-              <button
-                @click="toggleTheme"
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg
-                       text-content-muted hover:text-content-primary hover:bg-surface-700
-                       transition-all duration-200"
-                :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-              >
+              <button @click="toggleTheme"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-all duration-200">
                 <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
               </button>
             </div>
-            <button
-              @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
-              class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
-                     text-red-400 bg-red-950 hover:bg-red-900 transition-colors cursor-pointer"
-            >
+            <button @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
+              class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 bg-red-950 hover:bg-red-900 transition-colors cursor-pointer">
               <i class="pi pi-sign-out"></i> Logout
             </button>
           </div>
           <router-link v-else to="/login">
-            <span
-              class="flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold
-                     text-white bg-primary-500 hover:bg-primary-600 transition-colors w-full btn-glow"
-            >
-              Login
-            </span>
+            <span class="flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors w-full btn-glow">Login</span>
           </router-link>
         </div>
 

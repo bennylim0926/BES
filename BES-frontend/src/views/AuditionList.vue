@@ -514,33 +514,78 @@ onMounted(async () => {
       leave-to-class="opacity-0 -translate-y-2"
     >
       <div v-if="showFilters" class="card p-5 mb-6">
-        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <ReusableDropdown v-model="selectedRole"  labelId="Role"  :options="roles" />
-          <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-          <div class="flex flex-col gap-1">
-            <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
-            <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
-          </div>
-          <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
-          <ReusableDropdown
-            v-if="hasTeamAndSoloMix"
-            v-model="selectedEntryType"
-            labelId="Type"
-            :options="['Teams', 'Solo']"
-          />
-          <ReusableDropdown
-            v-if="isAdmin && selectedEvent"
-            v-model="judgingMode"
-            labelId="Judging Mode"
-            :options="['SOLO', 'PAIR']"
-            @update:modelValue="(val) => setJudgingMode(selectedEvent, val)"
-          />
-        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Event name -->
+          <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+          <span class="text-surface-600 select-none">|</span>
 
-        <!-- Current judge selector (judge role only) -->
-        <div v-if="selectedRole === 'Judge'" class="mt-4 pt-4 border-t border-surface-600/30">
-          <div class="max-w-xs">
-            <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
+          <!-- Role toggle -->
+          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <button
+              v-for="r in roles"
+              :key="r"
+              @click="selectedRole = r"
+              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              :class="selectedRole === r
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >{{ r }}</button>
+          </div>
+          <span class="text-surface-600 select-none">|</span>
+
+          <!-- Genre toggle -->
+          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <button
+              v-for="g in uniqueGenres"
+              :key="g"
+              @click="selectedGenre = g"
+              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              :class="selectedGenre === g
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >{{ g }}</button>
+          </div>
+
+          <!-- Type toggle (conditional) -->
+          <template v-if="hasTeamAndSoloMix">
+            <span class="text-surface-600 select-none">|</span>
+            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+              <button
+                v-for="t in ['Teams', 'Solo']"
+                :key="t"
+                @click="selectedEntryType = t"
+                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                :class="selectedEntryType === t
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              >{{ t }}</button>
+            </div>
+          </template>
+
+          <!-- Judging mode toggle (admin only) -->
+          <template v-if="isAdmin && selectedEvent">
+            <span class="text-surface-600 select-none">|</span>
+            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+              <button
+                v-for="m in ['SOLO', 'PAIR']"
+                :key="m"
+                @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
+                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                :class="judgingMode === m
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              >{{ m }}</button>
+            </div>
+          </template>
+
+          <!-- Judge filter + identity dropdowns pushed to the right -->
+          <div class="ml-auto flex items-center gap-3">
+            <div v-if="hasJudge" class="w-40">
+              <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+            </div>
+            <div v-if="selectedRole === 'Judge'" class="w-44">
+              <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
+            </div>
           </div>
         </div>
       </div>

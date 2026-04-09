@@ -71,29 +71,29 @@ const handleSubmit = async () => {
 
         <form @submit.prevent="handleSubmit" class="space-y-5">
 
-          <!-- Event list -->
+          <!-- Event grid -->
           <div>
             <label class="block text-sm font-semibold text-content-secondary mb-2">Event</label>
-            <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <div class="grid gap-2" :class="events.length > 4 ? 'grid-cols-2' : 'grid-cols-1'">
               <button
                 v-for="event in events"
                 :key="event.id"
                 type="button"
                 @click="selectedEventId = event.id; accessCode = ''; error = ''"
                 :class="[
-                  'w-full text-left px-4 py-3 rounded-xl border transition-all duration-150',
+                  'text-center px-3 py-4 rounded-xl border transition-all duration-150',
                   selectedEventId === event.id
-                    ? 'border-primary-500 bg-primary-100 text-primary-400 font-semibold'
+                    ? 'border-primary-500 bg-primary-500/15 text-primary-400 font-semibold'
                     : 'border-surface-600 bg-surface-700 hover:border-primary-500/50 hover:bg-surface-600 text-content-primary'
                 ]"
               >
-                <span class="font-heading text-sm">{{ event.name }}</span>
-                <span
+                <div class="font-heading font-semibold text-sm leading-snug">{{ event.name }}</div>
+                <div
                   v-if="isAdmin && event.accessCode"
-                  class="ml-2 font-source text-xs text-content-muted tracking-widest"
+                  class="font-source text-xs text-content-muted tracking-widest mt-0.5"
                 >
-                  ({{ event.accessCode }})
-                </span>
+                  {{ event.accessCode }}
+                </div>
               </button>
             </div>
             <p v-if="events.length === 0" class="text-sm text-muted mt-2">No events found.</p>
