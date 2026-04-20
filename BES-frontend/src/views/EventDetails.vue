@@ -1,9 +1,12 @@
 <script setup>
-import { ref, onMounted, reactive, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
+import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch, updateEventGenreFormat } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents } from '@/utils/api';
+import { setActiveEvent } from '@/utils/auth';
 import { filterObject, useDelay } from '@/utils/utils';
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import ReusableButton from '@/components/ReusableButton.vue';
 import AuditionNumber from './AuditionNumber.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
@@ -11,6 +14,8 @@ import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
 
 const fileId = ref('')
+const dbEventId = ref(null)
+const activeFolderID = ref(null)
 const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("success")
@@ -57,6 +62,10 @@ const showCriteriaModal = ref(false)
 // Walk-in form
 const showWalkInForm = ref(false)
 const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
+const activeTab = ref('setup') // 'setup' | 'event-day'
+const activeGenreTab = ref(null)
+let refreshInterval = null
+let wsClient = null
 
 // Genre adjustment modal
 const showAdjustModal = ref(false)
@@ -218,6 +227,38 @@ const registeredList = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
+const registeredSearch = ref('')
+const registeredGenreFilter = ref('')
+const registeredPage = ref(1)
+const REGISTERED_PAGE_SIZE = 10
+
+const registeredGenreOptions = computed(() => {
+  const genres = new Set()
+  registeredList.value.forEach(p => p.entries.forEach(e => genres.add(e.genre)))
+  return [...genres].sort()
+})
+
+const filteredRegisteredList = computed(() => {
+  let list = registeredList.value
+  const q = registeredSearch.value.trim().toLowerCase()
+  if (q) list = list.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.entries.some(e => e.genre.toLowerCase().includes(q))
+  )
+  if (registeredGenreFilter.value)
+    list = list.filter(p => p.entries.some(e => e.genre === registeredGenreFilter.value))
+  return list
+})
+
+const registeredTotalPages = computed(() => Math.max(1, Math.ceil(filteredRegisteredList.value.length / REGISTERED_PAGE_SIZE)))
+
+const paginatedRegisteredList = computed(() => {
+  const start = (registeredPage.value - 1) * REGISTERED_PAGE_SIZE
+  return filteredRegisteredList.value.slice(start, start + REGISTERED_PAGE_SIZE)
+})
+
+watch([registeredSearch, registeredGenreFilter], () => { registeredPage.value = 1 })
+
 const adjustSearchResults = computed(() => {
   if (!adjustSearch.value.trim()) return []
   const q = adjustSearch.value.toLowerCase()
@@ -309,12 +350,18 @@ const onSubmit = async () => {
   await addJudges(inputs.value)
   await insertEventInTable(props.eventName, paymentRequired.value)
   const resp = await linkGenreToEvent(props.eventName, createTable.genres, createTable.genreFormats)
-  resp.json().then(result => {
+  resp.json().then(async result => {
     loading.value = false
     getTitle(resp.status)
     modalMessage.value = result
     showModal.value = true
     tableExist.value = true
+    if (!dbEventId.value) {
+      const dbEvents = await fetchAllEvents() ?? []
+      const dbEvent = dbEvents.find(e => e.name === props.eventName)
+      if (dbEvent) dbEventId.value = dbEvent.id
+    }
+    if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
   })
 }
 
@@ -339,9 +386,14 @@ const refreshParticipant = async () => {
   loading.value = false
 }
 
+const refreshFromDb = async () => {
+  verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+  unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+}
+
 const handleWalkInCreated = async () => {
   showWalkInForm.value = false
-  verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+  await refreshFromDb()
 }
 
 const closeAdjustModal = () => {
@@ -376,6 +428,35 @@ const addGenre = async (genreName) => {
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   adjustLoading.value = false
 }
+
+// ── Scoring criteria (per-genre, for inline display) ────────────────────────
+const criteriaByGenre = ref({}) // genreName → array of { id, name, weight }
+
+const loadCriteriaForAllGenres = async (genres) => {
+  const map = {}
+  await Promise.all(genres.map(async (g) => {
+    map[g.genreName] = await getScoringCriteria(props.eventName, g.genreName) ?? []
+  }))
+  criteriaByGenre.value = map
+}
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── Judges ──────────────────────────────────────────────────────────────────
+const eventJudges = ref([])
+const addJudgeInput = ref('')
+
+const submitAddJudge = async () => {
+  if (!addJudgeInput.value.trim()) return
+  const res = await addEventJudge(props.eventName, addJudgeInput.value.trim())
+  if (res?.ok) eventJudges.value = await res.json()
+  addJudgeInput.value = ''
+}
+
+const submitRemoveJudge = async (judgeId) => {
+  const res = await removeEventJudge(props.eventName, judgeId)
+  if (res?.ok) eventJudges.value = await res.json()
+}
+// ───────────────────────────────────────────────────────────────────────────
 
 // ── Genre format editing ────────────────────────────────────────────────────
 const formatOptions = ['1v1', '2v2', '3v3', '4v4']
@@ -446,9 +527,9 @@ const handleBatchVerify = async () => {
 watch(
   fileId,
   async () => {
-    if (fileId.value !== null) {
+    if (fileId.value) {
       participantsNumBreakdown.value = await getResponseDetails(fileId.value)
-      totalParticipants.value = await getSheetSize(fileId.value)
+      totalParticipants.value = await getSheetSize(fileId.value) ?? 0
     }
   }
 )
@@ -456,9 +537,26 @@ watch(
 onMounted(async () => {
   onStartLoading.value = true
   tableExist.value = checkTableExist(eventName, tableExist)
-  fileId.value = await getFileId(props.folderID)
+  // folderID may be absent when navigating from the navbar dropdown or EventSelector redirect
+  let resolvedFolderID = props.folderID
+  if (!resolvedFolderID) {
+    const folderEvents = await fetchAllFolderEvents()
+    const match = folderEvents?.find(e => e.folderName === props.eventName)
+    resolvedFolderID = match?.folderID ?? null
+  }
+  activeFolderID.value = resolvedFolderID
+  fileId.value = await getFileId(resolvedFolderID)
+  const dbEvents = await fetchAllEvents() ?? []
+  const dbEvent = dbEvents.find(e => e.name === props.eventName)
+  if (dbEvent) {
+    dbEventId.value = dbEvent.id
+    setActiveEvent(dbEvent.id, dbEvent.name, resolvedFolderID)
+  }
   genreOptions.value = await fetchAllGenres()
   eventGenres.value = await getGenresByEvent(props.eventName)
+  if (eventGenres.value.length > 0) activeGenreTab.value = eventGenres.value[0].genreName
+  await loadCriteriaForAllGenres(eventGenres.value)
+  eventJudges.value = await getEventJudges(props.eventName)
   if (tableExist.value) {
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
@@ -466,6 +564,23 @@ onMounted(async () => {
   }
   await useDelay().wait(2500)
   onStartLoading.value = false
+  if (tableExist.value) {
+    refreshInterval = setInterval(refreshFromDb, 30000)
+    wsClient = createClient()
+    let refreshPending = false
+    subscribeToChannel(wsClient, '/topic/audition/', (msg) => {
+      if (msg.eventName !== props.eventName) return
+      if (!refreshPending) {
+        refreshPending = true
+        refreshFromDb().finally(() => { refreshPending = false })
+      }
+    })
+  }
+})
+
+onUnmounted(() => {
+  if (refreshInterval) clearInterval(refreshInterval)
+  if (wsClient) deactivateClient(wsClient)
 })
 </script>
 
@@ -473,10 +588,10 @@ onMounted(async () => {
   <div class="page-container">
 
     <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
       <div>
         <h1 class="page-title">{{ props.eventName }}</h1>
-        <p class="text-muted mt-1">Event overview and participant registration status</p>
+        <p class="text-muted mt-1">Event overview and participant management</p>
       </div>
       <div class="flex flex-wrap gap-2 self-start">
         <button
@@ -506,6 +621,15 @@ onMounted(async () => {
           <i class="pi pi-envelope text-sm"></i>
           Email Template
         </button>
+        <RouterLink
+          to="/event/audition-number"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
+                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
+                 transition-all duration-200"
+        >
+          <i class="pi pi-hashtag text-sm"></i>
+          Audition Screen
+        </RouterLink>
         <button
           @click="refreshParticipant"
           :disabled="loading"
@@ -513,146 +637,72 @@ onMounted(async () => {
                  font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
                  disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
         >
-          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin text-primary-500' : 'pi-refresh'"></i>
-          {{ loading ? 'Refreshing…' : 'Refresh Participants' }}
+          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin text-primary-500' : 'pi-cloud-download'"></i>
+          {{ loading ? 'Importing…' : 'Import from Sheets' }}
         </button>
       </div>
     </div>
 
-    <!-- Audition Number -->
-    <div class="card p-4 mb-6">
-      <AuditionNumber />
+    <!-- Tab toggle -->
+    <div class="flex rounded-xl overflow-hidden border border-surface-600 w-fit mb-6">
+      <button
+        @click="activeTab = 'setup'"
+        class="px-5 py-2 text-sm font-semibold transition-all duration-150"
+        :class="activeTab === 'setup'
+          ? 'bg-primary-600 text-white'
+          : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+      >
+        <i class="pi pi-cog text-xs mr-1.5"></i>
+        Setup
+      </button>
+      <button
+        @click="activeTab = 'event-day'"
+        class="px-5 py-2 text-sm font-semibold transition-all duration-150"
+        :class="activeTab === 'event-day'
+          ? 'bg-primary-600 text-white'
+          : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+      >
+        <i class="pi pi-calendar text-xs mr-1.5"></i>
+        Event Day
+        <span
+          v-if="totalNotShownUp > 0"
+          class="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-amber-500 text-white"
+        >{{ totalNotShownUp }}</span>
+        <span
+          v-else-if="unverifiedParticipants.length > 0 && activeTab !== 'event-day'"
+          class="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-rose-500 text-white"
+        >{{ unverifiedParticipants.length }}</span>
+      </button>
     </div>
 
-    <!-- Stats cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-      <!-- Total -->
-      <div class="stat-card stat-card-primary p-5 hover:bg-surface-700 transition-colors duration-200">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="icon-wrap w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
-            <i class="pi pi-users text-primary-400 text-sm"></i>
-          </div>
-          <span class="label-caps font-semibold text-content-muted uppercase">Total Participants</span>
-        </div>
-        <p class="text-3xl font-heading font-extrabold text-content-primary stat-number mt-1">
-          {{ totalParticipants + totalWalkIn }}
-        </p>
-        <div class="flex gap-4 mt-3">
-          <span class="text-[13px] text-content-secondary">Form: <strong class="text-content-primary">{{ totalParticipants }}</strong></span>
-          <span class="text-[13px] text-content-secondary">Walk-in: <strong class="text-content-primary">{{ totalWalkIn }}</strong></span>
+    <!-- ── SETUP TAB ─────────────────────────────────────────────────────── -->
+    <template v-if="activeTab === 'setup'">
+
+    <!-- Stat strip -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Total</p>
+        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ (totalParticipants || 0) + totalWalkIn }}</p>
+        <div class="flex gap-3 mt-1">
+          <span class="text-xs text-content-muted">Form: <strong class="text-content-secondary">{{ totalParticipants || 0 }}</strong></span>
+          <span class="text-xs text-content-muted">Walk-in: <strong class="text-content-secondary">{{ totalWalkIn }}</strong></span>
         </div>
       </div>
-
-      <!-- Verified -->
-      <div class="stat-card stat-card-success p-5 hover:bg-surface-700 transition-colors duration-200">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="icon-wrap w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
-            <i class="pi pi-check-circle text-teal-400 text-sm"></i>
-          </div>
-          <span class="label-caps font-semibold text-content-muted uppercase">Verification</span>
-        </div>
-        <p class="text-3xl font-heading font-extrabold text-content-primary stat-number mt-1">
-          {{ totalVerified }}
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Pending Verification</p>
+        <p class="text-2xl font-heading font-extrabold" :class="unverifiedParticipants.length > 0 ? 'text-rose-300' : 'text-content-primary'">
+          {{ unverifiedParticipants.length }}
         </p>
-        <div class="flex flex-col gap-1 mt-3">
-          <span class="text-[13px] text-content-secondary">
-            Pending: <strong class="text-rose-300">{{ unverifiedParticipants.length }}</strong>
-          </span>
-        </div>
+        <span class="text-xs text-content-muted">{{ totalVerified }} verified</span>
       </div>
-
-      <!-- Registered -->
-      <div class="stat-card stat-card-warning p-5 hover:bg-surface-700 transition-colors duration-200">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="icon-wrap w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
-            <i class="pi pi-id-card text-amber-300/60 text-sm"></i>
-          </div>
-          <span class="label-caps font-semibold text-content-muted uppercase">Registered</span>
-        </div>
-        <p class="text-3xl font-heading font-extrabold text-content-primary stat-number mt-1">
-          {{ totalDbRegistered.length }}
-        </p>
-        <div class="flex gap-4 mt-3">
-          <span class="text-[13px] text-content-secondary">Audition assigned</span>
-          <span v-if="totalNotShownUp > 0" class="text-[13px] text-content-secondary">
-            Absent: <strong class="text-amber-300">{{ totalNotShownUp }}</strong>
-          </span>
-        </div>
-      </div>
-
-      <!-- Email Progress -->
-      <div class="stat-card stat-card-primary p-5 hover:bg-surface-700 transition-colors duration-200">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="icon-wrap w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
-            <i class="pi pi-send text-primary-400 text-sm"></i>
-          </div>
-          <span class="label-caps font-semibold text-content-muted uppercase">Email Progress</span>
-        </div>
-        <p class="text-3xl font-heading font-extrabold text-content-primary stat-number mt-1">
-          {{ emailedCount }} / {{ totalVerified }}
-        </p>
-        <div class="flex gap-4 mt-3">
-          <span class="text-[13px] text-content-secondary">QR emails sent</span>
-        </div>
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Emails Sent</p>
+        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ emailedCount }}<span class="text-base font-medium text-content-muted"> / {{ totalVerified }}</span></p>
+        <span class="text-xs text-content-muted">QR emails</span>
       </div>
     </div>
 
-    <!-- Participant detail panels -->
-    <div v-if="verifiedDbParticipants.length > 0" class="space-y-2 mb-8">
-
-      <!-- Not shown up -->
-      <div v-if="notShownUpList.length > 0" class="card overflow-hidden panel-warning">
-        <button
-          @click="expandedPeople.has('notShownUp') ? expandedPeople.delete('notShownUp') : expandedPeople.add('notShownUp'); expandedPeople = new Set(expandedPeople)"
-          :aria-expanded="expandedPeople.has('notShownUp')"
-          aria-controls="panel-not-shown-up"
-          class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
-        >
-          <div class="flex items-center gap-3">
-            <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-clock text-amber-300 text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary">Not Shown Up</span>
-            <span class="badge-warning inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30">
-              {{ notShownUpList.length }}
-            </span>
-          </div>
-          <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-             :class="{ 'rotate-180': expandedPeople.has('notShownUp') }"></i>
-        </button>
-        <div v-if="expandedPeople.has('notShownUp')" id="panel-not-shown-up" class="px-4 pb-4 border-t border-surface-600/30 pt-4 shadow-[inset_0_4px_8px_rgba(0,0,0,0.2)]">
-          <div class="space-y-2">
-            <div
-              v-for="p in notShownUpList"
-              :key="p.name"
-              class="flex flex-col gap-1.5 px-3 py-2.5 rounded-xl bg-surface-700/50 border border-surface-600"
-            >
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
-                <span
-                  v-if="verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
-                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
-                >
-                  <i class="pi pi-check text-xs"></i> Email Sent
-                </span>
-              </div>
-              <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="g in p.genres"
-                  :key="g"
-                  class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-surface-800 border border-surface-600 text-content-muted"
-                >{{ g }}</span>
-              </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted mt-0.5">
-                <i class="pi pi-users" style="font-size:0.65rem"></i>
-                <span>{{ p.memberNames.join(', ') }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Unverified (payment pending — DB-driven) -->
+    <!-- Unverified (payment pending — DB-driven) -->
       <div v-if="unverifiedParticipants.length > 0" class="card overflow-hidden panel-danger">
         <button
           @click="expandedPeople.has('unverified') ? expandedPeople.delete('unverified') : expandedPeople.add('unverified'); expandedPeople = new Set(expandedPeople)"
@@ -744,177 +794,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Registered -->
-      <div v-if="registeredList.length > 0" class="card overflow-hidden panel-success">
-        <button
-          @click="expandedPeople.has('registered') ? expandedPeople.delete('registered') : expandedPeople.add('registered'); expandedPeople = new Set(expandedPeople)"
-          :aria-expanded="expandedPeople.has('registered')"
-          aria-controls="panel-registered"
-          class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
-        >
-          <div class="flex items-center gap-3">
-            <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-check-circle text-teal-400 text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary">Registered</span>
-            <span class="badge-success inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
-              {{ registeredList.length }}
-            </span>
-          </div>
-          <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-             :class="{ 'rotate-180': expandedPeople.has('registered') }"></i>
-        </button>
-        <div v-if="expandedPeople.has('registered')" id="panel-registered" class="px-5 pb-4 border-t border-surface-600/30 pt-4 shadow-[inset_0_4px_8px_rgba(0,0,0,0.2)]">
-          <div class="space-y-2">
-            <div
-              v-for="p in registeredList"
-              :key="p.name"
-              class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-900 border border-surface-600"
-            >
-              <!-- Row 1: name + status badge -->
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
-                <span
-                  v-if="p.walkin"
-                  class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600"
-                >walk-in</span>
-                <!-- Hold-to-reveal reference code for walk-ins -->
-                <span
-                  v-if="p.walkin && p.referenceCode"
-                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
-                  @mousedown="revealingRef = p.name"
-                  @mouseup="revealingRef = null"
-                  @mouseleave="revealingRef = null"
-                  @touchstart.prevent="revealingRef = p.name"
-                  @touchend="revealingRef = null"
-                  @touchcancel="revealingRef = null"
-                >
-                  <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
-                  <span class="text-content-muted">Ref code</span>
-                  <!-- Tooltip above, away from cursor -->
-                  <span
-                    v-if="revealingRef === p.name"
-                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
-                  >
-                    <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
-                    <!-- Arrow -->
-                    <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
-                  </span>
-                </span>
-                <span
-                  v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
-                  class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
-                >
-                  <i class="pi pi-check text-xs"></i> Email Sent
-                </span>
-                <span
-                  v-else-if="!p.walkin"
-                  class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-amber-300 border border-amber-900/30"
-                >
-                  <i class="pi pi-clock text-xs"></i> Email Pending
-                </span>
-              </div>
-              <!-- Row 2: genre + audition number badges -->
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="e in p.entries"
-                  :key="e.genre"
-                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-800 border border-primary-200 text-sm"
-                >
-                  <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
-                  <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
-                </span>
-              </div>
-              <!-- Row 3: team members (only for team entries) -->
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
-                <i class="pi pi-users" style="font-size:0.65rem"></i>
-                <span>{{ p.memberNames.join(', ') }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Genre breakdown -->
-    <div v-if="completeBreakdown.length > 0" class="mb-8">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-heading font-bold text-content-secondary text-lg">Genre Breakdown</h2>
-        <button
-          @click="showCriteriaModal = true"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-600 bg-surface-700/60
-                 text-xs font-semibold text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all duration-150"
-        >
-          <i class="pi pi-sliders-h text-xs" />
-          Scoring Criteria
-        </button>
-      </div>
-      <div class="space-y-2">
-        <div
-          v-for="genre in completeBreakdown"
-          :key="genre.genre"
-          class="card overflow-hidden"
-        >
-          <!-- Genre header (always visible) -->
-          <button
-            @click="toggleGenre(genre.genre)"
-            :aria-expanded="expandedGenres.has(genre.genre)"
-            class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
-          >
-            <div class="flex items-center gap-4">
-              <span class="font-heading font-bold text-content-primary capitalize">{{ genre.genre }}</span>
-              <div class="flex items-center gap-3">
-                <span class="badge-neutral text-xs">Total: {{ genre.total }}</span>
-                <span class="badge-success inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
-                  Reg: {{ genre.registered }}
-                </span>
-                <span
-                  v-if="genre.unregistered > 0"
-                  class="badge-danger inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-rose-300 border border-rose-900/30"
-                >
-                  Unreg: {{ genre.unregistered }}
-                </span>
-              </div>
-            </div>
-            <i
-              class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-              :class="{ 'rotate-180': expandedGenres.has(genre.genre) }"
-            ></i>
-          </button>
-
-          <!-- Expanded: unregistered list -->
-          <div
-            v-if="expandedGenres.has(genre.genre)"
-            class="px-5 pb-4 border-t border-surface-600/30"
-          >
-            <div class="pt-4">
-              <template v-if="getUnregistered(genre.genre).unregistered.length > 0">
-                <p class="label-caps font-semibold text-content-muted uppercase mb-2">
-                  Unregistered Participants
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="p in getUnregistered(genre.genre).unregistered"
-                    :key="p.participantName"
-                    class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-800 text-rose-300 text-xs font-medium border border-rose-300/20 font-source"
-                  >
-                    {{ p.participantName }}
-                  </span>
-                </div>
-              </template>
-              <template v-else>
-                <div class="flex items-center gap-2 text-teal-300 text-sm">
-                  <i class="pi pi-check-circle"></i>
-                  <span>All verified participants have registered</span>
-                </div>
-              </template>
-            </div>
-
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Setup section (when no table exists) -->
     <div v-if="!tableExist" class="card p-6">
@@ -993,67 +872,366 @@ onMounted(async () => {
       </div>
     </div>
 
-  </div>
+  <!-- Genre Configuration — unified per-genre tabs (participants, format, criteria, judges) -->
+  <div v-if="tableExist && eventGenres.length > 0" class="card overflow-hidden mt-6">
 
-  <!-- Genre Format Management (shown when event is set up) -->
-  <div v-if="tableExist && eventGenres.length > 0" class="card p-5 mt-6">
-    <div class="flex items-center gap-3 mb-4">
-      <div class="icon-wrap w-8 h-8 rounded-xl bg-surface-700 flex items-center justify-center">
-        <i class="pi pi-tag text-content-muted text-sm"></i>
-      </div>
-      <div>
-        <h2 class="font-heading font-bold text-content-secondary text-sm">Genre Formats</h2>
-        <p class="text-xs text-content-muted mt-0.5">Set battle format per genre (e.g. 2v2). Required for team vs solo audition splitting.</p>
-      </div>
-    </div>
-    <div class="flex flex-col gap-2">
-      <div
+    <!-- Genre tab bar -->
+    <div class="flex border-b border-surface-700/50 bg-surface-900/30 overflow-x-auto">
+      <button
         v-for="g in eventGenres"
         :key="g.genreName"
-        class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-800/60 border border-surface-600/30"
+        @click="activeGenreTab = g.genreName"
+        class="px-5 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-150 border-b-2"
+        :class="activeGenreTab === g.genreName
+          ? 'border-primary-500 text-content-primary bg-surface-800/50'
+          : 'border-transparent text-content-muted hover:text-content-secondary hover:bg-surface-700/30'"
       >
-        <span class="font-heading font-semibold text-content-secondary text-sm flex-1 capitalize">{{ g.genreName }}</span>
+        {{ g.genreName }}
+        <span
+          v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName))"
+          class="ml-1.5 text-xs font-normal opacity-60"
+        >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).total }}</span>
+      </button>
+    </div>
 
-        <!-- Viewing mode -->
-        <template v-if="editingFormatFor !== g.genreName">
-          <span class="font-source text-xs px-2 py-0.5 rounded-md"
-            :class="g.format ? 'bg-primary-500/15 text-primary-400 border border-primary-500/30' : 'bg-surface-700 text-surface-500 border border-surface-600/30'">
-            {{ g.format || 'No format' }}
-          </span>
-          <button
-            @click="startEditFormat(g)"
-            class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 hover:text-content-primary transition-all"
-          >
-            <i class="pi pi-pencil" style="font-size:0.65rem"></i>
-            Edit
-          </button>
+    <!-- Tab content for each genre -->
+    <template v-for="g in eventGenres" :key="g.genreName + '-content'">
+      <div v-if="activeGenreTab === g.genreName" class="p-5 space-y-4">
+
+        <!-- Participant counts (only when data available) -->
+        <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName))">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).total }}</span>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
+              Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).registered }}
+            </span>
+            <span
+              v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered > 0"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-rose-300 border border-rose-900/30"
+            >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered }}</span>
+          </div>
+
+          <!-- Unregistered list -->
+          <div v-if="getUnregistered(normalizeGenreName(g.genreName)).unregistered.length > 0">
+            <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1.5">Unregistered Participants</p>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="p in getUnregistered(normalizeGenreName(g.genreName)).unregistered"
+                :key="p.participantName"
+                class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-800 text-rose-300 text-xs font-medium border border-rose-300/20 font-source"
+              >{{ p.participantName }}</span>
+            </div>
+          </div>
+          <div v-else class="flex items-center gap-2 text-teal-300 text-xs">
+            <i class="pi pi-check-circle"></i>
+            <span>All participants registered</span>
+          </div>
+
+          <div class="h-px bg-surface-700/40"></div>
         </template>
 
-        <!-- Editing mode -->
-        <template v-else>
-          <select
-            v-model="editingFormatValue"
-            class="text-xs px-2.5 py-1.5 rounded-lg bg-surface-700 border border-primary-500/50 text-content-primary focus:outline-none focus:ring-1 focus:ring-primary-500/40"
-          >
-            <option value="">No format</option>
-            <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
-          </select>
-          <button
-            @click="saveFormat(g.genreName)"
-            class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold"
-          >
-            Save
-          </button>
-          <button
-            @click="editingFormatFor = null"
-            class="text-xs px-2 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 transition-all"
-          >
-            Cancel
-          </button>
-        </template>
+        <!-- Format + Scoring Criteria -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          <!-- Battle Format -->
+          <div class="flex flex-col gap-2 p-3 rounded-xl bg-surface-800/60 border border-surface-600/30">
+            <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Battle Format</p>
+            <template v-if="editingFormatFor !== g.genreName">
+              <div class="flex items-center justify-between">
+                <span class="font-source text-sm" :class="g.format ? 'text-primary-400' : 'text-content-muted'">
+                  {{ g.format || 'No format' }}
+                </span>
+                <button
+                  @click="startEditFormat(g)"
+                  class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 hover:text-content-primary transition-all"
+                ><i class="pi pi-pencil" style="font-size:0.65rem"></i> Edit</button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="flex items-center gap-2">
+                <select
+                  v-model="editingFormatValue"
+                  class="flex-1 text-xs px-2.5 py-1.5 rounded-lg bg-surface-700 border border-primary-500/50 text-content-primary focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                >
+                  <option value="">No format</option>
+                  <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+                <button @click="saveFormat(g.genreName)" class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold">Save</button>
+                <button @click="editingFormatFor = null" class="text-xs px-2 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 transition-all">Cancel</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Scoring Criteria -->
+          <div class="flex flex-col gap-2 p-3 rounded-xl bg-surface-800/60 border border-surface-600/30">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Scoring Criteria</p>
+              <button
+                @click="showCriteriaModal = true"
+                class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all whitespace-nowrap"
+              ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
+            </div>
+            <template v-if="criteriaByGenre[g.genreName]?.length">
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="c in criteriaByGenre[g.genreName]"
+                  :key="c.id"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
+                >
+                  {{ c.name }}
+                  <span v-if="c.weight != null" class="font-source text-primary-400">×{{ c.weight }}</span>
+                </span>
+              </div>
+            </template>
+            <span v-else class="text-xs text-content-muted">Default (single score)</span>
+          </div>
+        </div>
+
+        <!-- Judges -->
+        <div>
+          <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
+            Judges <span class="normal-case font-normal opacity-60">(shared across all genres)</span>
+          </p>
+          <div class="flex flex-col gap-1.5">
+            <div
+              v-for="j in eventJudges"
+              :key="j.judgeId"
+              class="flex items-center gap-3 px-3 py-2 rounded-xl bg-surface-800/60 border border-surface-600/30"
+            >
+              <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
+              <span class="font-heading font-semibold text-content-secondary text-sm flex-1">{{ j.judgeName }}</span>
+              <button
+                @click="submitRemoveJudge(j.judgeId)"
+                class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-red-800/50 hover:text-red-400 transition-all"
+              >Remove</button>
+            </div>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-surface-600/40 mt-0.5">
+              <input
+                v-model="addJudgeInput"
+                type="text"
+                placeholder="Add judge…"
+                class="flex-1 bg-transparent text-sm text-content-secondary placeholder:text-content-muted focus:outline-none"
+                @keyup.enter="submitAddJudge"
+              />
+              <button
+                @click="submitAddJudge"
+                class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface-600 text-content-secondary hover:bg-surface-500 transition-colors"
+              ><i class="pi pi-plus" style="font-size:0.65rem"></i> Add</button>
+            </div>
+            <p v-if="eventJudges.length === 0" class="text-xs text-content-muted px-1">No judges added yet</p>
+          </div>
+        </div>
+
+      </div>
+    </template>
+  </div>
+
+  </template>
+  <!-- ── END SETUP TAB ─────────────────────────────────────────────────────── -->
+
+  <!-- ── EVENT DAY TAB ─────────────────────────────────────────────────────── -->
+  <template v-if="activeTab === 'event-day'">
+
+    <!-- Stat strip -->
+    <div class="grid grid-cols-2 gap-3 mb-6">
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Registered</p>
+        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ totalDbRegistered.length }}</p>
+        <span class="text-xs text-content-muted">Have audition numbers</span>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Not Shown Up</p>
+        <p class="text-2xl font-heading font-extrabold" :class="totalNotShownUp > 0 ? 'text-amber-300' : 'text-content-primary'">
+          {{ totalNotShownUp }}
+        </p>
+        <span class="text-xs text-content-muted">Verified but no audition number yet</span>
       </div>
     </div>
-  </div>
+
+    <!-- Not Shown Up panel -->
+    <div class="space-y-2 mb-6">
+      <div v-if="notShownUpList.length > 0" class="card overflow-hidden panel-warning">
+        <button
+          @click="expandedPeople.has('notShownUp') ? expandedPeople.delete('notShownUp') : expandedPeople.add('notShownUp'); expandedPeople = new Set(expandedPeople)"
+          :aria-expanded="expandedPeople.has('notShownUp')"
+          class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
+        >
+          <div class="flex items-center gap-3">
+            <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
+              <i class="pi pi-clock text-amber-300 text-xs"></i>
+            </div>
+            <span class="font-heading font-bold text-content-secondary">Not Shown Up</span>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30">
+              {{ notShownUpList.length }}
+            </span>
+          </div>
+          <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
+             :class="{ 'rotate-180': expandedPeople.has('notShownUp') }"></i>
+        </button>
+        <div v-if="expandedPeople.has('notShownUp')" class="px-4 pb-4 border-t border-surface-600/30 pt-4">
+          <div class="space-y-2">
+            <div
+              v-for="p in notShownUpList"
+              :key="p.name"
+              class="flex flex-col gap-1.5 px-3 py-2.5 rounded-xl bg-surface-700/50 border border-surface-600"
+            >
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
+                <span
+                  v-if="verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
+                ><i class="pi pi-check text-xs"></i> Email Sent</span>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <span v-for="g in p.genres" :key="g"
+                  class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-surface-800 border border-surface-600 text-content-muted"
+                >{{ g }}</span>
+              </div>
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted mt-0.5">
+                <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <span>{{ p.memberNames.join(', ') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p v-else class="text-sm text-teal-300 flex items-center gap-2 px-1">
+        <i class="pi pi-check-circle"></i> All verified participants have shown up
+      </p>
+    </div>
+
+    <!-- Registered panel -->
+    <div v-if="registeredList.length > 0" class="card overflow-hidden panel-success">
+      <button
+        @click="expandedPeople.has('registered') ? expandedPeople.delete('registered') : expandedPeople.add('registered'); expandedPeople = new Set(expandedPeople)"
+        :aria-expanded="expandedPeople.has('registered')"
+        class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
+      >
+        <div class="flex items-center gap-3">
+          <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
+            <i class="pi pi-check-circle text-teal-400 text-xs"></i>
+          </div>
+          <span class="font-heading font-bold text-content-secondary">Registered</span>
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
+            {{ registeredList.length }}
+          </span>
+        </div>
+        <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
+           :class="{ 'rotate-180': expandedPeople.has('registered') }"></i>
+      </button>
+      <div v-if="expandedPeople.has('registered')" class="px-5 pb-4 border-t border-surface-600/30 pt-4">
+        <!-- Search + genre filter -->
+        <div class="flex gap-2 mb-3">
+          <div class="relative flex-1">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+            <input
+              v-model="registeredSearch"
+              type="text"
+              placeholder="Search by name or genre…"
+              autocomplete="off"
+              class="w-full pl-8 pr-8 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-primary placeholder-content-muted
+                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+            />
+            <button v-if="registeredSearch" @click="registeredSearch = ''"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+          <select
+            v-model="registeredGenreFilter"
+            class="px-3 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-secondary
+                   focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+          >
+            <option value="">All genres</option>
+            <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>
+          </select>
+        </div>
+        <!-- Result count -->
+        <p v-if="registeredSearch || registeredGenreFilter" class="text-xs text-content-muted mb-2">
+          {{ filteredRegisteredList.length }} result{{ filteredRegisteredList.length !== 1 ? 's' : '' }}
+        </p>
+        <div class="space-y-2">
+          <div
+            v-for="p in paginatedRegisteredList"
+            :key="p.name"
+            class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-900 border border-surface-600"
+          >
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
+              <span v-if="p.walkin"
+                class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600"
+              >walk-in</span>
+              <span
+                v-if="p.walkin && p.referenceCode"
+                class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
+                @touchstart.prevent="revealingRef = p.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
+              >
+                <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
+                <span class="text-content-muted">Ref code</span>
+                <span v-if="revealingRef === p.name"
+                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+                >
+                  <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
+                  <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
+                </span>
+              </span>
+              <span v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
+                class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
+              ><i class="pi pi-check text-xs"></i> Email Sent</span>
+              <span v-else-if="!p.walkin"
+                class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-amber-300 border border-amber-900/30"
+              ><i class="pi pi-clock text-xs"></i> Email Pending</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <span v-for="e in p.entries" :key="e.genre"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-800 border border-primary-200 text-sm"
+              >
+                <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
+                <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
+              </span>
+            </div>
+            <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
+              <i class="pi pi-users" style="font-size:0.65rem"></i>
+              <span>{{ p.memberNames.join(', ') }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Pagination -->
+        <div v-if="registeredTotalPages > 1" class="flex items-center justify-between mt-4 pt-3 border-t border-surface-600/30">
+          <span class="text-xs text-content-muted">
+            Page {{ registeredPage }} of {{ registeredTotalPages }}
+          </span>
+          <div class="flex items-center gap-1">
+            <button
+              @click="registeredPage--"
+              :disabled="registeredPage === 1"
+              class="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-600 text-content-muted
+                     hover:bg-surface-700 hover:text-content-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            ><i class="pi pi-chevron-left text-xs"></i></button>
+            <button
+              v-for="n in registeredTotalPages"
+              :key="n"
+              @click="registeredPage = n"
+              :class="n === registeredPage
+                ? 'w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold bg-primary-500 text-white'
+                : 'w-7 h-7 flex items-center justify-center rounded-lg text-xs font-medium border border-surface-600 text-content-muted hover:bg-surface-700 hover:text-content-secondary transition-colors'"
+            >{{ n }}</button>
+            <button
+              @click="registeredPage++"
+              :disabled="registeredPage === registeredTotalPages"
+              class="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-600 text-content-muted
+                     hover:bg-surface-700 hover:text-content-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            ><i class="pi pi-chevron-right text-xs"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </template>
+  <!-- ── END EVENT DAY TAB ──────────────────────────────────────────────────── -->
+
+  </div><!-- end page-container -->
 
   <ActionDoneModal
     :show="showModal"
@@ -1108,7 +1286,10 @@ onMounted(async () => {
         <!-- Body -->
         <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <!-- Search -->
-          <div class="relative">
+          <div
+            class="relative"
+            :style="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant ? 'padding-bottom: 200px' : ''"
+          >
             <label class="block text-sm font-semibold text-content-secondary mb-1.5">Search Participant</label>
             <div class="relative">
               <input
@@ -1339,6 +1520,7 @@ onMounted(async () => {
   <ScoringCriteriaModal
     v-model="showCriteriaModal"
     :eventName="props.eventName"
-    :genres="completeBreakdown.map(g => g.genre)"
+    :genres="eventGenres.map(g => g.genreName)"
+    @update:modelValue="(v) => { if (!v) loadCriteriaForAllGenres(eventGenres) }"
   />
 </template>

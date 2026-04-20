@@ -173,6 +173,33 @@ export const getAllJudges = async() =>{
   }
 }
 
+export const getEventJudges = async(eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judges`, { credentials: 'include' })
+    return res.ok ? await res.json() : []
+  } catch(err) { console.log(err); return [] }
+}
+
+export const addEventJudge = async(eventName, judgeName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeName })
+    })
+  } catch(err) { console.log(err) }
+}
+
+export const removeEventJudge = async(eventName, judgeId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge/${judgeId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch(err) { console.log(err) }
+}
+
 export const addJudges = async(judgeList) => {
   try{
     await fetch(`${domain}/api/v1/event/judges`, {

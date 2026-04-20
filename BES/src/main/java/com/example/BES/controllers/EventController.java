@@ -34,6 +34,7 @@ import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
+import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
@@ -250,6 +251,28 @@ public class EventController {
         } catch (Exception e) {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
+    }
+
+    @Operation(summary = "Get Judges by Event", description = "Returns judges linked to a specific event")
+    @GetMapping("/{eventName}/judges")
+    public ResponseEntity<List<GetJudgeDto>> getJudgesByEvent(@PathVariable String eventName) {
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
+    }
+
+    @Operation(summary = "Add Judge to Event", description = "Creates a new judge and links them to an event")
+    @PostMapping("/{eventName}/judge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> addJudgeToEvent(@PathVariable String eventName, @RequestBody AddJudgeDto dto) {
+        judgeService.addJudgeToEvent(eventName, dto.judgeName);
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
+    }
+
+    @Operation(summary = "Remove Judge from Event", description = "Removes a judge from an event")
+    @DeleteMapping("/{eventName}/judge/{judgeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> removeJudgeFromEvent(@PathVariable String eventName, @PathVariable Long judgeId) {
+        judgeService.removeJudgeFromEvent(eventName, judgeId);
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
     }
 
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")

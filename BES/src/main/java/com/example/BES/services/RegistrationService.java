@@ -131,26 +131,20 @@ public class RegistrationService {
                         egp.setGenre(genre);
                         egp.setParticipant(toAddParticipant);
 
-                        String rawFormat = participant.getGenreFormats() != null
-                            ? participant.getGenreFormats().getOrDefault(genreName, null)
-                            : null;
-                        boolean isTeamEntry = isTeamFormat(rawFormat)
+                        // Always use the format configured in the web portal (EventGenre.format)
+                        // — never rely on sheet cell format strings (e.g. "Hip Hop 1v1")
+                        // so all registration paths (sheet, walk-in, QR) share the same pool.
+                        EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+                        String effectiveFormat = eg != null ? eg.getFormat() : null;
+
+                        boolean isTeamEntry = isTeamFormat(effectiveFormat)
                             && ((participant.getTeamName() != null && !participant.getTeamName().isBlank())
                                 || (participant.getMemberNames() != null && !participant.getMemberNames().isEmpty()));
-                        String format = isTeamEntry ? rawFormat : (isTeamFormat(rawFormat) ? null : rawFormat);
+                        String format = isTeamEntry ? effectiveFormat : (isTeamFormat(effectiveFormat) ? null : effectiveFormat);
                         egp.setFormat(format);
                         egp.setDisplayName(isTeamFormat(format)
                             ? orElse(participant.getTeamName(), participant.getParticipantName())
                             : orElse(participant.getStageName(), participant.getParticipantName()));
-
-                        // Backfill EventGenre.format from sheet data if not already set
-                        if (rawFormat != null && !rawFormat.isBlank()) {
-                            EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
-                            if (eg != null && eg.getFormat() == null) {
-                                eg.setFormat(rawFormat);
-                                eventGenreRepo.save(eg);
-                            }
-                        }
 
                         eventGenreParticipantRepo.save(egp);
                         egps.add(egp);

@@ -64,6 +64,10 @@ onMounted(async () => {
   subscribeToChannel(createClient(), '/topic/battle/score', (msg) => {
     revealedWinner.value = msg.message
   })
+
+  subscribeToChannel(createClient(), '/topic/battle/judges', (msg) => {
+    battleJudges.value = msg
+  })
 })
 </script>
 
@@ -76,6 +80,17 @@ onMounted(async () => {
         <div class="phase-blocker-inner">
           <span class="phase-blocker-icon">⏳</span>
           <p class="phase-blocker-title">Waiting for battle setup…</p>
+          <div class="idle-selector-wrap" role="group" aria-label="Select your judge name">
+            <span class="idle-selector-eyebrow">VOTING AS</span>
+            <div class="w-64">
+              <ReusableDropdown
+                v-model="selectedJudge"
+                labelId=""
+                :options="battleJudgesName"
+                placeholder="Select your name…"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </Transition>
@@ -340,6 +355,23 @@ onMounted(async () => {
   font-size: clamp(16px, 3vw, 24px);
   letter-spacing: 0.15em;
   color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+}
+
+.idle-selector-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.idle-selector-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.3);
   text-transform: uppercase;
 }
 

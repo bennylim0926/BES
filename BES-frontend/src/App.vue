@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { logout, whoami } from './utils/api'
-import { useAuthStore, getActiveEvent } from './utils/auth'
+import { useAuthStore } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -62,7 +62,7 @@ const logoutNow = async () => {
   authStore.logout()
 }
 
-const activeEvent = ref(getActiveEvent())
+const activeEvent = computed(() => authStore.activeEvent)
 const eventMenuOpen = ref(false)
 
 function changeEvent() {
@@ -73,6 +73,15 @@ function changeEvent() {
 function goToSection(routeName) {
   eventMenuOpen.value = false
   router.push({ name: routeName })
+}
+
+function goToEventDetails() {
+  eventMenuOpen.value = false
+  if (activeEvent.value) router.push({
+    name: 'Event Details',
+    params: { eventName: activeEvent.value.name },
+    query: activeEvent.value.folderID ? { folderID: activeEvent.value.folderID } : {}
+  })
 }
 
 // ── Theme ───────────────────────────────────────────────────────────────────
@@ -95,7 +104,6 @@ function toggleTheme() {
 watch(route, () => {
   isOpen.value = false
   eventMenuOpen.value = false
-  activeEvent.value = getActiveEvent()
 })
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -185,6 +193,11 @@ onMounted(async () => {
                   <p class="text-sm font-semibold text-content-primary truncate">{{ activeEvent.name }}</p>
                 </div>
                 <div class="py-1">
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+                    @click="goToEventDetails"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+                    <i class="pi pi-info-circle text-xs w-4"></i> Event Details
+                  </button>
                   <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
                     @click="goToSection('Audition List')"
                     class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
@@ -296,6 +309,11 @@ onMounted(async () => {
               <p class="text-[10px] font-bold uppercase tracking-widest text-content-muted">Current Event</p>
               <p class="text-sm font-semibold text-primary-400 truncate">{{ activeEvent.name }}</p>
             </div>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+              @click="goToEventDetails"
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">
+              <i class="pi pi-info-circle w-4 text-content-muted"></i> Event Details
+            </button>
             <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
               @click="goToSection('Audition List')"
               class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-content-secondary hover:bg-surface-700/60 hover:text-primary-400 transition-colors">

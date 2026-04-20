@@ -100,7 +100,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="w-full flex flex-col items-center justify-center min-h-[180px] text-center">
+  <div class="w-full max-w-2xl mx-auto px-6 flex flex-col items-center justify-center min-h-[180px] text-center">
 
     <!-- Animating state -->
     <div v-if="loading" class="space-y-3">
@@ -160,7 +160,7 @@ onBeforeUnmount(() => {
               : 'text-sm font-semibold text-content-secondary w-28 shrink-0 truncate'"
           >{{ group.name }}</span>
           <!-- Genre + number pills -->
-          <div class="flex flex-wrap gap-1.5 flex-1">
+          <div class="flex flex-wrap gap-1.5 min-w-0">
             <span
               v-for="a in group.entries"
               :key="a.genre"
@@ -178,7 +178,7 @@ onBeforeUnmount(() => {
           <!-- Hold-to-reveal ref code -->
           <span
             v-if="group.refCode"
-            class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+            class="relative ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-surface-700 border border-surface-500 text-content-secondary cursor-pointer select-none touch-none hover:border-primary-500/50 hover:text-primary-400 transition-colors"
             @mousedown="revealingRef = group.name"
             @mouseup="revealingRef = null"
             @mouseleave="revealingRef = null"

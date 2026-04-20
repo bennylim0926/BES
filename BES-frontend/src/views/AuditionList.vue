@@ -2,10 +2,11 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
+import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
+import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import Timer from '@/components/Timer.vue';
@@ -55,6 +56,8 @@ const dynamicRole = async () => {
 }
 
 const hasJudge = computed(() => participants.value.some(item => item.judgeName !== null))
+
+const noJudgesConfigured = computed(() => selectedEvent.value && allJudges.value.length <= 1)
 
 const hasTeamAndSoloMix = computed(() => {
   const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
@@ -158,10 +161,20 @@ watch(selectedEvent, async (newVal, oldVal) => {
       selectedGenre.value = ""
     }
     participants.value = []
-    const [res, modeRes] = await Promise.all([
+    const [res, modeRes, judgeRes] = await Promise.all([
       getRegisteredParticipantsByEvent(newVal),
-      getJudgingMode(newVal)
+      getJudgingMode(newVal),
+      getEventJudges(newVal)
     ])
+    const judgeNames = judgeRes.map(item => item.judgeName)
+    allJudges.value = ["", ...judgeNames]
+    if (!judgeNames.includes(currentJudge.value)) {
+      currentJudge.value = ""
+      localStorage.removeItem("currentJudge")
+    }
+    if (!judgeNames.includes(filteredJudge.value)) {
+      filteredJudge.value = ""
+    }
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
@@ -374,8 +387,8 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
-  const [judgeRes, groupRes] = await Promise.all([getAllJudges(), getFeedbackGroups()])
-  allJudges.value = ["", ...Object.values(judgeRes).map(item => item.judgeName)]
+  const [judgeRes, groupRes] = await Promise.all([getEventJudges(selectedEvent.value), getFeedbackGroups()])
+  allJudges.value = ["", ...judgeRes.map(item => item.judgeName)]
   tagGroups.value = groupRes ?? []
 
   // On page refresh, judge/genre/event are restored from localStorage so the watch
@@ -590,6 +603,23 @@ onMounted(async () => {
         </div>
       </div>
     </Transition>
+
+    <!-- No judges banner -->
+    <div
+      v-if="noJudgesConfigured"
+      class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-800/40 bg-amber-950/30 text-sm"
+    >
+      <i class="pi pi-exclamation-triangle text-amber-400 text-sm flex-shrink-0"></i>
+      <span class="text-amber-200/80">
+        No judges configured for <strong class="text-amber-200">{{ selectedEvent }}</strong>.
+      </span>
+      <RouterLink
+        :to="`/events/${selectedEvent}`"
+        class="ml-auto flex-shrink-0 text-xs font-semibold text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors"
+      >
+        Add judges in Event Details →
+      </RouterLink>
+    </div>
 
     <!-- Emcee view: Timer + round view -->
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">

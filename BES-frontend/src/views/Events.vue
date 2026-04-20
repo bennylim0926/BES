@@ -46,6 +46,8 @@ async function handleUpdateCode(folderName, newCode) {
 
 async function goToEventDetails(eventName, folderID) {
   await useDelay().wait(200)
+  const dbEvent = dbEvents.value.find(e => e.name === eventName)
+  if (dbEvent) setActiveEvent(dbEvent.id, dbEvent.name, folderID)
   router.push({ name: 'Event Details', params: { eventName }, query: { folderID } })
 }
 

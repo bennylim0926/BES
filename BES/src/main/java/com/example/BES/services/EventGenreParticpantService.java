@@ -121,18 +121,21 @@ public class EventGenreParticpantService {
             List<Integer> takenNumbers;
 
             String entryFormat = participantInEventGenre.getFormat();
+            // null and "1v1" are both solo entries — pool them together to prevent
+            // duplicate audition numbers when format diverges between registration paths
+            boolean isSolo = entryFormat == null || "1v1".equalsIgnoreCase(entryFormat);
             if(j != null){
-                if (entryFormat == null) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormatIsNullAndJudge(dto.eventId, dto.genreId, j.getName());
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormatIsNullAndJudge(dto.eventId, dto.genreId, j.getName());
+                if (isSolo) {
+                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
                 } else {
                     totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
                     takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
                 }
             }else{
-                if (entryFormat == null) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormatIsNull(dto.eventId, dto.genreId);
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormatIsNull(dto.eventId, dto.genreId);
+                if (isSolo) {
+                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSolo(dto.eventId, dto.genreId);
+                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSolo(dto.eventId, dto.genreId);
                 } else {
                     totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormat(dto.eventId, dto.genreId, entryFormat);
                     takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormat(dto.eventId, dto.genreId, entryFormat);

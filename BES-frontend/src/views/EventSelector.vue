@@ -36,7 +36,9 @@ const handleSubmit = async () => {
     if (isAdmin.value || alreadyVerified.value) {
       setActiveEvent(selectedEventId.value, selectedEvent.value.name)
       markEventVerified(selectedEventId.value)
-      router.push(route.query.redirect || '/')
+      const redirect = String(route.query.redirect || '/')
+      // If coming from an EventDetails page, go to new event's details instead
+      router.push(redirect.startsWith('/events/') ? `/events/${selectedEvent.value.name}` : redirect)
       return
     }
     if (!accessCode.value || accessCode.value.length !== 4) {
@@ -47,7 +49,8 @@ const handleSubmit = async () => {
     if (res?.valid) {
       setActiveEvent(selectedEventId.value, selectedEvent.value.name)
       markEventVerified(selectedEventId.value)
-      router.push(route.query.redirect || '/')
+      const redirect = String(route.query.redirect || '/')
+      router.push(redirect.startsWith('/events/') ? `/events/${selectedEvent.value.name}` : redirect)
     } else {
       error.value = 'Incorrect access code. Please try again.'
       accessCode.value = ''

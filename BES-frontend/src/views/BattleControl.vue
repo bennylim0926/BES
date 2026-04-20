@@ -139,6 +139,12 @@ const nextPair = async () => {
       await setBattlePair(left, right)
       currentWinner.value = -2
       currentRound.value += 1
+    } else {
+      // Last battle of this round — end match and return to IDLE
+      await setBattlePhase('IDLE')
+      battlePhase.value = 'IDLE'
+      currentWinner.value = -2
+      currentBattle.value = []
     }
   }
 }
@@ -488,6 +494,7 @@ watch(selectedEvent, async (newVal) => {
     const res = await getParticipantScore(newVal)
     participants.value = res.sort((a, b) => b.score - a.score)
     pickupCrews.value = []
+    await fetchAllJudges(newVal)
   }
 }, { immediate: true })
 
@@ -516,7 +523,7 @@ watch(topSize, async (newVal) => {
 
 onMounted(async () => {
   iintialiseDropdown()
-  await fetchAllJudges()
+  await fetchAllJudges(selectedEvent.value)
   battleJudges.value = await getBattleJudges()
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
