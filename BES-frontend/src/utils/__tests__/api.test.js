@@ -101,4 +101,76 @@ describe('api.js', () => {
       expect(body.participantScore).toEqual(participants)
     })
   })
+
+  describe('whoami', () => {
+    it('returns parsed JSON when ok', async () => {
+      const user = { authenticated: true, username: 'admin' }
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(user) })
+
+      const result = await api.whoami()
+
+      expect(result).toEqual(user)
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/auth/me'),
+        expect.objectContaining({ credentials: 'include' })
+      )
+    })
+  })
+
+  describe('fetchAllGenres', () => {
+    it('returns genres on success', async () => {
+      const genres = [{ id: 1, genreName: 'breaking' }]
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(genres) })
+
+      const result = await api.fetchAllGenres()
+
+      expect(result).toEqual(genres)
+    })
+
+    it('returns empty array on failure', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
+
+      const result = await api.fetchAllGenres()
+
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('getAllJudges', () => {
+    it('returns judges on success', async () => {
+      const judges = [{ judgeId: 1, judgeName: 'Mike' }]
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(judges) })
+
+      const result = await api.getAllJudges()
+
+      expect(result).toEqual(judges)
+    })
+
+    it('returns empty array on failure', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
+
+      const result = await api.getAllJudges()
+
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('getRegisteredParticipantsByEvent', () => {
+    it('returns participants on success', async () => {
+      const participants = [{ participantName: 'Player1' }]
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(participants) })
+
+      const result = await api.getRegisteredParticipantsByEvent('Fest')
+
+      expect(result).toEqual(participants)
+    })
+
+    it('returns empty array on 404', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404 })
+
+      const result = await api.getRegisteredParticipantsByEvent('Missing')
+
+      expect(result).toEqual([])
+    })
+  })
 })
