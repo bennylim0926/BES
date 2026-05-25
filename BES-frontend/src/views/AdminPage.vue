@@ -1,13 +1,12 @@
 <script setup>
 import ReusableButton from '@/components/ReusableButton.vue';
-import { addGenre, addJudge, deleteGenre, deleteImage, deleteJudge, deleteScore, getAllImages, updateGenre, updateJudge, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
+import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, fetchAllGenres, getAllJudges } from '@/utils/api';
+import { fetchAllEvents, fetchAllGenres } from '@/utils/api';
 import UpdateFieldForm from '@/components/UpdateFieldForm.vue';
 
-const addJudgeInput = ref('');
 const addGenreInput = ref('');
 
 const modalTitle = ref("")
@@ -37,12 +36,7 @@ const selectId = (id, field) => {
 }
 
 const submitUpdate = (value) => {
-  if (updateField.value === "judge") {
-    submitUpdateJudge(selectedId.value, value)
-    judges.value = judges.value.map(x =>
-      x.judgeId === selectedId.value ? { ...x, judgeName: value } : x
-    )
-  } else if (updateField.value === "genre") {
+  if (updateField.value === "genre") {
     submitUpdateGenre(selectedId.value, value)
     genres.value = genres.value.map(x =>
       x.id === selectedId.value ? { ...x, genreName: value } : x
@@ -51,7 +45,6 @@ const submitUpdate = (value) => {
   showUpdateModal.value = false
 }
 
-const judges = ref([])
 const genres = ref([])
 const events = ref([])
 const images = ref([])
@@ -82,17 +75,6 @@ const confirmRemoveImage = (name, title, message) => {
   }
 }
 
-const confirmRemoveJudge = (id, title, message) => {
-  modalTitle.value = title
-  modalMessage.value = message
-  modalVariant.value = 'warning'
-  showModal.value = true
-  dynamicHandler.value = async () => {
-    await submitDeleteJudge(id)
-    showModal.value = false
-  }
-}
-
 const confirmRemoveGenre = (id, title, message) => {
   modalTitle.value = title
   modalMessage.value = message
@@ -114,23 +96,7 @@ const submitAddGenre = async () => {
   }
 }
 
-const submitAddJudge = async () => {
-  if (checkInputNull(addJudgeInput.value)) {
-    openModal("Validation Error", "Judge name cannot be empty.", "error")
-  } else {
-    const res = await addJudge(addJudgeInput.value)
-    judges.value = await res.json()
-    addJudgeInput.value = ''
-  }
-}
-
 const submitUpdateGenre = async (id, value) => { await updateGenre(id, value) }
-const submitUpdateJudge = async (id, value) => { await updateJudge(id, value) }
-
-const submitDeleteJudge = async (id) => {
-  const res = await deleteJudge(id)
-  if (res.ok) judges.value = judges.value.filter(j => j.judgeId !== id)
-}
 
 const submitDeleteGenre = async (id) => {
   const res = await deleteGenre(id)
@@ -177,7 +143,6 @@ const submitDeleteTag = async (tagId) => {
 
 onMounted(async () => {
   genres.value = await fetchAllGenres() ?? []
-  judges.value = await getAllJudges() ?? []
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
@@ -190,64 +155,8 @@ onMounted(async () => {
     <!-- Page header -->
     <div>
       <h1 class="page-title">Admin</h1>
-      <p class="text-muted mt-1">Manage judges, genres, events, and system settings</p>
+      <p class="text-muted mt-1">Manage genres, events, and system settings</p>
     </div>
-
-    <!-- Judges section -->
-    <section class="card p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
-          <i class="pi pi-user text-primary-400 text-sm"></i>
-        </div>
-        <h2 class="font-heading font-bold text-content-secondary text-lg">Judges</h2>
-        <span class="badge-neutral text-xs">{{ judges.length }}</span>
-      </div>
-
-      <!-- Add judge -->
-      <div class="flex gap-3 mb-5">
-        <input
-          v-model="addJudgeInput"
-          type="text"
-          placeholder="Judge name…"
-          class="input-base flex-1 max-w-xs"
-          @keyup.enter="submitAddJudge"
-        />
-        <button
-          @click="submitAddJudge"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                 font-semibold hover:bg-primary-700 transition-all duration-200 shadow-sm"
-        >
-          <i class="pi pi-plus text-xs"></i>
-          Add Judge
-        </button>
-      </div>
-
-      <!-- Judge list -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-        <div
-          v-for="j in judges"
-          :key="j.judgeId"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800 hover:border-surface-500 transition-all"
-        >
-          <button
-            @click="selectId(j.judgeId, 'judge')"
-            class="text-sm font-medium text-content-secondary hover:text-primary-400 text-left truncate flex-1 transition-colors"
-          >
-            {{ j.judgeName }}
-          </button>
-          <button
-            @click="confirmRemoveJudge(j.judgeId, 'Remove Judge?', `Are you sure you want to remove ${j.judgeName}?`)"
-            class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-          >
-            <i class="pi pi-times text-xs"></i>
-          </button>
-        </div>
-        <div v-if="judges.length === 0" class="col-span-full text-sm text-content-muted py-4">
-          No judges added yet
-        </div>
-      </div>
-    </section>
 
     <!-- Genres section -->
     <section class="card p-6">

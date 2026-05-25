@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria } from '@/utils/api';
-import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { getActiveEvent } from '@/utils/auth';
 import { useAuthStore } from '@/utils/auth';
@@ -11,6 +10,7 @@ const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("select
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const selectedTopN = ref("All")
+const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
 const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
@@ -92,6 +92,20 @@ const uniqueGenres = computed(() => {
   return [...new Set(genres)].sort();
 })
 
+const hasTeamAndSoloMix = computed(() => {
+  const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
+  const hasTeam = gp.some(p => p.format && p.format !== '1v1')
+  const hasSolo = gp.some(p => !p.format)
+  return hasTeam && hasSolo
+})
+
+const matchesEntryType = (p) => {
+  if (!hasTeamAndSoloMix.value) return true
+  if (selectedEntryType.value === 'Teams') return p.format && p.format !== '1v1'
+  if (selectedEntryType.value === 'Solo') return !p.format
+  return true
+}
+
 // Load admin/organiser specific data for an event
 const loadAdminData = async (eventName) => {
   if (!isAdminOrOrganiser.value || !eventName) return
@@ -116,6 +130,7 @@ watch(selectedGenre, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
     selectedTopN.value = 'All'
+    selectedEntryType.value = 'Teams'
     if (selectedEvent.value && newVal !== 'All') {
       criteriaForGenre.value = await getScoringCriteria(selectedEvent.value, newVal)
     } else {
@@ -132,7 +147,7 @@ watch(tbKey, loadTieBreaker, { immediate: true })
 
 const filteredParticipantsForScore = computed({
   get() {
-    return transformForScore(participants.value.filter(p => p.genreName === selectedGenre.value))
+    return transformForScore(participants.value.filter(p => p.genreName === selectedGenre.value && matchesEntryType(p)))
   }
 })
 
@@ -213,6 +228,15 @@ const finalRows = computed(() => {
   const winners = tiedParticipants.value.filter(r => tieBreakerWinners.value.has(r.participantName))
   return [...above, ...winners].map((r, i) => ({ ...r, id: i + 1 }))
 })
+
+// Pagination for the admin/organiser table
+const PAGE_SIZE = 10
+const tablePage = ref(1)
+watch(finalRows, () => { tablePage.value = 1 })
+const totalTablePages = computed(() => Math.max(1, Math.ceil(finalRows.value.length / PAGE_SIZE)))
+const pagedFinalRows = computed(() =>
+  finalRows.value.slice((tablePage.value - 1) * PAGE_SIZE, tablePage.value * PAGE_SIZE)
+)
 
 // Judge column keys for the custom admin table
 const judgeColumnKeys = computed(() => {
@@ -416,14 +440,67 @@ function transformForScore(data) {
 
     <!-- Filter card -->
     <div class="card p-5 mb-6">
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
-          <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Event name -->
+        <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+        <span class="text-surface-600 select-none">|</span>
+
+        <!-- Genre toggle -->
+        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <button
+            v-for="g in uniqueGenres"
+            :key="g"
+            @click="selectedGenre = g"
+            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            :class="selectedGenre === g
+              ? 'bg-primary-600 text-white'
+              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          >{{ g }}</button>
         </div>
-        <ReusableDropdown v-model="selectedGenre"      labelId="Genre"    :options="uniqueGenres" />
-        <ReusableDropdown v-model="selectedTabulation" labelId="Group By" :options="tabulationMethod" />
-        <ReusableDropdown v-model="selectedTopN"       labelId="Show Top" :options="topNOptions" />
+        <span class="text-surface-600 select-none">|</span>
+
+        <!-- Group By toggle -->
+        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <button
+            v-for="t in tabulationMethod"
+            :key="t"
+            @click="selectedTabulation = t"
+            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            :class="selectedTabulation === t
+              ? 'bg-primary-600 text-white'
+              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          >{{ t }}</button>
+        </div>
+        <span class="text-surface-600 select-none">|</span>
+
+        <!-- Show Top toggle -->
+        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <button
+            v-for="n in topNOptions"
+            :key="n"
+            @click="selectedTopN = n"
+            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            :class="selectedTopN === n
+              ? 'bg-primary-600 text-white'
+              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          >{{ n }}</button>
+        </div>
+
+        <!-- Type toggle (conditional) -->
+        <template v-if="hasTeamAndSoloMix">
+          <span class="text-surface-600 select-none">|</span>
+          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <button
+              v-for="t in ['Teams', 'Solo']"
+              :key="t"
+              @click="selectedEntryType = t"
+              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              :class="selectedEntryType === t
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >{{ t }}</button>
+          </div>
+        </template>
       </div>
 
       <!-- Release Results toggle (admin/organiser only) -->
@@ -637,7 +714,7 @@ function transformForScore(data) {
               </thead>
               <tbody class="divide-y divide-surface-600/30">
                 <tr
-                  v-for="row in finalRows"
+                  v-for="row in pagedFinalRows"
                   :key="row.id"
                   class="bg-surface-800 even:bg-surface-700/40 hover:bg-primary-100/30 transition-colors duration-150"
                 >
@@ -699,6 +776,37 @@ function transformForScore(data) {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Pagination bar -->
+          <div v-if="totalTablePages > 1" class="flex items-center justify-between mt-3 px-1">
+            <span class="text-xs text-content-muted">
+              {{ (tablePage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(tablePage * PAGE_SIZE, finalRows.length) }}
+              of {{ finalRows.length }}
+            </span>
+            <div class="flex items-center gap-1">
+              <button
+                @click="tablePage--"
+                :disabled="tablePage === 1"
+                class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
+                       text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              ><i class="pi pi-chevron-left text-xs"></i></button>
+              <button
+                v-for="p in totalTablePages"
+                :key="p"
+                @click="tablePage = p"
+                class="w-8 h-8 rounded-lg text-sm font-semibold border transition-all"
+                :class="tablePage === p
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'border-surface-600 bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              >{{ p }}</button>
+              <button
+                @click="tablePage++"
+                :disabled="tablePage === totalTablePages"
+                class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
+                       text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              ><i class="pi pi-chevron-right text-xs"></i></button>
+            </div>
           </div>
         </template>
         <template v-else>

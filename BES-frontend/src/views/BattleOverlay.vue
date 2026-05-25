@@ -147,6 +147,8 @@ watch(battleJudges, (newVal) => {
 onMounted(async () => {
   document.documentElement.classList.add("transparent-page");
   document.body.classList.add("transparent-page");
+  // Subscribe to phase for future phase-aware overlay behaviour
+  subscribeToChannel(createClient(), "/topic/battle/phase", () => {})
   if (isSmoke.value) {
     battleJudges.value = await getBattleJudges()
     subscribeToChannel(createClient(), "/topic/battle/judges", (msg) => updateBattleJudge(msg))

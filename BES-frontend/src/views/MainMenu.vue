@@ -62,6 +62,13 @@ const quickActions = computed(() => {
       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
     },
     {
+      icon: 'pi-sitemap',
+      title: 'Crew Formation',
+      desc: 'Form pickup crews from solo auditioners',
+      route: '/event/crew-formation',
+      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
+    },
+    {
       icon: 'pi-thumbs-up',
       title: 'Battle Judge',
       desc: 'Cast your vote during live battle rounds',

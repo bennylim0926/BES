@@ -36,12 +36,14 @@ public class ScoreService {
         for (Score s : scoreList) {
             if (s.getJudge() == null || s.getEventGenreParticipant() == null) continue;
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
+            dto.participantId = s.getEventGenreParticipant().getId().getParticipantId();
             dto.eventName = s.getEventGenreParticipant().getEvent().getEventName();
             dto.genreName = s.getEventGenreParticipant().getGenre().getGenreName();
             dto.judgeName = s.getJudge().getName();
             dto.participantName = s.getEventGenreParticipant().getDisplayName();
             dto.score = s.getValue();
             dto.aspect = s.getAspect() != null ? s.getAspect() : "";
+            dto.format = s.getEventGenreParticipant().getFormat();
             scoreListDto.add(dto);
         }
         return scoreListDto;

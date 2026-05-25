@@ -24,8 +24,14 @@ export const markEventVerified = (eventId) => {
     sessionStorage.setItem(VERIFIED_KEY, JSON.stringify(ids))
 }
 
-export const setActiveEvent = (id, name) => {
-    sessionStorage.setItem(ACTIVE_KEY, JSON.stringify({ id: Number(id), name }))
+export const setActiveEvent = (id, name, folderID = null) => {
+    try {
+        const store = useAuthStore()
+        store.setActive(id, name, folderID)
+    } catch {
+        // called outside Pinia context — fall back to sessionStorage only
+        sessionStorage.setItem(ACTIVE_KEY, JSON.stringify({ id: Number(id), name, folderID }))
+    }
 }
 
 export const getActiveEvent = () => {
@@ -42,7 +48,8 @@ export const clearVerifiedEvents = () => {
 export const useAuthStore = defineStore('auth',{
     state: ()=>({
         user: null,
-        isAuthenticated: false
+        isAuthenticated: false,
+        activeEvent: getActiveEvent()
     }),
     actions:{
         login(userData){
@@ -52,11 +59,17 @@ export const useAuthStore = defineStore('auth',{
         logout(){
             this.user = null;
             this.isAuthenticated = false;
+            this.activeEvent = null;
             clearVerifiedEvents();
             localStorage.removeItem('selectedEvent');
             localStorage.removeItem('selectedRole');
             localStorage.removeItem('selectedGenre');
             localStorage.removeItem('currentJudge');
+        },
+        setActive(id, name, folderID = null) {
+            const event = { id: Number(id), name, folderID: folderID ?? null }
+            sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(event))
+            this.activeEvent = event
         }
     },
     getters:{

@@ -34,6 +34,7 @@ import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
+import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
@@ -51,8 +52,11 @@ import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
+import com.example.BES.dtos.CreatePickupCrewDto;
+import com.example.BES.dtos.GetPickupCrewDto;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.EventGenreParticpantService;
+import com.example.BES.services.PickupCrewService;
 import com.example.BES.services.ScoringCriteriaService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
@@ -117,6 +121,9 @@ public class EventController {
 
     @Autowired
     ScoringCriteriaService scoringCriteriaService;
+
+    @Autowired
+    PickupCrewService pickupCrewService;
 
     private static final Gson gson = new Gson();
 
@@ -192,6 +199,21 @@ public class EventController {
         return new ResponseEntity<>(eventGenreService.getGenresByEventService(eventName), HttpStatus.OK);
     }
 
+    @Operation(summary = "Update Event Genre Format", description = "Sets the battle format for a genre in a specific event (e.g. '2v2')")
+    @PostMapping("/{eventName}/genres/{genreName}/format")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateEventGenreFormat(
+            @PathVariable String eventName,
+            @PathVariable String genreName,
+            @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.updateEventGenreFormat(eventName, genreName, body.get("format"));
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
     public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto) {
@@ -231,12 +253,34 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Get Judges by Event", description = "Returns judges linked to a specific event")
+    @GetMapping("/{eventName}/judges")
+    public ResponseEntity<List<GetJudgeDto>> getJudgesByEvent(@PathVariable String eventName) {
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
+    }
+
+    @Operation(summary = "Add Judge to Event", description = "Creates a new judge and links them to an event")
+    @PostMapping("/{eventName}/judge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> addJudgeToEvent(@PathVariable String eventName, @RequestBody AddJudgeDto dto) {
+        judgeService.addJudgeToEvent(eventName, dto.judgeName);
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
+    }
+
+    @Operation(summary = "Remove Judge from Event", description = "Removes a judge from an event")
+    @DeleteMapping("/{eventName}/judge/{judgeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> removeJudgeFromEvent(@PathVariable String eventName, @PathVariable Long judgeId) {
+        judgeService.removeJudgeFromEvent(eventName, judgeId);
+        return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
+    }
+
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
     public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre);
+            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
             EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep,
                     dto.judgeName);
             AddParticipantToEventGenreDto auditionDto = new AddParticipantToEventGenreDto();
@@ -419,6 +463,16 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Reset Email Template", description = "Regenerates the smart default email template based on current event genre formats")
+    @PostMapping("/{eventName}/email-template/reset")
+    public ResponseEntity<GetEmailTemplateDto> resetEmailTemplate(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(emailTemplateService.resetToSmartDefault(eventName), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
     @DeleteMapping("/participant-genre/{participantId}/{eventId}/{genreId}")
     public ResponseEntity<Void> removeParticipantGenre(
@@ -562,6 +616,36 @@ public class EventController {
             @PathVariable String eventName,
             @RequestParam(required = false) String genre) {
         scoringCriteriaService.deleteAllCriteria(eventName, genre);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Pickup Crew endpoints ──────────────────────────────────────────────────
+
+    @Operation(summary = "Get Pickup Crews", description = "Returns all pickup crews for a given event and genre")
+    @GetMapping("/crews/{eventName}/{genreName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetPickupCrewDto>> getPickupCrews(
+            @PathVariable String eventName,
+            @PathVariable String genreName) {
+        return ResponseEntity.ok(pickupCrewService.getCrewsForEventGenre(eventName, genreName));
+    }
+
+    @Operation(summary = "Create Pickup Crew", description = "Forms a new pickup crew from solo participants")
+    @PostMapping("/crews")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> createPickupCrew(@RequestBody CreatePickupCrewDto dto) {
+        try {
+            return ResponseEntity.ok(pickupCrewService.createCrew(dto));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Delete Pickup Crew", description = "Deletes a pickup crew by ID")
+    @DeleteMapping("/crews/{crewId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deletePickupCrew(@PathVariable Long crewId) {
+        pickupCrewService.deleteCrew(crewId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -86,7 +86,7 @@ onMounted(observeCards)
     <div
       ref="scrollRef"
       v-if="props.cards && props.cards.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-4 px-4 pb-4"
+      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-1 pb-3"
       style="scrollbar-width: none;"
     >
       <div
@@ -94,24 +94,23 @@ onMounted(observeCards)
         :key="idx"
         :data-index="idx"
         data-card
-        class="flex-shrink-0 w-[88%] md:w-[70%] snap-center"
+        class="flex-shrink-0 w-[97%] md:w-[70%] snap-center"
       >
         <!-- Score card -->
         <div
-          class="rounded-2xl border p-5 md:p-8 transition-all duration-200"
+          class="rounded-2xl border p-2 md:p-8 transition-all duration-200"
           :class="idx === currentIndex
             ? 'bg-surface-800 border-primary-500/40 shadow-[0_0_0_1px_rgba(6,182,212,0.2),0_8px_32px_rgba(6,182,212,0.12)]'
             : 'bg-surface-900 border-surface-600/30 opacity-50'"
         >
           <!-- Participant info -->
-          <div class="flex items-start justify-between mb-5">
+          <div class="flex items-start justify-between mb-2">
             <div>
-              <div class="inline-flex items-center px-2.5 py-1 rounded-lg bg-surface-700/60 border border-surface-600/50 mb-2">
-                <span class="text-xs font-bold text-primary-400 uppercase tracking-widest">
-                  Audition #{{ card.auditionNumber }}
-                </span>
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="font-source font-extrabold text-4xl text-primary-400 tabular-nums leading-none">#{{ card.auditionNumber }}</span>
+                <span class="text-[10px] font-bold text-primary-400/60 uppercase tracking-widest">Audition</span>
               </div>
-              <h3 class="font-heading font-bold text-2xl text-content-primary leading-tight">
+              <h3 class="font-heading font-bold text-xl text-content-primary leading-tight">
                 {{ card.participantName }}
               </h3>
             </div>
@@ -147,7 +146,7 @@ onMounted(observeCards)
           <!-- Feedback preview -->
           <div
             v-if="feedbackData?.get(card.auditionNumber)"
-            class="mb-4 p-3 rounded-xl bg-surface-700/30 border border-surface-600/40"
+            class="mb-2 p-2 rounded-xl bg-surface-700/30 border border-surface-600/40"
           >
             <!-- Tags -->
             <div
@@ -186,12 +185,12 @@ onMounted(observeCards)
             </div>
           </div>
 
-          <div class="h-px bg-surface-600/50 mb-4"></div>
+          <div class="h-px bg-surface-600/50 mb-2"></div>
 
           <!-- ── Multi-criteria mode (tabbed) ── -->
           <template v-if="hasCriteria">
             <!-- Tab bar -->
-            <div class="flex gap-1 mb-4 overflow-x-auto" style="scrollbar-width: none;">
+            <div class="flex gap-1 mb-2 overflow-x-auto" style="scrollbar-width: none;">
               <button
                 v-for="criterion in criteria"
                 :key="criterion.id"
@@ -214,7 +213,7 @@ onMounted(observeCards)
             <template v-for="criterion in criteria" :key="criterion.id">
               <div v-if="getActiveCriterion(idx) === criterion.name">
                 <!-- Criterion score + full score button -->
-                <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
                     <span class="text-xs font-bold text-content-secondary uppercase tracking-widest">{{ criterion.name }}</span>
                     <span v-if="criterion.weight != null" class="text-xs text-primary-400/70">×{{ criterion.weight }}</span>
@@ -230,38 +229,38 @@ onMounted(observeCards)
                 <button
                   :disabled="idx !== currentIndex"
                   @click="setCriteriaScore(card, criterion.name, 10)"
-                  class="w-full py-2.5 mb-3 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-400
+                  class="w-full py-2 mb-2 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-400
                          hover:bg-primary-600 hover:text-white active:bg-primary-700 active:text-white
                          disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {{ 10 }} — Full Score
                 </button>
 
-                <div class="grid grid-cols-2 gap-2">
-                  <div class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-2.5">
-                    <div class="text-xs font-bold text-content-secondary uppercase tracking-widest mb-2 text-center">Whole</div>
-                    <div class="grid grid-cols-3 gap-1.5">
+                <div class="grid grid-cols-2 gap-1.5">
+                  <div class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-1.5">
+                    <div class="text-xs font-bold text-content-secondary uppercase tracking-widest mb-1 text-center">Whole</div>
+                    <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9"
                         :key="'w'+criterion.name+value"
                         :disabled="idx !== currentIndex"
                         @click="setCriteriaScore(card, criterion.name, Number(value))"
-                        class="py-2.5 rounded-xl text-sm font-bold border transition-all duration-150"
+                        class="py-4 rounded-xl text-sm font-bold border transition-all duration-150"
                         :class="Math.floor(criteriaScore(card, criterion.name)) === value && criteriaScore(card, criterion.name) === value
                           ? 'bg-primary-600 text-white border-primary-600 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
                           : 'bg-surface-600/60 border-surface-500/50 text-content-primary hover:border-primary-500/60 hover:bg-surface-600 disabled:opacity-30'"
                       >{{ value }}</button>
                     </div>
                   </div>
-                  <div class="bg-primary-500/8 border border-primary-500/25 rounded-xl p-2.5">
-                    <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-2 text-center">Decimal</div>
-                    <div class="grid grid-cols-3 gap-1.5">
+                  <div class="bg-primary-500/8 border border-primary-500/25 rounded-xl p-1.5">
+                    <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-1 text-center">Decimal</div>
+                    <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9"
                         :key="'d'+criterion.name+value"
                         :disabled="idx !== currentIndex"
                         @click="updateCriteriaDecimal(card, criterion.name, value)"
-                        class="py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150"
+                        class="py-4 rounded-xl text-sm font-semibold border transition-all duration-150"
                         :class="(criteriaScore(card, criterion.name) * 10 % 10).toFixed(0) == value
                           ? 'bg-primary-500/30 text-primary-300 border-primary-500/60 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
                           : 'bg-primary-500/5 border-primary-500/15 text-primary-300/70 hover:border-primary-500/40 hover:bg-primary-500/15 disabled:opacity-30'"
@@ -279,7 +278,7 @@ onMounted(observeCards)
             <button
               :disabled="idx !== currentIndex"
               @click="card.score = 10"
-              class="w-full py-3 mb-4 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-400
+              class="w-full py-2 mb-2 rounded-xl text-sm font-bold border-2 border-primary-600 text-primary-400
                      hover:bg-primary-600 hover:text-white active:bg-primary-700 active:text-white
                      disabled:opacity-30 disabled:cursor-not-allowed
                      transition-all duration-200 btn-glow"
@@ -288,19 +287,19 @@ onMounted(observeCards)
             </button>
 
             <!-- Scoring grid -->
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-1.5">
               <!-- Whole numbers 1-9 -->
-              <div class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-3">
-                <div class="text-xs font-bold text-content-secondary uppercase tracking-widest mb-2.5 text-center">
+              <div class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-1.5">
+                <div class="text-xs font-bold text-content-secondary uppercase tracking-widest mb-1 text-center">
                   Whole
                 </div>
-                <div class="grid grid-cols-3 gap-1.5">
+                <div class="grid grid-cols-3 gap-1">
                   <button
                     v-for="value in 9"
                     :key="'w'+value"
                     :disabled="idx !== currentIndex"
                     @click="card.score = Number(value)"
-                    class="py-2.5 rounded-xl text-sm font-bold border transition-all duration-150"
+                    class="py-4 rounded-xl text-sm font-bold border transition-all duration-150"
                     :class="Math.floor(card.score) === value && card.score === value
                       ? 'bg-primary-600 text-white border-primary-600 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
                       : 'bg-surface-600/60 border-surface-500/50 text-content-primary hover:border-primary-500/60 hover:bg-surface-600 disabled:opacity-30'"
@@ -311,17 +310,17 @@ onMounted(observeCards)
               </div>
 
               <!-- Decimals .1-.9 -->
-              <div class="bg-primary-500/8 border border-primary-500/25 rounded-xl p-3">
-                <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-2.5 text-center">
+              <div class="bg-primary-500/8 border border-primary-500/25 rounded-xl p-1.5">
+                <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-1 text-center">
                   Decimal
                 </div>
-                <div class="grid grid-cols-3 gap-1.5">
+                <div class="grid grid-cols-3 gap-1">
                   <button
                     v-for="value in 9"
                     :key="'d'+value"
                     :disabled="idx !== currentIndex"
                     @click="card.score = updateDecimal(card.score, value)"
-                    class="py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150"
+                    class="py-4 rounded-xl text-sm font-semibold border transition-all duration-150"
                     :class="(card.score * 10 % 10).toFixed(0) == value
                       ? 'bg-primary-500/30 text-primary-300 border-primary-500/60 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
                       : 'bg-primary-500/5 border-primary-500/15 text-primary-300/70 hover:border-primary-500/40 hover:bg-primary-500/15 disabled:opacity-30'"
@@ -335,7 +334,7 @@ onMounted(observeCards)
         </div>
 
         <!-- Card position indicator -->
-        <div class="flex justify-center gap-1 mt-3">
+        <div class="flex justify-center gap-1 mt-2">
           <div
             v-for="(_, i) in props.cards"
             :key="i"

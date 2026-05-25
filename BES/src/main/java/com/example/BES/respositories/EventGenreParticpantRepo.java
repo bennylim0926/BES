@@ -92,4 +92,44 @@ public interface EventGenreParticpantRepo extends JpaRepository<EventGenrePartic
         @Param("genreName") String genreName,
         @Param("auditionNumber") Integer auditionNumber);
 
+    // ── Format-scoped pool queries (for separate team / solo audition number pools) ──
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format IS NULL")
+    long countByEventIdAndGenreIdAndFormatIsNull(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format = :format")
+    long countByEventIdAndGenreIdAndFormat(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("format") String format);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format IS NULL AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndFormatIsNull(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format = :format AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndFormat(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("format") String format);
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format IS NULL AND e.judge.name = :name")
+    long countByEventIdAndGenreIdAndFormatIsNullAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("name") String name);
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format = :format AND e.judge.name = :name")
+    long countByEventIdAndGenreIdAndFormatAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("format") String format, @Param("name") String name);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format IS NULL AND e.judge.name = :name AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndFormatIsNullAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("name") String name);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND e.format = :format AND e.judge.name = :name AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndFormatAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("format") String format, @Param("name") String name);
+
+    // ── Solo pool: treats format IS NULL and format = '1v1' as one unified pool ──
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND (e.format IS NULL OR LOWER(e.format) = '1v1')")
+    long countByEventIdAndGenreIdAndSolo(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND (e.format IS NULL OR LOWER(e.format) = '1v1') AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndSolo(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+
+    @Query("SELECT COUNT(e) FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND (e.format IS NULL OR LOWER(e.format) = '1v1') AND e.judge.name = :name")
+    long countByEventIdAndGenreIdAndSoloAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("name") String name);
+
+    @Query("SELECT e.auditionNumber FROM EventGenreParticipant e WHERE e.event.eventId = :eventId AND e.genre.genreId = :genreId AND (e.format IS NULL OR LOWER(e.format) = '1v1') AND e.judge.name = :name AND e.auditionNumber IS NOT NULL")
+    List<Integer> findAuditionNumberByEventAndGenreAndSoloAndJudge(@Param("eventId") Long eventId, @Param("genreId") Long genreId, @Param("name") String name);
+
 }

@@ -173,6 +173,33 @@ export const getAllJudges = async() =>{
   }
 }
 
+export const getEventJudges = async(eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judges`, { credentials: 'include' })
+    return res.ok ? await res.json() : []
+  } catch(err) { console.log(err); return [] }
+}
+
+export const addEventJudge = async(eventName, judgeName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeName })
+    })
+  } catch(err) { console.log(err) }
+}
+
+export const removeEventJudge = async(eventName, judgeId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge/${judgeId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch(err) { console.log(err) }
+}
+
 export const addJudges = async(judgeList) => {
   try{
     await fetch(`${domain}/api/v1/event/judges`, {
@@ -228,7 +255,7 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   }
 }
 
-export const linkGenreToEvent = async(eventName, genres) =>{
+export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
   try{
     return await fetch(`${domain}/api/v1/event/genre`, {
       method: 'POST',
@@ -239,7 +266,8 @@ export const linkGenreToEvent = async(eventName, genres) =>{
       },
       body: JSON.stringify({
           eventName: eventName,
-          genreName: genres
+          genreName: genres,
+          genreFormats: genreFormats
       })
   })
   }catch(e){
@@ -266,7 +294,7 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
   }
 }
 
-export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName)=>{
+export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '')=>{
   try{
   return await fetch(`${domain}/api/v1/event/walkins/`, {
     method: 'POST',
@@ -279,7 +307,9 @@ export const addWalkinToSystem = async (participantName, eventName, genreName, j
         name: participantName,
         eventName: eventName,
         genre: genreName,
-        judgeName: judgeName
+        judgeName: judgeName,
+        teamMembers: teamMembers,
+        teamName: teamName
     })
   })
   }catch(e){
@@ -437,6 +467,24 @@ export const setBattleScore = async() =>{
   }
 }
 
+export const setBracketState = async (rounds, topSize) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/bracket`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rounds, topSize: String(topSize) })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getBracketState = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/bracket`, { credentials: 'include' })
+    return res.ok ? res.json() : null
+  } catch (e) { return null }
+}
+
 export const uploadImage = async(file)=>{
   try{
     const formData = new FormData();
@@ -475,6 +523,24 @@ export const getImage = async (filename) => {
   }
 };
 
+export const getBattlePhase = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/phase`, { credentials: 'include' })
+    return res.ok ? res.json() : { phase: 'IDLE' }
+  } catch (e) { return { phase: 'IDLE' } }
+}
+
+export const setBattlePhase = async (phase) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/phase`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase })
+    })
+  } catch (e) { console.log(e) }
+}
+
 export const getSmokeList = async()=>{
   try{
     const res = await fetch(`${domain}/api/v1/battle/smoke`,{
@@ -510,6 +576,19 @@ export const updateEmailTemplate = async (eventName, subject, body) => {
       },
       body: JSON.stringify({ subject, body })
     })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const resetEmailTemplate = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/email-template/reset`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
   } catch (e) {
     console.log(e)
   }
@@ -858,5 +937,62 @@ export const getResultsByRefCode = async (refCode) => {
   } catch (e) {
     console.log(e)
     return { error: 'Network error' }
+  }
+}
+export const getPickupCrews = async (eventName, genreName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews/${encodeURIComponent(eventName)}/${encodeURIComponent(genreName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const createPickupCrew = async (eventName, genreName, crewName, memberParticipantIds) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName, crewName, memberParticipantIds })
+    })
+    if (res.ok) return await res.json()
+    const body = await res.json().catch(() => ({}))
+    return { error: body.error || 'Failed to create crew' }
+  } catch (e) {
+    console.log(e)
+    return { error: 'Network error' }
+  }
+}
+
+export const deletePickupCrew = async (crewId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/crews/${crewId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+}
+
+export const updateEventGenreFormat = async (eventName, genreName, format) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${encodeURIComponent(genreName)}/format`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format })
+    })
+    return res.ok
+  } catch (e) {
+    console.log(e)
+    return false
   }
 }

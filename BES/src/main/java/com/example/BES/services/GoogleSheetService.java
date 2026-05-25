@@ -28,12 +28,10 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 
 @Service
 public class GoogleSheetService {
-    // if any new category just add here and update the constructor to map the function
-    // need to update dto as well
     private static final String CATEGORY_KEYWORD = "categor";
-    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL,SheetHeader.NAME,SheetHeader.PAYMENT_STATUS,SheetHeader.CATEGORIES,SheetHeader.LOCAL_OVERSEAS));
-    private final static List<String> SCREENSHOT_KEYWORDS = new ArrayList<>(Arrays.asList("screenshot", "receipt", "proof"));
-    
+    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL, SheetHeader.NAME, SheetHeader.PAYMENT_STATUS, SheetHeader.CATEGORIES, SheetHeader.LOCAL_OVERSEAS));
+    private final static List<String> SCREENSHOT_KEYWORDS = new ArrayList<>(Arrays.asList("screenshot", "receipt", "proof", "prove", "payment"));
+
     @Autowired
     private GoogleSheetClient sheetClient;
 
@@ -46,80 +44,94 @@ public class GoogleSheetService {
     Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
     List<String> genres;
 
-    public GoogleSheetService(){
-        genres = new ArrayList<>(Arrays.asList(Genre.POPPING.getLabel(), Genre.WAACKING.getLabel(), 
-                                                Genre.LOCKING.getLabel(), Genre.BREAKING.getLabel(), 
-                                                Genre.HIPHOP.getLabel(), Genre.OPEN.getLabel(),
-                                                Genre.AUDIENCE.getLabel(), Genre.ROOKIE.getLabel(),
-                                                Genre.SMOKE.getLabel()));
+    public GoogleSheetService() {
+        genres = new ArrayList<>();
         actions = new HashMap<>();
-        actions.put(Genre.POPPING.getLabel(), (dto,list) -> dto.setPopping(categoriesCount(list, Genre.POPPING.getLabel())));
-        actions.put(Genre.WAACKING.getLabel(), (dto,list) -> dto.setWaacking(categoriesCount(list, Genre.WAACKING.getLabel())));
-        actions.put(Genre.LOCKING.getLabel(), (dto,list) -> dto.setLocking(categoriesCount(list, Genre.LOCKING.getLabel())));
-        actions.put(Genre.BREAKING.getLabel(), (dto,list) -> dto.setBreaking(categoriesCount(list, Genre.BREAKING.getLabel())));
-        actions.put(Genre.HIPHOP.getLabel(), (dto,list) -> dto.setHiphop(categoriesCount(list, Genre.HIPHOP.getLabel())));
-        actions.put(Genre.OPEN.getLabel(), (dto,list) -> dto.setOpen(categoriesCount(list, Genre.OPEN.getLabel())));
-        actions.put(Genre.AUDIENCE.getLabel(), (dto,list) -> dto.setAudience(categoriesCount(list, Genre.AUDIENCE.getLabel())));
-        actions.put(Genre.ROOKIE.getLabel(), (dto,list) -> dto.setRookie(categoriesCount(list, Genre.ROOKIE.getLabel())));
-        actions.put(Genre.SMOKE.getLabel(), (dto,list) -> dto.setSmoke(categoriesCount(list, Genre.SMOKE.getLabel())));
+
+        for (Genre g : Genre.values()) {
+            for (String matchString : g.getAllMatchStrings()) {
+                genres.add(matchString);
+                final String key = matchString;
+                switch (g) {
+                    case POPPING   -> actions.put(key, (dto, list) -> dto.setPopping(categoriesCount(list, key)));
+                    case WAACKING  -> actions.put(key, (dto, list) -> dto.setWaacking(categoriesCount(list, key)));
+                    case LOCKING   -> actions.put(key, (dto, list) -> dto.setLocking(categoriesCount(list, key)));
+                    case BREAKING  -> actions.put(key, (dto, list) -> dto.setBreaking(categoriesCount(list, key)));
+                    case HIPHOP    -> actions.put(key, (dto, list) -> dto.setHiphop(categoriesCount(list, key)));
+                    case OPEN      -> actions.put(key, (dto, list) -> dto.setOpen(categoriesCount(list, key)));
+                    case AUDIENCE  -> actions.put(key, (dto, list) -> dto.setAudience(categoriesCount(list, key)));
+                    case ROOKIE    -> actions.put(key, (dto, list) -> dto.setRookie(categoriesCount(list, key)));
+                    case SMOKE     -> actions.put(key, (dto, list) -> dto.setSmoke(categoriesCount(list, key)));
+                }
+            }
+        }
     }
 
-    /* Correct order should be: 
-     * 1. Search first row to identify the index of rows that has certain keyword eg. Category
-     * 2. Store the indices in list, and by going through the list transform index to alphabet and in H:H format
-     * 3. 
-    */
-    
-    // get numbers of participants of each genre
-    public GoogleSheetFileDto getParticipantsBreakDown(String fileId) throws IOException{
-        GoogleSheetFileDto dto = new GoogleSheetFileDto();  
-        List<String> matchingColumnAlphabet = new ArrayList<>();
+    public GoogleSheetFileDto getParticipantsBreakDown(String fileId) throws IOException {
+        GoogleSheetFileDto dto = new GoogleSheetFileDto();
         List<Integer> matchingCategoriesIndixes = getCategoriesColumns(fileId);
-        for(Integer index : matchingCategoriesIndixes){
+
+        if (matchingCategoriesIndixes.isEmpty()) {
+            return dto;
+        }
+
+        List<String> matchingColumnAlphabet = new ArrayList<>();
+        for (Integer index : matchingCategoriesIndixes) {
             String colLetter = colIndexToLetter(index + 1);
             matchingColumnAlphabet.add(colLetter + ":" + colLetter);
         }
-                            
-        // Get the value based on the columns identified
-        // usually there will be only two which are local and overseas 
+
         BatchGetValuesResponse response = sheetClient.batchGet(fileId, matchingColumnAlphabet);
         List<ValueRange> valueRanges = response.getValueRanges();
-        List<List<Object>> localGenre = valueRanges.get(0).getValues();
-        List<List<Object>> overseasGenre = new ArrayList<>();
-        if(valueRanges.size()>1){
-            overseasGenre = valueRanges.get(1).getValues();
-        }
-        
-        List<String> combined = new ArrayList<>();
-        for(int i = 1; i < localGenre.size(); i++){
-            if(localGenre.get(i).size() == 0){
-                combined.add(overseasGenre.get(i).get(0).toString());
-            }else{
-                combined.add(localGenre.get(i).get(0).toString());
+
+        int maxRows = 0;
+        for (ValueRange vr : valueRanges) {
+            List<List<Object>> vals = vr.getValues();
+            if (vals != null && vals.size() > maxRows) {
+                maxRows = vals.size();
             }
         }
+
+        List<String> combined = new ArrayList<>();
+        for (int i = 1; i < maxRows; i++) {
+            String value = "";
+            for (ValueRange vr : valueRanges) {
+                List<List<Object>> vals = vr.getValues();
+                if (vals != null && vals.size() > i) {
+                    List<Object> cell = vals.get(i);
+                    if (cell != null && !cell.isEmpty()) {
+                        value = cell.get(0).toString();
+                        break;
+                    }
+                }
+            }
+            combined.add(value);
+        }
+
         setDtoCategory(dto, combined);
         return dto;
     }
 
-    // When there is a new form, need to insert payment column for payment validation
-    public void insertPaymentColumn(String fileId) throws IOException{
+    public void insertPaymentColumn(String fileId) throws IOException {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
-        if(!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)){
+        if (!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)) {
             int rowSize = sheetClient.getSheetSize(fileId);
             sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
         }
     }
 
     public List<AddParticipantDto> getAllImportableParticipants(AddParticipantToEventDto dto)
-        throws IOException {
+            throws IOException {
         List<AddParticipantDto> importable = new ArrayList<>();
-        Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId);
-        List<List<String>> resultString = getsheetAllRows(dto.fileId);
+        List<String> originalHeaders = getHeaders(dto.fileId);
+        Map<String, Integer> colIndexMap = getColumnIndexMap(dto.fileId, originalHeaders);
+        List<List<String>> resultString = getsheetAllRows(dto.fileId, originalHeaders);
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);
+        List<Integer> memberCols = getMemberNameColumns(originalHeaders);
+
         for (List<String> res : resultString) {
-            AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genres);
+            AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genres, memberCols);
             String name = participant.getParticipantName();
             String email = participant.getParticipantEmail();
             if (name != null && !name.isBlank() && email != null && !email.isBlank()) {
@@ -129,32 +141,36 @@ public class GoogleSheetService {
         return importable;
     }
 
-    public Integer getSheetSizeService(String fileId) throws IOException{
+    public Integer getSheetSizeService(String fileId) throws IOException {
         return sheetClient.getSheetSize(fileId) - 1;
     }
 
     /*
      * Helper functions region
      */
-    private Map<String,Integer> getColumnIndexMap(String fileId) throws IOException{
-        // email has no problem
-        // categories are handled differently
-        // local/overseas should be handled more nicely
-        // name may have multiple names for team
+    private Map<String, Integer> getColumnIndexMap(String fileId, List<String> headers) throws IOException {
         Map<String, Integer> colIndexMap = new HashMap<>();
-        List<String> headers = getHeaders(fileId);
-        // check how many contain name, if more than one, take team name
-        Integer nameCount = getNameHeaderCount(headers);
-        if(nameCount > 1){
-            headers = removeExtraName(headers);
+
+        // Pre-scan for stage name and team name before any header modification
+        for (int i = 0; i < headers.size(); i++) {
+            String h = headers.get(i).toLowerCase();
+            if (h.contains(SheetHeader.STAGE_NAME)) colIndexMap.putIfAbsent(SheetHeader.STAGE_NAME, i);
+            if (h.contains(SheetHeader.TEAM_NAME))  colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i);
         }
-        for(Integer i = 0; i< headers.size(); i ++){
-            for(String keyword: PAYMENT_KEYWORDS){
-                if(headers.get(i).toLowerCase().contains(keyword.toLowerCase())){
-                    colIndexMap.put(keyword, i);
+
+        // Normalize headers: remove extra name columns (passing pre-scan map so special cols are skipped)
+        List<String> normalizedHeaders = headers;
+        if (getNameHeaderCount(headers) > 1) {
+            normalizedHeaders = removeExtraName(headers, colIndexMap);
+        }
+
+        for (int i = 0; i < normalizedHeaders.size(); i++) {
+            for (String keyword : PAYMENT_KEYWORDS) {
+                if (normalizedHeaders.get(i).toLowerCase().contains(keyword.toLowerCase())) {
+                    colIndexMap.putIfAbsent(keyword, i);
                 }
             }
-            String headerLower = headers.get(i).toLowerCase();
+            String headerLower = normalizedHeaders.get(i).toLowerCase();
             for (String screenshotKw : SCREENSHOT_KEYWORDS) {
                 if (headerLower.contains(screenshotKw) && !colIndexMap.containsKey(SheetHeader.SCREENSHOT)) {
                     colIndexMap.put(SheetHeader.SCREENSHOT, i);
@@ -165,100 +181,123 @@ public class GoogleSheetService {
         return colIndexMap;
     }
 
-    private Integer getNameHeaderCount(List<String> headers){
-        Integer count = 0;
-        for(String h : headers){
-            if(h.toLowerCase().contains("name")){
-                count += 1;
+    private Integer getNameHeaderCount(List<String> headers) {
+        int count = 0;
+        for (String h : headers) {
+            if (h.toLowerCase().contains("name")) {
+                count++;
             }
         }
         return count;
     }
 
-    // This is because Team battle form will consist of multiple name columns
-    // We only need to keep Team name
-    private List<String> removeExtraName(List<String> headers) {
+    /**
+     * Normalizes headers by marking extra name columns as "ignore".
+     * Stage name and team name columns (already pre-scanned) are marked as "ignore" so they
+     * don't compete with the primary participant name column. Member name columns are also
+     * marked as "ignore" since they are captured separately by getMemberNameColumns.
+     * The first remaining "name" column is kept as the primary participant name (NAME key).
+     */
+    private List<String> removeExtraName(List<String> headers, Map<String, Integer> preScanMap) {
         List<String> mutableHeaders = new ArrayList<>(headers);
-    
-        // Step 1: check if "team name" exists
-        boolean hasTeamName = headers.stream()
-            .anyMatch(h -> h.toLowerCase().contains("team name"));
-    
+
+        // Collect indices already captured as special columns
+        Set<Integer> specialIndices = new HashSet<>();
+        if (preScanMap.containsKey(SheetHeader.STAGE_NAME)) specialIndices.add(preScanMap.get(SheetHeader.STAGE_NAME));
+        if (preScanMap.containsKey(SheetHeader.TEAM_NAME))  specialIndices.add(preScanMap.get(SheetHeader.TEAM_NAME));
+
+        // Mark special columns as "ignore"
+        for (int idx : specialIndices) {
+            mutableHeaders.set(idx, "ignore");
+        }
+
+        // Mark member name columns as "ignore" (captured by getMemberNameColumns)
+        for (int i = 0; i < mutableHeaders.size(); i++) {
+            if (specialIndices.contains(i)) continue;
+            String lower = mutableHeaders.get(i).toLowerCase();
+            if (lower.contains("member") && lower.contains("name")) {
+                mutableHeaders.set(i, "ignore");
+            }
+        }
+
+        // Keep first remaining "name" column as NAME, mark rest as "ignore"
         boolean foundFirstName = false;
-    
-        // Step 2: iterate and mark extra "name" columns as "ignore"
         for (int i = 0; i < mutableHeaders.size(); i++) {
             String value = mutableHeaders.get(i).toLowerCase();
-    
+            if (value.equals("ignore")) continue;
             if (value.contains("name")) {
-                if (hasTeamName) {
-                    // Case A: "team name" exists → ignore all other "name" columns
-                    if (!value.contains("team name")) {
-                        mutableHeaders.set(i, "ignore");
-                    }
+                if (!foundFirstName) {
+                    foundFirstName = true;
                 } else {
-                    // Case B: no "team name" → keep first "name" only
-                    if (!foundFirstName) {
-                        foundFirstName = true; // keep this one
-                    } else {
-                        mutableHeaders.set(i, "ignore"); // ignore subsequent ones
-                    }
+                    mutableHeaders.set(i, "ignore");
                 }
             }
         }
         return mutableHeaders;
     }
 
-    private List<String> getHeaders(String fileId) throws IOException{
+    /**
+     * Returns column indices where the header contains both "member" and "name"
+     * (e.g. "Member 2 Name", "Member 3 Name").
+     */
+    private List<Integer> getMemberNameColumns(List<String> headers) {
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < headers.size(); i++) {
+            String lower = headers.get(i).toLowerCase();
+            if (lower.contains("member") && lower.contains("name")) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    private List<String> getHeaders(String fileId) throws IOException {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         return GoogleSheetParser.readHeaders(headerRange);
-
     }
 
-    private List<List<String>> getsheetAllRows(String fileId) throws IOException{
-        List<String> headers = getHeaders(fileId);
-        String range = "A2:"+colIndexToLetter(headers.size());
-        ValueRange results = new ValueRange();
-        results = sheetClient.getRange(fileId, range);
-        return results.getValues().stream()
-                        .map(row -> row.stream()
-                            .map(Object::toString)   // convert each Object to String
-                            .collect(Collectors.toList()))
-                        .collect(Collectors.toList());       
+    private List<List<String>> getsheetAllRows(String fileId, List<String> headers) throws IOException {
+        String range = "A2:" + colIndexToLetter(headers.size());
+        ValueRange results = sheetClient.getRange(fileId, range);
+        List<List<Object>> values = results.getValues();
+        if (values == null) {
+            return new ArrayList<>();
+        }
+        return values.stream()
+                .map(row -> row.stream()
+                        .map(Object::toString)
+                        .collect(Collectors.toList()))
+                .collect(Collectors.toList());
     }
 
-    // Get the count of the input category
-    private Integer categoriesCount(List<String> data, String Category){
-        return (int)data.stream()
-                .filter(s -> s.toLowerCase().contains(Category.toLowerCase()))
+    private Integer categoriesCount(List<String> data, String category) {
+        return (int) data.stream()
+                .filter(s -> s.toLowerCase().contains(category.toLowerCase()))
                 .count();
     }
 
-    // identify columns "Categories" from the sheet
-    private List<Integer> getCategoriesColumns(String fileId) throws IOException{
+    private List<Integer> getCategoriesColumns(String fileId) throws IOException {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         List<Integer> matchingColumnIndices = new ArrayList<>();
-        for(int i = 0; i < headers.size(); i++){
-            if(headers.get(i).toLowerCase().contains(CATEGORY_KEYWORD.toLowerCase())){
+        for (int i = 0; i < headers.size(); i++) {
+            if (headers.get(i).toLowerCase().contains(CATEGORY_KEYWORD.toLowerCase())) {
                 matchingColumnIndices.add(i);
             }
-        }     
+        }
         return matchingColumnIndices;
     }
 
-    // This is to set the count of each genres
-    private void setDtoCategory(GoogleSheetFileDto dto, List<String> data){
-        Set<String> categories = new HashSet<String>(data);
-        for (String category: categories){
-            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category.toLowerCase(), genres);
-            for(String normalizeCategory: normalizeCategories){
+    private void setDtoCategory(GoogleSheetFileDto dto, List<String> data) {
+        Set<String> categories = new HashSet<>(data);
+        for (String category : categories) {
+            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category, genres);
+            for (String normalizeCategory : normalizeCategories) {
                 actions.get(normalizeCategory).accept(dto, data);
             }
         }
     }
 
-    // Map the index to Alphabet in Google Sheet eg. A == 1, B == 2
     private static String colIndexToLetter(int index) {
         StringBuilder result = new StringBuilder();
         while (index > 0) {

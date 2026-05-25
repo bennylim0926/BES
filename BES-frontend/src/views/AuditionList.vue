@@ -2,10 +2,11 @@
 import DynamicTable from '@/components/DynamicTable.vue';
 import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getAllJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
+import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
+import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import Timer from '@/components/Timer.vue';
@@ -20,6 +21,7 @@ const roles = ref(["Emcee", "Judge"])
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
+const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const filteredJudge = ref("")
 const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
@@ -55,6 +57,22 @@ const dynamicRole = async () => {
 
 const hasJudge = computed(() => participants.value.some(item => item.judgeName !== null))
 
+const noJudgesConfigured = computed(() => selectedEvent.value && allJudges.value.length <= 1)
+
+const hasTeamAndSoloMix = computed(() => {
+  const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
+  const hasTeam = gp.some(p => p.format && p.format !== '1v1')
+  const hasSolo = gp.some(p => !p.format)
+  return hasTeam && hasSolo
+})
+
+const matchesEntryType = (p) => {
+  if (!hasTeamAndSoloMix.value) return true
+  if (selectedEntryType.value === 'Teams') return p.format && p.format !== '1v1'
+  if (selectedEntryType.value === 'Solo') return !p.format
+  return true
+}
+
 const openModal = (title, message, variant = 'info') => {
   modalTitle.value = title
   modalMessage.value = message
@@ -89,7 +107,8 @@ const filteredParticipantsForJudge = computed({
       .filter(p =>
         p.genreName === selectedGenre.value &&
         p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value) &&
-        p.auditionNumber !== null
+        p.auditionNumber !== null &&
+        matchesEntryType(p)
       )
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
@@ -112,18 +131,18 @@ watch(filteredParticipantsForJudge, (newVal) => {
 
 const filteredParticipantsForEmceeView = computed(() => {
   const base = filteredJudge.value === ""
-    ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null)
-    : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null)
+    ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null && matchesEntryType(p))
+    : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p))
   return base.sort((a, b) => a.auditionNumber - b.auditionNumber)
 })
 
 const filteredParticipantsForEmcee = computed({
   get() {
     if (filteredJudge.value === "") {
-      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null))
+      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null && matchesEntryType(p)))
     }
     return transformForTable(participants.value.filter(p =>
-      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null
+      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p)
     ))
   },
   set(updatedSubset) {
@@ -142,10 +161,20 @@ watch(selectedEvent, async (newVal, oldVal) => {
       selectedGenre.value = ""
     }
     participants.value = []
-    const [res, modeRes] = await Promise.all([
+    const [res, modeRes, judgeRes] = await Promise.all([
       getRegisteredParticipantsByEvent(newVal),
-      getJudgingMode(newVal)
+      getJudgingMode(newVal),
+      getEventJudges(newVal)
     ])
+    const judgeNames = judgeRes.map(item => item.judgeName)
+    allJudges.value = ["", ...judgeNames]
+    if (!judgeNames.includes(currentJudge.value)) {
+      currentJudge.value = ""
+      localStorage.removeItem("currentJudge")
+    }
+    if (!judgeNames.includes(filteredJudge.value)) {
+      filteredJudge.value = ""
+    }
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
@@ -166,7 +195,10 @@ watch(selectedEvent, async (newVal, oldVal) => {
   }
 }, { immediate: true });
 
-watch(selectedGenre, (newVal) => { if (newVal) localStorage.setItem("selectedGenre", newVal); }, { immediate: true });
+watch(selectedGenre, (newVal) => {
+  if (newVal) localStorage.setItem("selectedGenre", newVal)
+  selectedEntryType.value = 'Teams'
+}, { immediate: true });
 watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
 watch(currentJudge, (newVal) => { if (newVal) localStorage.setItem("currentJudge", newVal); }, { immediate: true });
 
@@ -355,8 +387,8 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
-  const [judgeRes, groupRes] = await Promise.all([getAllJudges(), getFeedbackGroups()])
-  allJudges.value = ["", ...Object.values(judgeRes).map(item => item.judgeName)]
+  const [judgeRes, groupRes] = await Promise.all([getEventJudges(selectedEvent.value), getFeedbackGroups()])
+  allJudges.value = ["", ...judgeRes.map(item => item.judgeName)]
   tagGroups.value = groupRes ?? []
 
   // On page refresh, judge/genre/event are restored from localStorage so the watch
@@ -392,6 +424,7 @@ onMounted(async () => {
           walkin: msg.walkin,
           emailSent: false,
           score: 0,
+          format: msg.format || null,
           rowId: participants.value.length
         })
       }
@@ -494,31 +527,99 @@ onMounted(async () => {
       leave-to-class="opacity-0 -translate-y-2"
     >
       <div v-if="showFilters" class="card p-5 mb-6">
-        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <ReusableDropdown v-model="selectedRole"  labelId="Role"  :options="roles" />
-          <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-          <div class="flex flex-col gap-1">
-            <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
-            <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
-          </div>
-          <ReusableDropdown v-if="hasJudge" v-model="filteredJudge" labelId="Judge" :options="allJudges" />
-          <ReusableDropdown
-            v-if="isAdmin && selectedEvent"
-            v-model="judgingMode"
-            labelId="Judging Mode"
-            :options="['SOLO', 'PAIR']"
-            @update:modelValue="(val) => setJudgingMode(selectedEvent, val)"
-          />
-        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Event name -->
+          <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+          <span class="text-surface-600 select-none">|</span>
 
-        <!-- Current judge selector (judge role only) -->
-        <div v-if="selectedRole === 'Judge'" class="mt-4 pt-4 border-t border-surface-600/30">
-          <div class="max-w-xs">
-            <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
+          <!-- Role toggle -->
+          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <button
+              v-for="r in roles"
+              :key="r"
+              @click="selectedRole = r"
+              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              :class="selectedRole === r
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >{{ r }}</button>
+          </div>
+          <span class="text-surface-600 select-none">|</span>
+
+          <!-- Genre toggle -->
+          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <button
+              v-for="g in uniqueGenres"
+              :key="g"
+              @click="selectedGenre = g"
+              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              :class="selectedGenre === g
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >{{ g }}</button>
+          </div>
+
+          <!-- Type toggle (conditional) -->
+          <template v-if="hasTeamAndSoloMix">
+            <span class="text-surface-600 select-none">|</span>
+            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+              <button
+                v-for="t in ['Teams', 'Solo']"
+                :key="t"
+                @click="selectedEntryType = t"
+                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                :class="selectedEntryType === t
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              >{{ t }}</button>
+            </div>
+          </template>
+
+          <!-- Judging mode toggle (admin only) -->
+          <template v-if="isAdmin && selectedEvent">
+            <span class="text-surface-600 select-none">|</span>
+            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+              <button
+                v-for="m in ['SOLO', 'PAIR']"
+                :key="m"
+                @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
+                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                :class="judgingMode === m
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              >{{ m }}</button>
+            </div>
+          </template>
+
+          <!-- Judge filter + identity dropdowns pushed to the right -->
+          <div class="ml-auto flex items-center gap-3">
+            <div v-if="hasJudge" class="w-40">
+              <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
+            </div>
+            <div v-if="selectedRole === 'Judge'" class="w-44">
+              <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
+            </div>
           </div>
         </div>
       </div>
     </Transition>
+
+    <!-- No judges banner -->
+    <div
+      v-if="noJudgesConfigured"
+      class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-800/40 bg-amber-950/30 text-sm"
+    >
+      <i class="pi pi-exclamation-triangle text-amber-400 text-sm flex-shrink-0"></i>
+      <span class="text-amber-200/80">
+        No judges configured for <strong class="text-amber-200">{{ selectedEvent }}</strong>.
+      </span>
+      <RouterLink
+        :to="`/events/${selectedEvent}`"
+        class="ml-auto flex-shrink-0 text-xs font-semibold text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors"
+      >
+        Add judges in Event Details →
+      </RouterLink>
+    </div>
 
     <!-- Emcee view: Timer + round view -->
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
