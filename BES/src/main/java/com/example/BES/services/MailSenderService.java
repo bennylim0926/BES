@@ -48,6 +48,9 @@ public class MailSenderService {
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage, true);
 
+        if (egps == null || egps.isEmpty()) {
+            throw new IllegalArgumentException("No EventGenreParticipants found for participant");
+        }
         // Use first EGP id for QR code link
         EventGenreParticipant first = egps.get(0);
         String registerLink = String.format(

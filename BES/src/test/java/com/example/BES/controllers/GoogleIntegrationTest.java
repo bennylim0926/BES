@@ -50,7 +50,7 @@ public class GoogleIntegrationTest {
     private GoogleSheetService googleSheetService;
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testGetFilesInFolder() throws Exception {
         GoogleDriveFileDto fileDto = new GoogleDriveFileDto();
         fileDto.setFileId("file123");
@@ -65,7 +65,7 @@ public class GoogleIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testGetFolders() throws Exception {
         GoogleDriveFolderDto folderDto = new GoogleDriveFolderDto();
         folderDto.setFolderID("folder123");
@@ -80,7 +80,7 @@ public class GoogleIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testGetParticipantsBreakdown() throws Exception {
         GoogleSheetFileDto sheetDto = new GoogleSheetFileDto();
         sheetDto.setOpen(20);
@@ -94,7 +94,7 @@ public class GoogleIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testGetSheetSize() throws Exception {
         when(googleSheetService.getSheetSizeService(anyString())).thenReturn(50);
 
@@ -104,7 +104,7 @@ public class GoogleIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testInsertPaymentColumn() throws Exception {
         doNothing().when(googleSheetService).insertPaymentColumn(anyString());
 

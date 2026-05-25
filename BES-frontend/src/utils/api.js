@@ -41,9 +41,9 @@ export const whoami = async () =>{
       credentials: 'include'
     })
     return await res.json()
-
   }catch(err){
     console.log(err)
+    return { authenticated: false }
   }
 }
 
@@ -53,9 +53,10 @@ export const fetchAllFolderEvents = async () =>{
           method: 'GET',
           credentials: 'include'
         })
-        return await res.json()
+        return res.ok ? await res.json() : []
       }catch(err){
         console.log(err)
+        return []
       }
 }
 
@@ -65,9 +66,10 @@ export const fetchAllEvents = async () =>{
         method: 'GET',
         credentials: 'include'
       })
-      return await res.json()
+      return res.ok ? await res.json() : []
     }catch(err){
       console.log(err)
+      return []
     }
 }
 
@@ -77,9 +79,10 @@ export const fetchAllGenres = async () =>{
       method: 'GET',
       credentials: 'include'
     })
-    return await res.json()
+    return res.ok ? await res.json() : []
   }catch(e){
       console.log(e)
+      return []
   }
 }
 
@@ -117,6 +120,8 @@ export const getResponseDetails = async(fileId) =>{
       if (!res.ok) throw new Error('Failed to read')
       return await res.json()
   }catch(err){
+    console.log(err)
+    return null
   }
 }
 
@@ -128,6 +133,8 @@ export const getSheetSize = async(fileId) =>{
       if (!res.ok) throw new Error('Failed to read')
       return await res.json()
   }catch(err){
+    console.log(err)
+    return null
   }
 }
 
@@ -167,9 +174,10 @@ export const getAllJudges = async() =>{
     const res = await fetch(`${domain}/api/v1/event/judges`,{
       credentials: 'include'
     })
-    return await res.json()
+    return res.ok ? await res.json() : []
   }catch(err){
     console.log(err)
+    return []
   }
 }
 
@@ -202,7 +210,7 @@ export const removeEventJudge = async(eventName, judgeId) => {
 
 export const addJudges = async(judgeList) => {
   try{
-    await fetch(`${domain}/api/v1/event/judges`, {
+    const res = await fetch(`${domain}/api/v1/event/judges`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -212,15 +220,17 @@ export const addJudges = async(judgeList) => {
       body: JSON.stringify({
           judges: judgeList
       })
-  })
+    })
+    return res.ok
   }catch(e){
       console.log(e)
+      return false
   }
 }
 
-export const insertPaymenColumnInSheet = async (fileId) =>{
+export const insertPaymentColumnInSheet = async (fileId) =>{
   try{
-    await fetch(`${domain}/api/v1/sheets/payment-status`, {
+    const res = await fetch(`${domain}/api/v1/sheets/payment-status`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -230,15 +240,17 @@ export const insertPaymenColumnInSheet = async (fileId) =>{
       body: JSON.stringify({
           fileId: fileId,
       })
-  })
+    })
+    return res.ok
   }catch(e){
       console.log(e)
+      return false
   }
 }
 
 export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   try{
-    await fetch(`${domain}/api/v1/event`, {
+    const res = await fetch(`${domain}/api/v1/event`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -249,9 +261,11 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
           eventName: eventName,
           paymentRequired: paymentRequired,
       })
-  })
+    })
+    return res.ok
   }catch(e){
       console.log(e)
+      return false
   }
 }
 
@@ -272,6 +286,7 @@ export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
   })
   }catch(e){
       console.log(e)
+      return null
   }
 }
 
@@ -371,11 +386,9 @@ export const getCurrentBattlePair = async()=>{
     const res = await fetch(`${domain}/api/v1/battle/battle-pair`,{
       credentials: 'include'
     })
-    if(res.ok){
-      return await res.json()
-    }
+    return res.ok ? await res.json() : null
   }catch(e){
-
+    return null
   }
 }
 
@@ -394,7 +407,8 @@ export const battleJudgeVote = async(id, vote) =>{
       })
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 
@@ -412,7 +426,8 @@ export const addBattleJudge = async(id) =>{
       })
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 
@@ -430,7 +445,8 @@ export const removeBattleJudge = async(id) =>{
       })
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 export const setBattlePair = async(leftBattler, rightBattler) =>{
@@ -448,7 +464,8 @@ export const setBattlePair = async(leftBattler, rightBattler) =>{
       })
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 
@@ -463,7 +480,8 @@ export const setBattleScore = async() =>{
       }
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 
@@ -481,7 +499,7 @@ export const setBracketState = async (rounds, topSize) => {
 export const getBracketState = async () => {
   try {
     const res = await fetch(`${domain}/api/v1/battle/bracket`, { credentials: 'include' })
-    return res.ok ? res.json() : null
+    return res.ok ? await res.json() : null
   } catch (e) { return null }
 }
 
@@ -495,7 +513,8 @@ export const uploadImage = async(file)=>{
       body: formData
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 
@@ -526,7 +545,7 @@ export const getImage = async (filename) => {
 export const getBattlePhase = async () => {
   try {
     const res = await fetch(`${domain}/api/v1/battle/phase`, { credentials: 'include' })
-    return res.ok ? res.json() : { phase: 'IDLE' }
+    return res.ok ? await res.json() : { phase: 'IDLE' }
   } catch (e) { return { phase: 'IDLE' } }
 }
 
@@ -700,7 +719,8 @@ export const updateSmokeList  = async(battlers)=>{
       })
     })
   }catch(e){
-
+    console.log(e)
+    return null
   }
 }
 

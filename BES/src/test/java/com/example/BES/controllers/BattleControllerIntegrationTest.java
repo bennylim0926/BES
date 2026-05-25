@@ -28,6 +28,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import com.example.BES.models.Judge;
 import com.example.BES.services.BattleService;
@@ -65,9 +66,10 @@ public class BattleControllerIntegrationTest {
 
     @AfterEach
     public void cleanup() throws Exception {
-        Path testFile = uploadDir.resolve("test-image.jpg");
-        if (Files.exists(testFile)) {
-            Files.delete(testFile);
+        if (Files.exists(uploadDir)) {
+            Files.list(uploadDir).forEach(f -> {
+                try { Files.deleteIfExists(f); } catch (Exception ignored) {}
+            });
         }
     }
 
@@ -81,7 +83,7 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testSetAndGetSelectedMode() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of("mode", "Top16"));
         mockMvc.perform(post("/api/v1/battle/battle-mode")
@@ -97,7 +99,7 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testSetAndGetBattlePair() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of(
                 "leftBattler", "Alice",
@@ -119,7 +121,7 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testJudgeInteractionsAndScore() throws Exception {
         Judge judge1 = new Judge(1L, "Judge One", null);
         Judge judge2 = new Judge(2L, "Judge Two", null);
@@ -166,7 +168,7 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testHandleUploadAndImages() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -174,12 +176,14 @@ public class BattleControllerIntegrationTest {
                 MediaType.IMAGE_JPEG_VALUE,
                 "fake-image-content".getBytes());
 
-        mockMvc.perform(multipart("/api/v1/battle/upload")
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/v1/battle/upload")
                 .file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value("test-image.jpg"));
+                .andReturn();
 
-        mockMvc.perform(get("/api/v1/battle/uploads/test-image.jpg"))
+        String savedFilename = uploadResult.getResponse().getContentAsString().replace("\"", "");
+
+        mockMvc.perform(get("/api/v1/battle/uploads/" + savedFilename))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/battle/images"))
@@ -188,13 +192,13 @@ public class BattleControllerIntegrationTest {
 
         mockMvc.perform(delete("/api/v1/battle/image")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("name", "test-image.jpg"))))
+                .content(objectMapper.writeValueAsString(Map.of("name", savedFilename))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").value("File deleted successfully"));
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testSetAndGetSmokeList() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of(
                 "battlers", List.of(

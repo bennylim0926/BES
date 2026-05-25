@@ -1,6 +1,4 @@
 import { defineStore } from "pinia";
-import { useRouter } from 'vue-router'
-import { whoami } from "./api";
 
 const VERIFIED_KEY = 'bes_verified_events'
 const ACTIVE_KEY = 'bes_active_event'
@@ -77,19 +75,3 @@ export const useAuthStore = defineStore('auth',{
         currentUser: (state)=> state.user
     }
 })
-
-export const checkAuthStatus = async (acceptedRoles)=>{
-    const router = useRouter()
-    const res = await whoami()
-    if(!res.authenticated){
-        router.push({ name: "Login" })
-        return false
-    } else {
-        const userRole = res.role?.[0]?.authority  // e.g. "ROLE_ADMIN"
-        if(!acceptedRoles.includes(userRole)){
-            router.push({ name: "Forbidden" })
-            return false
-        }
-    }
-    return true
-}

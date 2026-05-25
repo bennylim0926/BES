@@ -50,8 +50,8 @@
   
 <script setup>
   import { getImage, getSmokeList } from '@/utils/api'
-import { createClient, subscribeToChannel } from '@/utils/websocket'
-import { onMounted, ref, watch } from 'vue'
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 const imageMap = ref({})
 const smokeParticipants = ref([])
 const colors = ref(['bg-red-500', 'bg-blue-500','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800','bg-gray-800'])
@@ -71,10 +71,17 @@ watch(
   },
   { deep: true, immediate: true } // also run on first load
 )
+const wsClient = ref(null)
+
 onMounted(async ()=>{
-    subscribeToChannel(createClient(), "/topic/battle/smoke", (msg) => updateList(msg))
+    wsClient.value = createClient()
+    subscribeToChannel(wsClient.value, "/topic/battle/smoke", (msg) => updateList(msg))
     const smoke = await getSmokeList()
     if (smoke?.list) smokeParticipants.value = smoke.list
+})
+
+onUnmounted(() => {
+    deactivateClient(wsClient.value)
 })
   </script>
   

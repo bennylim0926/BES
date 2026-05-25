@@ -350,6 +350,7 @@ const onSubmit = async () => {
   await addJudges(inputs.value)
   await insertEventInTable(props.eventName, paymentRequired.value)
   const resp = await linkGenreToEvent(props.eventName, createTable.genres, createTable.genreFormats)
+  if (!resp) { loading.value = false; return }
   resp.json().then(async result => {
     loading.value = false
     getTitle(resp.status)
@@ -769,7 +770,7 @@ onUnmounted(() => {
               <!-- Bottom row: action buttons -->
               <div class="flex items-center gap-2 justify-end">
                 <a
-                  v-if="p.screenshotUrl"
+                  v-if="p.screenshotUrl && /^https?:\/\//.test(p.screenshotUrl)"
                   :href="p.screenshotUrl"
                   target="_blank"
                   class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-700 text-content-muted text-xs font-medium

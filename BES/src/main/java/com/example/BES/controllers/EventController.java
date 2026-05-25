@@ -1,4 +1,5 @@
 package com.example.BES.controllers;
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 
@@ -144,7 +145,7 @@ public class EventController {
 
     @Operation(summary = "Verify Event Access Code", description = "Checks if the provided code matches the event's access code")
     @PostMapping("/verify-access-code")
-    public ResponseEntity<?> verifyAccessCode(@RequestBody VerifyAccessCodeDto dto) {
+    public ResponseEntity<?> verifyAccessCode(@Valid @RequestBody VerifyAccessCodeDto dto) {
         try {
             boolean valid = eventService.verifyAccessCode(dto.eventId, dto.accessCode);
             return ResponseEntity.ok(java.util.Map.of("valid", valid));
@@ -166,7 +167,7 @@ public class EventController {
     @Operation(summary = "Set Judging Mode", description = "Sets the judging mode (SOLO/PAIR) for an event (admin only)")
     @PostMapping("/judging-mode")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> setJudgingMode(@RequestBody UpdateJudgingModeDto dto) {
+    public ResponseEntity<?> setJudgingMode(@Valid @RequestBody UpdateJudgingModeDto dto) {
         try {
             eventService.setJudgingMode(dto.eventName, dto.judgingMode);
             return ResponseEntity.ok(java.util.Map.of("message", "Judging mode updated"));
@@ -178,7 +179,7 @@ public class EventController {
     @Operation(summary = "Update Event Access Code", description = "Updates the access code for an event (admin only)")
     @PostMapping("/access-code")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> updateAccessCode(@RequestBody UpdateAccessCodeDto dto) {
+    public ResponseEntity<?> updateAccessCode(@Valid @RequestBody UpdateAccessCodeDto dto) {
         try {
             eventService.updateAccessCode(dto.eventId, dto.newCode);
             return ResponseEntity.ok(java.util.Map.of("message", "Access code updated"));
@@ -205,7 +206,7 @@ public class EventController {
     public ResponseEntity<?> updateEventGenreFormat(
             @PathVariable String eventName,
             @PathVariable String genreName,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody Map<String, String> body) {
         try {
             eventGenreService.updateEventGenreFormat(eventName, genreName, body.get("format"));
             return ResponseEntity.ok().build();
@@ -216,14 +217,14 @@ public class EventController {
 
     @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
-    public ResponseEntity<String> createNewEvent(@RequestBody AddEventDto dto) {
+    public ResponseEntity<String> createNewEvent(@Valid @RequestBody AddEventDto dto) {
         eventService.createEventService(dto);
         return new ResponseEntity<>(gson.toJson("Table created"), HttpStatus.CREATED);
     }
 
     @Operation(summary = "Assign Genre to Event", description = "Links a genre to an existing event")
     @PostMapping("/genre")
-    public ResponseEntity<String> assignGenreToEvent(@RequestBody AddGenreToEventDto dto) {
+    public ResponseEntity<String> assignGenreToEvent(@Valid @RequestBody AddGenreToEventDto dto) {
         try {
             eventGenreService.addGenreToEventService(dto);
             return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
@@ -233,7 +234,7 @@ public class EventController {
     }
 
     // @PostMapping("/judges")
-    // public ResponseEntity<String> addJudge(@RequestBody AddJudgesDto dto){
+    // public ResponseEntity<String> addJudge(@Valid @RequestBody AddJudgesDto dto){
     // try{
     // judgeService.addJudgesService(dto);
     // return new ResponseEntity<>(gson.toJson("Judges are added"),
@@ -262,7 +263,7 @@ public class EventController {
     @Operation(summary = "Add Judge to Event", description = "Creates a new judge and links them to an event")
     @PostMapping("/{eventName}/judge")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<List<GetJudgeDto>> addJudgeToEvent(@PathVariable String eventName, @RequestBody AddJudgeDto dto) {
+    public ResponseEntity<List<GetJudgeDto>> addJudgeToEvent(@PathVariable String eventName, @Valid @RequestBody AddJudgeDto dto) {
         judgeService.addJudgeToEvent(eventName, dto.judgeName);
         return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
     }
@@ -277,7 +278,8 @@ public class EventController {
 
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
-    public ResponseEntity<String> addWalkInToSystem(@RequestBody AddWalkInDto dto) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
             EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
@@ -296,7 +298,7 @@ public class EventController {
 
     @Operation(summary = "Add List of Participants", description = "Adds participants to an event, typically read from a Google Sheet")
     @PostMapping("/participants/")
-    public ResponseEntity<String> addParticipantsToSystem(@RequestBody AddParticipantToEventDto dto)
+    public ResponseEntity<String> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
             throws IOException, MessagingException, WriterException {
         try {
             registerService.addParticipantToEvent(dto);
@@ -322,7 +324,7 @@ public class EventController {
 
     @Operation(summary = "Verify and Email Participant", description = "Marks a participant as payment-verified and sends QR email")
     @PostMapping("/participants/verify-email")
-    public ResponseEntity<String> verifyAndEmailParticipant(@RequestBody VerifyParticipantDto dto) {
+    public ResponseEntity<String> verifyAndEmailParticipant(@Valid @RequestBody VerifyParticipantDto dto) {
         try {
             registerService.verifyAndEmail(dto.getParticipantId(), dto.getEventId());
             return new ResponseEntity<>(gson.toJson("Verified and email sent"), HttpStatus.OK);
@@ -334,7 +336,7 @@ public class EventController {
 
     @Operation(summary = "Verify and Email Batch", description = "Marks a batch of participants as payment-verified and sends QR emails")
     @PostMapping("/participants/verify-email-batch")
-    public ResponseEntity<String> verifyAndEmailBatch(@RequestBody List<VerifyParticipantDto> list) {
+    public ResponseEntity<String> verifyAndEmailBatch(@Valid @RequestBody List<VerifyParticipantDto> list) {
         try {
             registerService.verifyAndEmailBatch(list);
             return new ResponseEntity<>(gson.toJson("Batch verified and emails sent"), HttpStatus.OK);
@@ -346,6 +348,7 @@ public class EventController {
 
     @Operation(summary = "Get Participants by Event Genre", description = "Retrieves a list of participants for a specific event based on their genre")
     @GetMapping("/participants/{eventName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
     public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(
             @PathVariable String eventName) throws IOException, MessagingException, WriterException {
         try {
@@ -408,7 +411,8 @@ public class EventController {
 
     @Operation(summary = "Update Participant Judge", description = "Assigns or updates a judge for a participant")
     @PostMapping("/participants-judge/")
-    public ResponseEntity<String> updateParticipantJudge(@RequestBody UpdateParticipantJudgeDto dto) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> updateParticipantJudge(@Valid @RequestBody UpdateParticipantJudgeDto dto) {
         try {
             // eventGenreParticipantService.addParticipantToEventGenreService(dto);
             eventGenreParticipantService.updateParticipantsJudgeService(dto);
@@ -420,7 +424,8 @@ public class EventController {
 
     @Operation(summary = "Update Participant Score", description = "Updates or submits scores for participants")
     @PostMapping("/scores")
-    public ResponseEntity<String> updateParticipantScore(@RequestBody UpdateParticipantsScoreDto dto) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
+    public ResponseEntity<String> updateParticipantScore(@Valid @RequestBody UpdateParticipantsScoreDto dto) {
         try {
             // score service here
             scoreService.updateParticipantScoreService(dto);
@@ -432,11 +437,12 @@ public class EventController {
 
     @Operation(summary = "Get Participant Scores", description = "Gets all scores for participants in a specific event")
     @GetMapping("/scores/{eventName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
     public ResponseEntity<List<GetParticipatnScoreDto>> getParticipantScore(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(scoreService.getAllScore(eventName), HttpStatus.OK);
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            log.error("Error fetching participant scores", e);
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
     }
@@ -453,9 +459,10 @@ public class EventController {
 
     @Operation(summary = "Update Email Template", description = "Updates the email template for the given event")
     @PostMapping("/{eventName}/email-template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<GetEmailTemplateDto> updateEmailTemplate(
             @PathVariable String eventName,
-            @RequestBody UpdateEmailTemplateDto dto) {
+            @Valid @RequestBody UpdateEmailTemplateDto dto) {
         try {
             return new ResponseEntity<>(emailTemplateService.updateTemplate(eventName, dto), HttpStatus.OK);
         } catch (Exception e) {
@@ -465,6 +472,7 @@ public class EventController {
 
     @Operation(summary = "Reset Email Template", description = "Regenerates the smart default email template based on current event genre formats")
     @PostMapping("/{eventName}/email-template/reset")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<GetEmailTemplateDto> resetEmailTemplate(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(emailTemplateService.resetToSmartDefault(eventName), HttpStatus.OK);
@@ -475,6 +483,7 @@ public class EventController {
 
     @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
     @DeleteMapping("/participant-genre/{participantId}/{eventId}/{genreId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<Void> removeParticipantGenre(
             @PathVariable Long participantId,
             @PathVariable Long eventId,
@@ -489,7 +498,8 @@ public class EventController {
 
     @Operation(summary = "Add Genre to Existing Participant", description = "Adds a new genre to an already-registered participant and assigns an audition number via WebSocket")
     @PostMapping("/participant-genre")
-    public ResponseEntity<String> addGenreToParticipant(@RequestBody UpdateParticipantGenreDto dto) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> addGenreToParticipant(@Valid @RequestBody UpdateParticipantGenreDto dto) {
         try {
             eventGenreParticipantService.addGenreToExistingParticipant(dto.participantId, dto.eventId, dto.genreName);
             return new ResponseEntity<>(gson.toJson("Genre added"), HttpStatus.CREATED);
@@ -500,7 +510,8 @@ public class EventController {
 
     @Operation(summary = "Submit Audition Feedback", description = "Saves or updates judge feedback tags and note for a participant")
     @PostMapping("/feedback")
-    public ResponseEntity<?> submitFeedback(@RequestBody SubmitAuditionFeedbackDto dto) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
+    public ResponseEntity<?> submitFeedback(@Valid @RequestBody SubmitAuditionFeedbackDto dto) {
         feedbackService.submitFeedback(dto);
         return ResponseEntity.ok(Map.of("message", "feedback saved"));
     }
@@ -542,7 +553,7 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> releaseResults(
             @PathVariable String eventName,
-            @RequestBody Map<String, Boolean> body) {
+            @Valid @RequestBody Map<String, Boolean> body) {
         try {
             boolean released = Boolean.TRUE.equals(body.get("released"));
             eventService.releaseResults(eventName, released);
@@ -576,7 +587,7 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> addScoringCriteria(
             @PathVariable String eventName,
-            @RequestBody AddScoringCriteriaDto dto) {
+            @Valid @RequestBody AddScoringCriteriaDto dto) {
         try {
             dto.eventName = eventName;
             return ResponseEntity.ok(scoringCriteriaService.addCriteria(dto));
@@ -591,7 +602,7 @@ public class EventController {
     public ResponseEntity<?> updateScoringCriteria(
             @PathVariable String eventName,
             @PathVariable Long criteriaId,
-            @RequestBody UpdateScoringCriteriaDto dto) {
+            @Valid @RequestBody UpdateScoringCriteriaDto dto) {
         try {
             return ResponseEntity.ok(scoringCriteriaService.updateCriteria(criteriaId, dto));
         } catch (org.springframework.web.server.ResponseStatusException e) {
@@ -633,7 +644,7 @@ public class EventController {
     @Operation(summary = "Create Pickup Crew", description = "Forms a new pickup crew from solo participants")
     @PostMapping("/crews")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> createPickupCrew(@RequestBody CreatePickupCrewDto dto) {
+    public ResponseEntity<?> createPickupCrew(@Valid @RequestBody CreatePickupCrewDto dto) {
         try {
             return ResponseEntity.ok(pickupCrewService.createCrew(dto));
         } catch (RuntimeException e) {
