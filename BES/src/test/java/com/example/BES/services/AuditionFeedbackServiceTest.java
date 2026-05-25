@@ -55,7 +55,7 @@ class AuditionFeedbackServiceTest {
     }
 
     @Test
-    void addFeedbackGroup_savesAndReturnsAll() {
+    void addFeedbackGroup_saves() {
         FeedbackTagGroup group = new FeedbackTagGroup();
         group.setId(1L);
         group.setName("Energy");
@@ -93,6 +93,23 @@ class AuditionFeedbackServiceTest {
         dto.setJudgeName("Ghost");
         when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.empty());
+
+        service.submitFeedback(dto);
+
+        verify(feedbackRepo, never()).save(any());
+    }
+
+    @Test
+    void submitFeedback_doesNothingWhenJudgeNull() {
+        SubmitAuditionFeedbackDto dto = new SubmitAuditionFeedbackDto();
+        dto.setEventName("Fest");
+        dto.setGenreName("breaking");
+        dto.setAuditionNumber(1);
+        dto.setJudgeName("Ghost");
+        EventGenreParticipant egp = mock(EventGenreParticipant.class);
+        when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
+            .thenReturn(Optional.of(egp));
+        when(judgeRepo.findByName("Ghost")).thenReturn(Optional.empty());
 
         service.submitFeedback(dto);
 
