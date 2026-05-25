@@ -1,7 +1,12 @@
 package com.example.BES.dtos;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 public class UpdateEmailTemplateDto {
+    @NotBlank @Size(max = 500)
     private String subject;
+    @NotBlank
     private String body;
 
     public String getSubject() { return subject; }

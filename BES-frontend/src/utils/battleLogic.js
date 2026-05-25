@@ -2,7 +2,7 @@ import { ref, computed } from "vue"
 
 export function useBattleLogic(){
     const rounds = ref({})
-    const topSize = ref(localStorage.getItem("topSize" || 16))
+    const topSize = ref(localStorage.getItem("topSize") || "16")
     const sizes  = ref([7, 8, 16, 32])
 
     const roundSizes = computed(()=>{

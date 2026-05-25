@@ -49,7 +49,7 @@ public class AuthControllerIntegrationTest {
     public void testLoginSuccess() throws Exception {
         LoginDto loginDto = new LoginDto();
         loginDto.setUsername("admin");
-        loginDto.setPassword("bes_admin_818");
+        loginDto.setPassword("test-admin-password");
 
         mockMvc.perform(post("/api/v1/auth/login")
                 .secure(true)
@@ -78,7 +78,7 @@ public class AuthControllerIntegrationTest {
         // First login to get a session
         LoginDto loginDto = new LoginDto();
         loginDto.setUsername("admin");
-        loginDto.setPassword("bes_admin_818");
+        loginDto.setPassword("test-admin-password");
 
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                 .secure(true)

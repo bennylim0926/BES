@@ -115,9 +115,9 @@ public class EventControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testAssignGenreToEvent() throws Exception {
-        String json = objectMapper.writeValueAsString(Map.of("eventId", 1, "genreId", 2));
+        String json = objectMapper.writeValueAsString(Map.of("eventName", "Test Event", "genreName", List.of("Hip Hop")));
 
         doNothing().when(eventGenreService).addGenreToEventService(any(AddGenreToEventDto.class));
 
@@ -129,7 +129,7 @@ public class EventControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testWalkin() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of(
                 "name", "Mike",
@@ -195,7 +195,7 @@ public class EventControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testUpdateParticipantScore() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of("participantId", 1, "eventId", 2, "score", 50));
 
@@ -215,7 +215,7 @@ public class EventControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testGetParticipantsFromEventGenre() throws Exception {
         when(eventGenreParticipantService.getAllEventGenreParticipantByEventService(any())).thenReturn(Collections.emptyList());
         mockMvc.perform(get("/api/v1/event/participants/Summer"))

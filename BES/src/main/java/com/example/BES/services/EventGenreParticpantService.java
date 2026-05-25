@@ -147,6 +147,9 @@ public class EventGenreParticpantService {
                     .collect(Collectors.toCollection(ArrayList::new));
             pool.removeAll(takenNumbers);
             Collections.shuffle(pool, SECURE_RANDOM);
+            if (pool.isEmpty()) {
+                throw new RuntimeException("No available audition numbers for this genre");
+            }
             auditionNumber = pool.get(0);
             participantInEventGenre.setAuditionNumber(auditionNumber);
             repo.save(participantInEventGenre);

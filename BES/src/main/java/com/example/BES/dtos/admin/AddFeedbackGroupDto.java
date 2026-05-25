@@ -1,6 +1,10 @@
 package com.example.BES.dtos.admin;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 public class AddFeedbackGroupDto {
+    @NotBlank @Size(max = 255)
     private String name;
 
     public String getName() {

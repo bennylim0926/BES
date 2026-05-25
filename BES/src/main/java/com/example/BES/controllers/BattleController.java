@@ -1,4 +1,5 @@
 package com.example.BES.controllers;
+import jakarta.validation.Valid;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.core.io.Resource;
@@ -17,6 +19,7 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,7 +70,8 @@ public class BattleController {
     }
 
     @PostMapping("/battle-mode")
-    public ResponseEntity<?> setSelectedMode(@RequestBody SetBattleModeDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setSelectedMode(@Valid @RequestBody SetBattleModeDto dto){
         battleService.setSelectedMode(dto);
         return ResponseEntity.ok(
             Map.of(
@@ -96,7 +100,8 @@ public class BattleController {
     }
 
     @PostMapping("/battle-pair")
-    public ResponseEntity<?> setBattlerPair(@RequestBody SetBattlerPairDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setBattlerPair(@Valid @RequestBody SetBattlerPairDto dto){
         battleService.setBattlerPairService(dto);
         return ResponseEntity.ok(Map.of(
             "message", "successfully set the battle pair",
@@ -106,6 +111,7 @@ public class BattleController {
     }
 
     @PostMapping("/score")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setBattleScore(){
         Integer code = battleService.setScoreService();
         if(code == -2){
@@ -145,14 +151,16 @@ public class BattleController {
     }
     
     @DeleteMapping("/judge")
-    public ResponseEntity<?> removeBattleJudge(@RequestBody SetJudgeDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> removeBattleJudge(@Valid @RequestBody SetJudgeDto dto){
         return ResponseEntity.ok(Map.of(
             "judge removed",battleService.removeBattleJudgeService(dto)
         ));
     }
 
     @PostMapping("/judge")
-    public ResponseEntity<?> setJudge(@RequestBody SetJudgeDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setJudge(@Valid @RequestBody SetJudgeDto dto){
         Integer status = battleService.setBattleJudgeService(dto);
         if(status == -1) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             Map.of(
@@ -170,7 +178,7 @@ public class BattleController {
     }
 
     @PostMapping("/vote")
-    public ResponseEntity<?> submitVote(@RequestBody SetVoteDto dto){
+    public ResponseEntity<?> submitVote(@Valid @RequestBody SetVoteDto dto){
         Integer vote = battleService.setVoteService(dto);
         if(vote == -2){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
@@ -197,18 +205,30 @@ public class BattleController {
     }
 
     @PostMapping("/upload")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> handleUpload(@RequestParam("file") MultipartFile file) throws IOException{
         if (!Files.exists(uploadDir)) {
             Files.createDirectories(uploadDir);
         }
-        Path dest = uploadDir.resolve(file.getOriginalFilename());
+        String originalFilename = file.getOriginalFilename();
+        String extension = (originalFilename != null && originalFilename.contains("."))
+            ? originalFilename.substring(originalFilename.lastIndexOf('.'))
+            : "";
+        String safeFilename = UUID.randomUUID().toString() + extension;
+        Path dest = uploadDir.resolve(safeFilename).normalize();
+        if (!dest.startsWith(uploadDir.normalize())) {
+            return ResponseEntity.badRequest().body("Invalid file path");
+        }
         Files.copy(file.getInputStream(), dest, StandardCopyOption.REPLACE_EXISTING);
-        return ResponseEntity.ok(file.getOriginalFilename());
+        return ResponseEntity.ok(safeFilename);
     }
-    
+
     @GetMapping("/uploads/{filename:.+}")
     public ResponseEntity<Resource> getFile(@PathVariable String filename) throws IOException {
-        Path file = uploadDir.resolve(filename);
+        Path file = uploadDir.resolve(filename).normalize();
+        if (!file.startsWith(uploadDir.normalize())) {
+            return ResponseEntity.badRequest().build();
+        }
         Resource resource = new UrlResource(file.toUri());
         return ResponseEntity.ok().body(resource);
     }
@@ -223,9 +243,12 @@ public class BattleController {
     }
 
     @DeleteMapping("/image")
-    public ResponseEntity<String> deleteImage(@RequestBody DeleteImageDto dto) throws IOException{
-        Path file = uploadDir.resolve(dto.getName());
-
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> deleteImage(@Valid @RequestBody DeleteImageDto dto) throws IOException{
+        Path file = uploadDir.resolve(dto.getName()).normalize();
+        if (!file.startsWith(uploadDir.normalize())) {
+            return ResponseEntity.badRequest().body("Invalid file path");
+        }
         if (!Files.exists(file)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("File not found");
@@ -245,7 +268,8 @@ public class BattleController {
     }
 
     @PostMapping("/smoke")
-    public ResponseEntity<?> setSmokeList(@RequestBody SetSmokeBattlersDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setSmokeList(@Valid @RequestBody SetSmokeBattlersDto dto){
         battleService.setSmokeBattlersService(dto);
         return ResponseEntity.ok(Map.of(
             "message", "List updated"
@@ -258,7 +282,8 @@ public class BattleController {
     }
 
     @PostMapping("/phase")
-    public ResponseEntity<?> setBattlePhase(@RequestBody SetBattlePhaseDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
         battleService.setBattlePhaseService(dto.getPhase());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
@@ -271,7 +296,8 @@ public class BattleController {
     }
 
     @PostMapping("/bracket")
-    public ResponseEntity<?> setBracketState(@RequestBody SetBracketStateDto dto){
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
         battleService.setBracketStateService(dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));
     }

@@ -6,10 +6,10 @@ export function useDropdowns(){
     const selectedGenre = ref(null)
     const selectedJudge = ref(null)
 
-    const iintialiseDropdown = ()=>{
+    const initialiseDropdown = ()=>{
         const active = getActiveEvent()
         selectedEvent.value = active?.name || localStorage.getItem("selectedEvent") || ""
         selectedGenre.value = localStorage.getItem("selectedGenre") || "All"
     }
-    return {selectedEvent, selectedGenre, selectedJudge, iintialiseDropdown}
+    return {selectedEvent, selectedGenre, selectedJudge, initialiseDropdown}
 }

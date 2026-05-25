@@ -1,11 +1,12 @@
 package com.example.BES.controllers;
+import jakarta.validation.Valid;
 
 import java.io.IOException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-// import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,18 +30,21 @@ public class GoogleSheetsController {
 
     // Get a breakdown by genre/categories of selected sheet
     @GetMapping("/participants/breakdown/{fileId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getParticipantsBreakDown(fileId));
     }
 
     @GetMapping("/participants/size/{fileId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<Integer> getSheetSize(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getSheetSizeService(fileId));
     }
 
     // When user create database, insert this as well
     @PostMapping("/payment-status")
-    public ResponseEntity<Void> insertPaymentColumn(@RequestBody PaymentColumnRequestDto dto) throws IOException{
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<Void> insertPaymentColumn(@Valid @RequestBody PaymentColumnRequestDto dto) throws IOException{
         service.insertPaymentColumn(dto.fileId);
         return new ResponseEntity<>(HttpStatus.OK);
     }

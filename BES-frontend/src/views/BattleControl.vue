@@ -3,13 +3,13 @@ import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getBattlePhase, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
-import { computed, onMounted, ref, watch, toRaw } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
-import { subscribeToChannel, createClient } from '@/utils/websocket'
+import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 
-const { selectedEvent, selectedGenre, iintialiseDropdown, selectedJudge } = useDropdowns()
+const { selectedEvent, selectedGenre, initialiseDropdown, selectedJudge } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
 
@@ -80,7 +80,7 @@ const nextBattlePair = computed(() => {
 })
 
 const resetJudgeVote = async () => {
-  battleJudges.value.judges.forEach(async j => { await battleJudgeVote(j.id, -3) })
+  await Promise.all(battleJudges.value.judges.map(j => battleJudgeVote(j.id, -3)))
 }
 
 const currentBattlePair = computed(() => {
@@ -521,15 +521,22 @@ watch(topSize, async (newVal) => {
   }
 }, { immediate: true })
 
+const wsClient = ref(null)
+
 onMounted(async () => {
-  iintialiseDropdown()
+  initialiseDropdown()
   await fetchAllJudges(selectedEvent.value)
   battleJudges.value = await getBattleJudges()
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
-  subscribeToChannel(createClient(), '/topic/battle/phase', (msg) => {
+  wsClient.value = createClient()
+  subscribeToChannel(wsClient.value, '/topic/battle/phase', (msg) => {
     battlePhase.value = msg.phase
   })
+})
+
+onUnmounted(() => {
+  deactivateClient(wsClient.value)
 })
 </script>
 

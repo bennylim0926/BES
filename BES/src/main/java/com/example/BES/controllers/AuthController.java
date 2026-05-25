@@ -1,4 +1,5 @@
 package com.example.BES.controllers;
+import jakarta.validation.Valid;
 
 import java.util.Map;
 
@@ -61,7 +62,7 @@ public class AuthController {
 
     @Operation(summary = "Login", description = "Authenticates a user and establishes a session")
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginDto dto, HttpServletRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
         try {
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(dto.getUsername(),
                     dto.getPassword());

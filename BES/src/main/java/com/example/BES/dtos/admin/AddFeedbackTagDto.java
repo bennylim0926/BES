@@ -1,7 +1,13 @@
 package com.example.BES.dtos.admin;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
 public class AddFeedbackTagDto {
+    @NotNull
     private Long groupId;
+    @NotBlank @Size(max = 255)
     private String label;
 
     public Long getGroupId() { return groupId; }

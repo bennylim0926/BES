@@ -19,8 +19,7 @@ public class GoogleDriveFileService {
         if (files == null) return googleDriveFileDTOList;
 
         files.forEach(file -> {
-            System.out.println(file.getMimeType());
-            if ((file.getSize() != null && file.getMimeType().equals("application/vnd.google-apps.spreadsheet")) || 
+            if ((file.getSize() != null && file.getMimeType().equals("application/vnd.google-apps.spreadsheet")) ||
             file.getMimeType().equals("application/vnd.google-apps.shortcut")) {
                 GoogleDriveFileDto driveFileDto = new GoogleDriveFileDto();
                 fillGoogleDriveFileDTOList(googleDriveFileDTOList, file, driveFileDto);
@@ -34,8 +33,10 @@ public class GoogleDriveFileService {
         driveFileDto.setFileName(file.getName());
         driveFileDto.setFileType(file.getMimeType());
         if(file.getMimeType().equals("application/vnd.google-apps.shortcut")){
+            if (file.getShortcutDetails() == null) return;
             String targetId = file.getShortcutDetails().getTargetId();
             File target = manager.findByTargetId(targetId);
+            if (target == null) return;
             driveFileDto.setLink("https://drive.google.com/file/d/" + target.getId() + "/view?usp=sharing");
             driveFileDto.setFileId(target.getId());
         }else{

@@ -1,4 +1,5 @@
 package com.example.BES.controllers;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.Map;
@@ -61,37 +62,37 @@ public class AdminController {
     }
 
     @PostMapping("/feedback-group")
-    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackGroup(@RequestBody AddFeedbackGroupDto dto) {
+    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackGroup(@Valid @RequestBody AddFeedbackGroupDto dto) {
         return ResponseEntity.ok(feedbackService.addFeedbackGroup(dto.getName()));
     }
 
     @DeleteMapping("/feedback-group")
-    public ResponseEntity<?> deleteFeedbackGroup(@RequestBody DeleteFeedbackGroupDto dto) {
+    public ResponseEntity<?> deleteFeedbackGroup(@Valid @RequestBody DeleteFeedbackGroupDto dto) {
         feedbackService.deleteFeedbackGroup(dto.getId());
         return ResponseEntity.ok(Map.of("message", "deleted"));
     }
 
     @PostMapping("/feedback-tag")
-    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackTag(@RequestBody AddFeedbackTagDto dto) {
+    public ResponseEntity<List<GetFeedbackGroupDto>> addFeedbackTag(@Valid @RequestBody AddFeedbackTagDto dto) {
         return ResponseEntity.ok(feedbackService.addFeedbackTag(dto.getGroupId(), dto.getLabel()));
     }
 
     @DeleteMapping("/feedback-tag")
-    public ResponseEntity<?> deleteFeedbackTag(@RequestBody DeleteFeedbackTagDto dto) {
+    public ResponseEntity<?> deleteFeedbackTag(@Valid @RequestBody DeleteFeedbackTagDto dto) {
         feedbackService.deleteFeedbackTag(dto.getId());
         return ResponseEntity.ok(Map.of("message", "deleted"));
     }
 
     // Create Genre
     @PostMapping("/genre")
-    public ResponseEntity<List<GetGenreDto>> createGenre(@RequestBody AddGenreDto dto){
+    public ResponseEntity<List<GetGenreDto>> createGenre(@Valid @RequestBody AddGenreDto dto){
         genreService.addGenreService(dto);
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
     
     // Update Genre
     @PostMapping("/update-genre")
-    public ResponseEntity<?> updateGenre(@RequestBody UpdateGenreDto dto){
+    public ResponseEntity<?> updateGenre(@Valid @RequestBody UpdateGenreDto dto){
         Genre genre = genreService.updateGenreService(dto);
         if(genre == null){
             return ResponseEntity
@@ -107,9 +108,9 @@ public class AdminController {
     // Delete Genre
         // It might link to some event and unable to delete
     @DeleteMapping("/genre")
-    public ResponseEntity<?> deleteGenre(@RequestBody DeleteGenreDto dto){
+    public ResponseEntity<?> deleteGenre(@Valid @RequestBody DeleteGenreDto dto){
         String deletedGenre = genreService.deleteGenreService(dto);
-        if(deletedGenre == ""){
+        if(deletedGenre.isEmpty()){
             return ResponseEntity.ok(Map.of(
                 "message", "Nothing was deleted"
             ));
@@ -121,14 +122,14 @@ public class AdminController {
     }
 
     @PostMapping("/judge")
-    public ResponseEntity<List<GetJudgeDto>> addJudge(@RequestBody AddJudgeDto dto){
+    public ResponseEntity<List<GetJudgeDto>> addJudge(@Valid @RequestBody AddJudgeDto dto){
         judgeService.addJudgeService(dto);
         return new ResponseEntity<>(judgeService.getAllJudges(), HttpStatus.OK);
     }
 
     // Update Judge
     @PostMapping("/update-judge")
-    public ResponseEntity<?> updateJudge(@RequestBody UpdateJudgeDto dto){
+    public ResponseEntity<?> updateJudge(@Valid @RequestBody UpdateJudgeDto dto){
         Judge judge = judgeService.updateJudgeService(dto);
         if(judge == null){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
@@ -146,9 +147,9 @@ public class AdminController {
     // Delete Judge
         // It might lnik to some event/scores and unable to delete
     @DeleteMapping("/judge")
-    public ResponseEntity<?> deleteJudge(@RequestBody DeleteJudgeDto dto){
+    public ResponseEntity<?> deleteJudge(@Valid @RequestBody DeleteJudgeDto dto){
         String deletedJudge = judgeService.deleteJudgeService(dto);
-        if(deletedJudge == ""){
+        if(deletedJudge.isEmpty()){
             return ResponseEntity.ok(Map.of(
                 "message", "Nothing was deleted"
             ));
@@ -161,7 +162,7 @@ public class AdminController {
 
     // Delete Score by Event
     @DeleteMapping("/score")
-    public ResponseEntity<?> deleteJudge(@RequestBody DeleteScoreByEventDto dto){
+    public ResponseEntity<?> deleteScoreByEvent(@Valid @RequestBody DeleteScoreByEventDto dto){
         Integer deletedRows = 0;
         deletedRows = scoreService.deleteScoreByEventService(dto);
         return ResponseEntity.ok(Map.of(

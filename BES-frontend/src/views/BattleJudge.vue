@@ -4,8 +4,8 @@ import rightHand from '@/assets/righthand.png'
 import tie from '@/assets/no.png'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair } from '@/utils/api'
-import { subscribeToChannel, createClient } from '@/utils/websocket'
-import { computed, onMounted, ref } from 'vue'
+import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const active = ref(null)
 const confirmed = ref(null)
@@ -35,6 +35,8 @@ async function handleClick(side) {
   }
 }
 
+const wsClient = ref(null)
+
 onMounted(async () => {
   battleJudges.value = await getBattleJudges()
 
@@ -47,7 +49,8 @@ onMounted(async () => {
     rightName.value = pairData.right ?? ''
   }
 
-  subscribeToChannel(createClient(), '/topic/battle/phase', (msg) => {
+  wsClient.value = createClient()
+  subscribeToChannel(wsClient.value, '/topic/battle/phase', (msg) => {
     battlePhase.value = msg.phase
     if (msg.phase === 'LOCKED') {
       active.value = null
@@ -55,19 +58,20 @@ onMounted(async () => {
       revealedWinner.value = -2
     }
   })
-
-  subscribeToChannel(createClient(), '/topic/battle/battle-pair', (msg) => {
+  subscribeToChannel(wsClient.value, '/topic/battle/battle-pair', (msg) => {
     leftName.value = msg.left ?? ''
     rightName.value = msg.right ?? ''
   })
-
-  subscribeToChannel(createClient(), '/topic/battle/score', (msg) => {
+  subscribeToChannel(wsClient.value, '/topic/battle/score', (msg) => {
     revealedWinner.value = msg.message
   })
-
-  subscribeToChannel(createClient(), '/topic/battle/judges', (msg) => {
+  subscribeToChannel(wsClient.value, '/topic/battle/judges', (msg) => {
     battleJudges.value = msg
   })
+})
+
+onUnmounted(() => {
+  deactivateClient(wsClient.value)
 })
 </script>
 
