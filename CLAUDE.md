@@ -238,42 +238,43 @@ All frontend work must follow this design system consistently across every compo
 ### Color Tokens (defined in `base.css` `@theme`)
 | Role | Token | Hex |
 |------|-------|-----|
-| Primary | `primary-500` | `#06b6d4` (cyan) |
-| Primary Dark | `primary-600/700` | `#0891b2 / #0e7490` |
-| Accent | `secondary-500` | `#f97316` (orange) |
-| Surface Dark | `surface-900` | `#0f172a` (deep navy) |
-| Surface Mid | `surface-700/800` | `#334155 / #1e293b` |
-| Surface Light | `surface-50/100` | `#f8fafc / #f1f5f9` |
-| Content | white | `#ffffff` |
+| Primary | `primary-500` | `#e53935` (red) |
+| Primary Dark | `primary-600/700` | `#c62828 / #b71c1c` |
+| Primary Text (dark mode) | `primary-400` | `#f87171` (light red) |
+| Accent | `accent-500` | `#f97316` (orange) |
+| Surface Dark | `surface-900` | `#111111` (near-black) |
+| Surface Card | `surface-800` | `#1a1a1a` |
+| Surface Border | `surface-600/700` | `#2c2c2c / #222222` |
+| Content | `content-primary` | `#f0f0f0` (off-white) |
 
 ### Typography
 | Use | Font | Class |
 |-----|------|-------|
 | Body / UI | Inter | `font-sans` |
 | Headings | Outfit | `font-heading` |
-| Numbers / Code | Source Code Pro | `font-source` |
+| Numbers / Code | JetBrains Mono | `font-source` |
 | Display titles | Anton SC | `font-anton` |
 
 ### Spacing & Shape
 - Border radius: `rounded-xl` (inputs, cards) · `rounded-2xl` (panels, modals) · `rounded-full` (badges, pills)
-- Card style: `bg-white rounded-2xl border border-surface-200/80 shadow-sm`
+- Card style: `bg-surface-800 rounded-2xl border border-surface-700`
 - Page container: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8`
 - Navbar height offset: `h-16` (64px)
 
 ### Colour Usage Rules (60-30-10)
-- **60% Neutral** — `surface-*` for backgrounds, borders, text hierarchy
-- **30% Structure** — `surface-800/900` + white for nav, headers, dark surfaces
-- **10% Brand** — `primary-*` (cyan) for ALL interactive elements only
+- **60% Neutral** — `surface-*` for backgrounds, borders, text hierarchy (true neutral blacks/grays — no blue tinting)
+- **30% Structure** — `surface-800/900` + `content-primary` for nav, headers, dark surfaces
+- **10% Brand** — `primary-*` (red) for ALL interactive elements only
 - **Semantic** — emerald=success, amber=warning, red=error — functional use only, never decorative
 - **Orange `accent-*`** — medals/rankings ONLY; never buttons, nav, or role badges
-- **Button secondary** → `bg-surface-800 text-white` (dark navy, not orange)
-- **Role badges** → all use `bg-surface-100 text-surface-600 border-surface-200` (label is differentiator)
+- **Button secondary** → `bg-surface-600 text-content-primary` (neutral dark, not orange)
+- **Role badges** → all use `bg-surface-700 text-content-secondary border-surface-600` (label is differentiator)
 
 ### Interaction States
-- Active nav item: `bg-primary-500 text-white` (filled cyan pill)
+- Active nav item: `bg-primary-500 text-white` (filled red pill)
 - Button active: `active:scale-95`
 - Focus ring: `focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500`
-- Row hover: `hover:bg-primary-50` or `hover:bg-surface-50`
+- Row hover: `hover:bg-primary-50` or `hover:bg-surface-700`
 
 ### Target Audience UX Rules
 - **Judges**: Large touch targets (min 48px), very large font for scores/numbers, minimal steps to complete a score

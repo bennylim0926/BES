@@ -1,9 +1,9 @@
 <script setup>
 /**
  * Button variants follow the 60-30-10 color rule:
- *   primary   → cyan brand color  (the ONE "do this" action)
+ *   primary   → red brand color   (the ONE "do this" action)
  *   secondary → dark surface fill  (strong secondary — no competing hue)
- *   ghost     → transparent + cyan text  (soft tertiary)
+ *   ghost     → transparent + red text  (soft tertiary)
  *   outline   → bordered, neutral text   (low-emphasis action)
  *   danger    → red fill          (destructive / irreversible only)
  *
