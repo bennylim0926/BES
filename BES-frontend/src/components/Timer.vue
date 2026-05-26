@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onBeforeUnmount } from "vue";
-;
 
 const selectedTime = ref(0)
 const timeLeft = ref(0)

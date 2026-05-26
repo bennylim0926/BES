@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import pluginVue from 'eslint-plugin-vue'
+import globals from 'globals'
 
 export default [
   js.configs.recommended,
@@ -31,10 +32,19 @@ export default [
   },
   {
     // Test files run in Node/jsdom with vitest globals — allow `global`
-    files: ['src/utils/__tests__/**/*.js', 'src/**/*.test.js', 'src/**/*.spec.js'],
+    files: ['src/**/__tests__/**/*.js', 'src/**/*.{test,spec}.js'],
     languageOptions: {
       globals: {
+        ...globals.browser,
         global: 'writable',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
       },
     },
   },
