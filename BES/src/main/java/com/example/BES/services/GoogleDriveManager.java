@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.io.IOException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.config.GoogleDriveConfig;
@@ -10,6 +11,7 @@ import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 
 @Service
+@Profile("!test")
 public class GoogleDriveManager {
     @Autowired
     private GoogleDriveConfig config;

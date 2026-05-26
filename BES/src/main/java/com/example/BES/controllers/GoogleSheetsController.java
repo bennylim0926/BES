@@ -5,6 +5,7 @@ import java.io.IOException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -25,7 +26,7 @@ import com.example.BES.services.GoogleSheetService;
 @RequestMapping("/api/v1/sheets")
 public class GoogleSheetsController {
 
-    @Autowired
+    @Autowired(required = false)
     GoogleSheetService service;
 
     // Get a breakdown by genre/categories of selected sheet

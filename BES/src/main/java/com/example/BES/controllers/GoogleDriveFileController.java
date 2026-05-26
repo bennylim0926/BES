@@ -3,6 +3,7 @@ package com.example.BES.controllers;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -19,7 +20,7 @@ import com.example.BES.services.GoogleDriveFileService;
 @RequestMapping("/api/v1/files")
 public class GoogleDriveFileController {
     
-    @Autowired
+    @Autowired(required = false)
     private GoogleDriveFileService service;
     
     @GetMapping("/{folderId}")

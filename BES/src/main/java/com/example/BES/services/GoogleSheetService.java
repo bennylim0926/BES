@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.clients.GoogleSheetClient;
@@ -27,6 +28,7 @@ import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
 @Service
+@Profile("!test")
 public class GoogleSheetService {
     private static final String CATEGORY_KEYWORD = "categor";
     private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL, SheetHeader.NAME, SheetHeader.PAYMENT_STATUS, SheetHeader.CATEGORIES, SheetHeader.LOCAL_OVERSEAS));

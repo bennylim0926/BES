@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.config.GoogleSheetConfig;
@@ -15,6 +16,7 @@ import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
 @Service
+@Profile("!test")
 public class GoogleSheetClient {
     @Autowired
     private GoogleSheetConfig config;

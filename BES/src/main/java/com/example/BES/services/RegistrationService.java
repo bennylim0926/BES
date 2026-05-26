@@ -38,7 +38,7 @@ import jakarta.mail.MessagingException;
 public class RegistrationService {
     private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
-    @Autowired
+    @Autowired(required = false)
     GoogleSheetService sheetService;
 
     @Autowired
