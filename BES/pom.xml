@@ -226,6 +226,13 @@
 					<threshold>High</threshold>
 					<failOnError>true</failOnError>
 				</configuration>
+				<executions>
+					<execution>
+						<id>spotbugs-check</id>
+						<phase>verify</phase>
+						<goals><goal>check</goal></goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

@@ -369,7 +369,7 @@ public class EventController {
     public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName) {
         List<GetParticipantByEventDto> res = eventParticipantService.getAllParticipantsByEvent(eventName);
         if (res == null) {
-            return new ResponseEntity<>(res, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.NOT_FOUND);
         }
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
