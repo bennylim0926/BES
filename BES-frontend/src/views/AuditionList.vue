@@ -1,6 +1,4 @@
 <script setup>
-import DynamicTable from '@/components/DynamicTable.vue';
-import ReusableButton from '@/components/ReusableButton.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
@@ -136,23 +134,6 @@ const filteredParticipantsForEmceeView = computed(() => {
   return base.sort((a, b) => a.auditionNumber - b.auditionNumber)
 })
 
-const filteredParticipantsForEmcee = computed({
-  get() {
-    if (filteredJudge.value === "") {
-      return transformForTable(participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber != null && matchesEntryType(p)))
-    }
-    return transformForTable(participants.value.filter(p =>
-      p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p)
-    ))
-  },
-  set(updatedSubset) {
-    const byId = new Map(updatedSubset.map(r => [r.rowId, r]));
-    participants.value = participants.value.map(org => {
-      const updated = byId.get(org.rowId)
-      return updated ? { ...org, ...updated } : org
-    })
-  }
-})
 
 watch(selectedEvent, async (newVal, oldVal) => {
   if (newVal) {
@@ -206,45 +187,6 @@ const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName);
   return [...new Set(genres)].sort();
 })
-
-function transformForTable(data) {
-  const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))];
-  if (judges.length === 0) {
-    return {
-      columns: [
-        { key: 'auditionNumber', label: 'No.', type: 'text', readonly: true },
-        { key: 'participantName', label: 'Name', type: 'text', readonly: true },
-        { key: 'marked', label: 'Done', type: 'boolean' }
-      ],
-      rows: data
-        .sort((a, b) => a.auditionNumber - b.auditionNumber)
-        .map((d) => ({ auditionNumber: d.auditionNumber, participantName: d.participantName, marked: false }))
-    };
-  }
-  const auditions = {};
-  data.forEach(d => {
-    if (!auditions[d.auditionNumber]) {
-      auditions[d.auditionNumber] = { auditionNumber: d.auditionNumber };
-    }
-    auditions[d.auditionNumber][d.judgeName] = d.participantName;
-  });
-  const rows = Object.values(auditions)
-    .map(row => {
-      const allEmpty = judges.every(j => !row[j]);
-      if (allEmpty) return null;
-      judges.forEach(j => { if (!row[j]) row[j] = ""; });
-      return row;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.auditionNumber - b.auditionNumber);
-  return {
-    columns: [
-      { key: 'auditionNumber', label: 'Audition', type: 'text', readonly: true },
-      ...judges.map(j => ({ key: j, label: j, type: 'text', readonly: true }))
-    ],
-    rows
-  };
-}
 
 const submitScore = async (eventName, genreName, judgeName, participantList) => {
   if (judgeName === "") {

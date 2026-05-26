@@ -57,7 +57,6 @@ watch(
   { deep: true }
 );
 
-const getConfig = (key) => props.tableConfig.find(c => c.key === key) || { type: "text" };
 </script>
 
 <template>

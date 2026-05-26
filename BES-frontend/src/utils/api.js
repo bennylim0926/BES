@@ -387,7 +387,7 @@ export const getCurrentBattlePair = async()=>{
       credentials: 'include'
     })
     return res.ok ? await res.json() : null
-  }catch(e){
+  }catch(_e){
     return null
   }
 }
@@ -500,7 +500,7 @@ export const getBracketState = async () => {
   try {
     const res = await fetch(`${domain}/api/v1/battle/bracket`, { credentials: 'include' })
     return res.ok ? await res.json() : null
-  } catch (e) { return null }
+  } catch (_e) { return null }
 }
 
 export const uploadImage = async(file)=>{
@@ -546,7 +546,7 @@ export const getBattlePhase = async () => {
   try {
     const res = await fetch(`${domain}/api/v1/battle/phase`, { credentials: 'include' })
     return res.ok ? await res.json() : { phase: 'IDLE' }
-  } catch (e) { return { phase: 'IDLE' } }
+  } catch (_e) { return { phase: 'IDLE' } }
 }
 
 export const setBattlePhase = async (phase) => {

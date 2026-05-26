@@ -13,7 +13,8 @@ export const addGenre = async(genreName)=>{
                 name: genreName,
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — caller handles undefined return
     }
 }
 
@@ -30,7 +31,8 @@ export const addJudge = async(judgeName)=>{
                 judgeName: judgeName,
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — caller handles undefined return
     }
 }
 
@@ -47,7 +49,8 @@ export const deleteGenre = async(id)=>{
                 id: id,
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — caller handles undefined return
     }
 }
 
@@ -64,7 +67,8 @@ export const deleteJudge = async(id)=>{
                 id: id,
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — caller handles undefined return
     }
 }
 
@@ -82,7 +86,8 @@ export const updateGenre = async(id, newName)=>{
                 newName: newName
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — silent fail
     }
 }
 
@@ -100,7 +105,8 @@ export const updateJudge = async(id, newName)=>{
                 newName: newName
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — silent fail
     }
 }
 
@@ -117,7 +123,8 @@ export const deleteScore = async(id)=>{
                 event_id: id
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — silent fail
     }
 }
 
@@ -129,7 +136,8 @@ export const getAllImages = async() =>{
         if(res.ok){
           return await res.json()
         }
-      }catch(e){
+      }catch(_e){
+        // network error — returns undefined
     }
 }
 
@@ -146,7 +154,8 @@ export const deleteImage = async(name)=>{
                 name: name
             })
         })
-    }catch(err){
+    }catch(_err){
+        // network error — caller handles undefined return
     }
 }
 
@@ -155,7 +164,7 @@ export const getFeedbackGroups = async () => {
         const res = await fetch(`${domain}/api/v1/admin/feedback-groups`, { credentials: 'include' })
         if (res.ok) return await res.json()
         return []
-    } catch (err) { return [] }
+    } catch (_err) { return [] }
 }
 
 export const addFeedbackGroup = async (name) => {
@@ -166,7 +175,7 @@ export const addFeedbackGroup = async (name) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         })
-    } catch (err) {}
+    } catch (_err) { /* network error — caller handles undefined return */ }
 }
 
 export const deleteFeedbackGroup = async (id) => {
@@ -177,7 +186,7 @@ export const deleteFeedbackGroup = async (id) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         })
-    } catch (err) {}
+    } catch (_err) { /* network error — caller handles undefined return */ }
 }
 
 export const addFeedbackTag = async (groupId, label) => {
@@ -188,7 +197,7 @@ export const addFeedbackTag = async (groupId, label) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupId, label })
         })
-    } catch (err) {}
+    } catch (_err) { /* network error — caller handles undefined return */ }
 }
 
 export const deleteFeedbackTag = async (id) => {
@@ -199,5 +208,5 @@ export const deleteFeedbackTag = async (id) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         })
-    } catch (err) {}
+    } catch (_err) { /* network error — caller handles undefined return */ }
 }

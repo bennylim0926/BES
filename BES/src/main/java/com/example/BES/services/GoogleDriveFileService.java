@@ -3,11 +3,13 @@ package com.example.BES.services;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import com.example.BES.dtos.GoogleDriveFileDto;
 import com.google.api.services.drive.model.File;
 
 @Service
+@Profile("!test")
 public class GoogleDriveFileService {
     @Autowired
     private GoogleDriveManager manager;

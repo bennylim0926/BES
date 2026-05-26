@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { getActiveEvent } from '@/utils/auth'
-import { getParticipantScore, getScoringCriteria } from '@/utils/api'
+import { getParticipantScore } from '@/utils/api'
 import { getPickupCrews, createPickupCrew, deletePickupCrew } from '@/utils/api'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import ActionDoneModal from '@/views/ActionDoneModal.vue'
@@ -10,7 +10,6 @@ const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem('select
 const selectedGenre = ref('')
 const participants = ref([])   // raw score entries for the genre
 const crews = ref([])
-const criteria = ref([])
 const topN = ref(null)  // null = no filter; 4/8/16/32 = show only top N as leaders
 
 // Modal state
@@ -83,11 +82,6 @@ const rankedSolos = computed(() =>
     if (topN.value && !topNIds.value.has(p.participantId)) return false
     return true
   })
-)
-
-// Available pool (no score OR not ranked, not yet in a crew)
-const availablePool = computed(() =>
-  soloEntries.value.filter(p => !assignedIds.value.has(p.participantId) && p.avgScore === null)
 )
 
 // Crew size from genre format (e.g. "2v2" → 2)

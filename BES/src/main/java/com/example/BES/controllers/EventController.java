@@ -156,11 +156,11 @@ public class EventController {
 
     @Operation(summary = "Get Judging Mode", description = "Returns the current judging mode (SOLO/PAIR) for an event")
     @GetMapping("/judging-mode/{eventName}")
-    public ResponseEntity<GetJudgingModeDto> getJudgingMode(@PathVariable String eventName) {
+    public ResponseEntity<?> getJudgingMode(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(eventService.getJudgingMode(eventName), HttpStatus.OK);
         } catch (org.springframework.web.server.ResponseStatusException e) {
-            return new ResponseEntity<>(null, e.getStatusCode());
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }
     }
 
@@ -250,7 +250,7 @@ public class EventController {
         try {
             return new ResponseEntity<>(judgeService.getAllJudges(), HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -360,7 +360,7 @@ public class EventController {
             return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
 
         } catch (NullPointerException e) {
-            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.NOT_FOUND);
         }
     }
 
@@ -369,7 +369,7 @@ public class EventController {
     public ResponseEntity<List<GetParticipantByEventDto>> getAllVerifiedParticipant(@PathVariable String eventName) {
         List<GetParticipantByEventDto> res = eventParticipantService.getAllParticipantsByEvent(eventName);
         if (res == null) {
-            return new ResponseEntity<>(res, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.NOT_FOUND);
         }
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
@@ -443,16 +443,16 @@ public class EventController {
             return new ResponseEntity<>(scoreService.getAllScore(eventName), HttpStatus.OK);
         } catch (Exception e) {
             log.error("Error fetching participant scores", e);
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.BAD_REQUEST);
         }
     }
 
     @Operation(summary = "Get Email Template", description = "Returns the email template for the given event")
     @GetMapping("/{eventName}/email-template")
-    public ResponseEntity<GetEmailTemplateDto> getEmailTemplate(@PathVariable String eventName) {
+    public ResponseEntity<?> getEmailTemplate(@PathVariable String eventName) {
         GetEmailTemplateDto dto = emailTemplateService.getTemplateByEventName(eventName);
         if (dto == null) {
-            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Email template not found"));
         }
         return new ResponseEntity<>(dto, HttpStatus.OK);
     }
@@ -460,24 +460,24 @@ public class EventController {
     @Operation(summary = "Update Email Template", description = "Updates the email template for the given event")
     @PostMapping("/{eventName}/email-template")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<GetEmailTemplateDto> updateEmailTemplate(
+    public ResponseEntity<?> updateEmailTemplate(
             @PathVariable String eventName,
             @Valid @RequestBody UpdateEmailTemplateDto dto) {
         try {
             return new ResponseEntity<>(emailTemplateService.updateTemplate(eventName, dto), HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @Operation(summary = "Reset Email Template", description = "Regenerates the smart default email template based on current event genre formats")
     @PostMapping("/{eventName}/email-template/reset")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<GetEmailTemplateDto> resetEmailTemplate(@PathVariable String eventName) {
+    public ResponseEntity<?> resetEmailTemplate(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(emailTemplateService.resetToSmartDefault(eventName), HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
