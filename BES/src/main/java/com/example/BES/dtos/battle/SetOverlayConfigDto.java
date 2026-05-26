@@ -1,0 +1,22 @@
+package com.example.BES.dtos.battle;
+
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+
+public class SetOverlayConfigDto {
+
+    @NotNull
+    private Boolean showImages;
+
+    @NotNull
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "leftColor must be a valid 6-digit hex color")
+    private String leftColor;
+
+    @NotNull
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "rightColor must be a valid 6-digit hex color")
+    private String rightColor;
+
+    public Boolean isShowImages() { return showImages; }
+    public String getLeftColor()  { return leftColor; }
+    public String getRightColor() { return rightColor; }
+}
