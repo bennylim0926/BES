@@ -37,6 +37,7 @@ import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetBattlePhaseDto;
 import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
+import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.services.BattleService;
@@ -300,5 +301,17 @@ public class BattleController {
     public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
         battleService.setBracketStateService(dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));
+    }
+
+    @GetMapping("/overlay-config")
+    public ResponseEntity<?> getOverlayConfig() {
+        return ResponseEntity.ok(battleService.getOverlayConfig());
+    }
+
+    @PostMapping("/overlay-config")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setOverlayConfig(@Valid @RequestBody SetOverlayConfigDto dto) {
+        battleService.setOverlayConfigService(dto);
+        return ResponseEntity.ok(battleService.getOverlayConfig());
     }
 }
