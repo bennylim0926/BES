@@ -1016,3 +1016,31 @@ export const updateEventGenreFormat = async (eventName, genreName, format) => {
     return false
   }
 }
+
+export const getOverlayConfig = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/overlay-config`, {
+      credentials: 'include',
+    })
+    return res.ok ? await res.json() : { showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }
+  } catch (err) {
+    console.log(err)
+    return { showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }
+  }
+}
+
+export const setOverlayConfig = async (config) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/overlay-config`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    })
+  } catch (err) {
+    console.log(err)
+  }
+}

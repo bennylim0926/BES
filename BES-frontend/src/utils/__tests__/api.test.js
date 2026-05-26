@@ -173,4 +173,46 @@ describe('api.js', () => {
       expect(result).toEqual([])
     })
   })
+
+  describe('getOverlayConfig', () => {
+    it('calls /api/v1/battle/overlay-config with GET', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }),
+      })
+
+      const result = await api.getOverlayConfig()
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/overlay-config', {
+        credentials: 'include',
+      })
+      expect(result.showImages).toBe(true)
+    })
+
+    it('returns fallback defaults on fetch error', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network error'))
+
+      const result = await api.getOverlayConfig()
+
+      expect(result).toEqual({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
+    })
+  })
+
+  describe('setOverlayConfig', () => {
+    it('calls /api/v1/battle/overlay-config with POST and JSON body', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true })
+
+      await api.setOverlayConfig({ showImages: false, leftColor: '#ff0000', rightColor: '#0000ff' })
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/overlay-config', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ showImages: false, leftColor: '#ff0000', rightColor: '#0000ff' }),
+      })
+    })
+  })
 })
