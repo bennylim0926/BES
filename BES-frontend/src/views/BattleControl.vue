@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -19,6 +19,12 @@ const currentRound = ref(0)
 const currentTop = ref('')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
+
+const pushOverlayConfig = async () => {
+  await setOverlayConfig(overlayConfig.value)
+}
+
 const activeRoundIdx = ref(0)
 
 const pickupCrews = ref([])
@@ -494,6 +500,8 @@ onMounted(async () => {
   initialiseDropdown()
   await fetchAllJudges(selectedEvent.value)
   battleJudges.value = await getBattleJudges()
+  const savedConfig = await getOverlayConfig()
+  if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
   wsClient.value = createClient()
@@ -641,6 +649,64 @@ onUnmounted(() => {
           </button>
         </div>
       </div>
+
+      <!-- Overlay Settings -->
+      <details class="overlay-settings-panel">
+        <summary class="overlay-settings-summary">Overlay Settings</summary>
+        <div class="overlay-settings-body">
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Left Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Left team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#dc2626"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Right Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Right team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#2563eb"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Show Images</span>
+            <label class="overlay-toggle">
+              <input
+                type="checkbox"
+                v-model="overlayConfig.showImages"
+                @change="pushOverlayConfig"
+              />
+              <span class="overlay-toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </details>
 
       <div class="h-px bg-surface-600/30 my-4"></div>
 
@@ -1041,3 +1107,86 @@ onUnmounted(() => {
 
   </div>
 </template>
+
+<style scoped>
+.overlay-settings-panel {
+  background: #1a1a1a;
+  border: 1px solid #2c2c2c;
+  border-radius: 12px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.overlay-settings-summary {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f0f0;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.overlay-settings-summary::-webkit-details-marker { display: none; }
+.overlay-settings-body {
+  padding: 4px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.overlay-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.overlay-setting-label {
+  font-size: 13px;
+  color: rgba(240,240,240,0.65);
+}
+.overlay-color-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.overlay-color-swatch {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+.overlay-hex-input {
+  width: 80px;
+  background: #111;
+  border: 1px solid #2c2c2c;
+  border-radius: 6px;
+  color: #f0f0f0;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 8px;
+}
+.overlay-toggle { display: flex; align-items: center; cursor: pointer; }
+.overlay-toggle input { display: none; }
+.overlay-toggle-track {
+  width: 36px;
+  height: 20px;
+  background: #2c2c2c;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+.overlay-toggle input:checked + .overlay-toggle-track { background: #e53935; }
+.overlay-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.overlay-toggle input:checked + .overlay-toggle-track::after { transform: translateX(16px); }
+</style>
