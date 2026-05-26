@@ -1,0 +1,162 @@
+package com.example.BES.services;
+
+import com.example.BES.dtos.battle.SetBattlerPairDto;
+import com.example.BES.dtos.battle.SetJudgeDto;
+import com.example.BES.dtos.battle.SetVoteDto;
+import com.example.BES.models.Judge;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class BattleServiceTest {
+
+    @Mock
+    JudgeService judgeService;
+
+    @Mock
+    SimpMessagingTemplate messagingTemplate;
+
+    @InjectMocks
+    BattleService service;
+
+    @Test
+    void initialPhaseIsIDLE() {
+        assertThat(service.getBattlePhase()).isEqualTo("IDLE");
+    }
+
+    @Test
+    void setBattlerPair_setsNamesAndTransitionsToLOCKED() {
+        SetBattlerPairDto dto = mock(SetBattlerPairDto.class);
+        when(dto.getLeftBattler()).thenReturn("Alice");
+        when(dto.getRightBattler()).thenReturn("Bob");
+
+        service.setBattlerPairService(dto);
+
+        assertThat(service.getCurrentPair().getLeftBattler().getName()).isEqualTo("Alice");
+        assertThat(service.getCurrentPair().getRightBattler().getName()).isEqualTo("Bob");
+        assertThat(service.getBattlePhase()).isEqualTo("LOCKED");
+    }
+
+    @Test
+    void setBattlePhase_cannotManuallySetREVEALED() {
+        service.setBattlePhaseService("REVEALED");
+
+        assertThat(service.getBattlePhase()).isEqualTo("IDLE");
+    }
+
+    @Test
+    void setBattlePhase_setsVOTING() {
+        service.setBattlePhaseService("VOTING");
+
+        assertThat(service.getBattlePhase()).isEqualTo("VOTING");
+    }
+
+    @Test
+    void setScore_returnsMinusOneWhenNoJudges() {
+        // Empty judges list: score list is empty, frequency(0)==frequency(1) → tie → returns -1
+        assertThat(service.setScoreService()).isEqualTo(-1);
+    }
+
+    @Test
+    void setScore_leftWins_returnsZeroAndTransitionsToREVEALED() {
+        Judge j = new Judge();
+        j.setJudgeId(1L);
+        j.setName("Mike");
+        when(judgeService.getJudgeById(1L)).thenReturn(j);
+
+        SetJudgeDto jDto = mock(SetJudgeDto.class);
+        when(jDto.getId()).thenReturn(1L);
+        service.setBattleJudgeService(jDto);
+
+        SetVoteDto vDto = mock(SetVoteDto.class);
+        when(vDto.getId()).thenReturn(1L);
+        when(vDto.getVote()).thenReturn(0); // vote for left
+        service.setVoteService(vDto);
+
+        Integer result = service.setScoreService();
+
+        assertThat(result).isEqualTo(0);
+        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
+    }
+
+    @Test
+    void setScore_rightWins_returnsOne() {
+        Judge j = new Judge();
+        j.setJudgeId(2L);
+        j.setName("Sara");
+        when(judgeService.getJudgeById(2L)).thenReturn(j);
+
+        SetJudgeDto jDto = mock(SetJudgeDto.class);
+        when(jDto.getId()).thenReturn(2L);
+        service.setBattleJudgeService(jDto);
+
+        SetVoteDto vDto = mock(SetVoteDto.class);
+        when(vDto.getId()).thenReturn(2L);
+        when(vDto.getVote()).thenReturn(1); // vote for right
+        service.setVoteService(vDto);
+
+        assertThat(service.setScoreService()).isEqualTo(1);
+        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
+    }
+
+    @Test
+    void setBattleJudge_returnsDuplicateCodeWhenAlreadyAdded() {
+        Judge j = new Judge();
+        j.setJudgeId(1L);
+        j.setName("Mike");
+        when(judgeService.getJudgeById(1L)).thenReturn(j);
+
+        SetJudgeDto dto = mock(SetJudgeDto.class);
+        when(dto.getId()).thenReturn(1L);
+        service.setBattleJudgeService(dto);
+
+        Integer result = service.setBattleJudgeService(dto);
+
+        assertThat(result).isEqualTo(0); // already exists
+    }
+
+    @Test
+    void setBattleJudge_returnsMinusOneWhenJudgeNotFound() {
+        when(judgeService.getJudgeById(99L)).thenReturn(null);
+
+        SetJudgeDto dto = mock(SetJudgeDto.class);
+        when(dto.getId()).thenReturn(99L);
+
+        assertThat(service.setBattleJudgeService(dto)).isEqualTo(-1);
+    }
+
+    @Test
+    void removeBattleJudge_removesFromList() {
+        Judge j = new Judge();
+        j.setJudgeId(1L);
+        j.setName("Mike");
+        when(judgeService.getJudgeById(1L)).thenReturn(j);
+
+        SetJudgeDto addDto = mock(SetJudgeDto.class);
+        when(addDto.getId()).thenReturn(1L);
+        service.setBattleJudgeService(addDto);
+        assertThat(service.getJudges()).hasSize(1);
+
+        SetJudgeDto removeDto = mock(SetJudgeDto.class);
+        when(removeDto.getId()).thenReturn(1L);
+        service.removeBattleJudgeService(removeDto);
+
+        assertThat(service.getJudges()).isEmpty();
+    }
+
+    @Test
+    void setVote_returnsMinusTwoWhenJudgeNotInList() {
+        // judges list is empty, stream filter never calls dto.getId() — use lenient to avoid UnnecessaryStubbingException
+        SetVoteDto dto = mock(SetVoteDto.class);
+        lenient().when(dto.getId()).thenReturn(99L);
+
+        assertThat(service.setVoteService(dto)).isEqualTo(-2);
+    }
+}
