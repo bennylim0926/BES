@@ -216,4 +216,49 @@ public class BattleControllerIntegrationTest {
                 .andExpect(jsonPath("$.list").isArray())
                 .andExpect(jsonPath("$.list[0].name").value("Alice"));
     }
+
+    @Test
+    @WithMockUser
+    public void testGetOverlayConfig_returnsValidStructure() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/overlay-config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showImages").exists())
+                .andExpect(jsonPath("$.leftColor").exists())
+                .andExpect(jsonPath("$.rightColor").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ORGANISER")
+    public void testSetOverlayConfig_updatesAndReturns() throws Exception {
+        String body = "{\"showImages\":false,\"leftColor\":\"#ff0000\",\"rightColor\":\"#0000ff\"}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showImages").value(false))
+                .andExpect(jsonPath("$.leftColor").value("#ff0000"))
+                .andExpect(jsonPath("$.rightColor").value("#0000ff"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ORGANISER")
+    public void testSetOverlayConfig_rejectsInvalidHexColor() throws Exception {
+        String body = "{\"showImages\":true,\"leftColor\":\"notacolor\",\"rightColor\":\"#2563eb\"}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void testSetOverlayConfig_requiresAuth() throws Exception {
+        String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\"}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().is4xxClientError());
+    }
 }
