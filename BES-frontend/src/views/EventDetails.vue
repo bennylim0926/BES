@@ -2,13 +2,11 @@
 import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import DynamicTable from '@/components/DynamicTable.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
-import { filterObject, useDelay } from '@/utils/utils';
+import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import ReusableButton from '@/components/ReusableButton.vue';
-import AuditionNumber from './AuditionNumber.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
@@ -25,7 +23,6 @@ const eventGenres = ref([])
 const tableExist = ref(true)
 const loading = ref(false)
 const onStartLoading = ref(false)
-const expandedGenres = ref(new Set())
 const expandedPeople = ref(new Set()) // 'notShownUp' | 'registered'
 
 const verifiedFormParticipants = ref([])
@@ -130,10 +127,6 @@ const getTitle = (statusCode) => {
     modalVariant.value = "error"
   }
 }
-
-const filteredBreakdown = computed(() => {
-  return filterObject(participantsNumBreakdown.value, value => value > 0)
-})
 
 const genreCounts = computed(() => {
   const counts = {}
@@ -330,16 +323,6 @@ const completeBreakdown = computed(() => {
   });
 })
 
-const toggleGenre = (genre) => {
-  if (expandedGenres.value.has(genre)) {
-    expandedGenres.value.delete(genre)
-  } else {
-    expandedGenres.value.add(genre)
-  }
-  // trigger reactivity
-  expandedGenres.value = new Set(expandedGenres.value)
-}
-
 const onSubmit = async () => {
   if (loading.value) return
   if (createTable.genres.length == 0) {
@@ -501,7 +484,7 @@ const handleVerifyAndEmail = async (participant) => {
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     selectedUnverified.value.delete(participant.participantId)
     selectedUnverified.value = new Set(selectedUnverified.value)
-  } catch (e) {
+  } catch (_e) {
     openModal('Error', 'Failed to verify participant.', 'error')
   }
   verifyingParticipantId.value = null
@@ -519,7 +502,7 @@ const handleBatchVerify = async () => {
     unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     selectedUnverified.value = new Set()
-  } catch (e) {
+  } catch (_e) {
     openModal('Error', 'Batch verification failed.', 'error')
   }
   batchVerifying.value = false

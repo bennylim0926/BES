@@ -26,7 +26,7 @@ onMounted(async () => {
     } else {
       error.value = 'Could not generate QR code. You may not have permission.'
     }
-  } catch (e) {
+  } catch (_e) {
     error.value = 'Network error. Please try again.'
   }
   loading.value = false

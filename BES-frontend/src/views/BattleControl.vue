@@ -1,7 +1,6 @@
 <script setup>
-import ReusableButton from '@/components/ReusableButton.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getBattlePhase, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -57,6 +56,7 @@ const winnerAnnouncement = computed(() => {
     if (currentWinner.value === 0) { setWinner(currentTop.value, currentRound.value, 0); return `${currentBattlePair?.value[currentWinner.value]} takes it` }
     if (currentWinner.value === 1) return `${currentBattlePair?.value[currentWinner.value]} takes it`
   }
+  return ""
 })
 
 const winnerVariant = computed(() => {
@@ -70,13 +70,15 @@ const previousBattlePair = computed(() => {
   if (currentBattle.value.length !== 0 && currentBattle?.value[0] > 0) {
     return [currentBattle?.value[1][currentBattle?.value[0] - 1][0], currentBattle?.value[1][currentBattle?.value[0] - 1][1]]
   }
+  return null
 })
 const nextBattlePair = computed(() => {
-  if (currentBattle.value.length === 0) return
+  if (currentBattle.value.length === 0) return null
   if (isSmoke.value) return currentBattle?.value[2]
   if (currentBattle.value.length !== 0 && currentBattle?.value[0] < currentBattle?.value[1].length - 1) {
     return [currentBattle?.value[1][currentBattle?.value[0] + 1][0], currentBattle?.value[1][currentBattle?.value[0] + 1][1]]
   }
+  return null
 })
 
 const resetJudgeVote = async () => {
@@ -219,9 +221,6 @@ const topNParticipants = computed(() => {
 const seeds = ref([])
 const activeSeedIdx = ref(null)
 
-const seededNames = computed(() => new Set(seeds.value.filter(Boolean)))
-const availableForSeeding = computed(() => bracketPool.value.filter(p => !seededNames.value.has(p)))
-const allSeeded = computed(() => seeds.value.every(Boolean))
 
 const resetSeeds = () => {
   seeds.value = Array(bracketSize.value).fill(null)
@@ -302,21 +301,6 @@ const splitBracketFill = () => {
   activeSeedIdx.value = null
   applyToFirstRound()
 }
-const clickSeedSlot = (idx) => {
-  if (seeds.value[idx]) {
-    const s = [...seeds.value]; s[idx] = null; seeds.value = s
-    activeSeedIdx.value = null
-  } else {
-    activeSeedIdx.value = activeSeedIdx.value === idx ? null : idx
-  }
-}
-const assignSeed = (name) => {
-  if (activeSeedIdx.value === null) return
-  const s = [...seeds.value]; s[activeSeedIdx.value] = name; seeds.value = s
-  const next = s.findIndex((v, i) => i > activeSeedIdx.value && !v)
-  activeSeedIdx.value = next !== -1 ? next : null
-  if (s.every(Boolean)) applyToFirstRound()
-}
 const applyToFirstRound = () => {
   if (isSmoke.value) {
     rounds.value = seeds.value.map((name, i) => ({
@@ -339,23 +323,6 @@ const applyToFirstRound = () => {
 watch([bracketSize, selectedGenre], resetSeeds, { immediate: true })
 
 // 7 to Smoke slot picker
-const activeSmokeIdx = ref(null)
-const smokeSeededNames = computed(() => new Set((Array.isArray(rounds.value) ? rounds.value : []).map(r => r.name).filter(Boolean)))
-const availableForSmoke = computed(() => topNParticipants.value.filter(p => !smokeSeededNames.value.has(p)))
-const clickSmokeSlot = (idx) => {
-  if (Array.isArray(rounds.value) && rounds.value[idx]?.name) {
-    rounds.value[idx].name = null
-    activeSmokeIdx.value = null
-  } else {
-    activeSmokeIdx.value = activeSmokeIdx.value === idx ? null : idx
-  }
-}
-const assignSmokeSlot = (name) => {
-  if (activeSmokeIdx.value === null || !Array.isArray(rounds.value)) return
-  rounds.value[activeSmokeIdx.value].name = name
-  const next = rounds.value.findIndex((r, i) => i > activeSmokeIdx.value && !r.name)
-  activeSmokeIdx.value = next !== -1 ? next : null
-}
 
 const sizes = ref([7, 8, 16, 32])
 

@@ -8,7 +8,6 @@ import AuditionList from "@/views/AuditionList.vue";
 import Score from "@/views/Score.vue";
 import Login from "@/views/Login.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
-import { component } from "vue-fullscreen";
 import BattleOverlay from "@/views/BattleOverlay.vue";
 import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";

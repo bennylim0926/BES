@@ -1,6 +1,5 @@
 <script setup>
 import { ref, watch, defineProps, defineEmits } from "vue"
-import DynamicTable from "./DynamicTable.vue"
 
 const props = defineProps({
   modelValue: {

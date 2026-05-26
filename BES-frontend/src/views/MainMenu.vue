@@ -1,10 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
 import { useScrollReveal } from '@/utils/useScrollReveal'
 
-const router    = useRouter()
 const authStore = useAuthStore()
 const { revealRef } = useScrollReveal()
 
