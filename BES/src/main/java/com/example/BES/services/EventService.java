@@ -2,7 +2,7 @@ package com.example.BES.services;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -35,7 +35,7 @@ public class EventService {
         if (dto.accessCode != null && dto.accessCode.matches("\\d{4}")) {
             newEvent.setAccessCode(dto.accessCode);
         } else {
-            newEvent.setAccessCode(String.format("%04d", new Random().nextInt(10000)));
+            newEvent.setAccessCode(String.format("%04d", ThreadLocalRandom.current().nextInt(10000)));
         }
         Event saved = repo.save(newEvent);
         emailTemplateService.createDefaultTemplate(saved);
