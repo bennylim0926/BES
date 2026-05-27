@@ -52,6 +52,13 @@ function clearJudge() {
   localStorage.removeItem(LS_JUDGE_ID)
   localStorage.removeItem(LS_JUDGE_NAME)
   showJudgePicker.value = true
+  if (voteClient) {
+    deactivateClient(voteClient)
+    const idx = wsClients.indexOf(voteClient)
+    if (idx !== -1) wsClients.splice(idx, 1)
+    voteClient = null
+  }
+  clearVote()
 }
 
 // ── Vote state ──────────────────────────────────────────────────────────────
@@ -88,7 +95,8 @@ async function handleClick(side) {
   if (battlePhase.value !== 'VOTING') return
   if (confirmedVote.value !== null) return   // already voted — locked
   if (active.value === side) {
-    await battleJudgeVote(judgeId.value, side)
+    const res = await battleJudgeVote(judgeId.value, side)
+    if (!res?.ok) return   // POST failed — stay armed, let judge try again
     confirmedVote.value = side
     active.value        = null
     saveVote(side)
@@ -107,7 +115,7 @@ function setupVoteSubscription() {
   voteClient = createClient()
   wsClients.push(voteClient)
   subscribeToChannel(voteClient, `/topic/battle/vote/${judgeId.value}`, (msg) => {
-    if (msg.vote !== -3) {
+    if (msg.vote === 0 || msg.vote === 1 || msg.vote === -1) {
       confirmedVote.value = msg.vote
       active.value        = null
     }
