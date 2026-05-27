@@ -1,78 +1,182 @@
 <script setup>
-import leftHand from '@/assets/lefthand.png'
-import rightHand from '@/assets/righthand.png'
-import tie from '@/assets/no.png'
-import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair } from '@/utils/api'
+import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
-const active = ref(null)
-const confirmed = ref(null)
-const battleJudges = ref([])
-const selectedJudge = ref("")
-const battleJudgesName = computed(() => {
-  const judges = battleJudges.value?.judges ?? []
-  return judges.map(j => j.name)
-})
+// ── Overlay config ──────────────────────────────────────────────────────────
+const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
 
-const battlePhase = ref('IDLE')
-const leftName = ref('')
-const rightName = ref('')
+// ── Battle state ────────────────────────────────────────────────────────────
+const battlePhase    = ref('IDLE')
+const leftName       = ref('')
+const rightName      = ref('')
 const revealedWinner = ref(-2)
+const battleJudges   = ref({ judges: [] })
+
+// ── Judge identity ──────────────────────────────────────────────────────────
+const judgeId         = ref(null)   // number | null
+const judgeName       = ref('')
+const showJudgePicker = ref(false)
+
+const LS_JUDGE_ID   = 'battleJudgeId'
+const LS_JUDGE_NAME = 'battleJudgeName'
+
+function resolveJudgeIdentity(judges) {
+  const storedId = localStorage.getItem(LS_JUDGE_ID)
+  if (!storedId) { showJudgePicker.value = true; return }
+  const id = Number(storedId)
+  const match = judges.find(j => j.id === id)
+  if (!match) {
+    localStorage.removeItem(LS_JUDGE_ID)
+    localStorage.removeItem(LS_JUDGE_NAME)
+    showJudgePicker.value = true
+    return
+  }
+  judgeId.value   = id
+  judgeName.value = match.name
+  setupVoteSubscription()
+}
+
+function selectJudge(j) {
+  judgeId.value   = j.id
+  judgeName.value = j.name
+  localStorage.setItem(LS_JUDGE_ID,   String(j.id))
+  localStorage.setItem(LS_JUDGE_NAME, j.name)
+  showJudgePicker.value = false
+  setupVoteSubscription()
+}
+
+function clearJudge() {
+  judgeId.value   = null
+  judgeName.value = ''
+  localStorage.removeItem(LS_JUDGE_ID)
+  localStorage.removeItem(LS_JUDGE_NAME)
+  showJudgePicker.value = true
+}
+
+// ── Vote state ──────────────────────────────────────────────────────────────
+const active        = ref(null)   // armed: 0 | 1 | -1 | null
+const confirmedVote = ref(null)   // confirmed: 0 | 1 | -1 | null
+
+function voteStorageKey() {
+  if (judgeId.value == null || !leftName.value || !rightName.value) return null
+  return `battleVote_${judgeId.value}_${leftName.value}_${rightName.value}`
+}
+
+function saveVote(vote) {
+  const key = voteStorageKey()
+  if (!key) return
+  localStorage.setItem(key, JSON.stringify({ vote, leftName: leftName.value, rightName: rightName.value }))
+}
+
+function clearVote() {
+  const key = voteStorageKey()
+  if (key) localStorage.removeItem(key)
+  confirmedVote.value = null
+  active.value        = null
+}
+
+function restoreVoteFromStorage() {
+  const key = voteStorageKey()
+  if (!key) return null
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+  try { return JSON.parse(raw).vote } catch { return null }
+}
 
 async function handleClick(side) {
   if (battlePhase.value !== 'VOTING') return
+  if (confirmedVote.value !== null) return   // already voted — locked
   if (active.value === side) {
-    const judges = battleJudges.value?.judges ?? []
-    const id = judges.filter(j => j.name === selectedJudge.value).map(j => j.id)
-    await battleJudgeVote(id, side)
-    active.value = null
-    confirmed.value = side
-    setTimeout(() => { confirmed.value = null }, 1800)
+    await battleJudgeVote(judgeId.value, side)
+    confirmedVote.value = side
+    active.value        = null
+    saveVote(side)
+    if (navigator.vibrate) navigator.vibrate(40)
   } else {
     active.value = side
   }
 }
 
-const wsClients = []
+// ── WebSocket ───────────────────────────────────────────────────────────────
+const wsClients  = []
+let   voteClient = null
 
+function setupVoteSubscription() {
+  if (!judgeId.value || voteClient) return
+  voteClient = createClient()
+  wsClients.push(voteClient)
+  subscribeToChannel(voteClient, `/topic/battle/vote/${judgeId.value}`, (msg) => {
+    if (msg.vote !== -3) {
+      confirmedVote.value = msg.vote
+      active.value        = null
+    }
+  })
+}
+
+// ── Mount ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  battleJudges.value = await getBattleJudges()
+  // 1. Overlay colors
+  const config = await getOverlayConfig()
+  if (config?.leftColor) overlayConfig.value = config
 
+  // 2. Phase
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
 
+  // 3. Current pair (must come before vote restore so key is correct)
   const pairData = await getCurrentBattlePair()
   if (pairData) {
-    leftName.value = pairData.left ?? ''
+    leftName.value  = pairData.left  ?? ''
     rightName.value = pairData.right ?? ''
   }
 
-  // Each subscription needs its own client — subscribeToChannel sets onConnect,
-  // so sharing one client means every call overwrites the previous handler.
-  const cPhase = createClient(); wsClients.push(cPhase)
-  const cPair  = createClient(); wsClients.push(cPair)
-  const cScore = createClient(); wsClients.push(cScore)
-  const cJudge = createClient(); wsClients.push(cJudge)
+  // 4. Judges + identity
+  battleJudges.value = await getBattleJudges()
+  resolveJudgeIdentity(battleJudges.value?.judges ?? [])
+
+  // 5. Restore vote from localStorage (backend WS overrides if different)
+  if (battlePhase.value === 'VOTING') {
+    const stored = restoreVoteFromStorage()
+    if (stored !== null) confirmedVote.value = stored
+  }
+
+  // 6. WS subscriptions
+  const cOverlay = createClient(); wsClients.push(cOverlay)
+  const cPhase   = createClient(); wsClients.push(cPhase)
+  const cPair    = createClient(); wsClients.push(cPair)
+  const cScore   = createClient(); wsClients.push(cScore)
+  const cJudges  = createClient(); wsClients.push(cJudges)
+
+  subscribeToChannel(cOverlay, '/topic/battle/overlay-config', (msg) => {
+    if (msg?.leftColor) overlayConfig.value = msg
+  })
 
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
+    if (!msg?.phase) return
     battlePhase.value = msg.phase
     if (msg.phase === 'LOCKED') {
-      active.value = null
-      confirmed.value = null
+      clearVote()
       revealedWinner.value = -2
     }
   })
+
   subscribeToChannel(cPair, '/topic/battle/battle-pair', (msg) => {
-    leftName.value = msg.left ?? ''
+    leftName.value  = msg.left  ?? ''
     rightName.value = msg.right ?? ''
+    clearVote()
   })
+
   subscribeToChannel(cScore, '/topic/battle/score', (msg) => {
     revealedWinner.value = msg.message
   })
-  subscribeToChannel(cJudge, '/topic/battle/judges', (msg) => {
+
+  subscribeToChannel(cJudges, '/topic/battle/judges', (msg) => {
     battleJudges.value = msg
+    if (judgeId.value != null) {
+      const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
+      if (!still) clearJudge()
+    }
   })
 })
 
