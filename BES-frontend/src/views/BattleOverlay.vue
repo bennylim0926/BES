@@ -252,15 +252,7 @@ onMounted(async () => {
     showVotingIndicator.value = msg?.phase === 'VOTING'
   })
 
-  if (isSmoke.value) {
-    battleJudges.value = await getBattleJudges()
-    const cJudges = createClient(); clients.push(cJudges)
-    const cPair   = createClient(); clients.push(cPair)
-    const cScore  = createClient(); clients.push(cScore)
-    subscribeToChannel(cJudges, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
-    subscribeToChannel(cPair,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
-    subscribeToChannel(cScore,  '/topic/battle/score',       (msg) => updateScore(msg))
-  } else {
+  if (!isSmoke.value) {
     battleJudges.value = await getBattleJudges()
     const res = await getCurrentBattlePair()
     if (res) await updateBattlePair(res)
@@ -314,7 +306,7 @@ onUnmounted(() => {
          JUDGE PANEL — shared across both modes
     ═══════════════════════════════════════════════════ -->
     <div
-      v-if="battleJudges?.judges?.length"
+      v-if="battleJudges?.judges?.length && !isSmoke"
       class="judge-panel"
       :class="judgePanelClass"
       role="region"
