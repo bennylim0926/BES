@@ -649,12 +649,12 @@ onUnmounted(() => {
   align-items: center; justify-content: center; gap: 12px;
   background: rgba(6,10,20,0.78);
   backdrop-filter: blur(4px);
-  pointer-events: none;
 }
 .blocker-icon { font-size: 2.2rem; }
 .blocker-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: clamp(14px, 2.5vw, 22px);
+  font-weight: 800;
   letter-spacing: 0.22em; text-transform: uppercase;
   color: rgba(251,191,36,0.85);
 }
