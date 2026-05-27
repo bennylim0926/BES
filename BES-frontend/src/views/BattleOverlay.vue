@@ -16,6 +16,8 @@ const imageLeft  = ref(null)
 const imageRight = ref(null)
 
 let client = createClient()
+const clients = []
+let unmounted = false
 const subscribedTopics = new Set()
 const rightName  = ref('')
 const leftName   = ref('')
@@ -61,11 +63,14 @@ const judgePanelClass = computed(() => {
 // ── Entrance animation ─────────────────────────────────────────────────────
 const runEntrance = async () => {
   await useDelay().wait(50) // allow DOM to clear previous animation classes
+  if (unmounted) return
   hideJudgeDecision.value = true
   vsAnim.value = 'rush-in'
   await useDelay().wait(340) // VS hits undershoot trough at ~340ms
+  if (unmounted) return
   stageShaking.value = true
   await useDelay().wait(120)
+  if (unmounted) return
   stageShaking.value = false
 }
 
@@ -89,6 +94,7 @@ const updateBattlePair = async (msg) => {
     glitching.value = true
     judgeAnim.value = 'slide-up'
     await useDelay().wait(100)
+    if (unmounted) return
 
     if (currentWinner.value === 0) {
       leftReset.value = true
@@ -101,12 +107,14 @@ const updateBattlePair = async (msg) => {
     vsAnim.value = ''
 
     await useDelay().wait(280)
+    if (unmounted) return
     glitching.value          = false
     hideJudgeDecision.value  = true
     judgeAnim.value          = ''
     votesVisible.value       = false
     winnerTagVisible.value   = false
     await useDelay().wait(50)
+    if (unmounted) return
     leftReset.value  = false
     rightReset.value = false
   }
@@ -137,7 +145,9 @@ const updateBattleJudge = (msg) => {
     const topic = `/topic/battle/vote/${j.id}`
     if (!subscribedTopics.has(topic)) {
       subscribedTopics.add(topic)
-      subscribeToChannel(createClient(), topic, (m) => updateJudgeVote(m))
+      const c = createClient()
+      clients.push(c)
+      subscribeToChannel(c, topic, (m) => updateJudgeVote(m))
     }
   })
 }
@@ -156,7 +166,9 @@ watch(battleJudges, (newVal) => {
     const topic = `/topic/battle/vote/${j.id}`
     if (!subscribedTopics.has(topic)) {
       subscribedTopics.add(topic)
-      subscribeToChannel(createClient(), topic, (m) => updateJudgeVote(m))
+      const c = createClient()
+      clients.push(c)
+      subscribeToChannel(c, topic, (m) => updateJudgeVote(m))
     }
   })
 }, { deep: true })
@@ -171,10 +183,12 @@ const updateScore = async (msg) => {
 
   // Reveal votes shortly after panel starts dropping
   await useDelay().wait(200)
+  if (unmounted) return
   votesVisible.value = true
 
   // Winner determination after cards have burst in
   await useDelay().wait(800)
+  if (unmounted) return
   currentWinner.value = msg.message
 
   if (msg.message === 0) {
@@ -183,6 +197,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-right'
     await useDelay().wait(100)
+    if (unmounted) return
     rightReset.value = true   // right (loser) hard-cuts off screen
   } else if (msg.message === 1) {
     // Right wins: VS rockets left (toward loser), right panel expands
@@ -190,6 +205,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-left'
     await useDelay().wait(100)
+    if (unmounted) return
     leftReset.value = true    // left (loser) hard-cuts off screen
   }
   // msg.message === -1: tie — no winner state, panels stay
@@ -205,31 +221,45 @@ onMounted(async () => {
   if (config?.showImages !== undefined) overlayConfig.value = config
 
   // Live overlay config updates from BattleControl
-  subscribeToChannel(createClient(), '/topic/battle/overlay-config', (msg) => {
+  const cOverlay = createClient()
+  clients.push(cOverlay)
+  subscribeToChannel(cOverlay, '/topic/battle/overlay-config', (msg) => {
     if (msg?.showImages !== undefined) overlayConfig.value = msg
   })
 
   // Phase subscription: VOTING phase shows the voting indicator
-  subscribeToChannel(createClient(), '/topic/battle/phase', (msg) => {
+  const cPhase = createClient()
+  clients.push(cPhase)
+  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     showVotingIndicator.value = msg?.phase === 'VOTING'
   })
 
   if (isSmoke.value) {
     battleJudges.value = await getBattleJudges()
-    subscribeToChannel(createClient(), '/topic/battle/judges',     (msg) => updateBattleJudge(msg))
-    subscribeToChannel(createClient(), '/topic/battle/battle-pair',(msg) => updateBattlePair(msg))
-    subscribeToChannel(createClient(), '/topic/battle/score',      (msg) => updateScore(msg))
+    const cJudges = createClient(); clients.push(cJudges)
+    const cPair   = createClient(); clients.push(cPair)
+    const cScore  = createClient(); clients.push(cScore)
+    subscribeToChannel(cJudges, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
+    subscribeToChannel(cPair,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
+    subscribeToChannel(cScore,  '/topic/battle/score',       (msg) => updateScore(msg))
   } else {
     battleJudges.value = await getBattleJudges()
     const res = await getCurrentBattlePair()
     if (res) await updateBattlePair(res)
-    subscribeToChannel(createClient(), '/topic/battle/battle-pair',(msg) => updateBattlePair(msg))
-    subscribeToChannel(createClient(), '/topic/battle/score',      (msg) => updateScore(msg))
-    subscribeToChannel(createClient(), '/topic/battle/judges',     (msg) => updateBattleJudge(msg))
+    const cPair2   = createClient(); clients.push(cPair2)
+    const cScore2  = createClient(); clients.push(cScore2)
+    const cJudges2 = createClient(); clients.push(cJudges2)
+    subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
+    subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => updateScore(msg))
+    subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
   }
 })
 
-onBeforeUnmount(() => { deactivateClient(client.value) })
+onBeforeUnmount(() => {
+  unmounted = true
+  deactivateClient(client.value)
+  clients.forEach(c => { if (c?.value) deactivateClient(c.value) })
+})
 
 onUnmounted(() => {
   document.documentElement.classList.remove('transparent-page')
@@ -288,7 +318,7 @@ onUnmounted(() => {
             :key="index"
             class="judge-card"
             role="listitem"
-            :aria-label="`${j.name}: ${j.vote === 0 ? 'voted left' : j.vote === 1 ? 'voted right' : j.vote === -1 ? 'voted tie' : 'awaiting vote'}`"
+            :aria-label="`${j.name}: ${!votesVisible ? 'awaiting vote' : j.vote === 0 ? 'voted left' : j.vote === 1 ? 'voted right' : j.vote === -1 ? 'voted tie' : 'awaiting vote'}`"
             :class="{
               'voted-left':   votesVisible && j.vote === 0,
               'voted-right':  votesVisible && j.vote === 1,
@@ -596,15 +626,13 @@ body.transparent-page #app {
   min-width: 148px;
   padding: 10px 14px;
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
-  border: 1.5px solid rgba(255,255,255,0.06);
   background: rgba(255,255,255,0.025);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  transition: box-shadow 0.25s ease, background 0.25s ease;
 }
 
 /* Unvoted: frosted glass with gentle pulse */
 .card-unvoted {
   background: rgba(255,255,255,0.08) !important;
-  border-color: rgba(255,255,255,0.18) !important;
   animation: cardPulse 2.2s ease-in-out infinite;
 }
 
@@ -614,19 +642,16 @@ body.transparent-page #app {
 }
 
 .voted-left {
-  border-color: color-mix(in srgb, var(--left-color) 65%, transparent);
   background: color-mix(in srgb, var(--left-color) 9%, transparent);
   box-shadow: 0 0 28px color-mix(in srgb, var(--left-color) 35%, transparent),
               inset 0 0 14px color-mix(in srgb, var(--left-color) 8%, transparent);
 }
 .voted-right {
-  border-color: color-mix(in srgb, var(--right-color) 65%, transparent);
   background: color-mix(in srgb, var(--right-color) 9%, transparent);
   box-shadow: 0 0 28px color-mix(in srgb, var(--right-color) 35%, transparent),
               inset 0 0 14px color-mix(in srgb, var(--right-color) 8%, transparent);
 }
 .voted-tie {
-  border-color: rgba(251,191,36,0.65);
   background: rgba(251,191,36,0.07);
   box-shadow: 0 0 28px rgba(251,191,36,0.28), inset 0 0 14px rgba(251,191,36,0.06);
 }
