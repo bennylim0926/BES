@@ -248,7 +248,7 @@ public class BattleService {
 
     public void resetJudgeVotesService() {
         for (BattleJudge judge : judges) {
-            judge.setVote(-3);
+            judge.setVote(-1);
         }
         messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
     }
