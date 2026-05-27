@@ -433,7 +433,7 @@ body.transparent-page #app {
   flex-shrink: 0; flex-wrap: wrap;
 }
 .dot {
-  width: clamp(4px, 0.6vw, 7px); height: clamp(4px, 0.6vw, 7px);
+  width: clamp(6px, 0.9vw, 11px); height: clamp(6px, 0.9vw, 11px);
   border-radius: 50%;
   border: 1.5px solid currentColor;
   opacity: 0.25;
@@ -445,7 +445,7 @@ body.transparent-page #app {
 
 /* ── Name label ───────────────────────────────────────── */
 .col-name {
-  font-size: clamp(5px, 0.8vw, 9px);
+  font-size: clamp(8px, 1.1vw, 14px);
   letter-spacing: 0.1em;
   text-align: center;
   margin-top: 3px; margin-bottom: 5px;
@@ -506,7 +506,7 @@ body.transparent-page #app {
 
 /* ── FLIP column slide (TransitionGroup move) ─────────── */
 .col-move {
-  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.85s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* ══════════════════════════════════════════════════
