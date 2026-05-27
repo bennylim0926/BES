@@ -798,14 +798,14 @@ body.transparent-page #app {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   z-index: 20;
-  padding: 5vh 1.5vw 2vh;
-  background: linear-gradient(to top, rgba(0,0,0,0.80) 0%, transparent 100%);
+  padding: 10vh 3vw 5vh;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
   display: flex; align-items: flex-end; gap: 10px;
 }
 .name-overlay-right { flex-direction: row-reverse; }
 .name-text {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(18px, 3vw, 52px);
+  font-size: clamp(22px, 4.5vw, 72px);
   text-transform: uppercase;
   color: #fff;
   line-height: 1; letter-spacing: 0.07em;
@@ -868,7 +868,7 @@ body.transparent-page #app {
 /* ── VS badge ────────────────────────────────────── */
 .vs-badge {
   position: absolute;
-  bottom: 2.5vh;
+  bottom: 7vh;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
