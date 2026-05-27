@@ -151,7 +151,11 @@ const nextPair = async () => {
   await resetJudgeVote()
   if (isSmoke.value) {
     await update7toSmokeMatch(currentWinner.value)
+    await updateSmokePair()
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
+    await setBattlePhase('LOCKED')
+    battlePhase.value = 'LOCKED'
+    currentWinner.value = -2
   } else {
     if (currentBattle?.value[0] < currentBattle?.value[1].length - 1) {
       currentBattle.value = [currentBattle.value[0] + 1, currentBattle.value[1]]
@@ -440,6 +444,8 @@ const submitGetScore = async () => {
     const res = await setBattleScore()
     const data = await res.json()
     currentWinner.value = Number(data.winner)
+    await setBattlePhase('REVEALED')
+    battlePhase.value = 'REVEALED'
     return
   }
   if (currentBattle.value.length === 0) return

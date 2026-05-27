@@ -96,14 +96,18 @@ const updateJudgeVote = (msg) => {
   }
 }
 
-// Capture active names at reveal time so result overlay stays correct after queue shifts
+// Capture active names + judge state at reveal time so result overlay stays correct after queue shifts
 const updateScore = async (msg) => {
   if (showChampion.value) return
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
+  // Snapshot judges so vote colors persist even if battleJudges is cleared for next match
+  const judges = battleJudges.value?.judges
+    ? JSON.parse(JSON.stringify(battleJudges.value.judges))
+    : null
 
-  resultState.value = { winner, leftName, rightName }
+  resultState.value = { winner, leftName, rightName, judges }
   showResult.value = true
 
   await useDelay().wait(4000)
@@ -199,18 +203,15 @@ onBeforeUnmount(() => {
         </template>
       </TransitionGroup>
 
-      <!-- Floating pill: active pair indicator -->
+      <!-- Design B: ghost names behind chart -->
       <div
         v-if="activeLeft && activeRight"
-        class="float-pill"
-        role="status"
-        :aria-label="`Now battling: ${activeLeft.name} vs ${activeRight.name}`"
+        class="bg-names"
+        aria-hidden="true"
       >
-        <span class="pill-name pill-left">{{ activeLeft.name }}</span>
-        <span class="pill-vs">VS</span>
-        <span class="pill-name pill-right">{{ activeRight.name }}</span>
-        <div class="pill-sep" aria-hidden="true"></div>
-        <span class="pill-pts">{{ activeLeft.score }} PTS · {{ activeRight.score }} PTS</span>
+        <span class="bg-name bg-name-left">{{ activeLeft.name }}</span>
+        <span class="bg-vs">VS</span>
+        <span class="bg-name bg-name-right">{{ activeRight.name }}</span>
       </div>
     </div>
 
@@ -233,11 +234,11 @@ onBeforeUnmount(() => {
         </template>
         <template v-else>
           <div class="result-name result-tie">IT'S A TIE</div>
-          <div class="result-sub">BOTH EARN A POINT</div>
+          <div class="result-sub">NO POINTS AWARDED</div>
         </template>
 
-        <!-- Judge cards -->
-        <div v-if="battleJudges?.judges" class="judge-inner">
+        <!-- Judge cards (snapshot at reveal time — not live battleJudges) -->
+        <div v-if="resultState.judges" class="judge-inner">
           <div class="judges-header" aria-hidden="true">
             <span class="judges-line"></span>
             <span class="judges-label">JUDGES</span>
@@ -245,7 +246,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="judge-cards-row" role="list">
             <div
-              v-for="(j, index) in battleJudges.judges"
+              v-for="(j, index) in resultState.judges"
               :key="j.id"
               class="judge-card card-burst"
               :class="{
@@ -477,41 +478,28 @@ body.transparent-page #app {
 /* ── Queue gap ────────────────────────────────────────── */
 .queue-gap { flex: 0 0 clamp(8px, 1.4vw, 16px); }
 
-/* ── Floating pill ────────────────────────────────────── */
-.float-pill {
-  position: absolute;
-  bottom: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 3;
-  display: flex; align-items: center; gap: 7px;
-  background: rgba(0,0,0,0.65);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 99px;
-  padding: 4px 16px;
+/* ── Design B: ghost names behind chart ───────────────── */
+.bg-names {
+  position: absolute; z-index: 1;
+  top: 4%; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  pointer-events: none;
+}
+.bg-name {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(22px, 5.5vw, 72px);
+  letter-spacing: 0.06em; line-height: 1;
+  opacity: 0.1;
   white-space: nowrap;
 }
-.pill-name {
-  font-size: clamp(9px, 1.3vw, 15px);
-  letter-spacing: 0.08em;
-}
-.pill-left  { color: color-mix(in srgb, var(--left-color)  50%, #fff); }
-.pill-right { color: color-mix(in srgb, var(--right-color) 50%, #fff); }
-.pill-vs {
-  font-size: clamp(7px, 0.85vw, 10px);
-  letter-spacing: 0.15em;
-  color: rgba(255,255,255,0.35);
-  padding: 0 2px;
-}
-.pill-sep {
-  width: 1px; height: 12px;
-  background: rgba(255,255,255,0.12);
-}
-.pill-pts {
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: clamp(6px, 0.75vw, 8px);
-  letter-spacing: 0.12em;
-  color: rgba(255,255,255,0.3);
+.bg-name-left  { color: var(--left-color);  text-shadow: 0 0 40px var(--left-color); }
+.bg-name-right { color: var(--right-color); text-shadow: 0 0 40px var(--right-color); }
+.bg-vs {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(10px, 2vw, 24px); letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.08);
+  flex-shrink: 0; padding: 0 8px;
 }
 
 /* ── FLIP column slide (TransitionGroup move) ─────────── */
