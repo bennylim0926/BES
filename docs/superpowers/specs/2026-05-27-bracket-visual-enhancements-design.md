@@ -98,6 +98,7 @@ Displayed as an absolutely-positioned overlay over the bracket/overlay content:
 - Organiser can run all finals first, then reveal champions one by one at the end
 - The bracket stores the winner in `bracketState` (localStorage + backend) — no re-voting required; reveal is a pure display trigger
 - Only one genre reveal can be active at a time — triggering a second genre's reveal automatically dismisses the previous one
+- The reveal can be re-triggered at any time after dismissing — "REVEAL CHAMPION" is available again immediately once dismissed, so the organiser can replay it for the crowd or projector as needed
 
 ### BattleControl UI change
 
@@ -117,6 +118,51 @@ Backend: new endpoint `POST /api/v1/battle/champion-reveal` accepting `{ genreId
 
 ---
 
+## 4. Final Match Tie Prevention
+
+### Rule
+
+A tie result is not permitted in the final match of any genre. Non-final matches (e.g. semi-finals) can proceed normally with tie-breaker logic as they do today.
+
+### Detection
+
+When the organiser clicks **REVEAL** (transitions the final match from VOTING → REVEALED) in BattleControl, the backend checks vote totals. If the result is a tie:
+- The phase transition to REVEALED is **blocked** — the match stays in VOTING
+- The backend returns an error response indicating a tie
+- **No update is broadcast to the overlay or BracketVisualization** — both screens remain unchanged
+
+### Organiser notification
+
+BattleControl shows a prominent inline warning on that genre's final match row:
+
+> **TIE — Revote required.** Judges must vote again.
+
+With a **"START REVOTE"** button. Pressing it:
+1. Resets all judge votes for the final match (backend clears existing votes)
+2. Match remains in VOTING phase
+3. BattleJudge screens reset to allow judges to vote again (existing WebSocket broadcast of the VOTING phase state handles this)
+4. The tie warning is cleared from BattleControl once the revote starts
+
+### Overlay isolation
+
+During the tie and revote period, `BattleOverlay.vue` and `BracketVisualization.vue` are **not notified**. They continue showing the VOTING state as normal — the audience sees nothing unusual on the projector/stream. Only the organiser's BattleControl view shows the tie warning.
+
+### New backend changes
+
+- `POST /api/v1/battle/reveal` (or equivalent phase-transition endpoint): if the match is a final and the vote is tied, return `HTTP 409` with body `{ error: "TIE", matchId }` instead of advancing the phase
+- `POST /api/v1/battle/revote` (new): accepts `{ matchId }`, clears all judge votes for that match, keeps phase as VOTING, broadcasts updated VOTING state to judges
+- "Final match" is determined by match position in the bracket — the match with no subsequent round is the final
+
+### Files impacted (addition to section below)
+
+| File | Change |
+|---|---|
+| `BES-frontend/src/views/BattleControl.vue` | Detect 409 on reveal, show tie warning + START REVOTE button |
+| `BES/src/main/java/com/example/BES/controllers/BattleController.java` | Return 409 on tied final; new `POST /api/v1/battle/revote` endpoint |
+| `BES/src/main/java/com/example/BES/services/` | Tie detection logic; vote reset logic for revote |
+
+---
+
 ## Files Changed
 
 | File | Change |
@@ -132,6 +178,8 @@ Backend: new endpoint `POST /api/v1/battle/champion-reveal` accepting `{ genreId
 
 ## Out of Scope
 
-- No changes to voting logic, bracket seeding, or match state machine
-- No database schema changes (champion reveal is ephemeral)
-- No changes to BattleJudge, Chart, or other battle views
+- Tie prevention applies to the **final match only** — semi-finals and earlier rounds are unaffected
+- No changes to bracket seeding
+- No database schema changes (champion reveal is ephemeral; revote reuses existing vote storage)
+- No changes to BattleJudge view itself — it resets automatically when VOTING phase is rebroadcast
+- No changes to Chart or other battle views
