@@ -142,6 +142,12 @@ onMounted(async () => {
 
   const cScore = createClient(); clients.push(cScore)
   subscribeToChannel(cScore, '/topic/battle/score', updateScore)
+
+  const cPhase = createClient(); clients.push(cPhase)
+  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
+    // When phase resets to LOCKED (Next was clicked), dismiss result overlay immediately
+    if (msg?.phase === 'LOCKED') showResult.value = false
+  })
 })
 
 onBeforeUnmount(() => {
