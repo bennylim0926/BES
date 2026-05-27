@@ -15,7 +15,6 @@ const smokeParticipants = ref([])
 
 // ── Judge data ──────────────────────────────────────────────────────────────
 const battleJudges = ref(null)       // { judges: [{ id, name, vote }] }
-const votesVisible = ref(false)
 
 // ── Result overlay ──────────────────────────────────────────────────────────
 const showResult    = ref(false)
@@ -56,10 +55,26 @@ watch(
 
 // ── WebSocket handlers ──────────────────────────────────────────────────────
 const updateList = (msg) => {
-  if (msg?.battlers) smokeParticipants.value = msg.battlers
+  if (!msg?.battlers) return
+  smokeParticipants.value = msg.battlers
+  // Champion check runs here — after scores are updated in the list
+  if (!showChampion.value) {
+    const champ = msg.battlers.find(p => p.score >= 7)
+    if (champ) {
+      champName.value  = champ.name
+      const idx = msg.battlers.indexOf(champ)
+      champColor.value = idx === 0
+        ? overlayConfig.value.leftColor
+        : idx === 1
+          ? overlayConfig.value.rightColor
+          : overlayConfig.value.leftColor
+      showChampion.value = true
+    }
+  }
 }
 
 const updateBattleJudge = (msg) => {
+  if (!msg?.judges) return
   battleJudges.value = msg
   msg.judges.forEach(j => {
     const topic = `/topic/battle/vote/${j.id}`
@@ -83,35 +98,17 @@ const updateJudgeVote = (msg) => {
 
 // Capture active names at reveal time so result overlay stays correct after queue shifts
 const updateScore = async (msg) => {
+  if (showChampion.value) return
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
 
-  // Check for champion (any fighter reaching 7)
-  const allParticipants = smokeParticipants.value
-  const champParticipant = allParticipants.find(p => p.score >= 7)
-
-  if (champParticipant) {
-    champName.value  = champParticipant.name
-    const idx = allParticipants.indexOf(champParticipant)
-    champColor.value = idx === 0
-      ? overlayConfig.value.leftColor
-      : idx === 1
-        ? overlayConfig.value.rightColor
-        : overlayConfig.value.leftColor
-    showChampion.value = true
-    return  // Champion overlay never auto-dismisses
-  }
-
-  // Regular result overlay
   resultState.value = { winner, leftName, rightName }
-  votesVisible.value = true
   showResult.value = true
 
   await useDelay().wait(4000)
   if (unmounted) return
   showResult.value = false
-  votesVisible.value = false
 }
 
 // ── Mount ───────────────────────────────────────────────────────────────────
@@ -120,7 +117,7 @@ onMounted(async () => {
   document.body.classList.add('transparent-page')
 
   const config = await getOverlayConfig()
-  overlayConfig.value = config
+  if (config?.leftColor !== undefined) overlayConfig.value = config
 
   const smoke = await getSmokeList()
   if (smoke?.list) smokeParticipants.value = smoke.list
@@ -249,7 +246,7 @@ onBeforeUnmount(() => {
           <div class="judge-cards-row" role="list">
             <div
               v-for="(j, index) in battleJudges.judges"
-              :key="index"
+              :key="j.id"
               class="judge-card card-burst"
               :class="{
                 'voted-left':  j.vote === 0,
@@ -579,7 +576,7 @@ body.transparent-page #app {
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.12);
   box-shadow: 0 24px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset;
-  padding: 12px 24px 16px;
+  padding: 10px 20px 14px;
 }
 .judges-header { display: flex; align-items: center; gap: 8px; }
 .judges-label {
