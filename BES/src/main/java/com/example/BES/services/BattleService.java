@@ -92,7 +92,7 @@ public class BattleService {
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
     }
 
-    public Integer setScoreService(){
+    public Integer setScoreService(boolean isFinal){
         // Broadcast the score here
         // This is where we reveal the judge decision on the screen
         // After that we add the point
@@ -105,6 +105,7 @@ public class BattleService {
             score.add(judge.getVote());
         }
         if(Collections.frequency(score, 0) == Collections.frequency(score, 1)){
+            if (isFinal) return -3;   // final tie — blocked, do not broadcast
             res = -1;
         }else if(Collections.frequency(score, 0) > Collections.frequency(score, 1)){
             currentPair.getLeftBattler().setScore(currentPair.leftBattler.getScore() + 1);

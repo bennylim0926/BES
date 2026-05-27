@@ -66,7 +66,39 @@ class BattleServiceTest {
     @Test
     void setScore_returnsMinusOneWhenNoJudges() {
         // Empty judges list: score list is empty, frequency(0)==frequency(1) → tie → returns -1
-        assertThat(service.setScoreService()).isEqualTo(-1);
+        assertThat(service.setScoreService(false)).isEqualTo(-1);
+    }
+
+    @Test
+    void setScore_finalTie_returnsMinusThreeToSignalBlock() {
+        // empty judges → tie, isFinal=true → returns -3 (blocked)
+        assertThat(service.setScoreService(true)).isEqualTo(-3);
+    }
+
+    @Test
+    void setScore_nonFinalTie_returnsMinusOne() {
+        // empty judges → tie, isFinal=false → normal tie return -1
+        assertThat(service.setScoreService(false)).isEqualTo(-1);
+    }
+
+    @Test
+    void setScore_finalWinner_returnsZeroAndTransitionsToREVEALED() {
+        Judge j = new Judge();
+        j.setJudgeId(10L);
+        j.setName("Judge_final");
+        when(judgeService.getJudgeById(10L)).thenReturn(j);
+
+        SetJudgeDto jDto = mock(SetJudgeDto.class);
+        when(jDto.getId()).thenReturn(10L);
+        service.setBattleJudgeService(jDto);
+
+        SetVoteDto vDto = mock(SetVoteDto.class);
+        when(vDto.getId()).thenReturn(10L);
+        when(vDto.getVote()).thenReturn(0);
+        service.setVoteService(vDto);
+
+        assertThat(service.setScoreService(true)).isEqualTo(0);
+        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
     }
 
     @Test
@@ -85,7 +117,7 @@ class BattleServiceTest {
         when(vDto.getVote()).thenReturn(0); // vote for left
         service.setVoteService(vDto);
 
-        Integer result = service.setScoreService();
+        Integer result = service.setScoreService(false);
 
         assertThat(result).isEqualTo(0);
         assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
@@ -107,7 +139,7 @@ class BattleServiceTest {
         when(vDto.getVote()).thenReturn(1); // vote for right
         service.setVoteService(vDto);
 
-        assertThat(service.setScoreService()).isEqualTo(1);
+        assertThat(service.setScoreService(false)).isEqualTo(1);
         assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
     }
 

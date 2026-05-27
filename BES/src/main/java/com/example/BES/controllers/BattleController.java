@@ -113,9 +113,14 @@ public class BattleController {
 
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setBattleScore(){
-        Integer code = battleService.setScoreService();
-        if(code == -2){
+    public ResponseEntity<?> setBattleScore(@RequestBody(required = false) com.example.BES.dtos.battle.SetBattleScoreDto dto){
+        boolean isFinal = dto != null && dto.isFinal();
+        Integer code = battleService.setScoreService(isFinal);
+        if(code == -3){
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                Map.of("message", "Tie not allowed in the final match")
+            );
+        }else if(code == -2){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 Map.of("message", "No judge found")
             );
