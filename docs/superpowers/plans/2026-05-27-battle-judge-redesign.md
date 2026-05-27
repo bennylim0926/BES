@@ -1,4 +1,70 @@
-<script setup>
+# BattleJudge Redesign Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rebuild `BattleJudge.vue` with a bold, dark UI matching BattleOverlay, overlay-config-driven colors, localStorage-persisted judge identity and vote state, and a LEFT/RIGHT side-by-side + TIE-at-bottom layout.
+
+**Architecture:** Single-file Vue SFC rebuild. No new components. All state in `<script setup>`. Colors driven by `--left-color` / `--right-color` CSS custom properties sourced from `getOverlayConfig()` + WebSocket. Judge identity and vote stored in `localStorage`, cross-checked against backend on mount.
+
+**Tech Stack:** Vue 3 `<script setup>`, Vitest (manual verification only — no existing component tests in codebase), STOMP WebSocket via `@/utils/websocket`, `@/utils/api`
+
+---
+
+## Task 1: Create feature branch
+
+**Files:**
+- No file changes — git operations only
+
+- [ ] **Step 1: Fetch and create branch**
+
+```bash
+cd /Users/bennylim/Documents/BES
+git fetch origin
+git checkout -b feature/battle-judge-redesign
+git rebase origin/master
+```
+
+Expected: branch created cleanly off latest master.
+
+- [ ] **Step 2: Force-push branch to remote**
+
+```bash
+git push -u origin feature/battle-judge-redesign --force-with-lease
+```
+
+Expected: remote branch created.
+
+- [ ] **Step 3: Add rebase-on-switch alias to shell profile**
+
+Add this to `~/.zshrc` so switching to any feature branch always pulls latest master first:
+
+```bash
+gswm() {
+  git fetch origin
+  git checkout "$1" 2>/dev/null || git checkout -b "$1"
+  git rebase origin/master
+}
+```
+
+Run to reload:
+```bash
+source ~/.zshrc
+```
+
+From now on, use `gswm feature/battle-judge-redesign` instead of `git checkout`.
+
+---
+
+## Task 2: Rebuild `<script setup>`
+
+**Files:**
+- Modify: `BES-frontend/src/views/BattleJudge.vue` — replace entire `<script setup>` block
+
+- [ ] **Step 1: Replace the entire `<script setup>` block**
+
+Replace everything between `<script setup>` and `</script>` with:
+
+```javascript
 import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { onMounted, onUnmounted, ref } from 'vue'
@@ -47,18 +113,11 @@ function selectJudge(j) {
 }
 
 function clearJudge() {
-  clearVote()
   judgeId.value   = null
   judgeName.value = ''
   localStorage.removeItem(LS_JUDGE_ID)
   localStorage.removeItem(LS_JUDGE_NAME)
   showJudgePicker.value = true
-  if (voteClient) {
-    deactivateClient(voteClient)
-    const idx = wsClients.indexOf(voteClient)
-    if (idx !== -1) wsClients.splice(idx, 1)
-    voteClient = null
-  }
 }
 
 // ── Vote state ──────────────────────────────────────────────────────────────
@@ -73,7 +132,7 @@ function voteStorageKey() {
 function saveVote(vote) {
   const key = voteStorageKey()
   if (!key) return
-  localStorage.setItem(key, JSON.stringify({ vote, leftName: leftName.value, rightName: rightName.value, timestamp: Date.now() }))
+  localStorage.setItem(key, JSON.stringify({ vote, leftName: leftName.value, rightName: rightName.value }))
 }
 
 function clearVote() {
@@ -93,17 +152,9 @@ function restoreVoteFromStorage() {
 
 async function handleClick(side) {
   if (battlePhase.value !== 'VOTING') return
-  // Tapping the already-voted panel — no-op
-  if (confirmedVote.value === side) return
-  // Tapping a different panel while voted — revoke and arm the new panel
-  if (confirmedVote.value !== null) {
-    clearVote()
-    active.value = side
-    return
-  }
+  if (confirmedVote.value !== null) return   // already voted — locked
   if (active.value === side) {
-    const res = await battleJudgeVote(judgeId.value, side)
-    if (!res?.ok) return   // POST failed — stay armed, let judge try again
+    await battleJudgeVote(judgeId.value, side)
     confirmedVote.value = side
     active.value        = null
     saveVote(side)
@@ -118,11 +169,11 @@ const wsClients  = []
 let   voteClient = null
 
 function setupVoteSubscription() {
-  if (judgeId.value == null || voteClient) return
+  if (!judgeId.value || voteClient) return
   voteClient = createClient()
   wsClients.push(voteClient)
   subscribeToChannel(voteClient, `/topic/battle/vote/${judgeId.value}`, (msg) => {
-    if (msg.vote === 0 || msg.vote === 1 || msg.vote === -1) {
+    if (msg.vote !== -3) {
       confirmedVote.value = msg.vote
       active.value        = null
     }
@@ -198,8 +249,35 @@ onMounted(async () => {
 onUnmounted(() => {
   wsClients.forEach(c => deactivateClient(c))
 })
-</script>
+```
 
+- [ ] **Step 2: Verify the dev server starts without errors**
+
+```bash
+cd /Users/bennylim/Documents/BES/BES-frontend && npm run dev 2>&1 | head -30
+```
+
+Expected: no compile errors. If there are import errors, check that `getOverlayConfig` exists in `@/utils/api` (it should — it was added in the previous overlay improvements feature).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add BES-frontend/src/views/BattleJudge.vue
+git commit -m "feat(battle-judge): rebuild script setup — overlay config, judge identity, vote persistence"
+```
+
+---
+
+## Task 3: Rebuild `<template>`
+
+**Files:**
+- Modify: `BES-frontend/src/views/BattleJudge.vue` — replace entire `<template>` block
+
+- [ ] **Step 1: Replace the entire `<template>` block**
+
+Replace everything between `<template>` and `</template>` with:
+
+```html
 <template>
   <div
     class="judge-root"
@@ -230,11 +308,18 @@ onUnmounted(() => {
           <span class="judge-chip-name">{{ judgeName }}</span>
           <button class="judge-chip-clear" @click="clearJudge" aria-label="Change judge">✕</button>
         </div>
-        <button v-else class="pick-judge-btn" @click="showJudgePicker = true">
-          SELECT JUDGE
-        </button>
       </div>
     </header>
+
+    <!-- ── Names bar ───────────────────────────────────────────── -->
+    <div v-if="leftName || rightName" class="names-bar" aria-hidden="true">
+      <div class="name-cell name-cell-left">
+        <span class="name-cell-text">{{ leftName || '???' }}</span>
+      </div>
+      <div class="name-cell name-cell-right">
+        <span class="name-cell-text">{{ rightName || '???' }}</span>
+      </div>
+    </div>
 
     <!-- ── Panels wrap ─────────────────────────────────────────── -->
     <div class="panels-wrap" role="group" aria-label="Vote options">
@@ -290,12 +375,12 @@ onUnmounted(() => {
           }"
           @click="handleClick(0)"
           :disabled="battlePhase !== 'VOTING'"
-          :aria-label="confirmedVote === 0 ? `${leftName || 'Left'} — vote locked` : active === 0 ? `${leftName || 'Left'} — tap again to confirm` : `Vote ${leftName || 'Left'}`"
+          :aria-label="confirmedVote === 0 ? 'Left — vote locked' : active === 0 ? 'Left — tap again to confirm' : 'Vote Left'"
           :aria-pressed="confirmedVote === 0"
         >
           <div class="panel-bg panel-bg-left" aria-hidden="true"></div>
           <div class="panel-inner">
-            <span class="direction-label">{{ leftName || 'LEFT' }}</span>
+            <span class="direction-label">LEFT</span>
             <div
               class="panel-feedback"
               :class="{ visible: active === 0 && confirmedVote === null }"
@@ -318,12 +403,12 @@ onUnmounted(() => {
           }"
           @click="handleClick(1)"
           :disabled="battlePhase !== 'VOTING'"
-          :aria-label="confirmedVote === 1 ? `${rightName || 'Right'} — vote locked` : active === 1 ? `${rightName || 'Right'} — tap again to confirm` : `Vote ${rightName || 'Right'}`"
+          :aria-label="confirmedVote === 1 ? 'Right — vote locked' : active === 1 ? 'Right — tap again to confirm' : 'Vote Right'"
           :aria-pressed="confirmedVote === 1"
         >
           <div class="panel-bg panel-bg-right" aria-hidden="true"></div>
           <div class="panel-inner">
-            <span class="direction-label">{{ rightName || 'RIGHT' }}</span>
+            <span class="direction-label">RIGHT</span>
             <div
               class="panel-feedback"
               :class="{ visible: active === 1 && confirmedVote === null }"
@@ -395,20 +480,41 @@ onUnmounted(() => {
 
   </div>
 </template>
+```
 
-<style scoped>
+- [ ] **Step 2: Verify template renders without errors in the browser**
+
+Open `http://localhost:5173/battle/judge`. Expected: page loads, shows header with "BATTLE JUDGE" wordmark and a phase pill. No console errors.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add BES-frontend/src/views/BattleJudge.vue
+git commit -m "feat(battle-judge): rebuild template — new layout with LR row, TIE row, bottom sheet, revealed banner"
+```
+
+---
+
+## Task 4: Rebuild `<style scoped>`
+
+**Files:**
+- Modify: `BES-frontend/src/views/BattleJudge.vue` — replace entire `<style scoped>` block
+
+- [ ] **Step 1: Replace the entire `<style scoped>` block**
+
+Replace everything between `<style scoped>` and `</style>` with:
+
+```css
 /* ── Root ───────────────────────────────────────────────────── */
 .judge-root {
-  position: fixed;
-  inset: 0;
   display: flex;
   flex-direction: column;
+  height: 100dvh;
   background: #060a14;
   overflow: hidden;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   font-family: 'Inter', sans-serif;
-  touch-action: manipulation;
   --left-color:  #dc2626;
   --right-color: #2563eb;
 }
@@ -483,20 +589,28 @@ onUnmounted(() => {
 }
 .judge-chip-clear:hover { color: rgba(255,255,255,0.8); }
 
-.pick-judge-btn {
-  font-family: 'Inter', sans-serif;
-  font-size: 9px; font-weight: 800;
-  letter-spacing: 0.2em; text-transform: uppercase;
-  padding: 5px 12px; border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: rgba(255,255,255,0.7);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+/* ── Names bar ──────────────────────────────────────────────── */
+.names-bar {
+  flex-shrink: 0;
+  height: 10%;
+  display: flex;
+  min-height: 36px;
 }
-.pick-judge-btn:active { background: rgba(255,255,255,0.15); color: white; }
-
-/* ── (names bar removed — names shown on panels) ───────────── */
+.name-cell {
+  flex: 1; display: flex;
+  align-items: center; justify-content: center;
+  padding: 0 12px; overflow: hidden;
+}
+.name-cell-left  { background: color-mix(in srgb, var(--left-color)  12%, transparent); border-right: 1px solid rgba(255,255,255,0.04); }
+.name-cell-right { background: color-mix(in srgb, var(--right-color) 12%, transparent); }
+.name-cell-text {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(13px, 2.8vw, 22px);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.name-cell-left  .name-cell-text { color: color-mix(in srgb, var(--left-color)  90%, white); }
+.name-cell-right .name-cell-text { color: color-mix(in srgb, var(--right-color) 90%, white); }
 
 /* ── Panels wrap ────────────────────────────────────────────── */
 .panels-wrap {
@@ -542,8 +656,8 @@ onUnmounted(() => {
   transition: opacity 0.3s ease, filter 0.3s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.lr-row  .vote-panel { flex: 1; }
-.tie-row .vote-panel { width: 100%; height: 100%; }
+.lr-row   .vote-panel { flex: 1; }
+.tie-row  .vote-panel { width: 100%; height: 100%; }
 
 /* Panel backgrounds */
 .panel-bg {
@@ -577,8 +691,8 @@ onUnmounted(() => {
 .is-voted .panel-bg-right { background: radial-gradient(ellipse 95% 85% at 50% 62%, color-mix(in srgb, var(--right-color) 75%, transparent) 0%, transparent 72%), linear-gradient(180deg, color-mix(in srgb, var(--right-color) 22%, #060a14) 0%, color-mix(in srgb, var(--right-color) 42%, #060a14) 100%); }
 .is-voted .panel-bg-tie   { background: radial-gradient(ellipse 95% 85% at 50% 50%, rgba(100,116,139,0.65) 0%, transparent 72%), linear-gradient(180deg, #0f1624 0%, #253649 100%); }
 
-/* Dim — not chosen after vote (keep tappable for vote revocation) */
-.is-dim { opacity: 0.2; filter: saturate(0.15); }
+/* Dim — not chosen after vote */
+.is-dim { opacity: 0.2; filter: saturate(0.15); pointer-events: none; }
 
 /* ── Panel inner ────────────────────────────────────────────── */
 .panel-inner {
@@ -590,20 +704,17 @@ onUnmounted(() => {
 
 .direction-label {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(18px, 5.5vw, 44px);
-  letter-spacing: 0.08em; text-transform: uppercase;
+  font-size: clamp(28px, 5vw, 64px);
+  letter-spacing: 0.2em; text-transform: uppercase;
   color: rgba(255,255,255,0.4);
-  line-height: 1.1;
-  text-align: center;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  max-width: 90%;
-  transition: color 0.3s ease, text-shadow 0.3s ease;
+  line-height: 1;
+  transition: color 0.3s ease, letter-spacing 0.3s ease, text-shadow 0.3s ease;
 }
-.direction-tie { font-size: clamp(16px, 4vw, 32px); }
+.direction-tie { font-size: clamp(18px, 3.5vw, 42px); }
 
 .is-armed .direction-label {
   color: rgba(255,255,255,0.92);
+  letter-spacing: 0.26em;
 }
 .panel-left.is-armed  .direction-label { text-shadow: 0 0 32px color-mix(in srgb, var(--left-color)  70%, transparent); }
 .panel-right.is-armed .direction-label { text-shadow: 0 0 32px color-mix(in srgb, var(--right-color) 70%, transparent); }
@@ -646,12 +757,12 @@ onUnmounted(() => {
   align-items: center; justify-content: center; gap: 12px;
   background: rgba(6,10,20,0.78);
   backdrop-filter: blur(4px);
+  pointer-events: none;
 }
 .blocker-icon { font-size: 2.2rem; }
 .blocker-text {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Anton SC', sans-serif;
   font-size: clamp(14px, 2.5vw, 22px);
-  font-weight: 800;
   letter-spacing: 0.22em; text-transform: uppercase;
   color: rgba(251,191,36,0.85);
 }
@@ -769,4 +880,101 @@ onUnmounted(() => {
     border-right: 1px solid rgba(255,255,255,0.05);
   }
 }
-</style>
+```
+
+- [ ] **Step 2: Check the page in a mobile viewport**
+
+In Chrome DevTools, toggle device toolbar and set to iPhone 14 Pro (393×852). Verify:
+- Header shows brand + phase pill + empty judge chip area
+- LEFT and RIGHT fill the screen side-by-side
+- TIE is clearly a full-width button at the bottom (~20% height)
+- No scroll
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add BES-frontend/src/views/BattleJudge.vue
+git commit -m "feat(battle-judge): full CSS rebuild — dark overlay aesthetic, overlay-config colors, voted wash"
+```
+
+---
+
+## Task 5: End-to-end verification & push
+
+**Files:**
+- No code changes — verification and git only
+
+- [ ] **Step 1: Run the frontend dev server if not already running**
+
+```bash
+cd /Users/bennylim/Documents/BES/BES-frontend && npm run dev
+```
+
+- [ ] **Step 2: Verify judge identity flow**
+
+1. Open `http://localhost:5173/battle/judge` in a fresh private window
+2. Bottom sheet should slide up with judge name chips
+3. Tap a name → sheet dismisses, judge chip appears in header ("AS [NAME]")
+4. Hard refresh (`Cmd+Shift+R`) → sheet should NOT appear, judge chip should be restored
+5. Tap ✕ on judge chip → sheet re-appears
+
+- [ ] **Step 3: Verify vote persistence flow**
+
+With the backend running and battle phase set to VOTING:
+1. Tap LEFT once → "TAP AGAIN TO CONFIRM" appears
+2. Tap LEFT again → gradient wash floods bottom, "✓ VOTE LOCKED" appears, RIGHT and TIE dim
+3. Hard refresh → voted state restores (LEFT still glowing, others dimmed)
+
+- [ ] **Step 4: Verify phase states**
+
+Check each phase visually:
+- **LOCKED**: panels visible but "🔒 VOTING NOT OPEN" overlay covers them
+- **VOTING**: panels fully active, no overlay
+- **REVEALED**: winner banner slides up from bottom
+- **IDLE**: "⏳ WAITING…" overlay
+
+- [ ] **Step 5: Verify colors follow overlay config**
+
+In BattleControl, open Overlay Settings and change Left Color to `#7c3aed` (purple). BattleJudge should update the LEFT panel gradient within a second (via WS).
+
+- [ ] **Step 6: Docker build**
+
+```bash
+cd /Users/bennylim/Documents/BES && docker-compose up --build --no-cache -d
+```
+
+Wait for frontend container to be healthy:
+```bash
+docker-compose ps
+```
+
+Open `https://<DOMAIN>/battle/judge` and repeat steps 2–5 against the production build.
+
+- [ ] **Step 7: Force-push to remote**
+
+```bash
+git push origin feature/battle-judge-redesign --force-with-lease
+```
+
+---
+
+## Self-Review Notes
+
+**Spec coverage check:**
+- ✅ Layout: LR side-by-side + TIE at bottom (Task 3/4)
+- ✅ Visual language matching BattleOverlay (Task 4)
+- ✅ Overlay config colors on mount + WS (Task 2)
+- ✅ Judge identity: bottom sheet, localStorage, header chip, ✕ to change (Task 2/3/4)
+- ✅ First load: sheet shown; on refresh: skip sheet (Task 2)
+- ✅ Cross-check: judge removed from list → re-show sheet (Task 2)
+- ✅ Tap-to-confirm: arm then confirm, different panel re-arms (Task 2)
+- ✅ Haptic on confirm (Task 2)
+- ✅ Vote persistence: write to localStorage + restore on mount (Task 2)
+- ✅ Backend source of truth: WS vote subscription overrides localStorage (Task 2)
+- ✅ Clear vote on LOCKED phase (Task 2)
+- ✅ Phase states: IDLE/LOCKED/VOTING/REVEALED (Task 3/4)
+- ✅ REVEALED banner with winner name + wins/tie (Task 3/4)
+- ✅ Color bleeds in corners (Task 4)
+- ✅ Responsive: clamp() font sizes, tablet max-width 480px (Task 4)
+- ✅ WS subscription for vote set up only after judge identity resolved (Task 2)
+- ✅ All 6 WS clients created separately (Task 2)
