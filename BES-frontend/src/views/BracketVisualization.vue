@@ -13,8 +13,6 @@ let   wsClient       = null
 const pendingBracket  = ref(null)
 const glowSlotKey     = ref(null)   // "roundKey-matchIdx-slot" → glow effect
 const hiddenSlotKey   = ref(null)   // dest slot name hidden until ball arrives
-const ballVisible     = ref(false)
-const ballOrigin      = ref({ x: 0, y: 0 })
 let   animRunning     = false
 // Saves the bracket state that existed BEFORE the most recent bracket update.
 // Used when the bracket WebSocket message arrives before the score message.
@@ -133,46 +131,91 @@ function findDestSlot(oldS, newS) {
 }
 
 async function travelBall(winnerKey, destKey) {
-  const winEl = slotEls[winnerKey]
+  const winEl  = slotEls[winnerKey]
+  const destEl = destKey ? slotEls[destKey] : null
   if (!winEl) return
 
-  const wr    = winEl.getBoundingClientRect()
-  const pg    = winEl.closest('.pair-group')
-  const pgR   = pg?.getBoundingClientRect()
-  const COL_GAP = 24
+  const bracketEl = document.querySelector('.bracket-area')
+  if (!bracketEl) return
+  const bRect  = bracketEl.getBoundingClientRect()
+  const wRect  = winEl.getBoundingClientRect()
 
-  // Determine side by comparing slot center to viewport center
-  const isLeft = (wr.left + wr.right) / 2 < window.innerWidth / 2
+  // ── Phase 1: Ring burst on source slot ──────────────────────────
+  const ring = document.createElement('div')
+  ring.style.cssText = `
+    position: absolute;
+    left: ${wRect.left - bRect.left}px;
+    top:  ${wRect.top  - bRect.top}px;
+    width:  ${wRect.width}px;
+    height: ${wRect.height}px;
+    border: 2px solid rgba(245,158,11,0.9);
+    border-radius: 1px;
+    box-shadow: 0 0 20px rgba(245,158,11,0.6);
+    pointer-events: none;
+    z-index: 20;
+    transform: skewX(-4deg);
+  `
+  bracketEl.style.position = 'relative'
+  bracketEl.appendChild(ring)
 
-  const startX = isLeft ? wr.right      : wr.left
-  const startY = wr.top + wr.height / 2
-  const midY   = pgR ? pgR.top + pgR.height / 2 : startY
-  const armX   = isLeft ? startX + COL_GAP : startX - COL_GAP
+  await ring.animate(
+    [{ transform: 'skewX(-4deg) scale(1)', opacity: 1 },
+     { transform: 'skewX(-4deg) scale(1.65)', opacity: 0 }],
+    { duration: 380, easing: 'ease-out', fill: 'forwards' }
+  ).finished
+  ring.remove()
 
-  let endX = armX, endY = midY
-  if (destKey && slotEls[destKey]) {
-    const dr = slotEls[destKey].getBoundingClientRect()
-    endX = dr.left + dr.width / 2
-    endY = dr.top  + dr.height / 2
-  }
+  if (!destEl) return
 
-  // Place ball origin at start position (ball is 12×12, center offset 6px)
-  ballOrigin.value = { x: startX - 6, y: startY - 6 }
-  ballVisible.value = true
-  await nextTick()
+  const dRect = destEl.getBoundingClientRect()
 
-  const ballEl = document.querySelector('.anim-ball')
-  if (!ballEl) { ballVisible.value = false; return }
+  // ── Phase 2: Lightning streak ────────────────────────────────────
+  const srcCenterX = wRect.left  + wRect.width  / 2 - bRect.left
+  const srcCenterY = wRect.top   + wRect.height / 2 - bRect.top
+  const dstCenterX = dRect.left  + dRect.width  / 2 - bRect.left
+  const dstCenterY = dRect.top   + dRect.height / 2 - bRect.top
 
-  // Path: start → arm edge (horizontal) → midpoint (vertical) → destination
-  await ballEl.animate([
-    { transform: 'translate(0px, 0px)',                                          offset: 0    },
-    { transform: `translate(${armX - startX}px, 0px)`,                          offset: 0.15 },
-    { transform: `translate(${armX - startX}px, ${midY - startY}px)`,           offset: 0.50 },
-    { transform: `translate(${endX - startX}px, ${endY - startY}px)`,           offset: 1.00 },
-  ], { duration: 5000, easing: 'ease-in-out', fill: 'forwards' }).finished
+  const dx = dstCenterX - srcCenterX
+  const dy = dstCenterY - srcCenterY
+  const length = Math.sqrt(dx * dx + dy * dy)
+  const angle  = Math.atan2(dy, dx) * (180 / Math.PI)
 
-  ballVisible.value = false
+  const streak = document.createElement('div')
+  streak.style.cssText = `
+    position: absolute;
+    left:   ${srcCenterX}px;
+    top:    ${srcCenterY - 2}px;
+    width:  0;
+    height: 3px;
+    transform-origin: left center;
+    transform: rotate(${angle}deg);
+    background: linear-gradient(90deg, rgba(245,158,11,0.2) 0%, rgba(245,158,11,0.95) 55%, #fff 100%);
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(245,158,11,0.7);
+    pointer-events: none;
+    z-index: 20;
+  `
+  bracketEl.appendChild(streak)
+
+  await streak.animate(
+    [{ width: '0px' }, { width: `${length}px` }],
+    { duration: 200, easing: 'ease-in', fill: 'forwards' }
+  ).finished
+
+  await streak.animate(
+    [{ opacity: 1 }, { opacity: 0 }],
+    { duration: 140, easing: 'linear', fill: 'forwards' }
+  ).finished
+  streak.remove()
+
+  // ── Phase 3: Destination slot ignites ───────────────────────────
+  destEl.style.transition = 'none'
+  destEl.style.boxShadow  = '0 0 40px rgba(245,158,11,0.9), 0 0 80px rgba(245,158,11,0.4)'
+  await sleep(60)
+  destEl.style.transition = 'box-shadow 0.45s ease-out'
+  destEl.style.boxShadow  = ''
+  await sleep(450)
+  destEl.style.transition = ''
 }
 
 async function runWinnerAnimation(winnerKey, pending) {
@@ -499,14 +542,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 
   </div>
 
-  <!-- ── Travelling ball (outside bracket-root to avoid overflow clipping) ── -->
-  <Teleport to="body">
-    <div
-      v-if="ballVisible"
-      class="anim-ball"
-      :style="{ left: ballOrigin.x + 'px', top: ballOrigin.y + 'px' }"
-    ></div>
-  </Teleport>
 </template>
 
 <style scoped>
@@ -779,15 +814,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .ticker-next  .ticker-text { color: rgba(249,115,22,0.9); }
 .ticker-genre .ticker-text { color: rgba(167,139,250,0.9); }
 .ticker-sep   { font-size: 7px; color: var(--c-muted); opacity: 0.22; padding: 0 16px; }
-
-/* ── Travelling ball ─────────────────────────────────── */
-:global(.anim-ball) {
-  position: fixed;
-  width: 12px; height: 12px; border-radius: 50%;
-  background: radial-gradient(circle, #ffffff 0%, rgba(245,158,11,0.9) 55%, transparent 100%);
-  box-shadow: 0 0 6px rgba(245,158,11,0.9), 0 0 14px rgba(245,158,11,0.7), 0 0 28px rgba(245,158,11,0.4);
-  pointer-events: none; z-index: 9999;
-}
 
 /* ── Animations ───────────────────────────────────────── */
 @keyframes dotPulse {
