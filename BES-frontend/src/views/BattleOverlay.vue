@@ -25,6 +25,9 @@ const rightScore = ref(0)
 const currentWinner = ref(-2)
 const battleJudges  = ref([])
 
+// Champion reveal overlay
+const championReveal = ref(null)   // null | { genreName, championName }
+
 // Judge panel visibility: true = off-screen (idle/battle), false = visible (score revealed)
 const hideJudgeDecision = ref(true)
 
@@ -269,6 +272,15 @@ onMounted(async () => {
     }
   })
 
+  const cChamp = createClient(); clients.push(cChamp)
+  subscribeToChannel(cChamp, '/topic/battle/champion-reveal', (data) => {
+    if (data.dismiss) {
+      championReveal.value = null
+    } else {
+      championReveal.value = { genreName: data.genreName, championName: data.championName }
+    }
+  })
+
   if (!isSmoke.value) {
     battleJudges.value = await getBattleJudges()
     const res = await getCurrentBattlePair()
@@ -301,6 +313,19 @@ onUnmounted(() => {
     :class="{ 'stage-shake': stageShaking }"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
   >
+    <!-- ── Champion Reveal Overlay ─────────────────── -->
+    <Transition name="champ-reveal">
+      <div v-if="championReveal" class="champ-overlay">
+        <div class="champ-overlay-bg"></div>
+        <div class="champ-overlay-content">
+          <div class="champ-genre-tag">{{ championReveal.genreName }} · Final</div>
+          <div class="champ-label">CHAMPION</div>
+          <div class="champ-name-slam">{{ championReveal.championName }}</div>
+          <div class="champ-gold-bar"></div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Screen-reader live region -->
     <div class="sr-only" role="status" aria-live="assertive" aria-atomic="true">
       <template v-if="currentWinner === 0">{{ leftName }} wins!</template>
@@ -1114,6 +1139,74 @@ body.transparent-page #app {
 }
 
 /* (borderRotate removed — judge card no longer uses rotating glow border) */
+
+/* ── Champion Reveal Overlay ────────────────────────────── */
+.champ-overlay {
+  position: absolute; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: #060818;
+}
+.champ-overlay-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 50% at 50% 55%, rgba(245,158,11,0.14) 0%, transparent 68%);
+}
+.champ-overlay-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center;
+}
+.champ-genre-tag {
+  font-family: 'Anton SC', sans-serif; font-size: 9px;
+  letter-spacing: 0.45em; text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+}
+.champ-label {
+  font-family: 'Anton SC', sans-serif; font-size: 11px;
+  letter-spacing: 0.5em; text-transform: uppercase;
+  color: rgba(245,158,11,0.85);
+}
+.champ-name-slam {
+  font-family: 'Anton SC', sans-serif; font-size: 15vw;
+  letter-spacing: 0.07em; text-transform: uppercase; line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(245,158,11,0.65), 0 0 80px rgba(245,158,11,0.3);
+}
+.champ-gold-bar {
+  width: 180px; height: 2px; margin-top: 6px;
+  background: linear-gradient(90deg, transparent, rgba(245,158,11,0.8), transparent);
+}
+
+/* Transition */
+.champ-reveal-enter-active { transition: opacity 0.3s ease; }
+.champ-reveal-leave-active { transition: opacity 0.25s ease; }
+.champ-reveal-enter-from,
+.champ-reveal-leave-to    { opacity: 0; }
+
+.champ-reveal-enter-active .champ-name-slam {
+  animation: champNameSlam 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.35s both;
+}
+.champ-reveal-enter-active .champ-label {
+  animation: champFadeUp 0.4s ease 0.2s both;
+}
+.champ-reveal-enter-active .champ-genre-tag {
+  animation: champFadeUp 0.4s ease 0.08s both;
+}
+.champ-reveal-enter-active .champ-gold-bar {
+  animation: champBarExpand 0.6s ease 0.65s both;
+}
+
+@keyframes champNameSlam {
+  from { opacity: 0; transform: scale(0.72) translateY(18px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes champFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes champBarExpand {
+  from { width: 0; opacity: 0; }
+  to   { width: 180px; opacity: 1; }
+}
 
 /* ── Animation utility classes ───────────────────── */
 .slam-in-left  { animation: leftSlamIn  450ms cubic-bezier(0.2, 0, 0.3, 1) both; }
