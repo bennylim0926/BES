@@ -99,6 +99,7 @@ const updateJudgeVote = (msg) => {
 // Capture active names + judge state at reveal time so result overlay stays correct after queue shifts
 const updateScore = async (msg) => {
   if (showChampion.value) return
+  if (showResult.value) return  // already displaying a result — ignore duplicate events
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1

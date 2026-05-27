@@ -150,8 +150,7 @@ const nextPair = async () => {
   if (currentBattle.value.length === 0) return
   await resetJudgeVote()
   if (isSmoke.value) {
-    await update7toSmokeMatch(currentWinner.value)
-    await updateSmokePair()
+    await update7toSmokeMatch(currentWinner.value)  // handles queue reorder + updateSmokePair + currentWinner reset
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
