@@ -33,6 +33,8 @@ const hideJudgeDecision = ref(true)
 const showVotingIndicator = ref(false)
 // votesVisible: false until score is revealed — hides vote state on judge cards
 const votesVisible = ref(false)
+// battlePhase: tracks current phase to guard against stale score WS events
+const battlePhase = ref('IDLE')
 
 // ── Animation state (standard mode only) ──────────────────────────────────
 // judgeAnim: '' | 'slide-down' | 'slide-up' (also used for smoke mode panel)
@@ -174,6 +176,8 @@ watch(battleJudges, (newVal) => {
 
 // ── Score reveal ───────────────────────────────────────────────────────────
 const updateScore = async (msg) => {
+  // Guard: if phase already reset to LOCKED, this is a stale WS event — ignore it
+  if (battlePhase.value === 'LOCKED') return
   showVotingIndicator.value = false
   rightScore.value = msg.right
   leftScore.value  = msg.left
@@ -184,10 +188,10 @@ const updateScore = async (msg) => {
 
   // Shake on slam landing (~350ms into animation)
   await useDelay().wait(350)
-  if (unmounted) return
+  if (unmounted || battlePhase.value === 'LOCKED') return
   stageShaking.value = true
   await useDelay().wait(80)
-  if (unmounted) return
+  if (unmounted || battlePhase.value === 'LOCKED') return
   stageShaking.value = false
 
   // Reveal votes as slam settles
@@ -195,17 +199,17 @@ const updateScore = async (msg) => {
 
   // Audience reads the votes
   await useDelay().wait(1500)
-  if (unmounted) return
+  if (unmounted || battlePhase.value === 'LOCKED') return
 
   // Phase 2: panel scales down and retreats to top
   judgeAnim.value = 'judge-retreat-top'
   await useDelay().wait(550)
-  if (unmounted) return
+  if (unmounted || battlePhase.value === 'LOCKED') return
   judgeAnim.value = 'judge-at-top'
 
   // Brief pause before winner reveal
   await useDelay().wait(150)
-  if (unmounted) return
+  if (unmounted || battlePhase.value === 'LOCKED') return
 
   currentWinner.value = msg.message
 
@@ -215,7 +219,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-right'
     await useDelay().wait(100)
-    if (unmounted) return
+    if (unmounted || battlePhase.value === 'LOCKED') return
     rightReset.value = true
   } else if (msg.message === 1) {
     // Right wins: VS rockets left, right panel expands
@@ -223,7 +227,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-left'
     await useDelay().wait(100)
-    if (unmounted) return
+    if (unmounted || battlePhase.value === 'LOCKED') return
     leftReset.value = true
   }
   // msg.message === -1: tie — panels stay
@@ -245,11 +249,22 @@ onMounted(async () => {
     if (msg?.showImages !== undefined) overlayConfig.value = msg
   })
 
-  // Phase subscription: VOTING phase shows the voting indicator
+  // Phase subscription: track phase for stale-event guard; VOTING shows indicator
   const cPhase = createClient()
   clients.push(cPhase)
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
-    showVotingIndicator.value = msg?.phase === 'VOTING'
+    if (!msg?.phase) return
+    battlePhase.value = msg.phase
+    showVotingIndicator.value = msg.phase === 'VOTING'
+    if (msg.phase === 'LOCKED') {
+      // Next was clicked — dismiss any in-progress result overlay immediately
+      hideJudgeDecision.value = true
+      judgeAnim.value         = ''
+      votesVisible.value      = false
+      winnerTagVisible.value  = false
+      leftWin.value           = false
+      rightWin.value          = false
+    }
   })
 
   if (!isSmoke.value) {
