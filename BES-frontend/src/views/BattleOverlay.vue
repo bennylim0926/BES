@@ -15,7 +15,6 @@ const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: 
 const imageLeft  = ref(null)
 const imageRight = ref(null)
 
-let client = createClient()
 const clients = []
 let unmounted = false
 const subscribedTopics = new Set()
@@ -257,7 +256,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unmounted = true
-  deactivateClient(client.value)
   clients.forEach(c => { if (c?.value) deactivateClient(c.value) })
 })
 
