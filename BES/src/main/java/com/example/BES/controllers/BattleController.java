@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.DeleteImageDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
@@ -38,6 +39,7 @@ import com.example.BES.dtos.battle.SetBattlePhaseDto;
 import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
+import com.example.BES.dtos.battle.SetBattleScoreDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.services.BattleService;
@@ -113,40 +115,46 @@ public class BattleController {
 
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setBattleScore(@RequestBody(required = false) com.example.BES.dtos.battle.SetBattleScoreDto dto){
+    public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){
         boolean isFinal = dto != null && dto.isFinal();
         Integer code = battleService.setScoreService(isFinal);
-        if(code == -3){
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                Map.of("message", "Tie not allowed in the final match")
-            );
-        }else if(code == -2){
+        if(code == -2){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 Map.of("message", "No judge found")
             );
+        }else if(code == -3){
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                Map.of("message", "Tie in final match — revote required", "tie", true)
+            );
         }else if(code == -1){
-            return ResponseEntity.ok(
-                Map.of("message", "Its a tie",
-                "winner", -1)
-            );
+            return ResponseEntity.ok(Map.of("message", "Its a tie", "winner", -1));
+        }else if(code == 0){
+            return ResponseEntity.ok(Map.of(
+                "message", "Left side get one point",
+                "winner", 0,
+                "current score", battleService.getCurrentPair().getLeftBattler().getScore()
+            ));
+        }else {
+            return ResponseEntity.ok(Map.of(
+                "message", "Right side get one point",
+                "winner", 1,
+                "current score", battleService.getCurrentPair().getRightBattler().getScore()
+            ));
         }
-        else if(code == 0){
-            return ResponseEntity.ok(
-                Map.of(
-                    "message", "Left side get one point",
-                    "winner", 0,
-                    "current score", battleService.getCurrentPair().getLeftBattler().getScore()
-                )
-            );
-        }
-        else {
-            return ResponseEntity.ok(
-                Map.of(
-                    "message", "Right side get one point",
-                    "winner", 1,
-                    "current score", battleService.getCurrentPair().getRightBattler().getScore())
-            );
-        }
+    }
+
+    @PostMapping("/revote")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> revote(){
+        battleService.resetJudgeVotesService();
+        return ResponseEntity.ok(Map.of("message", "Judge votes reset"));
+    }
+
+    @PostMapping("/champion-reveal")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> championReveal(@RequestBody ChampionRevealDto dto){
+        battleService.broadcastChampionReveal(dto);
+        return ResponseEntity.ok(Map.of("message", "Champion reveal broadcast"));
     }
 
     @GetMapping("/judges")
