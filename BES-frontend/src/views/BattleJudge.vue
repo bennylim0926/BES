@@ -230,6 +230,9 @@ onUnmounted(() => {
           <span class="judge-chip-name">{{ judgeName }}</span>
           <button class="judge-chip-clear" @click="clearJudge" aria-label="Change judge">✕</button>
         </div>
+        <button v-else class="pick-judge-btn" @click="showJudgePicker = true">
+          SELECT JUDGE
+        </button>
       </div>
     </header>
 
@@ -405,6 +408,7 @@ onUnmounted(() => {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   font-family: 'Inter', sans-serif;
+  touch-action: manipulation;
   --left-color:  #dc2626;
   --right-color: #2563eb;
 }
@@ -478,6 +482,19 @@ onUnmounted(() => {
   padding: 0 2px; line-height: 1; transition: color 0.15s;
 }
 .judge-chip-clear:hover { color: rgba(255,255,255,0.8); }
+
+.pick-judge-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pick-judge-btn:active { background: rgba(255,255,255,0.15); color: white; }
 
 /* ── (names bar removed — names shown on panels) ───────────── */
 
