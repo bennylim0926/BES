@@ -236,11 +236,12 @@ public class BattleService {
     }
 
     public void setOverlayConfigService(SetOverlayConfigDto dto) {
-        overlayConfig = new HashMap<>();
-        overlayConfig.put("showImages", dto.isShowImages());
-        overlayConfig.put("leftColor",  dto.getLeftColor());
-        overlayConfig.put("rightColor", dto.getRightColor());
-        messagingTemplate.convertAndSend("/topic/battle/overlay-config", overlayConfig);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put("showImages", dto.isShowImages());
+        newConfig.put("leftColor",  dto.getLeftColor());
+        newConfig.put("rightColor", dto.getRightColor());
+        overlayConfig = newConfig;
+        messagingTemplate.convertAndSend("/topic/battle/overlay-config", newConfig);
     }
 
     public class BattleJudge {

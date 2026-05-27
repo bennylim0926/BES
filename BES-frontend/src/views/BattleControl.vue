@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getAllJudges, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -21,7 +21,14 @@ const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 
+const HEX_RE = /^#[0-9A-Fa-f]{6}$/
+const overlayConfigError = ref('')
 const pushOverlayConfig = async () => {
+  if (!HEX_RE.test(overlayConfig.value.leftColor) || !HEX_RE.test(overlayConfig.value.rightColor)) {
+    overlayConfigError.value = 'Colors must be a valid hex (e.g. #dc2626)'
+    return
+  }
+  overlayConfigError.value = ''
   await setOverlayConfig(overlayConfig.value)
 }
 
@@ -706,6 +713,7 @@ onUnmounted(() => {
             </label>
           </div>
         </div>
+    <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
       </details>
 
       <div class="h-px bg-surface-600/30 my-4"></div>
@@ -1189,4 +1197,10 @@ onUnmounted(() => {
   transition: transform 0.2s;
 }
 .overlay-toggle input:checked + .overlay-toggle-track::after { transform: translateX(16px); }
+.overlay-config-error {
+  font-size: 11px;
+  color: #f87171;
+  margin: 4px 0 0;
+  padding: 0 2px;
+}
 </style>
