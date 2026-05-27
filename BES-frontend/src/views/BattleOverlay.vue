@@ -272,8 +272,7 @@ onMounted(async () => {
     }
   })
 
-  const cChamp = createClient(); clients.push(cChamp)
-  subscribeToChannel(cChamp, '/topic/battle/champion-reveal', (data) => {
+  subscribeToChannel(cPhase, '/topic/battle/champion-reveal', (data) => {
     if (data.dismiss) {
       championReveal.value = null
     } else {
