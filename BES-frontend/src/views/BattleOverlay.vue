@@ -174,40 +174,59 @@ watch(battleJudges, (newVal) => {
 
 // ── Score reveal ───────────────────────────────────────────────────────────
 const updateScore = async (msg) => {
-  judgeAnim.value          = 'slide-down'
-  hideJudgeDecision.value  = false
   showVotingIndicator.value = false
   rightScore.value = msg.right
   leftScore.value  = msg.left
 
-  // Reveal votes shortly after panel starts dropping
-  await useDelay().wait(200)
+  // Phase 1: judge panel slams to vertical center of screen
+  hideJudgeDecision.value = false
+  judgeAnim.value = 'judge-slam-center'
+
+  // Shake on slam landing (~350ms into animation)
+  await useDelay().wait(350)
   if (unmounted) return
+  stageShaking.value = true
+  await useDelay().wait(80)
+  if (unmounted) return
+  stageShaking.value = false
+
+  // Reveal votes as slam settles
   votesVisible.value = true
 
-  // Winner determination after cards have burst in
-  await useDelay().wait(800)
+  // Audience reads the votes
+  await useDelay().wait(1500)
   if (unmounted) return
+
+  // Phase 2: panel scales down and retreats to top
+  judgeAnim.value = 'judge-retreat-top'
+  await useDelay().wait(550)
+  if (unmounted) return
+  judgeAnim.value = 'judge-at-top'
+
+  // Brief pause before winner reveal
+  await useDelay().wait(150)
+  if (unmounted) return
+
   currentWinner.value = msg.message
 
   if (msg.message === 0) {
-    // Left wins: VS rockets right (toward loser), left panel expands
+    // Left wins: VS rockets right, left panel expands
     leftWin.value          = true
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-right'
     await useDelay().wait(100)
     if (unmounted) return
-    rightReset.value = true   // right (loser) hard-cuts off screen
+    rightReset.value = true
   } else if (msg.message === 1) {
-    // Right wins: VS rockets left (toward loser), right panel expands
+    // Right wins: VS rockets left, right panel expands
     rightWin.value         = true
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-left'
     await useDelay().wait(100)
     if (unmounted) return
-    leftReset.value = true    // left (loser) hard-cuts off screen
+    leftReset.value = true
   }
-  // msg.message === -1: tie — no winner state, panels stay
+  // msg.message === -1: tie — panels stay
 }
 
 // ── Mount ──────────────────────────────────────────────────────────────────
@@ -332,24 +351,24 @@ onUnmounted(() => {
                 :class="{ 'arrow-lit-left': votesVisible && j.vote === 0 }"
                 aria-hidden="true"
               ></span>
-              <span class="judge-name">{{ j.name }}</span>
+              <span class="judge-name" :class="{ 'judge-name-tie': votesVisible && j.vote === -1 }">{{ j.name }}</span>
               <span
                 class="vote-arrow vote-arrow-right"
                 :class="{ 'arrow-lit-right': votesVisible && j.vote === 1 }"
                 aria-hidden="true"
               ></span>
             </div>
-            <div class="vote-track" aria-hidden="true">
+            <div v-if="!(votesVisible && j.vote === -1)" class="vote-track" aria-hidden="true">
               <div
                 class="vote-fill"
                 :class="{
                   'fill-left':  votesVisible && j.vote === 0,
                   'fill-right': votesVisible && j.vote === 1,
-                  'fill-tie':   votesVisible && j.vote === -1,
                   'fill-blank': !votesVisible || j.vote === -3 || j.vote === null,
                 }"
               ></div>
             </div>
+            <div v-if="votesVisible && j.vote === -1" class="tie-badge" aria-hidden="true">TIE</div>
           </div>
         </div>
       </div>
@@ -373,27 +392,28 @@ onUnmounted(() => {
       >
         <div class="panel-color-wash panel-color-wash-left" aria-hidden="true"></div>
 
-        <!-- Picture mode -->
+        <!-- Picture mode: fixed-width group shifts to center on panel-winner expand -->
         <template v-if="overlayConfig.showImages">
-          <img v-if="imageLeft" :src="imageLeft" :alt="leftName" class="battler-img" />
-          <div v-else class="battler-placeholder" aria-hidden="true"></div>
-          <div class="name-overlay">
-            <span class="name-text name-text-left">{{ leftName || '???' }}</span>
-            <span v-if="leftScore > 0" class="score-badge">{{ leftScore }}</span>
+          <div class="img-group">
+            <img v-if="imageLeft" :src="imageLeft" :alt="leftName" class="battler-img" />
+            <div v-else class="battler-placeholder" aria-hidden="true"></div>
+            <div class="name-overlay">
+              <span v-if="winnerTagVisible && leftWin" class="winner-label winner-label-left" aria-hidden="true">WINNER</span>
+              <span class="name-text name-text-left">{{ leftName || '???' }}</span>
+            </div>
           </div>
         </template>
 
         <!-- Name-only mode -->
         <template v-else>
           <div class="name-center-wrap">
+            <span v-if="winnerTagVisible && leftWin" class="winner-label winner-label-left" aria-hidden="true">WINNER</span>
             <span class="name-giant name-giant-left">{{ leftName || '???' }}</span>
-            <span v-if="leftScore > 0" class="score-badge-large">{{ leftScore }}</span>
           </div>
         </template>
 
         <div class="corner-accent corner-accent-tl" aria-hidden="true"></div>
         <div class="bottom-edge bottom-edge-left"   aria-hidden="true"></div>
-        <div v-if="winnerTagVisible && leftWin" class="winner-tag" aria-hidden="true">WINNER</div>
       </div>
 
       <!-- VS badge -->
@@ -418,27 +438,28 @@ onUnmounted(() => {
       >
         <div class="panel-color-wash panel-color-wash-right" aria-hidden="true"></div>
 
-        <!-- Picture mode -->
+        <!-- Picture mode: fixed-width group shifts to center on panel-winner expand -->
         <template v-if="overlayConfig.showImages">
-          <img v-if="imageRight" :src="imageRight" :alt="rightName" class="battler-img" />
-          <div v-else class="battler-placeholder" aria-hidden="true"></div>
-          <div class="name-overlay name-overlay-right">
-            <span class="name-text name-text-right">{{ rightName || '???' }}</span>
-            <span v-if="rightScore > 0" class="score-badge">{{ rightScore }}</span>
+          <div class="img-group">
+            <img v-if="imageRight" :src="imageRight" :alt="rightName" class="battler-img" />
+            <div v-else class="battler-placeholder" aria-hidden="true"></div>
+            <div class="name-overlay name-overlay-right">
+              <span v-if="winnerTagVisible && rightWin" class="winner-label winner-label-right" aria-hidden="true">WINNER</span>
+              <span class="name-text name-text-right">{{ rightName || '???' }}</span>
+            </div>
           </div>
         </template>
 
         <!-- Name-only mode -->
         <template v-else>
           <div class="name-center-wrap">
+            <span v-if="winnerTagVisible && rightWin" class="winner-label winner-label-right" aria-hidden="true">WINNER</span>
             <span class="name-giant name-giant-right">{{ rightName || '???' }}</span>
-            <span v-if="rightScore > 0" class="score-badge-large">{{ rightScore }}</span>
           </div>
         </template>
 
         <div class="corner-accent corner-accent-tr" aria-hidden="true"></div>
         <div class="bottom-edge bottom-edge-right"  aria-hidden="true"></div>
-        <div v-if="winnerTagVisible && rightWin" class="winner-tag" aria-hidden="true">WINNER</div>
       </div>
 
       <!-- Voting indicator — visible during VOTING phase -->
@@ -566,73 +587,69 @@ body.transparent-page #app {
 ══════════════════════════════════════════════════ */
 .judge-panel {
   position: absolute;
-  top: 18px; left: 0; right: 0;
+  top: 0; left: 0; right: 0;
   z-index: 50;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   pointer-events: none;
-  transform: translateY(-220px);
+  transform: translateY(-100%);
 }
 .smoke-judge-always-on {
   transform: translateY(0) !important;
   animation: none !important;
 }
-.judge-border-glow {
-  position: absolute; inset: -1px;
-  border-radius: 22px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--left-color) 55%, transparent) 0%,
-    rgba(255,255,255,0.1) 35%,
-    color-mix(in srgb, var(--right-color) 55%, transparent) 65%,
-    rgba(255,255,255,0.1) 100%
-  );
-  filter: blur(1px);
-  animation: borderRotate 6s linear infinite;
-  z-index: -1;
-}
+/* no .judge-border-glow — removed the rotating glow card look */
+.judge-border-glow { display: none; }
 .judge-inner {
   position: relative;
-  display: flex; flex-direction: column; gap: 10px;
-  background: rgba(6,8,18,0.85);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border-radius: 20px;
-  padding: 14px 24px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--left-color) 12%, rgba(6,8,18,0.94)),
+    color-mix(in srgb, var(--right-color) 12%, rgba(6,8,18,0.94))
+  );
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  padding: 12px 24px 16px;
 }
 .judges-header {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
 }
 .judges-label {
   font-family: 'Inter', sans-serif;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 0.28em;
-  color: rgba(255,255,255,0.35);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.32em;
+  color: rgba(255,255,255,0.28);
   text-transform: uppercase;
   white-space: nowrap; flex-shrink: 0;
 }
 .judges-line {
   flex: 1; height: 1px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.07);
 }
 .judge-cards-row {
-  display: flex; gap: 12px;
+  display: flex; gap: 8px;
 }
 
-/* Judge card — parallelogram shape */
+/* Judge card — sharp parallelogram */
 .judge-card {
   display: flex; flex-direction: column;
-  align-items: center; gap: 10px;
-  min-width: 148px;
-  padding: 10px 14px;
-  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
-  background: rgba(255,255,255,0.025);
-  transition: box-shadow 0.25s ease, background 0.25s ease;
+  align-items: center; gap: 7px;
+  min-width: 130px;
+  padding: 8px 12px;
+  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* Unvoted: frosted glass with gentle pulse */
+/* Unvoted: dim pulse */
 .card-unvoted {
-  background: rgba(255,255,255,0.08) !important;
+  background: rgba(255,255,255,0.06) !important;
   animation: cardPulse 2.2s ease-in-out infinite;
 }
 
@@ -642,27 +659,28 @@ body.transparent-page #app {
 }
 
 .voted-left {
-  background: color-mix(in srgb, var(--left-color) 9%, transparent);
-  box-shadow: 0 0 28px color-mix(in srgb, var(--left-color) 35%, transparent),
-              inset 0 0 14px color-mix(in srgb, var(--left-color) 8%, transparent);
+  background: color-mix(in srgb, var(--left-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--left-color) 40%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--left-color) 25%, transparent);
 }
 .voted-right {
-  background: color-mix(in srgb, var(--right-color) 9%, transparent);
-  box-shadow: 0 0 28px color-mix(in srgb, var(--right-color) 35%, transparent),
-              inset 0 0 14px color-mix(in srgb, var(--right-color) 8%, transparent);
+  background: color-mix(in srgb, var(--right-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--right-color) 40%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--right-color) 25%, transparent);
 }
 .voted-tie {
-  background: rgba(251,191,36,0.07);
-  box-shadow: 0 0 28px rgba(251,191,36,0.28), inset 0 0 14px rgba(251,191,36,0.06);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.20);
+  box-shadow: none;
 }
 
 /* Judge name + arrow row */
-.judge-row { display: flex; align-items: center; gap: 11px; }
+.judge-row { display: flex; align-items: center; gap: 9px; }
 .judge-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: 28px;
-  color: rgba(255,255,255,0.92);
-  letter-spacing: 0.07em;
+  font-size: 22px;
+  color: rgba(255,255,255,0.90);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1;
 }
@@ -688,6 +706,18 @@ body.transparent-page #app {
   filter: drop-shadow(0 0 8px var(--right-color));
 }
 
+/* Tie state */
+.judge-name-tie { color: rgba(255,255,255,0.32) !important; }
+.tie-badge {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 13px; letter-spacing: 0.35em;
+  color: rgba(255,255,255,0.55);
+  text-align: center; width: 100%;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px; padding: 2px 0;
+  animation: cardBurst 280ms cubic-bezier(0.2, 0, 0.3, 1) both;
+}
+
 /* Vote track bar */
 .vote-track {
   width: 100%; height: 10px;
@@ -711,7 +741,6 @@ body.transparent-page #app {
   background: linear-gradient(90deg, color-mix(in srgb, var(--right-color) 70%, black), var(--right-color));
   box-shadow: 0 0 14px color-mix(in srgb, var(--right-color) 90%, transparent);
 }
-.fill-tie   { width: 100%; background: linear-gradient(90deg, #b45309, #fbbf24); box-shadow: 0 0 14px rgba(251,191,36,0.9); }
 .fill-blank { width: 0%; background: transparent; }
 
 /* ══════════════════════════════════════════════════
@@ -775,6 +804,13 @@ body.transparent-page #app {
 .bottom-edge-left  { left: 0;  background: linear-gradient(to right, var(--left-color), transparent); }
 .bottom-edge-right { right: 0; background: linear-gradient(to left, var(--right-color), transparent); }
 
+/* ── Picture mode: img-group — fixed width so image doesn't stretch on panel expand ── */
+.img-group {
+  position: relative;
+  width: 46vw;       /* matches panel's normal 46% of 100vw */
+  flex-shrink: 0;
+}
+
 /* ── Picture mode ────────────────────────────────── */
 .battler-img {
   position: relative; z-index: 10;
@@ -799,10 +835,10 @@ body.transparent-page #app {
   bottom: 0; left: 0; right: 0;
   z-index: 20;
   padding: 10vh 3vw 5vh;
-  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
-  display: flex; align-items: flex-end; gap: 10px;
+  background: none;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
 }
-.name-overlay-right { flex-direction: row-reverse; }
+.name-overlay-right { align-items: flex-end; }
 .name-text {
   font-family: 'Anton SC', sans-serif;
   font-size: clamp(22px, 4.5vw, 72px);
@@ -913,23 +949,26 @@ body.transparent-page #app {
 .fade-indicator-enter-from,
 .fade-indicator-leave-to     { opacity: 0; }
 
-/* ── Winner tag ──────────────────────────────────── */
-.winner-tag {
-  position: absolute;
-  top: 40%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 60;
+/* ── Winner label — Anton SC, same design language as name ── */
+.winner-label {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(18px, 3.2vw, 58px);
-  color: #fff;
-  letter-spacing: 0.22em;
+  font-size: clamp(14px, 2.2vw, 38px);
+  letter-spacing: 0.5em;
   text-transform: uppercase;
-  border: 3px solid rgba(255,255,255,0.8);
-  padding: 8px 28px;
-  background: rgba(0,0,0,0.45);
-  animation: winnerStamp 300ms cubic-bezier(0.2, 0, 0.3, 1) both;
-  animation-delay: 300ms;
+  color: #fff;
+  line-height: 1;
+  text-align: center;
   opacity: 0;
+  animation: winnerStamp 380ms cubic-bezier(0.2, 0, 0.3, 1) both;
+  animation-delay: 250ms;
+}
+.winner-label-left {
+  text-shadow: 3px 3px 0 var(--left-color),
+               0 0 40px color-mix(in srgb, var(--left-color) 65%, transparent);
+}
+.winner-label-right {
+  text-shadow: -3px 3px 0 var(--right-color),
+               0 0 40px color-mix(in srgb, var(--right-color) 65%, transparent);
 }
 
 /* ══════════════════════════════════════════════════
@@ -1008,14 +1047,29 @@ body.transparent-page #app {
   100% { transform: translateX(110vw); opacity: 0; }
 }
 
-/* Judge panel slams down (bounce easing applied via class) */
+/* Judge panel drops from top edge */
 @keyframes slideDown {
-  from { transform: translateY(-220px); }
+  from { transform: translateY(-100%); }
   to   { transform: translateY(0); }
 }
 @keyframes slideUp {
   from { transform: translateY(0); }
-  to   { transform: translateY(-220px); }
+  to   { transform: translateY(-100%); }
+}
+
+/* Judge slams from above into vertical center of screen, rests at larger scale */
+@keyframes judgeSlamCenter {
+  0%   { transform: translateY(-160%) scale(3.0);  opacity: 0; filter: blur(14px); }
+  52%  { transform: translateY(42vh)  scale(1.28); opacity: 1; filter: blur(0); }
+  68%  { transform: translateY(42vh)  scale(1.48); }
+  82%  { transform: translateY(42vh)  scale(1.33); }
+  100% { transform: translateY(42vh)  scale(1.38); opacity: 1; }
+}
+
+/* Judge scales back down while retreating to top */
+@keyframes judgeRetreatTop {
+  0%   { transform: translateY(42vh) scale(1.38); }
+  100% { transform: translateY(0)    scale(1); }
 }
 
 /* Card burst entrance on score reveal */
@@ -1039,9 +1093,9 @@ body.transparent-page #app {
 
 /* WINNER stamp */
 @keyframes winnerStamp {
-  0%   { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
-  60%  { transform: translate(-50%, -50%) scale(0.94); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
+  0%   { transform: scale(1.5) translateY(-10px); opacity: 0; filter: blur(6px); }
+  60%  { transform: scale(0.97) translateY(1px);  opacity: 1; filter: blur(0); }
+  100% { transform: scale(1) translateY(0);        opacity: 1; filter: blur(0); }
 }
 
 /* Placeholder breathing */
@@ -1050,11 +1104,7 @@ body.transparent-page #app {
   50%       { opacity: 0.5; }
 }
 
-/* Judge border rotation */
-@keyframes borderRotate {
-  0%   { filter: blur(1px) hue-rotate(0deg); }
-  100% { filter: blur(1px) hue-rotate(360deg); }
-}
+/* (borderRotate removed — judge card no longer uses rotating glow border) */
 
 /* ── Animation utility classes ───────────────────── */
 .slam-in-left  { animation: leftSlamIn  450ms cubic-bezier(0.2, 0, 0.3, 1) both; }
@@ -1067,7 +1117,10 @@ body.transparent-page #app {
 .slide-left-out  { animation: hardCutLeft  320ms cubic-bezier(0.55, 0, 1, 0) forwards; }
 .slide-right-out { animation: hardCutRight 320ms cubic-bezier(0.55, 0, 1, 0) forwards; }
 
-.slide-down { animation: slideDown 480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
-.slide-up   { animation: slideUp   300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
+.slide-down       { animation: slideDown       480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
+.slide-up         { animation: slideUp         300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
+.judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2,  0,   0.3, 1) both; }
+.judge-retreat-top { animation: judgeRetreatTop 500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
+.judge-at-top      { transform: translateY(0); }
 </style>
 

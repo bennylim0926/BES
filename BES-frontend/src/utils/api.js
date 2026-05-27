@@ -520,7 +520,7 @@ export const uploadImage = async(file)=>{
 
 export const getImage = async (filename) => {
   try {
-    const res = await fetch(`${domain}/api/v1/battle/uploads/${filename}`, {
+    const res = await fetch(`${domain}/api/v1/battle/uploads/${encodeURIComponent(filename)}`, {
       method: 'GET',
       credentials: 'include',
     });

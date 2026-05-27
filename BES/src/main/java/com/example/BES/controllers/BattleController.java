@@ -212,10 +212,12 @@ public class BattleController {
             Files.createDirectories(uploadDir);
         }
         String originalFilename = file.getOriginalFilename();
-        String extension = (originalFilename != null && originalFilename.contains("."))
-            ? originalFilename.substring(originalFilename.lastIndexOf('.'))
-            : "";
-        String safeFilename = UUID.randomUUID().toString() + extension;
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return ResponseEntity.badRequest().body("Filename is required");
+        }
+        // Preserve original filename (so overlay can look up by participant name).
+        // Strip any path separators to prevent directory traversal.
+        String safeFilename = originalFilename.replaceAll("[/\\\\]", "_");
         Path dest = uploadDir.resolve(safeFilename).normalize();
         if (!dest.startsWith(uploadDir.normalize())) {
             return ResponseEntity.badRequest().body("Invalid file path");

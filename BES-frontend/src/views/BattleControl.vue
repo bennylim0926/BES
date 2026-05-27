@@ -119,12 +119,16 @@ const initiateBattlePair = async (top, pairList) => {
   if (isSmoke.value) {
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
     await updateSmokePair()  // must await so smoke list is posted before overlay reloads
+    await setBattlePhase('LOCKED')
+    battlePhase.value = 'LOCKED'
     return
   }
   currentBattle.value = [0, pairList]
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   await setBattlePair(left, right)
+  await setBattlePhase('LOCKED')
+  battlePhase.value = 'LOCKED'
   currentRound.value = 0
   currentTop.value = top
 }
@@ -135,6 +139,8 @@ const prevPair = async () => {
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
     await setBattlePair(left, right)
+    await setBattlePhase('LOCKED')
+    battlePhase.value = 'LOCKED'
     currentWinner.value = -2
     currentRound.value -= 1
   }
@@ -152,6 +158,8 @@ const nextPair = async () => {
       const left = currentBattle?.value[1][currentBattle?.value[0]][0]
       const right = currentBattle?.value[1][currentBattle?.value[0]][1]
       await setBattlePair(left, right)
+      await setBattlePhase('LOCKED')
+      battlePhase.value = 'LOCKED'
       currentWinner.value = -2
       currentRound.value += 1
     } else {

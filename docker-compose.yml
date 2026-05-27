@@ -21,6 +21,7 @@ services:
       - BES_ALLOWED_ORIGINS=${BES_ALLOWED_ORIGINS}
     volumes:
     - ./credentials.json:/credentials.json:ro
+    - uploads:/uploads
 
   frontend:
     build:
@@ -47,3 +48,4 @@ services:
 
 volumes:
   postgres:
+  uploads:
