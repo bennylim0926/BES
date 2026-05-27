@@ -66,7 +66,7 @@ function voteStorageKey() {
 function saveVote(vote) {
   const key = voteStorageKey()
   if (!key) return
-  localStorage.setItem(key, JSON.stringify({ vote, leftName: leftName.value, rightName: rightName.value }))
+  localStorage.setItem(key, JSON.stringify({ vote, leftName: leftName.value, rightName: rightName.value, timestamp: Date.now() }))
 }
 
 function clearVote() {
