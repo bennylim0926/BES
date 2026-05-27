@@ -102,10 +102,10 @@ const updateScore = async (msg) => {
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
-  // Snapshot judges so vote colors persist even if battleJudges is cleared for next match
-  const judges = battleJudges.value?.judges
-    ? JSON.parse(JSON.stringify(battleJudges.value.judges))
-    : null
+  // Fetch fresh judge votes from API at reveal time — avoids race where per-judge WS
+  // subscriptions haven't connected yet and the local battleJudges still shows stale/cleared votes
+  const freshJudges = await getBattleJudges()
+  const judges = freshJudges?.judges ?? battleJudges.value?.judges ?? null
 
   resultState.value = { winner, leftName, rightName, judges }
   showResult.value = true
