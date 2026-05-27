@@ -19,6 +19,7 @@ const battleJudges = ref(null)       // { judges: [{ id, name, vote }] }
 // ── Result overlay ──────────────────────────────────────────────────────────
 const showResult    = ref(false)
 const resultState   = ref(null)  // { winner: 0|1|-1, leftName, rightName }
+const battlePhase   = ref('IDLE') // mirrors backend phase — used to discard stale score events
 
 // ── Champion overlay ────────────────────────────────────────────────────────
 const showChampion  = ref(false)
@@ -100,6 +101,7 @@ const updateJudgeVote = (msg) => {
 const updateScore = async (msg) => {
   if (showChampion.value) return
   if (showResult.value) return  // already displaying a result — ignore duplicate events
+  if (battlePhase.value === 'LOCKED') return  // next round already started — stale event
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
@@ -145,8 +147,10 @@ onMounted(async () => {
 
   const cPhase = createClient(); clients.push(cPhase)
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
-    // When phase resets to LOCKED (Next was clicked), dismiss result overlay immediately
-    if (msg?.phase === 'LOCKED') showResult.value = false
+    if (!msg?.phase) return
+    battlePhase.value = msg.phase
+    // When phase resets to LOCKED (Next was clicked), dismiss any visible result overlay
+    if (msg.phase === 'LOCKED') showResult.value = false
   })
 })
 

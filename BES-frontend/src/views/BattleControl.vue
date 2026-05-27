@@ -443,9 +443,6 @@ const submitGetScore = async () => {
     const res = await setBattleScore()
     const data = await res.json()
     currentWinner.value = Number(data.winner)
-    // Small hold so the /topic/battle/score WS event reaches Chart.vue before the Next
-    // button becomes visible — prevents the score from re-triggering after Next is clicked
-    await new Promise(r => setTimeout(r, 350))
     await setBattlePhase('REVEALED')
     battlePhase.value = 'REVEALED'
     return
