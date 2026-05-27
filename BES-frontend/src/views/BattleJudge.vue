@@ -47,6 +47,7 @@ function selectJudge(j) {
 }
 
 function clearJudge() {
+  clearVote()
   judgeId.value   = null
   judgeName.value = ''
   localStorage.removeItem(LS_JUDGE_ID)
@@ -58,7 +59,6 @@ function clearJudge() {
     if (idx !== -1) wsClients.splice(idx, 1)
     voteClient = null
   }
-  clearVote()
 }
 
 // ── Vote state ──────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ const wsClients  = []
 let   voteClient = null
 
 function setupVoteSubscription() {
-  if (!judgeId.value || voteClient) return
+  if (judgeId.value == null || voteClient) return
   voteClient = createClient()
   wsClients.push(voteClient)
   subscribeToChannel(voteClient, `/topic/battle/vote/${judgeId.value}`, (msg) => {
