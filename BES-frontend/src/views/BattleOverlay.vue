@@ -462,20 +462,22 @@ onUnmounted(() => {
 </template>
 
 <style>
-/* ── Screen-reader only ─────────────────────────────────────── */
-.sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0;
-  margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
-  white-space: nowrap; border: 0;
-}
-
-/* ── Transparent background (OBS) ──────────────────────────── */
+/* ── Transparent background (OBS) — must be global ─────────── */
 html.transparent-page,
 body.transparent-page,
 html.transparent-page #app,
 body.transparent-page #app {
   background: transparent !important;
   background-color: transparent !important;
+}
+</style>
+
+<style scoped>
+/* ── Screen-reader only ─────────────────────────────────────── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
 }
 
 /* ── Root ───────────────────────────────────────────────────── */
@@ -1068,3 +1070,4 @@ body.transparent-page #app {
 .slide-down { animation: slideDown 480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
 .slide-up   { animation: slideUp   300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
 </style>
+
