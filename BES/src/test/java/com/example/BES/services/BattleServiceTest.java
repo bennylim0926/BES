@@ -1,5 +1,6 @@
 package com.example.BES.services;
 
+import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
@@ -232,6 +233,44 @@ class BattleServiceTest {
 
         verify(messagingTemplate).convertAndSend(
             eq("/topic/battle/overlay-config"),
+            any(Map.class)
+        );
+    }
+
+    @Test
+    void resetJudgeVotes_setsAllVotesToMinusThreeAndBroadcasts() {
+        Judge j = new Judge();
+        j.setJudgeId(5L);
+        j.setName("Alex");
+        when(judgeService.getJudgeById(5L)).thenReturn(j);
+
+        SetJudgeDto addDto = mock(SetJudgeDto.class);
+        when(addDto.getId()).thenReturn(5L);
+        service.setBattleJudgeService(addDto);
+
+        SetVoteDto voteDto = mock(SetVoteDto.class);
+        when(voteDto.getId()).thenReturn(5L);
+        when(voteDto.getVote()).thenReturn(0);
+        service.setVoteService(voteDto);
+
+        service.resetJudgeVotesService();
+
+        assertThat(service.getJudges().get(0).getVote()).isEqualTo(-3);
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(
+            eq("/topic/battle/judges"), any(Map.class));
+    }
+
+    @Test
+    void broadcastChampionReveal_sendsToCorrectTopic() {
+        ChampionRevealDto dto = mock(ChampionRevealDto.class);
+        when(dto.getGenreName()).thenReturn("B-Boy/B-Girl");
+        when(dto.getChampionName()).thenReturn("PULSE");
+        when(dto.isDismiss()).thenReturn(false);
+
+        service.broadcastChampionReveal(dto);
+
+        verify(messagingTemplate).convertAndSend(
+            eq("/topic/battle/champion-reveal"),
             any(Map.class)
         );
     }

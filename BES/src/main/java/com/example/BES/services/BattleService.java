@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
@@ -243,6 +244,25 @@ public class BattleService {
         newConfig.put("rightColor", dto.getRightColor());
         overlayConfig = newConfig;
         messagingTemplate.convertAndSend("/topic/battle/overlay-config", newConfig);
+    }
+
+    public void resetJudgeVotesService() {
+        for (BattleJudge judge : judges) {
+            judge.setVote(-3);
+        }
+        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
+    }
+
+    public void broadcastChampionReveal(ChampionRevealDto dto) {
+        if (dto.isDismiss()) {
+            messagingTemplate.convertAndSend("/topic/battle/champion-reveal",
+                Map.of("dismiss", true));
+        } else {
+            messagingTemplate.convertAndSend("/topic/battle/champion-reveal",
+                Map.of("dismiss", false,
+                       "genreName",     dto.getGenreName()     != null ? dto.getGenreName()     : "",
+                       "championName",  dto.getChampionName()  != null ? dto.getChampionName()  : ""));
+        }
     }
 
     public class BattleJudge {
