@@ -433,7 +433,7 @@ body.transparent-page #app {
   flex-shrink: 0; flex-wrap: wrap;
 }
 .dot {
-  width: clamp(6px, 0.9vw, 11px); height: clamp(6px, 0.9vw, 11px);
+  width: clamp(8px, 1.3vw, 16px); height: clamp(8px, 1.3vw, 16px);
   border-radius: 50%;
   border: 1.5px solid currentColor;
   opacity: 0.25;
@@ -445,7 +445,7 @@ body.transparent-page #app {
 
 /* ── Name label ───────────────────────────────────────── */
 .col-name {
-  font-size: clamp(8px, 1.1vw, 14px);
+  font-size: clamp(11px, 1.6vw, 20px);
   letter-spacing: 0.1em;
   text-align: center;
   margin-top: 3px; margin-bottom: 5px;
