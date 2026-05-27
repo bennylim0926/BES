@@ -227,7 +227,7 @@ onUnmounted(() => {
     </header>
 
     <!-- ── Names bar ───────────────────────────────────────────── -->
-    <div class="names-bar" aria-hidden="true">
+    <div class="names-bar">
       <div class="name-cell name-cell-left">
         <span class="name-cell-text">{{ leftName || '???' }}</span>
       </div>
@@ -290,7 +290,7 @@ onUnmounted(() => {
           }"
           @click="handleClick(0)"
           :disabled="battlePhase !== 'VOTING'"
-          :aria-label="confirmedVote === 0 ? 'Left — vote locked' : active === 0 ? 'Left — tap again to confirm' : 'Vote Left'"
+          :aria-label="confirmedVote === 0 ? `${leftName || 'Left'} — vote locked` : active === 0 ? `${leftName || 'Left'} — tap again to confirm` : `Vote ${leftName || 'Left'}`"
           :aria-pressed="confirmedVote === 0"
         >
           <div class="panel-bg panel-bg-left" aria-hidden="true"></div>
@@ -318,7 +318,7 @@ onUnmounted(() => {
           }"
           @click="handleClick(1)"
           :disabled="battlePhase !== 'VOTING'"
-          :aria-label="confirmedVote === 1 ? 'Right — vote locked' : active === 1 ? 'Right — tap again to confirm' : 'Vote Right'"
+          :aria-label="confirmedVote === 1 ? `${rightName || 'Right'} — vote locked` : active === 1 ? `${rightName || 'Right'} — tap again to confirm` : `Vote ${rightName || 'Right'}`"
           :aria-pressed="confirmedVote === 1"
         >
           <div class="panel-bg panel-bg-right" aria-hidden="true"></div>
