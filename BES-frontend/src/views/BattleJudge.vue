@@ -194,196 +194,205 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="judge-root" role="main" aria-label="Battle Judge voting panel">
+  <div
+    class="judge-root"
+    :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
+    role="main"
+    aria-label="Battle Judge voting panel"
+  >
 
-    <!-- ── IDLE overlay ───────────────────────────── -->
-    <Transition name="phase-fade">
-      <div v-if="battlePhase === 'IDLE'" class="phase-blocker idle-blocker" aria-live="polite">
-        <div class="phase-blocker-inner">
-          <span class="phase-blocker-icon">⏳</span>
-          <p class="phase-blocker-title">Waiting for battle setup…</p>
-          <div class="idle-selector-wrap" role="group" aria-label="Select your judge name">
-            <span class="idle-selector-eyebrow">VOTING AS</span>
-            <div class="w-64">
-              <ReusableDropdown
-                v-model="selectedJudge"
-                labelId=""
-                :options="battleJudgesName"
-                placeholder="Select your name…"
-              />
-            </div>
+    <!-- ── Header ──────────────────────────────────────────────── -->
+    <header class="judge-header">
+      <div class="header-brand">
+        <span class="brand-pip pip-left" aria-hidden="true"></span>
+        <span class="brand-wordmark">BATTLE JUDGE</span>
+        <span class="brand-pip pip-right" aria-hidden="true"></span>
+      </div>
+
+      <div class="header-center">
+        <span
+          class="phase-pill"
+          :class="`phase-pill--${battlePhase.toLowerCase()}`"
+          aria-live="polite"
+        >{{ battlePhase }}</span>
+      </div>
+
+      <div class="header-right">
+        <div v-if="judgeName" class="judge-chip">
+          <span class="judge-chip-label">AS</span>
+          <span class="judge-chip-name">{{ judgeName }}</span>
+          <button class="judge-chip-clear" @click="clearJudge" aria-label="Change judge">✕</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Names bar ───────────────────────────────────────────── -->
+    <div v-if="leftName || rightName" class="names-bar" aria-hidden="true">
+      <div class="name-cell name-cell-left">
+        <span class="name-cell-text">{{ leftName || '???' }}</span>
+      </div>
+      <div class="name-cell name-cell-right">
+        <span class="name-cell-text">{{ rightName || '???' }}</span>
+      </div>
+    </div>
+
+    <!-- ── Panels wrap ─────────────────────────────────────────── -->
+    <div class="panels-wrap" role="group" aria-label="Vote options">
+
+      <!-- Color bleeds -->
+      <div class="bleed bleed-left"  aria-hidden="true"></div>
+      <div class="bleed bleed-right" aria-hidden="true"></div>
+
+      <!-- Phase blocker (LOCKED / IDLE) -->
+      <Transition name="phase-fade">
+        <div
+          v-if="battlePhase === 'LOCKED' || battlePhase === 'IDLE'"
+          class="panels-blocker"
+          aria-live="polite"
+        >
+          <span class="blocker-icon">{{ battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
+          <span class="blocker-text">{{ battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
+        </div>
+      </Transition>
+
+      <!-- REVEALED banner -->
+      <Transition name="banner-slide">
+        <div
+          v-if="battlePhase === 'REVEALED'"
+          class="revealed-banner"
+          :class="revealedWinner === 0 ? 'banner-left' : revealedWinner === 1 ? 'banner-right' : 'banner-tie'"
+          aria-live="assertive"
+        >
+          <template v-if="revealedWinner === 0">
+            <span class="banner-winner-name">{{ leftName }}</span>
+            <span class="banner-wins">WINS</span>
+          </template>
+          <template v-else-if="revealedWinner === 1">
+            <span class="banner-winner-name">{{ rightName }}</span>
+            <span class="banner-wins">WINS</span>
+          </template>
+          <template v-else-if="revealedWinner === -1">
+            <span class="banner-wins">TIE</span>
+          </template>
+        </div>
+      </Transition>
+
+      <!-- LR row -->
+      <div class="lr-row">
+
+        <!-- LEFT -->
+        <button
+          class="vote-panel panel-left"
+          :class="{
+            'is-armed': active === 0 && confirmedVote === null,
+            'is-voted': confirmedVote === 0,
+            'is-dim':   confirmedVote !== null && confirmedVote !== 0,
+          }"
+          @click="handleClick(0)"
+          :disabled="battlePhase !== 'VOTING'"
+          :aria-label="confirmedVote === 0 ? 'Left — vote locked' : active === 0 ? 'Left — tap again to confirm' : 'Vote Left'"
+          :aria-pressed="confirmedVote === 0"
+        >
+          <div class="panel-bg panel-bg-left" aria-hidden="true"></div>
+          <div class="panel-inner">
+            <span class="direction-label">LEFT</span>
+            <div
+              class="panel-feedback"
+              :class="{ visible: active === 0 && confirmedVote === null }"
+              aria-live="polite"
+            >TAP AGAIN TO CONFIRM</div>
+          </div>
+          <template v-if="confirmedVote === 0">
+            <div class="vote-locked-wash wash-left" aria-hidden="true"></div>
+            <div class="vote-locked-text" aria-hidden="true">✓ VOTE LOCKED</div>
+          </template>
+        </button>
+
+        <!-- RIGHT -->
+        <button
+          class="vote-panel panel-right"
+          :class="{
+            'is-armed': active === 1 && confirmedVote === null,
+            'is-voted': confirmedVote === 1,
+            'is-dim':   confirmedVote !== null && confirmedVote !== 1,
+          }"
+          @click="handleClick(1)"
+          :disabled="battlePhase !== 'VOTING'"
+          :aria-label="confirmedVote === 1 ? 'Right — vote locked' : active === 1 ? 'Right — tap again to confirm' : 'Vote Right'"
+          :aria-pressed="confirmedVote === 1"
+        >
+          <div class="panel-bg panel-bg-right" aria-hidden="true"></div>
+          <div class="panel-inner">
+            <span class="direction-label">RIGHT</span>
+            <div
+              class="panel-feedback"
+              :class="{ visible: active === 1 && confirmedVote === null }"
+              aria-live="polite"
+            >TAP AGAIN TO CONFIRM</div>
+          </div>
+          <template v-if="confirmedVote === 1">
+            <div class="vote-locked-wash wash-right" aria-hidden="true"></div>
+            <div class="vote-locked-text" aria-hidden="true">✓ VOTE LOCKED</div>
+          </template>
+        </button>
+
+      </div><!-- /lr-row -->
+
+      <!-- TIE row -->
+      <div class="tie-row">
+        <button
+          class="vote-panel panel-tie"
+          :class="{
+            'is-armed': active === -1 && confirmedVote === null,
+            'is-voted': confirmedVote === -1,
+            'is-dim':   confirmedVote !== null && confirmedVote !== -1,
+          }"
+          @click="handleClick(-1)"
+          :disabled="battlePhase !== 'VOTING'"
+          :aria-label="confirmedVote === -1 ? 'Tie — vote locked' : active === -1 ? 'Tie — tap again to confirm' : 'Vote Tie'"
+          :aria-pressed="confirmedVote === -1"
+        >
+          <div class="panel-bg panel-bg-tie" aria-hidden="true"></div>
+          <div class="panel-inner">
+            <span class="direction-label direction-tie">TIE</span>
+            <div
+              class="panel-feedback"
+              :class="{ visible: active === -1 && confirmedVote === null }"
+              aria-live="polite"
+            >TAP AGAIN TO CONFIRM</div>
+          </div>
+          <template v-if="confirmedVote === -1">
+            <div class="vote-locked-wash wash-tie" aria-hidden="true"></div>
+            <div class="vote-locked-text" aria-hidden="true">✓ VOTE LOCKED</div>
+          </template>
+        </button>
+      </div><!-- /tie-row -->
+
+    </div><!-- /panels-wrap -->
+
+    <!-- ── Judge picker bottom sheet ───────────────────────────── -->
+    <Transition name="sheet-slide">
+      <div
+        v-if="showJudgePicker"
+        class="sheet-backdrop"
+        role="dialog"
+        aria-label="Select your name"
+      >
+        <div class="bottom-sheet">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <p class="sheet-title">WHO ARE YOU?</p>
+          <div class="sheet-grid">
+            <button
+              v-for="j in (battleJudges?.judges ?? [])"
+              :key="j.id"
+              class="sheet-name-chip"
+              @click="selectJudge(j)"
+            >{{ j.name }}</button>
           </div>
         </div>
       </div>
     </Transition>
 
-    <!-- ── Header bar ─────────────────────────────── -->
-    <header class="judge-header">
-      <div class="header-brand">
-        <span class="brand-pip pip-red"></span>
-        <span class="brand-wordmark">BATTLE JUDGE</span>
-        <span class="brand-pip pip-blue"></span>
-      </div>
-
-      <!-- Phase pill + pair names -->
-      <div class="header-center" aria-live="polite">
-        <span
-          class="phase-pill"
-          :class="`phase-pill--${battlePhase.toLowerCase()}`"
-        >{{ battlePhase }}</span>
-        <span v-if="leftName && (battlePhase === 'LOCKED' || battlePhase === 'VOTING')" class="pair-label">
-          {{ leftName }} <span class="vs-sep">vs</span> {{ rightName }}
-        </span>
-      </div>
-
-      <div class="selector-wrap" role="group" aria-label="Voting as">
-        <span class="selector-eyebrow" aria-hidden="true">VOTING AS</span>
-        <div class="w-52">
-          <ReusableDropdown
-            v-model="selectedJudge"
-            labelId=""
-            :options="battleJudgesName"
-            placeholder="Select judge…"
-          />
-        </div>
-      </div>
-    </header>
-
-    <!-- ── Voting panels ──────────────────────────── -->
-    <div class="panels-wrap" role="group" aria-label="Vote options">
-
-      <!-- LOCKED overlay: voting not yet open -->
-      <Transition name="phase-fade">
-        <div v-if="battlePhase === 'LOCKED'" class="panels-overlay locked-overlay" aria-live="polite">
-          <div class="panels-overlay-inner">
-            <i class="overlay-lock-icon">🔒</i>
-            <p class="overlay-title">VOTING NOT OPEN</p>
-            <p class="overlay-sub">Waiting for the organiser to open voting</p>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- REVEALED overlay: winner announced -->
-      <Transition name="phase-fade">
-        <div v-if="battlePhase === 'REVEALED'" class="panels-overlay revealed-overlay" aria-live="assertive">
-          <div class="panels-overlay-inner">
-            <template v-if="revealedWinner === 0">
-              <p class="overlay-winner-name">{{ leftName }}</p>
-              <p class="overlay-winner-label">WINS</p>
-            </template>
-            <template v-else-if="revealedWinner === 1">
-              <p class="overlay-winner-name">{{ rightName }}</p>
-              <p class="overlay-winner-label">WINS</p>
-            </template>
-            <template v-else-if="revealedWinner === -1">
-              <p class="overlay-winner-label">TIE</p>
-            </template>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- ── Left ── -->
-      <button
-        class="vote-panel left-panel"
-        :class="{ 'is-active': active === 0, 'is-confirmed': confirmed === 0 }"
-        @click="handleClick(0)"
-        :aria-label="confirmed === 0 ? 'Left — vote confirmed' : active === 0 ? 'Left — tap again to confirm' : 'Vote Left'"
-        :aria-pressed="active === 0 || confirmed === 0"
-      >
-        <div class="panel-fill left-fill" aria-hidden="true"></div>
-        <div class="edge-accent left-accent" aria-hidden="true"></div>
-        <div class="panel-shimmer" aria-hidden="true"></div>
-
-        <div class="panel-inner">
-          <p class="dir-label" aria-hidden="true">LEFT</p>
-          <div class="img-frame" aria-hidden="true">
-            <div class="img-halo red-halo"></div>
-            <img :src="leftHand" class="panel-img left-img" alt="" />
-          </div>
-          <div
-            class="feedback-row"
-            :class="{ visible: active === 0 || confirmed === 0 }"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <template v-if="confirmed === 0">
-              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
-            </template>
-            <template v-else-if="active === 0">TAP AGAIN TO CONFIRM</template>
-          </div>
-        </div>
-
-        <div class="pulse-ring left-ring" aria-hidden="true"></div>
-      </button>
-
-      <!-- ── Tie ── -->
-      <button
-        class="vote-panel tie-panel"
-        :class="{ 'is-active': active === -1, 'is-confirmed': confirmed === -1 }"
-        @click="handleClick(-1)"
-        :aria-label="confirmed === -1 ? 'Tie — vote confirmed' : active === -1 ? 'Tie — tap again to confirm' : 'Vote Tie'"
-        :aria-pressed="active === -1 || confirmed === -1"
-      >
-        <div class="panel-fill tie-fill" aria-hidden="true"></div>
-        <div class="panel-shimmer" aria-hidden="true"></div>
-
-        <div class="panel-inner">
-          <p class="dir-label" aria-hidden="true">TIE</p>
-          <div class="img-frame" aria-hidden="true">
-            <div class="img-halo neutral-halo"></div>
-            <img :src="tie" class="panel-img" alt="" />
-          </div>
-          <div
-            class="feedback-row"
-            :class="{ visible: active === -1 || confirmed === -1 }"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <template v-if="confirmed === -1">
-              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
-            </template>
-            <template v-else-if="active === -1">TAP AGAIN TO CONFIRM</template>
-          </div>
-        </div>
-
-        <div class="pulse-ring neutral-ring" aria-hidden="true"></div>
-      </button>
-
-      <!-- ── Right ── -->
-      <button
-        class="vote-panel right-panel"
-        :class="{ 'is-active': active === 1, 'is-confirmed': confirmed === 1 }"
-        @click="handleClick(1)"
-        :aria-label="confirmed === 1 ? 'Right — vote confirmed' : active === 1 ? 'Right — tap again to confirm' : 'Vote Right'"
-        :aria-pressed="active === 1 || confirmed === 1"
-      >
-        <div class="panel-fill right-fill" aria-hidden="true"></div>
-        <div class="edge-accent right-accent" aria-hidden="true"></div>
-        <div class="panel-shimmer" aria-hidden="true"></div>
-
-        <div class="panel-inner">
-          <p class="dir-label" aria-hidden="true">RIGHT</p>
-          <div class="img-frame" aria-hidden="true">
-            <div class="img-halo blue-halo"></div>
-            <img :src="rightHand" class="panel-img right-img" alt="" />
-          </div>
-          <div
-            class="feedback-row"
-            :class="{ visible: active === 1 || confirmed === 1 }"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <template v-if="confirmed === 1">
-              <span class="check-mark" aria-hidden="true">✓</span> VOTE LOCKED
-            </template>
-            <template v-else-if="active === 1">TAP AGAIN TO CONFIRM</template>
-          </div>
-        </div>
-
-        <div class="pulse-ring blue-ring" aria-hidden="true"></div>
-      </button>
-
-    </div>
   </div>
 </template>
 
