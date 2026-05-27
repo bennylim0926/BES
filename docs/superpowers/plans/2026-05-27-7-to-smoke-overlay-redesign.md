@@ -1,6 +1,160 @@
+# 7-to-Smoke Overlay Redesign Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Redesign `Chart.vue` (and clean up `BattleOverlay.vue` smoke mode) to show a bold glowing bar chart matching the 1v1 overlay's visual style, with FLIP queue sliding, score pop animations, judge result overlay, and champion takeover overlay.
+
+**Architecture:** Chart.vue is a full rewrite as a standalone full-screen overlay component. It owns all WebSocket subscriptions for smoke mode. BattleOverlay.vue's smoke section already renders `<Chart />`, but currently also subscribes to the same topics and shows a conflicting judge panel — those are removed in Task 6. A small helper module extracts testable pure functions.
+
+**Tech Stack:** Vue 3 Composition API, CSS custom properties (`--left-color`/`--right-color`), Vue `TransitionGroup` (for FLIP), `useDelay` from utils/utils.js, existing WebSocket helpers (createClient/subscribeToChannel/deactivateClient), existing API helpers (getSmokeList, getOverlayConfig, getBattleJudges).
+
+---
+
+## File Map
+
+| File | Action |
+|------|--------|
+| `BES-frontend/src/utils/smokeChartHelpers.js` | Create — pure helpers for bar height + score gainer detection |
+| `BES-frontend/src/utils/__tests__/smokeChartHelpers.test.js` | Create — Vitest tests |
+| `BES-frontend/src/views/Chart.vue` | Full rewrite — new overlay UI |
+| `BES-frontend/src/views/BattleOverlay.vue` | Modify — remove isSmoke WS block, guard judge panel |
+
+---
+
+## Key Data Shapes (read before coding)
+
+```js
+// smokeParticipants — from getSmokeList() → { list: [...] } and WS /topic/battle/smoke → { battlers: [...] }
+// [{ name: "VIBRAZE", score: 3 }, { name: "KRAZIX", score: 4 }, { name: "RYZEN", score: 2 }, ...]
+// Index 0 = active left, index 1 = active right, index 2+ = waiting queue
+
+// battleJudges — from getBattleJudges() and WS /topic/battle/judges
+// { judges: [{ id: 1, name: "JUDGE A", vote: -3|0|1|-1|null }] }
+// vote: -3 = cleared (new match), 0 = voted left, 1 = voted right, -1 = tie, null = not yet voted
+
+// Score reveal — WS /topic/battle/score
+// { left: <leftScore>, right: <rightScore>, message: 0|1|-1 }
+// message: 0 = left wins, 1 = right wins, -1 = tie
+
+// overlayConfig — from getOverlayConfig() and WS /topic/battle/overlay-config
+// { showImages: bool, leftColor: "#dc2626", rightColor: "#2563eb" }
+```
+
+---
+
+## Task 1: Pure helpers + tests
+
+**Files:**
+- Create: `BES-frontend/src/utils/smokeChartHelpers.js`
+- Create: `BES-frontend/src/utils/__tests__/smokeChartHelpers.test.js`
+
+- [ ] **Step 1: Write the failing tests**
+
+```js
+// BES-frontend/src/utils/__tests__/smokeChartHelpers.test.js
+import { describe, it, expect } from 'vitest'
+import { barHeightPct, findScoreGainers } from '../smokeChartHelpers'
+
+describe('barHeightPct', () => {
+  it('returns 0 for score 0', () => {
+    expect(barHeightPct(0)).toBe(0)
+  })
+  it('returns 100 for score 7', () => {
+    expect(barHeightPct(7)).toBe(100)
+  })
+  it('returns correct percentage for mid scores', () => {
+    expect(barHeightPct(3)).toBeCloseTo(42.857, 2)
+    expect(barHeightPct(4)).toBeCloseTo(57.143, 2)
+  })
+  it('clamps to 100 if score exceeds 7', () => {
+    expect(barHeightPct(8)).toBe(100)
+  })
+})
+
+describe('findScoreGainers', () => {
+  it('returns names whose score increased', () => {
+    const prev = [{ name: 'A', score: 2 }, { name: 'B', score: 1 }]
+    const next = [{ name: 'A', score: 3 }, { name: 'B', score: 1 }]
+    expect(findScoreGainers(prev, next)).toEqual(['A'])
+  })
+  it('returns empty array when no scores changed', () => {
+    const participants = [{ name: 'A', score: 2 }, { name: 'B', score: 1 }]
+    expect(findScoreGainers(participants, participants)).toEqual([])
+  })
+  it('handles new participant with no previous score', () => {
+    const prev = [{ name: 'A', score: 1 }]
+    const next = [{ name: 'A', score: 1 }, { name: 'B', score: 1 }]
+    expect(findScoreGainers(prev, next)).toEqual(['B'])
+  })
+  it('returns multiple gainers', () => {
+    const prev = [{ name: 'A', score: 1 }, { name: 'B', score: 1 }]
+    const next = [{ name: 'A', score: 2 }, { name: 'B', score: 2 }]
+    expect(findScoreGainers(prev, next)).toEqual(['A', 'B'])
+  })
+})
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+```bash
+cd BES-frontend && npm test -- smokeChartHelpers
+```
+Expected: FAIL — "Cannot find module '../smokeChartHelpers'"
+
+- [ ] **Step 3: Create the helper module**
+
+```js
+// BES-frontend/src/utils/smokeChartHelpers.js
+
+/**
+ * Returns bar height as a percentage (0–100) for a given score out of 7.
+ * Clamped to 100 so bars never overflow their container.
+ */
+export const barHeightPct = (score) => Math.min((score / 7) * 100, 100)
+
+/**
+ * Given two snapshots of participants, returns the names of participants
+ * whose score increased between snapshots. Used to trigger score pop animation.
+ */
+export const findScoreGainers = (prevParticipants, nextParticipants) => {
+  const prevMap = Object.fromEntries(prevParticipants.map(p => [p.name, p.score]))
+  return nextParticipants
+    .filter(n => n.score > (prevMap[n.name] ?? 0))
+    .map(n => n.name)
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+```bash
+cd BES-frontend && npm test -- smokeChartHelpers
+```
+Expected: PASS — 8 tests passing
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add BES-frontend/src/utils/smokeChartHelpers.js BES-frontend/src/utils/__tests__/smokeChartHelpers.test.js
+git commit -m "feat: add smoke chart pure helpers + tests"
+```
+
+---
+
+## Task 2: Chart.vue — base structure, bar chart, floating pill, WebSocket
+
+**Files:**
+- Modify: `BES-frontend/src/views/Chart.vue` (full rewrite)
+
+**Context:** The current Chart.vue (87 lines) is a placeholder with basic Tailwind bars and image loading. Replace it entirely. The new Chart.vue is a self-contained full-screen overlay. It mounts `transparent-page` class (for OBS), subscribes to all smoke WebSocket topics, and renders the bar chart.
+
+**Important:** `position: fixed; inset: 0` on the root div means Chart.vue works both as a standalone route (`/battle/chart`) and when embedded inside BattleOverlay.vue's smoke section.
+
+- [ ] **Step 1: Write the full Chart.vue rewrite**
+
+```vue
 <!-- BES-frontend/src/views/Chart.vue -->
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { getSmokeList, getOverlayConfig, getBattleJudges } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 import { useDelay } from '@/utils/utils'
@@ -15,11 +169,11 @@ const smokeParticipants = ref([])
 
 // ── Judge data ──────────────────────────────────────────────────────────────
 const battleJudges = ref(null)       // { judges: [{ id, name, vote }] }
+const votesVisible = ref(false)
 
 // ── Result overlay ──────────────────────────────────────────────────────────
 const showResult    = ref(false)
 const resultState   = ref(null)  // { winner: 0|1|-1, leftName, rightName }
-const battlePhase   = ref('IDLE') // mirrors backend phase — used to discard stale score events
 
 // ── Champion overlay ────────────────────────────────────────────────────────
 const showChampion  = ref(false)
@@ -56,26 +210,10 @@ watch(
 
 // ── WebSocket handlers ──────────────────────────────────────────────────────
 const updateList = (msg) => {
-  if (!msg?.battlers) return
-  smokeParticipants.value = msg.battlers
-  // Champion check runs here — after scores are updated in the list
-  if (!showChampion.value) {
-    const champ = msg.battlers.find(p => p.score >= 7)
-    if (champ) {
-      champName.value  = champ.name
-      const idx = msg.battlers.indexOf(champ)
-      champColor.value = idx === 0
-        ? overlayConfig.value.leftColor
-        : idx === 1
-          ? overlayConfig.value.rightColor
-          : overlayConfig.value.leftColor
-      showChampion.value = true
-    }
-  }
+  if (msg?.battlers) smokeParticipants.value = msg.battlers
 }
 
 const updateBattleJudge = (msg) => {
-  if (!msg?.judges) return
   battleJudges.value = msg
   msg.judges.forEach(j => {
     const topic = `/topic/battle/vote/${j.id}`
@@ -97,49 +235,37 @@ const updateJudgeVote = (msg) => {
   }
 }
 
-// Capture active names + judge state at reveal time so result overlay stays correct after queue shifts
+// Capture active names at reveal time so result overlay stays correct after queue shifts
 const updateScore = async (msg) => {
-  if (showChampion.value) return
-  if (showResult.value) return  // already displaying a result — ignore duplicate events
-  if (battlePhase.value === 'LOCKED') return  // next round already started — stale event
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
 
-  // Immediately reflect the score gain on the bar — the scorePopNames watcher fires the pop animation
-  if (winner === 0 && smokeParticipants.value.length > 0) {
-    smokeParticipants.value = smokeParticipants.value.map((p, i) =>
-      i === 0 ? { ...p, score: p.score + 1 } : p
-    )
-  } else if (winner === 1 && smokeParticipants.value.length > 1) {
-    smokeParticipants.value = smokeParticipants.value.map((p, i) =>
-      i === 1 ? { ...p, score: p.score + 1 } : p
-    )
-  }
-  // winner === -1 (tie): no score change
+  // Check for champion (any fighter reaching 7)
+  const allParticipants = smokeParticipants.value
+  const champParticipant = allParticipants.find(p => p.score >= 7)
 
-  // Champion check: did the winner just reach 7?
-  if (!showChampion.value && (winner === 0 || winner === 1)) {
-    const champ = smokeParticipants.value[winner]
-    if (champ && champ.score >= 7) {
-      champName.value  = champ.name
-      champColor.value = winner === 0 ? overlayConfig.value.leftColor : overlayConfig.value.rightColor
-      showChampion.value = true
-      return  // champion overlay takes over — skip the regular result overlay
-    }
+  if (champParticipant) {
+    champName.value  = champParticipant.name
+    const idx = allParticipants.indexOf(champParticipant)
+    champColor.value = idx === 0
+      ? overlayConfig.value.leftColor
+      : idx === 1
+        ? overlayConfig.value.rightColor
+        : overlayConfig.value.leftColor
+    showChampion.value = true
+    return  // Champion overlay never auto-dismisses
   }
 
-  // Fetch fresh judge votes from API at reveal time — avoids race where per-judge WS
-  // subscriptions haven't connected yet and the local battleJudges still shows stale/cleared votes
-  const freshJudges = await getBattleJudges()
-  const judges = freshJudges?.judges ?? battleJudges.value?.judges ?? null
-
-  resultState.value = { winner, leftName, rightName, judges }
+  // Regular result overlay
+  resultState.value = { winner, leftName, rightName }
+  votesVisible.value = true
   showResult.value = true
 
   await useDelay().wait(4000)
   if (unmounted) return
   showResult.value = false
+  votesVisible.value = false
 }
 
 // ── Mount ───────────────────────────────────────────────────────────────────
@@ -148,7 +274,7 @@ onMounted(async () => {
   document.body.classList.add('transparent-page')
 
   const config = await getOverlayConfig()
-  if (config?.leftColor !== undefined) overlayConfig.value = config
+  overlayConfig.value = config
 
   const smoke = await getSmokeList()
   if (smoke?.list) smokeParticipants.value = smoke.list
@@ -168,14 +294,6 @@ onMounted(async () => {
 
   const cScore = createClient(); clients.push(cScore)
   subscribeToChannel(cScore, '/topic/battle/score', updateScore)
-
-  const cPhase = createClient(); clients.push(cPhase)
-  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
-    if (!msg?.phase) return
-    battlePhase.value = msg.phase
-    // When phase resets to LOCKED (Next was clicked), dismiss any visible result overlay
-    if (msg.phase === 'LOCKED') showResult.value = false
-  })
 })
 
 onBeforeUnmount(() => {
@@ -238,15 +356,18 @@ onBeforeUnmount(() => {
         </template>
       </TransitionGroup>
 
-      <!-- Design B: ghost names behind chart -->
+      <!-- Floating pill: active pair indicator -->
       <div
         v-if="activeLeft && activeRight"
-        class="bg-names"
-        aria-hidden="true"
+        class="float-pill"
+        role="status"
+        :aria-label="`Now battling: ${activeLeft.name} vs ${activeRight.name}`"
       >
-        <span class="bg-name bg-name-left">{{ activeLeft.name }}</span>
-        <span class="bg-vs">VS</span>
-        <span class="bg-name bg-name-right">{{ activeRight.name }}</span>
+        <span class="pill-name pill-left">{{ activeLeft.name }}</span>
+        <span class="pill-vs">VS</span>
+        <span class="pill-name pill-right">{{ activeRight.name }}</span>
+        <div class="pill-sep" aria-hidden="true"></div>
+        <span class="pill-pts">{{ activeLeft.score }} PTS · {{ activeRight.score }} PTS</span>
       </div>
     </div>
 
@@ -256,7 +377,7 @@ onBeforeUnmount(() => {
         v-if="showResult && resultState && !showChampion"
         class="result-overlay"
         role="status"
-        aria-live="assertive"
+        :aria-live="'assertive'"
       >
         <!-- Win header -->
         <template v-if="resultState.winner === 0">
@@ -269,11 +390,11 @@ onBeforeUnmount(() => {
         </template>
         <template v-else>
           <div class="result-name result-tie">IT'S A TIE</div>
-          <div class="result-sub">NO POINTS AWARDED</div>
+          <div class="result-sub">BOTH EARN A POINT</div>
         </template>
 
-        <!-- Judge cards (snapshot at reveal time — not live battleJudges) -->
-        <div v-if="resultState.judges" class="judge-inner">
+        <!-- Judge cards -->
+        <div v-if="battleJudges?.judges" class="judge-inner">
           <div class="judges-header" aria-hidden="true">
             <span class="judges-line"></span>
             <span class="judges-label">JUDGES</span>
@@ -281,8 +402,8 @@ onBeforeUnmount(() => {
           </div>
           <div class="judge-cards-row" role="list">
             <div
-              v-for="(j, index) in resultState.judges"
-              :key="j.id"
+              v-for="(j, index) in battleJudges.judges"
+              :key="index"
               class="judge-card card-burst"
               :class="{
                 'voted-left':  j.vote === 0,
@@ -399,8 +520,6 @@ body.transparent-page #app {
   flex: 1;
   display: flex; flex-direction: column; align-items: center;
   height: 100%;
-  /* Cap columns so full bars (7/7) only graze the bottom quarter of the ghost names */
-  max-height: 68%;
 }
 
 /* ── Bar wrap + bar ───────────────────────────────────── */
@@ -468,7 +587,7 @@ body.transparent-page #app {
   flex-shrink: 0; flex-wrap: wrap;
 }
 .dot {
-  width: clamp(8px, 1.3vw, 16px); height: clamp(8px, 1.3vw, 16px);
+  width: clamp(4px, 0.6vw, 7px); height: clamp(4px, 0.6vw, 7px);
   border-radius: 50%;
   border: 1.5px solid currentColor;
   opacity: 0.25;
@@ -480,7 +599,7 @@ body.transparent-page #app {
 
 /* ── Name label ───────────────────────────────────────── */
 .col-name {
-  font-size: clamp(11px, 1.6vw, 20px);
+  font-size: clamp(5px, 0.8vw, 9px);
   letter-spacing: 0.1em;
   text-align: center;
   margin-top: 3px; margin-bottom: 5px;
@@ -515,33 +634,46 @@ body.transparent-page #app {
 /* ── Queue gap ────────────────────────────────────────── */
 .queue-gap { flex: 0 0 clamp(8px, 1.4vw, 16px); }
 
-/* ── Design B: ghost names behind chart ───────────────── */
-.bg-names {
-  position: absolute; z-index: 1;
-  top: 4%; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 14px;
-  pointer-events: none;
-}
-.bg-name {
-  font-family: 'Anton SC', sans-serif;
-  font-size: clamp(32px, 8vw, 110px);
-  letter-spacing: 0.06em; line-height: 1;
-  opacity: 0.1;
+/* ── Floating pill ────────────────────────────────────── */
+.float-pill {
+  position: absolute;
+  bottom: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 3;
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 99px;
+  padding: 4px 16px;
   white-space: nowrap;
 }
-.bg-name-left  { color: var(--left-color);  text-shadow: 0 0 40px var(--left-color); }
-.bg-name-right { color: var(--right-color); text-shadow: 0 0 40px var(--right-color); }
-.bg-vs {
-  font-family: 'Anton SC', sans-serif;
-  font-size: clamp(10px, 2vw, 24px); letter-spacing: 0.2em;
-  color: rgba(255,255,255,0.08);
-  flex-shrink: 0; padding: 0 8px;
+.pill-name {
+  font-size: clamp(9px, 1.3vw, 15px);
+  letter-spacing: 0.08em;
+}
+.pill-left  { color: color-mix(in srgb, var(--left-color)  50%, #fff); }
+.pill-right { color: color-mix(in srgb, var(--right-color) 50%, #fff); }
+.pill-vs {
+  font-size: clamp(7px, 0.85vw, 10px);
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.35);
+  padding: 0 2px;
+}
+.pill-sep {
+  width: 1px; height: 12px;
+  background: rgba(255,255,255,0.12);
+}
+.pill-pts {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: clamp(6px, 0.75vw, 8px);
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.3);
 }
 
 /* ── FLIP column slide (TransitionGroup move) ─────────── */
 .col-move {
-  transition: transform 0.85s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ══════════════════════════════════════════════════
@@ -588,7 +720,7 @@ body.transparent-page #app {
   margin-top: 2px; margin-bottom: 16px;
 }
 
-/* Judge inner container */
+/* Judge inner container — copied from BattleOverlay.vue */
 .judge-inner {
   position: relative;
   display: flex; flex-direction: column; gap: 8px;
@@ -601,7 +733,7 @@ body.transparent-page #app {
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.12);
   box-shadow: 0 24px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset;
-  padding: 10px 20px 14px;
+  padding: 12px 24px 16px;
 }
 .judges-header { display: flex; align-items: center; gap: 8px; }
 .judges-label {
@@ -773,3 +905,163 @@ body.transparent-page #app {
   animation: cardBurst 280ms cubic-bezier(0.2, 0, 0.3, 1) both;
 }
 </style>
+```
+
+- [ ] **Step 2: Run the frontend to verify it builds**
+
+```bash
+cd BES-frontend && npm run build
+```
+Expected: build succeeds with no errors
+
+- [ ] **Step 3: Run dev server and open `/battle/chart` in browser to verify layout**
+
+```bash
+cd BES-frontend && npm run dev
+```
+Open `http://localhost:5173/battle/chart` — should see dark overlay with "7 TO SMOKE" header. No data yet (no WebSocket running), so empty chart area with floating pill showing nothing. No console errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add BES-frontend/src/views/Chart.vue BES-frontend/src/utils/smokeChartHelpers.js BES-frontend/src/utils/__tests__/smokeChartHelpers.test.js
+git commit -m "feat: rewrite Chart.vue as bold 7-to-smoke bar chart overlay"
+```
+
+---
+
+## Task 3: Update BattleOverlay.vue — remove conflicting smoke subscriptions + judge panel
+
+**Files:**
+- Modify: `BES-frontend/src/views/BattleOverlay.vue`
+
+**Context:** BattleOverlay.vue currently subscribes to battle topics when `isSmoke=true` AND renders the judge panel for both modes. Chart.vue now owns all smoke WebSocket logic, so BattleOverlay must stop competing. Two changes needed:
+
+1. In `onMounted`, guard the smoke subscription block: delete it (Chart.vue handles this now)
+2. On the judge panel `v-if`, add `&& !isSmoke` so the panel is hidden in smoke mode
+
+- [ ] **Step 1: Remove the isSmoke subscription block from onMounted**
+
+Find this block in `BES-frontend/src/views/BattleOverlay.vue` (around line 255):
+
+```js
+  if (isSmoke.value) {
+    battleJudges.value = await getBattleJudges()
+    const cJudges = createClient(); clients.push(cJudges)
+    const cPair   = createClient(); clients.push(cPair)
+    const cScore  = createClient(); clients.push(cScore)
+    subscribeToChannel(cJudges, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
+    subscribeToChannel(cPair,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
+    subscribeToChannel(cScore,  '/topic/battle/score',       (msg) => updateScore(msg))
+  } else {
+    battleJudges.value = await getBattleJudges()
+    const res = await getCurrentBattlePair()
+    if (res) await updateBattlePair(res)
+    const cPair2   = createClient(); clients.push(cPair2)
+    const cScore2  = createClient(); clients.push(cScore2)
+    const cJudges2 = createClient(); clients.push(cJudges2)
+    subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
+    subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => updateScore(msg))
+    subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
+  }
+```
+
+Replace the entire if/else block with a guard so subscriptions only happen in standard mode:
+
+```js
+  if (!isSmoke.value) {
+    battleJudges.value = await getBattleJudges()
+    const res = await getCurrentBattlePair()
+    if (res) await updateBattlePair(res)
+    const cPair2   = createClient(); clients.push(cPair2)
+    const cScore2  = createClient(); clients.push(cScore2)
+    const cJudges2 = createClient(); clients.push(cJudges2)
+    subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
+    subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => updateScore(msg))
+    subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
+  }
+```
+
+(Chart.vue handles all smoke-mode subscriptions — BattleOverlay must not duplicate them.)
+
+- [ ] **Step 2: Guard the judge panel with !isSmoke**
+
+Find the judge panel `v-if` in the template (around line 316):
+
+```html
+    <div
+      v-if="battleJudges?.judges?.length"
+      class="judge-panel"
+```
+
+Change to:
+
+```html
+    <div
+      v-if="battleJudges?.judges?.length && !isSmoke"
+      class="judge-panel"
+```
+
+- [ ] **Step 3: Build to verify no errors**
+
+```bash
+cd BES-frontend && npm run build
+```
+Expected: build succeeds
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add BES-frontend/src/views/BattleOverlay.vue
+git commit -m "fix: remove duplicate smoke WS subscriptions and judge panel from BattleOverlay smoke mode"
+```
+
+---
+
+## Task 4: Final verification
+
+**Files:** Read-only
+
+- [ ] **Step 1: Run all frontend tests**
+
+```bash
+cd BES-frontend && npm test
+```
+Expected: all tests pass including the new smokeChartHelpers tests
+
+- [ ] **Step 2: Manual smoke test with Docker**
+
+```bash
+docker-compose up --build --no-cache
+```
+
+Steps to verify:
+1. Log in as Admin/Organiser, go to `/battle/control`, start a 7-to-Smoke format event
+2. Open `/battle/chart` in a second tab — should see the dark overlay with "7 TO SMOKE" header, bar columns for each participant
+3. Active pair shows colored (red/blue) bars; waiting fighters show gray bars
+4. VS chip appears between active columns; floating pill at bottom shows "NAME VS NAME · X PTS · Y PTS"
+5. In BattleControl, announce a winner — result overlay should appear on `/battle/chart` with winner name slamming in + judge cards
+6. Announce another match — result overlay auto-dismisses after 4 seconds
+7. When a fighter reaches 7 points — champion overlay appears and stays
+8. Open `/battle/overlay?isSmoke=true` — same chart view without BattleOverlay's old judge panel competing
+
+- [ ] **Step 3: Commit if any minor fixes were made during testing**
+
+```bash
+git add -p  # review carefully, stage only what was changed
+git commit -m "fix: smoke overlay manual test adjustments"
+```
+
+---
+
+## Notes for the Implementer
+
+**TransitionGroup FLIP:** Vue's `<TransitionGroup>` handles FLIP automatically when you give each item a stable `:key` (fighter name) and define `.col-move` with a transition. No manual `getBoundingClientRect` needed — Vue does it.
+
+**Score pop timing:** The `setTimeout` in the watch is 600ms — matches the `scorePop` animation duration. After 600ms the class is removed. If the score changes again while the animation is still running, a new Set is created so the class is removed for the old instance and re-applied for the new one.
+
+**Champion detection:** `updateScore` checks for any participant with `score >= 7` _at the time the score event arrives_. The server sends the updated scores, so by the time `updateScore` fires, `smokeParticipants` should reflect the new scores from the preceding smoke update. If timing is tight, a brief `nextTick` wait may be needed before checking.
+
+**Transparent background:** Both Chart.vue (standalone at `/battle/chart`) and BattleOverlay.vue (at `/battle/overlay`) add `transparent-page` to the HTML root for OBS. Chart.vue's `onBeforeUnmount` removes these classes, which is safe since BattleOverlay.vue's `onUnmounted` also removes them.
+
+**overlayConfig.leftColor vs leftColor:** The API returns `{ leftColor, rightColor }` and WS sends the same shape. BattleOverlay.vue uses `overlayConfig.leftColor` in `:style` binding. Chart.vue uses the same shape. Be consistent.

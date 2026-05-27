@@ -2,6 +2,7 @@ package com.example.BES.services;
 
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
+import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.models.Judge;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -158,5 +163,43 @@ class BattleServiceTest {
         lenient().when(dto.getId()).thenReturn(99L);
 
         assertThat(service.setVoteService(dto)).isEqualTo(-2);
+    }
+
+    @Test
+    void getOverlayConfig_returnsDefaults() {
+        Map<String, Object> config = service.getOverlayConfig();
+        assertThat(config.get("showImages")).isEqualTo(true);
+        assertThat(config.get("leftColor")).isEqualTo("#dc2626");
+        assertThat(config.get("rightColor")).isEqualTo("#2563eb");
+    }
+
+    @Test
+    void setOverlayConfigService_updatesInMemoryState() {
+        SetOverlayConfigDto dto = mock(SetOverlayConfigDto.class);
+        when(dto.isShowImages()).thenReturn(false);
+        when(dto.getLeftColor()).thenReturn("#ff0000");
+        when(dto.getRightColor()).thenReturn("#0000ff");
+
+        service.setOverlayConfigService(dto);
+
+        Map<String, Object> config = service.getOverlayConfig();
+        assertThat(config.get("showImages")).isEqualTo(false);
+        assertThat(config.get("leftColor")).isEqualTo("#ff0000");
+        assertThat(config.get("rightColor")).isEqualTo("#0000ff");
+    }
+
+    @Test
+    void setOverlayConfigService_broadcastsToWebSocket() {
+        SetOverlayConfigDto dto = mock(SetOverlayConfigDto.class);
+        when(dto.isShowImages()).thenReturn(true);
+        when(dto.getLeftColor()).thenReturn("#aabbcc");
+        when(dto.getRightColor()).thenReturn("#112233");
+
+        service.setOverlayConfigService(dto);
+
+        verify(messagingTemplate).convertAndSend(
+            eq("/topic/battle/overlay-config"),
+            any(Map.class)
+        );
     }
 }

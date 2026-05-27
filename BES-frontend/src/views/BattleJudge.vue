@@ -35,7 +35,7 @@ async function handleClick(side) {
   }
 }
 
-const wsClient = ref(null)
+const wsClients = []
 
 onMounted(async () => {
   battleJudges.value = await getBattleJudges()
@@ -49,8 +49,14 @@ onMounted(async () => {
     rightName.value = pairData.right ?? ''
   }
 
-  wsClient.value = createClient()
-  subscribeToChannel(wsClient.value, '/topic/battle/phase', (msg) => {
+  // Each subscription needs its own client — subscribeToChannel sets onConnect,
+  // so sharing one client means every call overwrites the previous handler.
+  const cPhase = createClient(); wsClients.push(cPhase)
+  const cPair  = createClient(); wsClients.push(cPair)
+  const cScore = createClient(); wsClients.push(cScore)
+  const cJudge = createClient(); wsClients.push(cJudge)
+
+  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     battlePhase.value = msg.phase
     if (msg.phase === 'LOCKED') {
       active.value = null
@@ -58,20 +64,20 @@ onMounted(async () => {
       revealedWinner.value = -2
     }
   })
-  subscribeToChannel(wsClient.value, '/topic/battle/battle-pair', (msg) => {
+  subscribeToChannel(cPair, '/topic/battle/battle-pair', (msg) => {
     leftName.value = msg.left ?? ''
     rightName.value = msg.right ?? ''
   })
-  subscribeToChannel(wsClient.value, '/topic/battle/score', (msg) => {
+  subscribeToChannel(cScore, '/topic/battle/score', (msg) => {
     revealedWinner.value = msg.message
   })
-  subscribeToChannel(wsClient.value, '/topic/battle/judges', (msg) => {
+  subscribeToChannel(cJudge, '/topic/battle/judges', (msg) => {
     battleJudges.value = msg
   })
 })
 
 onUnmounted(() => {
-  deactivateClient(wsClient.value)
+  wsClients.forEach(c => deactivateClient(c))
 })
 </script>
 
@@ -157,7 +163,7 @@ onUnmounted(() => {
               <p class="overlay-winner-name">{{ rightName }}</p>
               <p class="overlay-winner-label">WINS</p>
             </template>
-            <template v-else>
+            <template v-else-if="revealedWinner === -1">
               <p class="overlay-winner-label">TIE</p>
             </template>
           </div>

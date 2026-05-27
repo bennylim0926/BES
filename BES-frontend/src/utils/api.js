@@ -520,7 +520,7 @@ export const uploadImage = async(file)=>{
 
 export const getImage = async (filename) => {
   try {
-    const res = await fetch(`${domain}/api/v1/battle/uploads/${filename}`, {
+    const res = await fetch(`${domain}/api/v1/battle/uploads/${encodeURIComponent(filename)}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -1014,5 +1014,33 @@ export const updateEventGenreFormat = async (eventName, genreName, format) => {
   } catch (e) {
     console.log(e)
     return false
+  }
+}
+
+export const getOverlayConfig = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/overlay-config`, {
+      credentials: 'include',
+    })
+    return res.ok ? await res.json() : { showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }
+  } catch (err) {
+    console.log(err)
+    return { showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }
+  }
+}
+
+export const setOverlayConfig = async (config) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/overlay-config`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    })
+  } catch (err) {
+    console.log(err)
   }
 }

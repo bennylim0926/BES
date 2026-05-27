@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,6 +14,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.battle.SetBattleModeDto;
+import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
@@ -34,6 +36,11 @@ public class BattleService {
     private List<Battler> battlers = new ArrayList<>();
     // IDLE | LOCKED | VOTING | REVEALED
     private String battlePhase = "IDLE";
+    private Map<String, Object> overlayConfig = new HashMap<>(Map.of(
+        "showImages", true,
+        "leftColor",  "#dc2626",
+        "rightColor", "#2563eb"
+    ));
     public List<String> getModes() {
         return modes;
     }
@@ -222,6 +229,19 @@ public class BattleService {
         if ("REVEALED".equals(phase)) return;
         battlePhase = phase;
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+    }
+
+    public Map<String, Object> getOverlayConfig() {
+        return overlayConfig;
+    }
+
+    public void setOverlayConfigService(SetOverlayConfigDto dto) {
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put("showImages", dto.isShowImages());
+        newConfig.put("leftColor",  dto.getLeftColor());
+        newConfig.put("rightColor", dto.getRightColor());
+        overlayConfig = newConfig;
+        messagingTemplate.convertAndSend("/topic/battle/overlay-config", newConfig);
     }
 
     public class BattleJudge {
