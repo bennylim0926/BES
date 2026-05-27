@@ -396,9 +396,10 @@ onUnmounted(() => {
 <style scoped>
 /* ── Root ───────────────────────────────────────────────────── */
 .judge-root {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
   background: #060a14;
   overflow: hidden;
   user-select: none;
@@ -559,8 +560,8 @@ onUnmounted(() => {
 .is-voted .panel-bg-right { background: radial-gradient(ellipse 95% 85% at 50% 62%, color-mix(in srgb, var(--right-color) 75%, transparent) 0%, transparent 72%), linear-gradient(180deg, color-mix(in srgb, var(--right-color) 22%, #060a14) 0%, color-mix(in srgb, var(--right-color) 42%, #060a14) 100%); }
 .is-voted .panel-bg-tie   { background: radial-gradient(ellipse 95% 85% at 50% 50%, rgba(100,116,139,0.65) 0%, transparent 72%), linear-gradient(180deg, #0f1624 0%, #253649 100%); }
 
-/* Dim — not chosen after vote */
-.is-dim { opacity: 0.2; filter: saturate(0.15); pointer-events: none; }
+/* Dim — not chosen after vote (keep tappable for vote revocation) */
+.is-dim { opacity: 0.2; filter: saturate(0.15); }
 
 /* ── Panel inner ────────────────────────────────────────────── */
 .panel-inner {
