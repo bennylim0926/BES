@@ -364,6 +364,8 @@ body.transparent-page #app {
   flex: 1;
   display: flex; flex-direction: column; align-items: center;
   height: 100%;
+  /* Cap columns so full bars (7/7) only graze the bottom quarter of the ghost names */
+  max-height: 68%;
 }
 
 /* ── Bar wrap + bar ───────────────────────────────────── */
@@ -488,7 +490,7 @@ body.transparent-page #app {
 }
 .bg-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(22px, 5.5vw, 72px);
+  font-size: clamp(32px, 8vw, 110px);
   letter-spacing: 0.06em; line-height: 1;
   opacity: 0.1;
   white-space: nowrap;
