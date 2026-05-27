@@ -93,7 +93,14 @@ function restoreVoteFromStorage() {
 
 async function handleClick(side) {
   if (battlePhase.value !== 'VOTING') return
-  if (confirmedVote.value !== null) return   // already voted — locked
+  // Tapping the already-voted panel — no-op
+  if (confirmedVote.value === side) return
+  // Tapping a different panel while voted — revoke and arm the new panel
+  if (confirmedVote.value !== null) {
+    clearVote()
+    active.value = side
+    return
+  }
   if (active.value === side) {
     const res = await battleJudgeVote(judgeId.value, side)
     if (!res?.ok) return   // POST failed — stay armed, let judge try again
@@ -226,16 +233,6 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <!-- ── Names bar ───────────────────────────────────────────── -->
-    <div class="names-bar">
-      <div class="name-cell name-cell-left">
-        <span class="name-cell-text">{{ leftName || '???' }}</span>
-      </div>
-      <div class="name-cell name-cell-right">
-        <span class="name-cell-text">{{ rightName || '???' }}</span>
-      </div>
-    </div>
-
     <!-- ── Panels wrap ─────────────────────────────────────────── -->
     <div class="panels-wrap" role="group" aria-label="Vote options">
 
@@ -295,7 +292,7 @@ onUnmounted(() => {
         >
           <div class="panel-bg panel-bg-left" aria-hidden="true"></div>
           <div class="panel-inner">
-            <span class="direction-label">LEFT</span>
+            <span class="direction-label">{{ leftName || 'LEFT' }}</span>
             <div
               class="panel-feedback"
               :class="{ visible: active === 0 && confirmedVote === null }"
@@ -323,7 +320,7 @@ onUnmounted(() => {
         >
           <div class="panel-bg panel-bg-right" aria-hidden="true"></div>
           <div class="panel-inner">
-            <span class="direction-label">RIGHT</span>
+            <span class="direction-label">{{ rightName || 'RIGHT' }}</span>
             <div
               class="panel-feedback"
               :class="{ visible: active === 1 && confirmedVote === null }"
@@ -481,28 +478,7 @@ onUnmounted(() => {
 }
 .judge-chip-clear:hover { color: rgba(255,255,255,0.8); }
 
-/* ── Names bar ──────────────────────────────────────────────── */
-.names-bar {
-  flex-shrink: 0;
-  height: 10%;
-  display: flex;
-  min-height: 36px;
-}
-.name-cell {
-  flex: 1; display: flex;
-  align-items: center; justify-content: center;
-  padding: 0 12px; overflow: hidden;
-}
-.name-cell-left  { background: color-mix(in srgb, var(--left-color)  12%, transparent); border-right: 1px solid rgba(255,255,255,0.04); }
-.name-cell-right { background: color-mix(in srgb, var(--right-color) 12%, transparent); }
-.name-cell-text {
-  font-family: 'Anton SC', sans-serif;
-  font-size: clamp(13px, 2.8vw, 22px);
-  letter-spacing: 0.1em; text-transform: uppercase;
-  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
-}
-.name-cell-left  .name-cell-text { color: color-mix(in srgb, var(--left-color)  90%, white); }
-.name-cell-right .name-cell-text { color: color-mix(in srgb, var(--right-color) 90%, white); }
+/* ── (names bar removed — names shown on panels) ───────────── */
 
 /* ── Panels wrap ────────────────────────────────────────────── */
 .panels-wrap {
@@ -596,17 +572,20 @@ onUnmounted(() => {
 
 .direction-label {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(28px, 5vw, 64px);
-  letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: clamp(18px, 5.5vw, 44px);
+  letter-spacing: 0.08em; text-transform: uppercase;
   color: rgba(255,255,255,0.4);
-  line-height: 1;
-  transition: color 0.3s ease, letter-spacing 0.3s ease, text-shadow 0.3s ease;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 90%;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.direction-tie { font-size: clamp(18px, 3.5vw, 42px); }
+.direction-tie { font-size: clamp(16px, 4vw, 32px); }
 
 .is-armed .direction-label {
   color: rgba(255,255,255,0.92);
-  letter-spacing: 0.26em;
 }
 .panel-left.is-armed  .direction-label { text-shadow: 0 0 32px color-mix(in srgb, var(--left-color)  70%, transparent); }
 .panel-right.is-armed .direction-label { text-shadow: 0 0 32px color-mix(in srgb, var(--right-color) 70%, transparent); }
