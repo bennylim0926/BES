@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { getBracketState } from '@/utils/api'
+import { getBracketState, getOverlayConfig } from '@/utils/api'
 import { createClient } from '@/utils/websocket'
 
 const bracketState   = ref(null)
+const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
 const activePair     = ref(null)
 const currentGenre   = ref(null)
 let   wsClient       = null
@@ -67,10 +68,17 @@ const isActiveMatch = (match) => {
          (l === activePair.value.right && r === activePair.value.left)
 }
 
-const slotClass = (match, slot) => ({
-  'slot-winner': match[2] && match[2] === match[slot],
-  'slot-loser':  match[2] && match[2] !== match[slot] && match[slot],
-})
+const slotClass = (match, slot) => {
+  if (match[2]) {
+    if (match[2] === match[slot]) return 'slot-winner'
+    if (match[slot]) return 'slot-loser'
+    return ''
+  }
+  if (isActiveMatch(match) && match[slot]) {
+    return slot === 0 ? 'slot-active-left' : 'slot-active-right'
+  }
+  return ''
+}
 
 const formatLabel = (key) => key === 'Top2' ? 'FINAL' : key.replace('Top', 'TOP ')
 
@@ -209,6 +217,9 @@ onMounted(async () => {
   const state = await getBracketState()
   if (state && (state.topSize || state.rounds)) bracketState.value = state
 
+  const cfg = await getOverlayConfig()
+  if (cfg) overlayConfig.value = cfg
+
   wsClient = createClient()
   wsClient.onConnect = () => {
 
@@ -235,6 +246,11 @@ onMounted(async () => {
     wsClient.subscribe('/topic/battle/genre', (msg) => {
       const data = JSON.parse(msg.body)
       currentGenre.value = data.genre ?? data.message ?? null
+    })
+
+    wsClient.subscribe('/topic/battle/overlay-config', (msg) => {
+      const cfg = JSON.parse(msg.body)
+      overlayConfig.value = cfg
     })
 
     wsClient.subscribe('/topic/battle/score', (msg) => {
@@ -286,7 +302,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 </script>
 
 <template>
-  <div class="bracket-root">
+  <div class="bracket-root" :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }">
 
     <!-- ── Scanlines overlay ──────────────────────────── -->
     <div class="scanlines" aria-hidden="true"></div>
@@ -355,7 +371,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[0] || '—' }}</span>
-                  <i v-if="match[2] === match[0] && match[0]" class="pi pi-crown crown-icon"></i>
+                  <span v-if="match[2] === match[0] && match[0]" class="win-badge">WIN</span>
                 </div>
               </div>
               <div class="match-wrap">
@@ -369,7 +385,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[1] || '—' }}</span>
-                  <i v-if="match[2] === match[1] && match[1]" class="pi pi-crown crown-icon"></i>
+                  <span v-if="match[2] === match[1] && match[1]" class="win-badge">WIN</span>
                 </div>
               </div>
             </div>
@@ -392,7 +408,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
               ]"
             >
               <span class="battler-name">{{ finalMatch[0] || '—' }}</span>
-              <i v-if="finalMatch[2] === finalMatch[0] && finalMatch[0]" class="pi pi-crown crown-icon"></i>
+              <span v-if="finalMatch[2] === finalMatch[0] && finalMatch[0]" class="win-badge">WIN</span>
             </div>
             <div class="final-vs">VS</div>
             <div
@@ -405,12 +421,8 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
               ]"
             >
               <span class="battler-name">{{ finalMatch[1] || '—' }}</span>
-              <i v-if="finalMatch[2] === finalMatch[1] && finalMatch[1]" class="pi pi-crown crown-icon"></i>
+              <span v-if="finalMatch[2] === finalMatch[1] && finalMatch[1]" class="win-badge">WIN</span>
             </div>
-          </div>
-          <div v-if="champion" class="champion-card">
-            <i class="pi pi-crown champ-icon"></i>
-            <span class="champ-name">{{ champion }}</span>
           </div>
         </div>
       </div>
@@ -436,7 +448,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[0] || '—' }}</span>
-                  <i v-if="match[2] === match[0] && match[0]" class="pi pi-crown crown-icon"></i>
+                  <span v-if="match[2] === match[0] && match[0]" class="win-badge">WIN</span>
                 </div>
               </div>
               <div class="match-wrap">
@@ -450,7 +462,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[1] || '—' }}</span>
-                  <i v-if="match[2] === match[1] && match[1]" class="pi pi-crown crown-icon"></i>
+                  <span v-if="match[2] === match[1] && match[1]" class="win-badge">WIN</span>
                 </div>
               </div>
             </div>
@@ -665,6 +677,22 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   border-color: rgba(255,255,255,0.18);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 0 14px rgba(255,255,255,0.08);
 }
+.slot-active-left {
+  background: color-mix(in srgb, var(--left-color) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--left-color) 50%, transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--left-color) 28%, transparent) !important;
+}
+.slot-active-left .battler-name {
+  color: color-mix(in srgb, var(--left-color) 80%, #fff) !important;
+}
+.slot-active-right {
+  background: color-mix(in srgb, var(--right-color) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--right-color) 50%, transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--right-color) 28%, transparent) !important;
+}
+.slot-active-right .battler-name {
+  color: color-mix(in srgb, var(--right-color) 80%, #fff) !important;
+}
 .slot-winner {
   background: rgba(245,158,11,0.15) !important;
   border-color: rgba(245,158,11,0.45) !important;
@@ -684,9 +712,13 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 }
 .name-hidden .battler-name { opacity: 0; transition: none; }
 
-.crown-icon {
-  font-size: 11px; color: var(--c-champ); flex-shrink: 0;
-  display: inline-block; transform: skewX(4deg);
+.win-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  transform: skewX(5deg); flex-shrink: 0;
+  background: rgba(245,158,11,0.22); border: 1px solid rgba(245,158,11,0.5);
+  color: #fbbf24; font-size: 8px; font-weight: 900; font-family: 'Inter', sans-serif;
+  letter-spacing: 0.12em; padding: 1px 5px; border-radius: 2px;
+  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
 }
 
 /* ── Winner glow animation ────────────────────────────── */
@@ -715,28 +747,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   font-family: 'Anton SC', sans-serif;
   font-size: 9px; letter-spacing: 0.32em;
   color: rgba(255,255,255,0.3); opacity: 0.38;
-}
-
-/* ── Champion card ────────────────────────────────────── */
-.champion-card {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 14px;
-  background: var(--c-champ-bg);
-  border: 1px solid rgba(245,158,11,0.22);
-  border-radius: 2px;
-  transform: skewX(-4deg);
-  box-shadow: 0 0 24px rgba(245,158,11,0.22);
-}
-.champ-icon {
-  font-size: 14px; color: var(--c-champ); flex-shrink: 0;
-  display: inline-block; transform: skewX(4deg);
-  filter: drop-shadow(0 0 8px rgba(245,158,11,0.9));
-}
-.champ-name {
-  font-family: 'Anton SC', sans-serif; font-size: 13px;
-  color: var(--c-champ); letter-spacing: 0.08em; text-transform: uppercase;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  display: inline-block; transform: skewX(4deg);
 }
 
 /* ── LED Ticker ───────────────────────────────────────── */
