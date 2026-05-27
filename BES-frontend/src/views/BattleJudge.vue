@@ -227,7 +227,7 @@ onUnmounted(() => {
     </header>
 
     <!-- ── Names bar ───────────────────────────────────────────── -->
-    <div v-if="leftName || rightName" class="names-bar" aria-hidden="true">
+    <div class="names-bar" aria-hidden="true">
       <div class="name-cell name-cell-left">
         <span class="name-cell-text">{{ leftName || '???' }}</span>
       </div>
