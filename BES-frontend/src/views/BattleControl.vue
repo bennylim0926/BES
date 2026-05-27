@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, resetBattleVotes, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -20,6 +20,7 @@ const currentTop = ref('')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
 const finalTieBlocked = ref(false)
+const revealActive = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
@@ -421,6 +422,11 @@ const uniqueGenres = computed(() => {
   return [...new Set(genres)].sort()
 })
 
+const currentGenreChampion = computed(() => {
+  if (isSmoke.value) return null
+  return rounds.value['Top2']?.[0]?.[2] ?? null
+})
+
 const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
 const submitAddBattleJudge = async (name) => {
@@ -478,6 +484,17 @@ const startRevote = async () => {
   currentWinner.value = -2
 }
 
+const revealChampionForGenre = async () => {
+  if (!currentGenreChampion.value) return
+  await revealChampion(selectedGenre.value, currentGenreChampion.value)
+  revealActive.value = true
+}
+
+const dismissReveal = async () => {
+  await dismissChampionReveal()
+  revealActive.value = false
+}
+
 const openVoting = async () => {
   await setBattlePhase('VOTING')
   battlePhase.value = 'VOTING'
@@ -505,6 +522,7 @@ watch(selectedEvent, async (newVal) => {
 }, { immediate: true })
 
 watch(selectedGenre, async (newVal) => {
+  revealActive.value = false
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
@@ -1104,6 +1122,26 @@ onUnmounted(() => {
             <i class="pi pi-chevron-right text-xs"></i>
           </button>
         </template>
+
+        <!-- Champion Reveal -->
+        <button
+          v-if="currentGenreChampion && !revealActive"
+          @click="revealChampionForGenre"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10
+                 text-sm font-semibold text-amber-400 hover:bg-amber-500/20 transition-all"
+        >
+          <i class="pi pi-star text-xs"></i>
+          Reveal Champion
+        </button>
+        <button
+          v-if="revealActive"
+          @click="dismissReveal"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+                 text-sm font-semibold text-content-secondary hover:bg-surface-700 transition-all"
+        >
+          <i class="pi pi-times text-xs"></i>
+          Dismiss Reveal
+        </button>
 
         <button
           @click="showResetConfirm = true"
