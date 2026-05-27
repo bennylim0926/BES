@@ -73,6 +73,7 @@ class BattleServiceTest {
     void setScore_finalTie_returnsMinusThreeToSignalBlock() {
         // empty judges → tie, isFinal=true → returns -3 (blocked)
         assertThat(service.setScoreService(true)).isEqualTo(-3);
+        verify(messagingTemplate, never()).convertAndSend(eq("/topic/battle/score"), any(Map.class));
     }
 
     @Test
