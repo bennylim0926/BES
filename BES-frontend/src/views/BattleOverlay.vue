@@ -264,6 +264,8 @@ onMounted(async () => {
       winnerTagVisible.value  = false
       leftWin.value           = false
       rightWin.value          = false
+      leftReset.value         = false
+      rightReset.value        = false
     }
   })
 

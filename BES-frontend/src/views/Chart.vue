@@ -105,6 +105,30 @@ const updateScore = async (msg) => {
   const leftName  = activeLeft.value?.name  ?? ''
   const rightName = activeRight.value?.name ?? ''
   const winner    = msg.message // 0 | 1 | -1
+
+  // Immediately reflect the score gain on the bar — the scorePopNames watcher fires the pop animation
+  if (winner === 0 && smokeParticipants.value.length > 0) {
+    smokeParticipants.value = smokeParticipants.value.map((p, i) =>
+      i === 0 ? { ...p, score: p.score + 1 } : p
+    )
+  } else if (winner === 1 && smokeParticipants.value.length > 1) {
+    smokeParticipants.value = smokeParticipants.value.map((p, i) =>
+      i === 1 ? { ...p, score: p.score + 1 } : p
+    )
+  }
+  // winner === -1 (tie): no score change
+
+  // Champion check: did the winner just reach 7?
+  if (!showChampion.value && (winner === 0 || winner === 1)) {
+    const champ = smokeParticipants.value[winner]
+    if (champ && champ.score >= 7) {
+      champName.value  = champ.name
+      champColor.value = winner === 0 ? overlayConfig.value.leftColor : overlayConfig.value.rightColor
+      showChampion.value = true
+      return  // champion overlay takes over — skip the regular result overlay
+    }
+  }
+
   // Fetch fresh judge votes from API at reveal time — avoids race where per-judge WS
   // subscriptions haven't connected yet and the local battleJudges still shows stale/cleared votes
   const freshJudges = await getBattleJudges()
