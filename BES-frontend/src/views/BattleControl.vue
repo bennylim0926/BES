@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, resetBattleVotes, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -19,6 +19,7 @@ const currentRound = ref(0)
 const currentTop = ref('')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
+const finalTieBlocked = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
@@ -459,10 +460,22 @@ const submitGetScore = async () => {
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
-  const res = await setBattleScore()
+  const isFinal = !isSmoke.value && currentTop.value === 'Top2'
+  const res = await setBattleScore(isFinal)
+  if (res?.status === 409) {
+    finalTieBlocked.value = true
+    return
+  }
   const data = await res.json()
+  finalTieBlocked.value = false
   currentWinner.value = Number(data.winner)
   if (data.winner === 1 || data.winner === 0) { setWinner(currentTop.value, currentRound.value, data.winner) }
+}
+
+const startRevote = async () => {
+  await resetBattleVotes()
+  finalTieBlocked.value = false
+  currentWinner.value = -2
 }
 
 const openVoting = async () => {
@@ -971,6 +984,20 @@ onUnmounted(() => {
             'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': battlePhase === 'REVEALED',
           }"
         >{{ battlePhase }}</span>
+      </div>
+
+      <!-- Final tie warning -->
+      <div
+        v-if="finalTieBlocked"
+        class="px-4 py-3 rounded-xl text-sm font-semibold mb-4 flex items-center justify-between gap-3
+               bg-amber-500/10 border border-amber-500/40 text-amber-400"
+      >
+        <span><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
+        <button
+          @click="startRevote"
+          class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40
+                 text-amber-400 text-xs font-bold hover:bg-amber-500/30 transition-all"
+        >START REVOTE</button>
       </div>
 
       <!-- Winner announcement -->
