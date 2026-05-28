@@ -56,6 +56,10 @@ const stageShaking = ref(false)
 const winnerTagVisible = ref(false)
 // glitching: glitch overlay during next-pair transition
 const glitching = ref(false)
+// animToken: incremented whenever a new pair starts (LOCKED phase or updateBattlePair).
+// updateScore captures the token at start and aborts if it changes, preventing
+// stale leftWin/rightWin assignments from a previous pair's score animation.
+let animToken = 0
 
 const isSmoke = computed(() => route.query.isSmoke === 'true')
 
@@ -93,19 +97,22 @@ const updateBattlePair = async (msg) => {
     return
   }
 
-  // STANDARD MODE: if a winner is currently showing, run exit sequence first
+  // Increment token — aborts any in-progress updateScore for the previous pair
+  animToken++
+
+  // STANDARD MODE: if the judge panel is visible, clean it up before the new pair
   if (!hideJudgeDecision.value) {
     glitching.value = true
     judgeAnim.value = 'slide-up'
     await useDelay().wait(100)
     if (unmounted) return
 
+    // Only slide a panel out if a winner was actually declared.
+    // If currentWinner is -2 the score animation was aborted mid-way — skip the
+    // panel exit so it doesn't look like a winner reveal on the wrong pair.
     if (currentWinner.value === 0) {
       leftReset.value = true
     } else if (currentWinner.value === 1) {
-      rightReset.value = true
-    } else {
-      leftReset.value  = true
       rightReset.value = true
     }
     vsAnim.value = ''
@@ -179,8 +186,13 @@ watch(battleJudges, (newVal) => {
 
 // ── Score reveal ───────────────────────────────────────────────────────────
 const updateScore = async (msg) => {
-  // Guard: if phase already reset to LOCKED, this is a stale WS event — ignore it
+  // Guard: stale event if phase already reset
   if (battlePhase.value === 'LOCKED') return
+  // Capture token — if a new pair starts (LOCKED handler or updateBattlePair) before
+  // we finish, animToken increments and all subsequent checks abort this animation.
+  const myToken = animToken
+  const ok = () => !unmounted && animToken === myToken
+
   showVotingIndicator.value = false
   rightScore.value = msg.right
   leftScore.value  = msg.left
@@ -191,10 +203,10 @@ const updateScore = async (msg) => {
 
   // Shake on slam landing (~350ms into animation)
   await useDelay().wait(350)
-  if (unmounted || battlePhase.value === 'LOCKED') return
+  if (!ok()) return
   stageShaking.value = true
   await useDelay().wait(80)
-  if (unmounted || battlePhase.value === 'LOCKED') return
+  if (!ok()) return
   stageShaking.value = false
 
   // Reveal votes as slam settles
@@ -202,17 +214,17 @@ const updateScore = async (msg) => {
 
   // Audience reads the votes
   await useDelay().wait(1500)
-  if (unmounted || battlePhase.value === 'LOCKED') return
+  if (!ok()) return
 
   // Phase 2: panel scales down and retreats to top
   judgeAnim.value = 'judge-retreat-top'
   await useDelay().wait(550)
-  if (unmounted || battlePhase.value === 'LOCKED') return
+  if (!ok()) return
   judgeAnim.value = 'judge-at-top'
 
   // Brief pause before winner reveal
   await useDelay().wait(150)
-  if (unmounted || battlePhase.value === 'LOCKED') return
+  if (!ok()) return
 
   currentWinner.value = msg.message
 
@@ -222,7 +234,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-right'
     await useDelay().wait(100)
-    if (unmounted || battlePhase.value === 'LOCKED') return
+    if (!ok()) return
     rightReset.value = true
   } else if (msg.message === 1) {
     // Right wins: VS rockets left, right panel expands
@@ -230,7 +242,7 @@ const updateScore = async (msg) => {
     winnerTagVisible.value = true
     vsAnim.value           = 'knock-left'
     await useDelay().wait(100)
-    if (unmounted || battlePhase.value === 'LOCKED') return
+    if (!ok()) return
     leftReset.value = true
   }
   // msg.message === -1: tie — panels stay
@@ -260,7 +272,8 @@ onMounted(async () => {
     battlePhase.value = msg.phase
     showVotingIndicator.value = msg.phase === 'VOTING'
     if (msg.phase === 'LOCKED') {
-      // Next was clicked — dismiss any in-progress result overlay immediately
+      // Next was clicked — abort any in-progress score animation and reset overlay
+      animToken++
       hideJudgeDecision.value = true
       judgeAnim.value         = ''
       votesVisible.value      = false
