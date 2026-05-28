@@ -39,7 +39,6 @@ const roundKeys = computed(() => {
 
 const sideRoundKeys  = computed(() => roundKeys.value.filter(k => k !== 'Top2'))
 const finalMatch     = computed(() => bracketState.value?.rounds?.Top2?.[0] ?? null)
-const champion       = computed(() => finalMatch.value?.[2] ?? null)
 const rightRoundKeys = computed(() => [...sideRoundKeys.value].reverse())
 
 const smokeList = computed(() => {
