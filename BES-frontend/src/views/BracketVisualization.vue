@@ -67,9 +67,9 @@ const isActiveMatch = (match) => {
          (l === activePair.value.right && r === activePair.value.left)
 }
 
-const slotClass = (match, slot) => {
+const slotClass = (match, slot, isFinal = false) => {
   if (match[2]) {
-    if (match[2] === match[slot]) return 'slot-winner'
+    if (match[2] === match[slot]) return isFinal ? 'slot-winner' : (slot === 0 ? 'slot-winner-left' : 'slot-winner-right')
     if (match[slot]) return 'slot-loser'
     return ''
   }
@@ -78,6 +78,25 @@ const slotClass = (match, slot) => {
   }
   return ''
 }
+
+const slotHeight = computed(() => {
+  const n = topSize.value
+  if (n <= 8)  return '54px'
+  if (n <= 16) return '46px'
+  return '38px'
+})
+const finalSlotHeight = computed(() => {
+  const n = topSize.value
+  if (n <= 8)  return '74px'
+  if (n <= 16) return '66px'
+  return '58px'
+})
+const centerColWidth = computed(() => {
+  const n = topSize.value
+  if (n <= 8)  return '210px'
+  if (n <= 16) return '195px'
+  return '185px'
+})
 
 const formatLabel = (key) => key === 'Top2' ? 'FINAL' : key.replace('Top', 'TOP ')
 
@@ -226,6 +245,11 @@ async function runWinnerAnimation(winnerKey, pending) {
   glowSlotKey.value = null
 
   // Phase 2 — ball travel (5 s)
+  // Bracket update may have arrived during the glow phase — use it as the target
+  if (pending === bracketState.value && pendingBracket.value) {
+    pending = pendingBracket.value
+    pendingBracket.value = null
+  }
   const destKey = findDestSlot(bracketState.value, pending)
   if (destKey) {
     hiddenSlotKey.value = destKey   // hide dest name before applying update
@@ -243,6 +267,12 @@ async function runWinnerAnimation(winnerKey, pending) {
   }
 
   animRunning = false
+
+  // Apply any bracket update that arrived while we were animating and wasn't consumed
+  if (pendingBracket.value) {
+    bracketState.value = pendingBracket.value
+    pendingBracket.value = null
+  }
 }
 
 function getActiveMatchInfo() {
@@ -272,6 +302,8 @@ onMounted(async () => {
       if (animRunning) {
         pendingBracket.value = newState   // defer until animation finishes
       } else {
+        // Clear any stale deferred state from a previous animation cycle
+        pendingBracket.value = null
         // Save snapshot before applying — needed if score arrives after this
         prevBracketUpdate = { state: bracketState.value, timestamp: Date.now() }
         bracketState.value = newState
@@ -355,7 +387,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 </script>
 
 <template>
-  <div class="bracket-root" :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }">
+  <div class="bracket-root" :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, '--slot-h': slotHeight, '--final-slot-h': finalSlotHeight, '--center-col-w': centerColWidth }">
 
     <!-- ── Scanlines overlay ──────────────────────────── -->
     <div class="scanlines" aria-hidden="true"></div>
@@ -437,7 +469,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[0] || '—' }}</span>
-                  <span v-if="match[2] === match[0] && match[0]" class="win-badge">WIN</span>
+                  <span v-if="match[2] === match[0] && match[0]" class="takes-it-badge">TAKES IT</span>
                 </div>
               </div>
               <div class="match-wrap">
@@ -451,7 +483,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[1] || '—' }}</span>
-                  <span v-if="match[2] === match[1] && match[1]" class="win-badge">WIN</span>
+                  <span v-if="match[2] === match[1] && match[1]" class="takes-it-badge">TAKES IT</span>
                 </div>
               </div>
             </div>
@@ -468,7 +500,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
               class="battler-slot"
               :ref="el => regSlot(el, 'Top2', 0, 0)"
               :class="[
-                slotClass(finalMatch, 0),
+                slotClass(finalMatch, 0, true),
                 glowSlotKey  === 'Top2-0-0' ? 'slot-glow'   : '',
                 hiddenSlotKey === 'Top2-0-0' ? 'name-hidden' : '',
               ]"
@@ -481,7 +513,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
               class="battler-slot"
               :ref="el => regSlot(el, 'Top2', 0, 1)"
               :class="[
-                slotClass(finalMatch, 1),
+                slotClass(finalMatch, 1, true),
                 glowSlotKey  === 'Top2-0-1' ? 'slot-glow'   : '',
                 hiddenSlotKey === 'Top2-0-1' ? 'name-hidden' : '',
               ]"
@@ -514,7 +546,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[0] || '—' }}</span>
-                  <span v-if="match[2] === match[0] && match[0]" class="win-badge">WIN</span>
+                  <span v-if="match[2] === match[0] && match[0]" class="takes-it-badge">TAKES IT</span>
                 </div>
               </div>
               <div class="match-wrap">
@@ -528,7 +560,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
                   ]"
                 >
                   <span class="battler-name">{{ match[1] || '—' }}</span>
-                  <span v-if="match[2] === match[1] && match[1]" class="win-badge">WIN</span>
+                  <span v-if="match[2] === match[1] && match[1]" class="takes-it-badge">TAKES IT</span>
                 </div>
               </div>
             </div>
@@ -584,9 +616,11 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   --c-champ:      #f59e0b;
   --left-color:   #dc2626;
   --right-color:  #2563eb;
-  --col-gap:      24px;
-  --header-h:     52px;
-  --slot-h:       38px;
+  --col-gap:       24px;
+  --header-h:      52px;
+  --slot-h:        38px;
+  --final-slot-h:  58px;
+  --center-col-w:  185px;
 }
 
 /* ── Root ─────────────────────────────────────────────── */
@@ -751,18 +785,38 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .slot-active-right .battler-name {
   color: color-mix(in srgb, var(--right-color) 80%, #fff) !important;
 }
+/* Final winner — gold */
 .slot-winner {
   background: rgba(245,158,11,0.15) !important;
   border-color: rgba(245,158,11,0.45) !important;
   box-shadow: 0 0 18px rgba(245,158,11,0.25) !important;
 }
 .slot-winner .battler-name { color: #fde68a; }
+
+/* Non-final winner — keep their side color */
+.slot-winner-left {
+  background: color-mix(in srgb, var(--left-color) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--left-color) 55%, transparent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--left-color) 25%, transparent) !important;
+}
+.slot-winner-left .battler-name {
+  color: color-mix(in srgb, var(--left-color) 85%, #fff) !important;
+}
+.slot-winner-right {
+  background: color-mix(in srgb, var(--right-color) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--right-color) 55%, transparent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--right-color) 25%, transparent) !important;
+}
+.slot-winner-right .battler-name {
+  color: color-mix(in srgb, var(--right-color) 85%, #fff) !important;
+}
+
 .slot-loser { background: rgba(255,255,255,0.02) !important; border-color: rgba(255,255,255,0.03) !important; opacity: 0.42; }
 .slot-loser  .battler-name { color: var(--c-lose-text); }
 
 .battler-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--c-text); opacity: 0.88;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
   display: inline-block; transform: skewX(4deg);
@@ -774,9 +828,18 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   display: inline-flex; align-items: center; justify-content: center;
   transform: skewX(5deg); flex-shrink: 0;
   background: rgba(245,158,11,0.22); border: 1px solid rgba(245,158,11,0.5);
-  color: #fbbf24; font-size: 8px; font-weight: 900; font-family: 'Inter', sans-serif;
-  letter-spacing: 0.12em; padding: 1px 5px; border-radius: 2px;
+  color: #fbbf24; font-size: 9px; font-weight: 900; font-family: 'Inter', sans-serif;
+  letter-spacing: 0.12em; padding: 2px 6px; border-radius: 2px;
   clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
+}
+.takes-it-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  transform: skewX(5deg); flex-shrink: 0;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6); font-size: 8px; font-weight: 700; font-family: 'Inter', sans-serif;
+  letter-spacing: 0.10em; padding: 1px 5px; border-radius: 2px;
+  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
+  white-space: nowrap;
 }
 
 /* ── Winner glow animation ────────────────────────────── */
@@ -793,9 +856,11 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .slot-glow .battler-name { color: #fde68a; opacity: 1; }
 
 /* ── Center column ────────────────────────────────────── */
-.center-col { flex-shrink: 0; width: 170px; display: flex; flex-direction: column; }
+.center-col { flex-shrink: 0; width: var(--center-col-w, 185px); display: flex; flex-direction: column; }
 .final-area { flex: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 6px; min-height: 0; }
 .final-match { display: flex; flex-direction: column; gap: 6px; }
+.final-match .battler-slot { height: var(--final-slot-h, 58px); }
+.final-match .battler-name { font-size: 17px; letter-spacing: 0.06em; }
 .final-match.match-active .battler-slot {
   border-color: rgba(255,255,255,0.3);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 0 16px rgba(255,255,255,0.1);
@@ -803,7 +868,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .final-vs {
   text-align: center;
   font-family: 'Anton SC', sans-serif;
-  font-size: 9px; letter-spacing: 0.32em;
+  font-size: 11px; letter-spacing: 0.32em;
   color: rgba(255,255,255,0.3); opacity: 0.38;
 }
 
