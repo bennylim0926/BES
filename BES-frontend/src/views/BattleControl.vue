@@ -117,6 +117,7 @@ const initiateBattlePair = async (top, pairList) => {
   // Reset winner FIRST so the winnerAnnouncement computed doesn't fire setWinner
   // with stale winner + new round/top values when reactive state updates below.
   currentWinner.value = -2
+  revealActive.value = false
   await resetJudgeVote()
   if (isSmoke.value) {
     await setBattlePair(rounds.value[0].name, rounds.value[1].name)
@@ -125,15 +126,23 @@ const initiateBattlePair = async (top, pairList) => {
     battlePhase.value = 'LOCKED'
     return
   }
+  // Clear the Top2 winner slot so currentGenreChampion goes null during a re-run,
+  // preventing a stale "Reveal Champion" button from appearing alongside showFinalReveal.
+  if (top === 'Top2' && Array.isArray(rounds.value['Top2']?.[0])) {
+    rounds.value['Top2'][0][2] = null
+    localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    broadcastBracket()
+  }
   currentBattle.value = [0, pairList]
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-  await setBattlePair(left, right)
+  await setBattlePair(left, right, top === 'Top2')
   await setBattlePhase('LOCKED')
   battlePhase.value = 'LOCKED'
   currentRound.value = 0
   currentTop.value = top
   localStorage.setItem('currentTop', top)
+  saveGenreBattleState(selectedGenre.value)
 }
 
 const prevPair = async () => {
@@ -141,11 +150,12 @@ const prevPair = async () => {
     currentBattle.value = [currentBattle.value[0] - 1, currentBattle.value[1]]
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-    await setBattlePair(left, right)
+    await setBattlePair(left, right, currentTop.value === 'Top2')
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
     currentWinner.value = -2
     currentRound.value -= 1
+    saveGenreBattleState(selectedGenre.value)
   }
 }
 
@@ -163,11 +173,12 @@ const nextPair = async () => {
       currentBattle.value = [currentBattle.value[0] + 1, currentBattle.value[1]]
       const left = currentBattle?.value[1][currentBattle?.value[0]][0]
       const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-      await setBattlePair(left, right)
+      await setBattlePair(left, right, currentTop.value === 'Top2')
       await setBattlePhase('LOCKED')
       battlePhase.value = 'LOCKED'
       currentWinner.value = -2
       currentRound.value += 1
+      saveGenreBattleState(selectedGenre.value)
     } else {
       // Last battle of this round — end match and return to IDLE
       await setBattlePhase('IDLE')
@@ -176,6 +187,7 @@ const nextPair = async () => {
       currentBattle.value = []
       currentTop.value = ''
       localStorage.removeItem('currentTop')
+      saveGenreBattleState(selectedGenre.value)
     }
   }
 }
@@ -458,6 +470,51 @@ const showFinalReveal = computed(() =>
 
 const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
+// Per-genre battle state persistence — saves which round/match was in progress so
+// switching genres and back re-broadcasts the correct pair to the overlay automatically.
+const genreBattleStateKey = (genre) => `battleState_${selectedEvent.value}_${genre}`
+
+const saveGenreBattleState = (genre) => {
+  if (!genre) return
+  if (currentBattle.value.length === 0) {
+    localStorage.removeItem(genreBattleStateKey(genre))
+    return
+  }
+  localStorage.setItem(genreBattleStateKey(genre), JSON.stringify({
+    battle: toRaw(currentBattle.value),
+    top: currentTop.value,
+    round: currentRound.value,
+    phase: battlePhase.value,
+  }))
+}
+
+const restoreAndBroadcastGenreBattle = async (genre) => {
+  const saved = localStorage.getItem(genreBattleStateKey(genre))
+  if (!saved) {
+    currentBattle.value = []
+    currentTop.value = ''
+    currentRound.value = 0
+    currentWinner.value = -2
+    return
+  }
+  const { battle, top, round, phase } = JSON.parse(saved)
+  currentBattle.value = battle ?? []
+  currentTop.value = top ?? ''
+  currentRound.value = round ?? 0
+  currentWinner.value = -2
+  // Re-broadcast so the overlay updates to this genre's current pair without needing "Start Round"
+  const pair = currentBattlePair.value
+  if (pair?.[0] && pair?.[1]) {
+    await setBattlePair(pair[0], pair[1], top === 'Top2')
+    battlePhase.value = 'LOCKED'
+    // Restore VOTING phase so "Reveal Champion" is available immediately if judges already voted
+    if (phase === 'VOTING') {
+      await setBattlePhase('VOTING')
+      battlePhase.value = 'VOTING'
+    }
+  }
+}
+
 // Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
 const genreJudgeKey = (genre) => `battleJudges_${selectedEvent.value}_${genre}`
 let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
@@ -539,7 +596,7 @@ const submitGetScore = async () => {
     await resetJudgeVote()
     // Re-broadcast same pair so the overlay hides the judge panel and resets battler animations
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight)
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value)
     return
   }
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
@@ -551,7 +608,7 @@ const submitGetScore = async () => {
     finalTieBlocked.value = true
     // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight)
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value)
     return
   }
   const data = await res.json()
@@ -602,6 +659,7 @@ const dismissReveal = async () => {
 const openVoting = async () => {
   await setBattlePhase('VOTING')
   battlePhase.value = 'VOTING'
+  saveGenreBattleState(selectedGenre.value)
 }
 
 const confirmResetBracket = async () => {
@@ -615,6 +673,7 @@ const confirmResetBracket = async () => {
   currentBattle.value = []
   currentTop.value = ''
   localStorage.removeItem('currentTop')
+  saveGenreBattleState(selectedGenre.value)
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -628,6 +687,8 @@ watch(selectedEvent, async (newVal) => {
 }, { immediate: true })
 
 watch(selectedGenre, async (newVal, oldVal) => {
+  // Dismiss before resetting revealActive — the check must happen while it's still true
+  if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
@@ -635,6 +696,10 @@ watch(selectedGenre, async (newVal, oldVal) => {
     rounds.value = JSON.parse(storedRounds) || initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
     broadcastBracket()
+    if (oldVal) {
+      saveGenreBattleState(oldVal)
+      await restoreAndBroadcastGenreBattle(newVal)
+    }
     // Sync per-genre judges on genre switch.
     // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
     // oldVal check (truthy) skips the immediate fire and empty-string initialization cases.

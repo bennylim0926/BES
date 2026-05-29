@@ -928,7 +928,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   color: rgba(245,158,11,0.85);
 }
 .champ-name-slam {
-  font-family: 'Anton SC', sans-serif; font-size: 58px;
+  font-family: 'Anton SC', sans-serif; font-size: 15vw;
   letter-spacing: 0.07em; text-transform: uppercase; line-height: 1;
   color: #fff;
   text-shadow: 0 0 40px rgba(245,158,11,0.65), 0 0 80px rgba(245,158,11,0.3);

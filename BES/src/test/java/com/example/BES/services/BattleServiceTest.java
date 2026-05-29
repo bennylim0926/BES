@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -258,6 +259,45 @@ class BattleServiceTest {
         assertThat(service.getJudges().get(0).getVote()).isEqualTo(-1);
         verify(messagingTemplate, atLeastOnce()).convertAndSend(
             eq("/topic/battle/judges"), any(Map.class));
+    }
+
+    @Test
+    void setBattlerPair_withIsFinalTrue_persistsFlag() {
+        SetBattlerPairDto dto = mock(SetBattlerPairDto.class);
+        when(dto.getLeftBattler()).thenReturn("W9");
+        when(dto.getRightBattler()).thenReturn("W10");
+        when(dto.isFinal()).thenReturn(true);
+
+        service.setBattlerPairService(dto);
+
+        assertThat(service.isCurrentFinal()).isTrue();
+    }
+
+    @Test
+    void setBattlerPair_withIsFinalFalse_persistsFlag() {
+        SetBattlerPairDto dto = mock(SetBattlerPairDto.class);
+        when(dto.getLeftBattler()).thenReturn("Alice");
+        when(dto.getRightBattler()).thenReturn("Bob");
+        when(dto.isFinal()).thenReturn(false);
+
+        service.setBattlerPairService(dto);
+
+        assertThat(service.isCurrentFinal()).isFalse();
+    }
+
+    @Test
+    void setBattlerPair_broadcastsIsFinalInPayload() {
+        SetBattlerPairDto dto = mock(SetBattlerPairDto.class);
+        when(dto.getLeftBattler()).thenReturn("W9");
+        when(dto.getRightBattler()).thenReturn("W10");
+        when(dto.isFinal()).thenReturn(true);
+
+        service.setBattlerPairService(dto);
+
+        verify(messagingTemplate).convertAndSend(
+            eq("/topic/battle/battle-pair"),
+            argThat((Map<String, Object> m) -> Boolean.TRUE.equals(m.get("isFinal")))
+        );
     }
 
     @Test

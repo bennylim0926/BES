@@ -37,6 +37,7 @@ public class BattleService {
     private List<Battler> battlers = new ArrayList<>();
     // IDLE | LOCKED | VOTING | REVEALED
     private String battlePhase = "IDLE";
+    private boolean currentIsFinal = false;
     private Map<String, Object> overlayConfig = new HashMap<>(Map.of(
         "showImages", true,
         "leftColor",  "#dc2626",
@@ -80,12 +81,14 @@ public class BattleService {
         getCurrentPair().leftBattler.setScore(0);
         getCurrentPair().rightBattler.setName(dto.getRightBattler());
         getCurrentPair().rightBattler.setScore(0);
+        currentIsFinal = dto.isFinal();
         messagingTemplate.convertAndSend("/topic/battle/battle-pair",
             Map.of(
                 "left", currentPair.getLeftBattler().getName(),
                 "leftScore", currentPair.getLeftBattler().getScore(),
                 "right", currentPair.getRightBattler().getName(),
-                "rightScore", currentPair.getRightBattler().getScore()
+                "rightScore", currentPair.getRightBattler().getScore(),
+                "isFinal", currentIsFinal
             ));
         // Auto-transition to LOCKED when a new pair is set
         battlePhase = "LOCKED";
@@ -228,6 +231,10 @@ public class BattleService {
 
     public String getBattlePhase() {
         return battlePhase;
+    }
+
+    public boolean isCurrentFinal() {
+        return currentIsFinal;
     }
 
     public void setBattlePhaseService(String phase) {
