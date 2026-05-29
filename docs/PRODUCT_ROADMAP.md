@@ -1,5 +1,7 @@
 # BES Product Roadmap
 
+> **Status (May 2026):** Features 1–5 are shipped. Feature 6 (Battle Feedback) is the only remaining item.
+
 ## Context
 
 BES already handles the full event lifecycle (registration → audition → battle), which puts it ahead of most tools that solve only one slice. The goal is to close the remaining gaps that cause real friction for organisers, judges, and participants — without over-engineering.
@@ -8,7 +10,7 @@ This document covers six proposed improvements, ordered by priority and dependen
 
 ---
 
-## Feature 1: Audition Feedback System (Judge Side)
+## Feature 1: Audition Feedback System (Judge Side) ✅ Shipped
 
 ### The Problem
 
@@ -48,7 +50,7 @@ Add a separate `AuditionFeedback` entity linked to `EventGenreParticipant` + `Ju
 
 ---
 
-## Feature 2: Participant Results Portal (No Login)
+## Feature 2: Participant Results Portal (No Login) ✅ Shipped
 
 ### The Problem
 
@@ -85,7 +87,7 @@ After the event, participants want to see their scores and feedback. Currently t
 
 ---
 
-## Feature 3: Dynamic Scoring Criteria
+## Feature 3: Dynamic Scoring Criteria ✅ Shipped
 
 ### The Problem
 
@@ -107,7 +109,7 @@ Every scoring aspect is currently a fixed string (e.g. "Musicality") with a fixe
 
 ---
 
-## Feature 4: Post-Audition Team/Crew Formation
+## Feature 4: Post-Audition Team/Crew Formation ✅ Shipped
 
 ### The Problem
 
@@ -126,7 +128,7 @@ Pick-up crew formation is standard in b-boy events. "Top 8 qualify, form your ow
 
 ---
 
-## Feature 5: Full Bracket Visualization (Public, Live)
+## Feature 5: Full Bracket Visualization (Public, Live) ✅ Shipped
 
 ### The Problem
 
@@ -149,7 +151,7 @@ Currently the battle control shows only the current pair. Participants don't kno
 
 ---
 
-## Feature 6: Battle Feedback (Extension of Feature 1)
+## Feature 6: Battle Feedback (Extension of Feature 1) ⏳ Remaining
 
 Same tag-based approach as Feature 1, but triggered after a judge submits their vote in a battle.
 

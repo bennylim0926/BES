@@ -1,0 +1,3 @@
+[submodule ".agent-dispatch"]
+	path = .agent-dispatch
+	url = https://github.com/bennylim0926/agent-dispatch.git

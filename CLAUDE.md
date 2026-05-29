@@ -129,7 +129,7 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 ## Key Conventions
 
-### API (see `API_CONVENTIONS.md` for full details)
+### API (see `docs/API_CONVENTIONS.md` for full details)
 
 - URLs: `/api/v1/{resource}` (collection), `/api/v1/{resource}/{id}` (single)
 - HTTP methods: GET (read), POST (create/action), DELETE (remove)
