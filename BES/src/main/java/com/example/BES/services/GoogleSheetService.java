@@ -135,8 +135,7 @@ public class GoogleSheetService {
         for (List<String> res : resultString) {
             AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genres, memberCols);
             String name = participant.getParticipantName();
-            String email = participant.getParticipantEmail();
-            if (name != null && !name.isBlank() && email != null && !email.isBlank()) {
+            if (name != null && !name.isBlank()) {
                 importable.add(participant);
             }
         }

@@ -50,6 +50,7 @@ import com.example.BES.dtos.UpdateParticipantGenreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.VerifyParticipantDto;
+import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
@@ -322,24 +323,36 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Verify and Email Participant", description = "Marks a participant as payment-verified and sends QR email")
-    @PostMapping("/participants/verify-email")
-    public ResponseEntity<String> verifyAndEmailParticipant(@Valid @RequestBody VerifyParticipantDto dto) {
+    @Operation(summary = "Get Check-in List", description = "Returns all participants for the event with their genre audition status")
+    @GetMapping("/{eventName}/checkin-list")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetCheckinListDto>> getCheckinList(@PathVariable String eventName) {
         try {
-            registerService.verifyAndEmail(dto.getParticipantId(), dto.getEventId());
-            return new ResponseEntity<>(gson.toJson("Verified and email sent"), HttpStatus.OK);
+            return new ResponseEntity<>(registerService.getCheckinList(eventName), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error fetching checkin list", e);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
+        }
+    }
+
+    @Operation(summary = "Verify Payment", description = "Marks a participant as payment-verified")
+    @PostMapping("/participants/verify-payment")
+    public ResponseEntity<String> verifyPayment(@Valid @RequestBody VerifyParticipantDto dto) {
+        try {
+            registerService.verifyPayment(dto.getParticipantId(), dto.getEventId());
+            return new ResponseEntity<>(gson.toJson("Payment verified"), HttpStatus.OK);
         } catch (Exception e) {
             log.error("Error in verify-email", e);
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
     }
 
-    @Operation(summary = "Verify and Email Batch", description = "Marks a batch of participants as payment-verified and sends QR emails")
-    @PostMapping("/participants/verify-email-batch")
-    public ResponseEntity<String> verifyAndEmailBatch(@Valid @RequestBody List<VerifyParticipantDto> list) {
+    @Operation(summary = "Verify Payment Batch", description = "Marks a batch of participants as payment-verified")
+    @PostMapping("/participants/verify-payment-batch")
+    public ResponseEntity<String> verifyPaymentBatch(@Valid @RequestBody List<VerifyParticipantDto> list) {
         try {
-            registerService.verifyAndEmailBatch(list);
-            return new ResponseEntity<>(gson.toJson("Batch verified and emails sent"), HttpStatus.OK);
+            registerService.verifyPaymentBatch(list);
+            return new ResponseEntity<>(gson.toJson("Batch payment verified"), HttpStatus.OK);
         } catch (Exception e) {
             log.error("Error in verify-email-batch", e);
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);

@@ -1,6 +1,7 @@
 package com.example.BES.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,6 +27,7 @@ import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
+import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
@@ -220,5 +222,25 @@ public class EventControllerIntegrationTest {
         when(eventGenreParticipantService.getAllEventGenreParticipantByEventService(any())).thenReturn(Collections.emptyList());
         mockMvc.perform(get("/api/v1/event/participants/Summer"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void getCheckinList_returnsOk() throws Exception {
+        when(registerService.getCheckinList("TestEvent")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/event/TestEvent/checkin-list"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void verifyPayment_returnsOk() throws Exception {
+        doNothing().when(registerService).verifyPayment(anyLong(), anyLong());
+
+        mockMvc.perform(post("/api/v1/event/participants/verify-payment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"participantId\":1,\"eventId\":1}"))
+            .andExpect(status().isOk());
     }
 }

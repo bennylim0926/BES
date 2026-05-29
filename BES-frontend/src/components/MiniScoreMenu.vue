@@ -9,11 +9,25 @@ const props = defineProps({
 
 const emit = defineEmits(['moveTo', 'close'])
 
+const scrollTo = (container, elIndex) => {
+  const target = elIndex * (container.clientWidth + 8)
+  container.scrollTo({ left: target, behavior: 'smooth' })
+}
+
 const moveTo = (index) => {
-  const cards = document.querySelectorAll('[data-card]');
-  const el = cards[index];
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+  const card = props.cards[index]
+  if (!card) { emit('close'); return }
+
+  const soloCards = document.querySelectorAll('[data-card]')
+  const pairSlides = document.querySelectorAll('[data-pair]')
+
+  if (soloCards.length) {
+    const el = soloCards[index]
+    if (el) scrollTo(el.parentElement, index)
+  } else if (pairSlides.length) {
+    const pairIndex = Math.floor((card.auditionNumber - 1) / 2)
+    const el = pairSlides[pairIndex]
+    if (el) scrollTo(el.parentElement, pairIndex)
   }
   emit('close')
 }

@@ -165,7 +165,7 @@ public class EventGenreParticpantService {
             auditMsg.put("participantId", participantInEventGenre.getParticipant().getParticipantId());
             auditMsg.put("eventId", participantInEventGenre.getEvent().getEventId());
             auditMsg.put("genreId", participantInEventGenre.getGenre().getGenreId());
-            auditMsg.put("walkin", participantInEventGenre.getParticipant().getParticipantEmail() == null);
+            auditMsg.put("walkin", false);
             auditMsg.put("refCode", refCode != null ? refCode : "");
             auditMsg.put("format", participantInEventGenre.getFormat() != null ? participantInEventGenre.getFormat() : "");
             messagingTemplate.convertAndSend("/topic/audition/", auditMsg);
@@ -191,12 +191,10 @@ public class EventGenreParticpantService {
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
 
         // Build per-participant maps from EventParticipant records
-        Map<Long, Boolean> emailSentMap = new java.util.HashMap<>();
         Map<Long, String> refCodeMap = new java.util.HashMap<>();
         Map<Long, java.util.List<String>> memberNamesMap = new java.util.HashMap<>();
         for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
             long pid = ep.getParticipant().getParticipantId();
-            emailSentMap.put(pid, ep.isEmailSent());
             refCodeMap.put(pid, ep.getReferenceCode());
             // Build full team roster: leader first, then additional members
             List<String> allMembers = new ArrayList<>();
@@ -219,12 +217,11 @@ public class EventGenreParticpantService {
             dto.participantName = res.getDisplayName();
             dto.genreName = res.getGenre().getGenreName();
             dto.auditionNumber = res.getAuditionNumber();
-            dto.walkin = (res.getParticipant().getParticipantEmail() == null)? true : false;
+            dto.walkin = false;
             long pid = res.getParticipant().getParticipantId();
             dto.participantId = pid;
             dto.eventId = res.getEvent().getEventId();
             dto.genreId = res.getGenre().getGenreId();
-            dto.emailSent = emailSentMap.getOrDefault(pid, false);
             dto.referenceCode = refCodeMap.get(pid);
             Judge j = res.getJudge();
             if(j != null){

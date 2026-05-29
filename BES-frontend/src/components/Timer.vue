@@ -63,68 +63,55 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="card p-4 backdrop-blur-md"
-    style="box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);"
-    :class="isRunning && isNearEnd ? 'animate-glow-pulse' : ''"
-  >
-    <div class="flex items-center gap-4">
-      <!-- Time display -->
-      <div class="flex-shrink-0 text-center min-w-[80px]">
-        <div
-          class="text-5xl font-heading font-extrabold tabular-nums transition-all duration-500"
-          :class="{
-            'text-content-primary': !isNearEnd && !isFinished,
-            'text-red-400 animate-pulse': isNearEnd,
-            'text-primary-400': isFinished,
-          }"
-        >
-          {{ isFinished ? "Done" : displayTime }}
-        </div>
-        <div class="text-xs text-content-muted mt-0.5">
-          {{ selectedTime > 0 ? `of ${selectedTime}s` : 'seconds' }}
-        </div>
+  <div class="flex flex-col items-center gap-1 select-none">
+    <!-- Anton SC number -->
+    <div class="text-center leading-none">
+      <div
+        class="font-anton tabular-nums transition-colors duration-300"
+        style="font-size: clamp(4rem, 15vw, 6rem);"
+        :class="{
+          'text-red-500 animate-pulse': isNearEnd,
+          'text-white/40':              isFinished && !isNearEnd,
+          'text-green-400':             countUp && !isNearEnd && !isFinished,
+          'text-white':                 !isNearEnd && !isFinished && !countUp,
+        }"
+      >{{ displayTime }}</div>
+      <div class="text-[10px] text-white/20 uppercase tracking-widest">
+        {{ selectedTime > 0 ? `OF ${selectedTime}S` : 'SECONDS' }}
       </div>
+    </div>
 
-      <!-- Progress bar + controls -->
-      <div class="flex-1">
-        <div class="h-1.5 bg-surface-600 rounded-full overflow-hidden mb-3">
-          <div
-            class="h-full rounded-full transition-all duration-1000"
-            :class="isNearEnd ? 'bg-red-400' : 'bg-primary-500'"
-            :style="{ width: progressPct + '%' }"
-          ></div>
-        </div>
+    <!-- Progress bar -->
+    <div class="w-full max-w-xs h-px bg-white/8 rounded-full overflow-hidden">
+      <div
+        class="h-full rounded-full transition-all duration-1000"
+        :class="isNearEnd ? 'bg-red-500' : countUp ? 'bg-green-400' : 'bg-white/50'"
+        :style="{ width: progressPct + '%' }"
+      ></div>
+    </div>
 
-        <div class="flex items-center gap-2 flex-wrap">
-          <!-- Mode toggle -->
-          <button
-            @click="toggleMode"
-            class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 flex items-center gap-1"
-            :class="countUp
-              ? 'bg-surface-600 border-primary-500/50 text-primary-300'
-              : 'bg-surface-700 border-surface-600 text-content-secondary hover:border-primary-500/50'"
-          >
-            <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="text-[10px]"></i>
-            {{ countUp ? 'Count Up' : 'Count Down' }}
-          </button>
-
-          <div class="w-px h-4 bg-surface-600"></div>
-
-          <!-- Duration presets -->
-          <button
-            v-for="t in [30, 45, 60, 90]"
-            :key="t"
-            @click="startTimer(t)"
-            class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150"
-            :class="selectedTime === t && isRunning
-              ? 'bg-primary-600 text-white border-primary-600 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-              : 'bg-surface-700 border-surface-600 text-content-secondary hover:border-primary-500/50 hover:bg-surface-600'"
-          >
-            {{ t }}s
-          </button>
-        </div>
-      </div>
+    <!-- Controls -->
+    <div class="flex items-center gap-1 flex-wrap justify-center">
+      <button
+        @click="toggleMode"
+        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
+        :class="countUp
+          ? 'bg-white/15 border-white/30 text-white'
+          : 'bg-transparent border-white/15 text-white/40 hover:border-white/30 hover:text-white/60'"
+      >
+        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-0.5 text-[9px]"></i>
+        {{ countUp ? 'Up' : 'Dn' }}
+      </button>
+      <div class="w-px h-5 bg-white/12"></div>
+      <button
+        v-for="t in [30, 45, 60, 90]"
+        :key="t"
+        @click="startTimer(t)"
+        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
+        :class="selectedTime === t && isRunning
+          ? 'bg-white/20 border-white/40 text-white'
+          : 'bg-transparent border-white/15 text-white/40 hover:border-white/30 hover:text-white/60'"
+      >{{ t }}</button>
     </div>
   </div>
 </template>

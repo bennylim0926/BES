@@ -7,7 +7,6 @@ import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
-import Timer from '@/components/Timer.vue';
 import { getActiveEvent } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import PairScoreCards from '@/components/PairScoreCards.vue';
@@ -205,7 +204,7 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
     return { participantName: obj.participantName, score: parseFloat(obj.score) }
   })
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
-  if (res.ok) {
+  if (res?.ok) {
     openModal("Scores Submitted", "All scores have been saved successfully.", "success")
   }
 }
@@ -319,12 +318,41 @@ const loadFeedbackGiven = async () => {
 watch([currentJudge, selectedGenre], loadFeedbackGiven)
 // ───────────────────────────────────────────────────────────────────────────
 
-const showFilters = ref(true)
+const showFilters = ref(false)
+const hasActiveSession = computed(() => !!selectedGenre.value && !!selectedRole.value)
 
 const wsClients = []
 
+watch(hasActiveSession, (active) => {
+  if (active) {
+    document.documentElement.style.overflow = 'hidden'
+    document.documentElement.style.height = '100dvh'
+    document.documentElement.style.touchAction = 'manipulation'
+    document.body.style.position = 'fixed'
+    document.body.style.overflow = 'hidden'
+    document.body.style.width = '100%'
+    document.body.style.height = '100dvh'
+    window.scrollTo(0, 0)
+  } else {
+    document.documentElement.style.overflow = ''
+    document.documentElement.style.height = ''
+    document.documentElement.style.touchAction = ''
+    document.body.style.position = ''
+    document.body.style.overflow = ''
+    document.body.style.width = ''
+    document.body.style.height = ''
+  }
+}, { immediate: true })
+
 onUnmounted(() => {
-  wsClients.forEach(c => deactivateClient(c))
+  wsClients.forEach(c => deactivateClient(c));
+  [document.documentElement, document.body].forEach(el => {
+    el.style.overflow = ''
+    el.style.height = ''
+  })
+  document.body.style.position = ''
+  document.body.style.width = ''
+  document.documentElement.style.touchAction = ''
 })
 
 onMounted(async () => {
@@ -404,59 +432,50 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container" :style="hasActiveSession ? { display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 64px)', overflow: 'hidden', padding: '8px 16px' } : {}">
 
-    <!-- Page header + action toolbar -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <!-- Context bar (active session: genre + role both selected) -->
+    <div
+      v-if="hasActiveSession"
+      class="flex items-center justify-between px-4 py-2.5 mb-4 rounded-xl border border-white/8 flex-shrink-0"
+      style="background: #060818;"
+    >
+      <div class="flex items-center gap-2 text-sm font-bold text-white/60 flex-wrap">
+        <span class="font-heading text-white/80">{{ selectedEvent }}</span>
+        <span class="text-white/15">·</span>
+        <span>{{ selectedGenre }}</span>
+        <span class="text-white/15">·</span>
+        <span class="uppercase text-xs tracking-widest">{{ judgingMode }}</span>
+        <span class="text-white/15">·</span>
+        <span>{{ selectedRole }}</span>
+      </div>
+      <button
+        @click="showFilters = !showFilters"
+        class="p-1.5 rounded-lg border transition-all active:scale-95"
+        :class="showFilters ? 'border-white/30 text-white/70 bg-white/10' : 'border-white/10 text-white/30 hover:border-white/25 hover:text-white/60'"
+      >
+        <i class="pi pi-sliders-h text-xs"></i>
+      </button>
+    </div>
+
+    <!-- Page header (no active session yet) -->
+    <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="page-title">Audition List</h1>
         <p class="text-muted mt-1">
           {{ selectedRole === 'Judge' ? 'Score participants for your genre' : 'Track audition progress' }}
         </p>
       </div>
-
-      <!-- Action buttons -->
-      <div class="flex items-center gap-2 flex-wrap">
-        <!-- Toggle filters -->
-        <button
-          @click="showFilters = !showFilters"
-          class="flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all duration-200"
-          :class="showFilters
-            ? 'bg-surface-600 text-content-primary border-surface-500'
-            : 'bg-surface-800 text-content-secondary border-surface-600 hover:border-surface-500'"
-        >
-          <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
-          Filters
-        </button>
-
-        <!-- Judge-only actions -->
-        <template v-if="selectedRole === 'Judge'">
-          <button
-            @click="showMiniMenu = !showMiniMenu"
-            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-surface-600 bg-surface-800
-                   text-sm font-semibold text-content-secondary hover:border-surface-500 transition-all duration-200"
-          >
-            <i class="pi pi-search text-xs"></i>
-            Jump
-          </button>
-          <button
-            @click="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
-            class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary-600 text-white text-sm
-                   font-semibold hover:bg-primary-700 shadow-sm transition-all duration-200 btn-glow"
-          >
-            <i class="pi pi-send text-xs"></i>
-            Submit
-          </button>
-          <button
-            @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
-            class="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-800/50 bg-transparent
-                   text-sm font-semibold text-red-400 hover:bg-red-950 transition-all duration-200"
-          >
-            <i class="pi pi-undo text-xs"></i>
-            Reset
-          </button>
-        </template>
-      </div>
+      <button
+        @click="showFilters = !showFilters"
+        class="flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all duration-200 self-start"
+        :class="showFilters
+          ? 'bg-surface-600 text-content-primary border-surface-500'
+          : 'bg-surface-800 text-content-secondary border-surface-600 hover:border-surface-500'"
+      >
+        <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
+        Filters
+      </button>
     </div>
 
     <!-- Filter panel -->
@@ -468,7 +487,7 @@ onMounted(async () => {
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="showFilters" class="card p-5 mb-6">
+      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 20px 60px rgba(0,0,0,0.8)' } : {}">
         <div class="flex flex-wrap items-center gap-3">
           <!-- Event name -->
           <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
@@ -482,7 +501,7 @@ onMounted(async () => {
               @click="selectedRole = r"
               class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
               :class="selectedRole === r
-                ? 'bg-primary-600 text-white'
+                ? 'bg-surface-600 text-white'
                 : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
             >{{ r }}</button>
           </div>
@@ -496,7 +515,7 @@ onMounted(async () => {
               @click="selectedGenre = g"
               class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
               :class="selectedGenre === g
-                ? 'bg-primary-600 text-white'
+                ? 'bg-surface-600 text-white'
                 : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
             >{{ g }}</button>
           </div>
@@ -511,7 +530,7 @@ onMounted(async () => {
                 @click="selectedEntryType = t"
                 class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
                 :class="selectedEntryType === t
-                  ? 'bg-primary-600 text-white'
+                  ? 'bg-surface-600 text-white'
                   : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
               >{{ t }}</button>
             </div>
@@ -527,7 +546,7 @@ onMounted(async () => {
                 @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
                 class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
                 :class="judgingMode === m
-                  ? 'bg-primary-600 text-white'
+                  ? 'bg-surface-600 text-white'
                   : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
               >{{ m }}</button>
             </div>
@@ -549,7 +568,7 @@ onMounted(async () => {
     <!-- No judges banner -->
     <div
       v-if="noJudgesConfigured"
-      class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-800/40 bg-amber-950/30 text-sm"
+      class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-800/40 bg-amber-950/30 text-sm flex-shrink-0"
     >
       <i class="pi pi-exclamation-triangle text-amber-400 text-sm flex-shrink-0"></i>
       <span class="text-amber-200/80">
@@ -564,10 +583,8 @@ onMounted(async () => {
     </div>
 
     <!-- Emcee view: Timer + round view -->
+    <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
-      <div class="sticky top-[72px] z-20 mb-4">
-        <Timer />
-      </div>
       <EmceeRoundView
         :participants="filteredParticipantsForEmceeView"
         :mode="judgingMode"
@@ -589,6 +606,9 @@ onMounted(async () => {
         :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
+        @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
+        @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
+        @jump="showMiniMenu = true"
       />
       <SwipeableCardsV2
         v-else
@@ -597,13 +617,16 @@ onMounted(async () => {
         :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
+        @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
+        @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
+        @jump="showMiniMenu = true"
       />
     </template>
 
     <!-- Empty state -->
     <div
       v-else-if="selectedRole && selectedGenre && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
-      class="flex flex-col items-center justify-center py-24 text-center"
+      class="flex flex-col items-center justify-center h-full text-center"
     >
       <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
         <i class="pi pi-list text-content-muted text-xl"></i>
@@ -624,6 +647,7 @@ onMounted(async () => {
       <p class="text-muted text-sm mt-1">Choose Emcee or Judge in the filter panel above</p>
     </div>
 
+    </div>
   </div>
 
   <ActionDoneModal

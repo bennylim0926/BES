@@ -29,11 +29,10 @@ public class RegistrationDtoMapper {
             nameIdx = teamNameIdx;
         }
 
-        if (nameIdx == null || emailIdx == null) return dto;
-        if (row.size() <= nameIdx || row.size() <= emailIdx) return dto;
+        if (nameIdx == null) return dto;
+        if (row.size() <= nameIdx) return dto;
 
         dto.setParticipantName(row.get(nameIdx));
-        dto.setParticipantEmail(row.get(emailIdx));
 
         // Stage name: dedicated column if present, otherwise single name doubles as stage name
         if (stageNameIdx != null && row.size() > stageNameIdx && !row.get(stageNameIdx).isBlank()) {

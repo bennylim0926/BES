@@ -37,7 +37,6 @@ public class EventParticipant {
     private String residency;
     private String genre;
     private boolean paymentVerified = false;
-    private boolean emailSent = false;
     private String screenshotUrl;
 
     @Column(name = "reference_code", unique = true)
