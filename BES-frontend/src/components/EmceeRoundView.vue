@@ -37,7 +37,7 @@ const allUpcomingRounds = computed(() =>
   }))
 )
 
-const visibleRounds    = computed(() => allUpcomingRounds.value.slice(0, MAX_VISIBLE_UPCOMING))
+const visibleRounds    = computed(() => allUpcomingRounds.value.slice(0, MAX_VISIBLE_UPCOMING).reverse())
 const hiddenRoundsCount = computed(() => Math.max(0, allUpcomingRounds.value.length - MAX_VISIBLE_UPCOMING))
 
 const touchStartX = ref(0)
@@ -76,32 +76,28 @@ const swipeHint = computed(() => {
   <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #060818; overflow: hidden;">
 
     <!-- ── Queue ──────────────────────────────────────────────────────────────
-         flex-direction: column-reverse means DOM[0] (Up Next = currentRound+1)
-         renders at the BOTTOM of this container, immediately above the NOW card.
-         Further-out rounds stack upward with decreasing opacity.
+         flex-col-reverse: stack from bottom (near NOW) upward.
+         DOM order: queue first, "+N" second. Reverse means:
+         queue → bottom, "+N" → above queue (top). Overflow clips top only.
     ──────────────────────────────────────────────────────────────────────── -->
     <div
       class="emcee-queue flex-1 px-3 pt-2 pb-1"
       style="display: flex; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden;"
     >
-      <TransitionGroup
-        :name="direction === 'left' ? 'list-up' : 'list-down'"
-        tag="div"
-        class="flex flex-col-reverse gap-1.5"
-      >
+      <div class="flex flex-col gap-1.5">
         <div
           v-for="({ slots, roundNumber }, uIdx) in visibleRounds"
           :key="roundNumber"
-          class="rounded-xl border overflow-hidden transition-all duration-300 flex-shrink-0"
-          :class="uIdx === 0 ? 'border-white/15 bg-white/5' : 'border-white/5 bg-transparent'"
-          :style="{ opacity: uIdx === 0 ? '1' : uIdx === 1 ? '0.5' : uIdx === 2 ? '0.3' : '0.15' }"
+          class="queue-item rounded-xl border overflow-hidden flex-shrink-0"
+          :class="uIdx === visibleRounds.length - 1 ? 'border-white/15 bg-white/5' : 'border-white/5 bg-transparent'"
+          :style="{ opacity: uIdx === visibleRounds.length - 1 ? '1' : uIdx === visibleRounds.length - 2 ? '0.5' : uIdx === visibleRounds.length - 3 ? '0.3' : '0.15' }"
         >
           <div class="flex items-center justify-between px-2 py-1">
             <span class="text-[10px] font-bold uppercase tracking-widest text-white/30">
               Round {{ roundNumber }}
             </span>
             <span
-              v-if="uIdx === 0"
+              v-if="uIdx === visibleRounds.length - 1"
               class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/10 font-bold uppercase tracking-wider"
             >Up Next</span>
           </div>
@@ -111,14 +107,14 @@ const swipeHint = computed(() => {
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
               <div v-else class="flex items-center gap-2 flex-wrap">
-                <span class="font-anton text-xl" :class="uIdx === 0 ? 'text-white/60' : 'text-white/25'">#{{ slot.auditionNumber }}</span>
-                <span class="font-heading font-bold text-sm" :class="uIdx === 0 ? 'text-white/70' : 'text-white/30'" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ slot.participantName }}</span>
+                <span class="font-anton text-xl" :class="uIdx === visibleRounds.length - 1 ? 'text-white/60' : 'text-white/25'">#{{ slot.auditionNumber }}</span>
+                <span class="font-heading font-bold text-sm" :class="uIdx === visibleRounds.length - 1 ? 'text-white/70' : 'text-white/30'" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ slot.participantName }}</span>
                 <span v-if="mode === 'PAIR' && sIdx === 0" class="text-white/20 text-xs">&amp;</span>
               </div>
             </template>
           </div>
         </div>
-      </TransitionGroup>
+      </div>
       <div
         v-if="hiddenRoundsCount > 0"
         class="flex-shrink-0 text-center pb-1"
@@ -177,8 +173,10 @@ const swipeHint = computed(() => {
                 </div>
               </template>
             </div>
-            <div class="text-center pb-1.5">
-              <span class="text-[8px] text-white/12 tracking-widest">← swipe →</span>
+            <div class="flex items-center justify-between px-4 pb-1.5">
+              <span class="text-[8px] text-white/12 tracking-wider">← Prev</span>
+              <span class="text-[8px] text-white/12">swipe</span>
+              <span class="text-[8px] text-white/12 tracking-wider">Next →</span>
             </div>
           </div>
         </Transition>
@@ -210,18 +208,10 @@ const swipeHint = computed(() => {
 .card-right-leave-from { transform: translate3d(0,0,0);     opacity: 1; }
 .card-right-leave-to   { transform: translate3d(32px,0,0);  opacity: 0; }
 
-/* ── Queue list transitions ─────────────────────────────────────────── */
-.list-up-move,   .list-down-move   { transition: transform 0.2s cubic-bezier(0.2,0,0.2,1); will-change: transform; }
-.list-up-enter-active,   .list-down-enter-active   { transition: transform 0.2s cubic-bezier(0.2,0,0.2,1), opacity 0.16s ease; will-change: transform, opacity; }
-.list-up-leave-active,   .list-down-leave-active   { transition: transform 0.16s cubic-bezier(0.2,0,0.2,1), opacity 0.14s ease; position: absolute; width: calc(100% - 2rem); }
-.list-up-enter-from   { transform: translate3d(0, 16px, 0); opacity: 0; }
-.list-up-enter-to     { transform: translate3d(0, 0, 0);   opacity: 1; }
-.list-up-leave-from   { transform: translate3d(0, 0, 0);   opacity: 1; }
-.list-up-leave-to     { transform: translate3d(0, -12px, 0); opacity: 0; }
-.list-down-enter-from { transform: translate3d(0, -16px, 0); opacity: 0; }
-.list-down-enter-to   { transform: translate3d(0, 0, 0);    opacity: 1; }
-.list-down-leave-from { transform: translate3d(0, 0, 0);    opacity: 1; }
-.list-down-leave-to   { transform: translate3d(0, 12px, 0); opacity: 0; }
+/* ── Queue item transitions ────────────────────────────────────────── */
+.queue-item {
+  transition: opacity 0.3s ease;
+}
 
 /* ── Landscape: timer left column, queue+card right column ──────────── */
 @media (orientation: landscape) {

@@ -59,15 +59,29 @@ const pairs = computed(() => {
   return result
 })
 
+const getPairIndexFromScroll = () => {
+  const container = scrollRef.value
+  if (!container) return 0
+  const snapPoint = container.clientWidth + 8
+  const biased = container.scrollLeft + snapPoint * 0.25
+  const idx = Math.round(biased / snapPoint)
+  return Math.max(0, Math.min(idx, pairs.value.length - 1))
+}
+
 const observePairs = async () => {
   await nextTick()
-  if (!scrollRef.value) return
-  const slides = scrollRef.value.querySelectorAll('[data-pair]')
-  const observer = new IntersectionObserver(
-    (entries) => { entries.forEach((e) => { if (e.isIntersecting) currentIndex.value = Number(e.target.getAttribute('data-index')) }) },
-    { root: scrollRef.value, threshold: 0.6 }
-  )
-  slides.forEach((s) => observer.observe(s))
+  const container = scrollRef.value
+  if (!container) return
+
+  container.addEventListener('scroll', () => {
+    currentIndex.value = getPairIndexFromScroll()
+  }, { passive: true })
+  container.addEventListener('touchend', () => {
+    currentIndex.value = getPairIndexFromScroll()
+  })
+  container.addEventListener('scrollend', () => {
+    currentIndex.value = getPairIndexFromScroll()
+  })
 }
 
 onMounted(observePairs)
@@ -113,8 +127,8 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     <div
       ref="scrollRef"
       v-if="pairs.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4"
-      style="scrollbar-width: none;"
+      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4 items-center h-full"
+      style="scrollbar-width: none; overflow-y: hidden;"
     >
       <div
         v-for="(pair, pairIdx) in pairs"
@@ -122,7 +136,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
         :data-index="pairIdx"
         data-pair
         class="flex-shrink-0 snap-center"
-        style="width: 97%;"
+        style="width: 100%; scroll-snap-stop: always;"
       >
         <div
           class="rounded-2xl border p-3 transition-all duration-200"
@@ -154,8 +168,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
               <button
                 v-else
                 @click="activeParticipantNum = card.auditionNumber"
-                :disabled="!isActivePair(pairIdx)"
-                class="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border transition-all duration-150 active:scale-98 disabled:cursor-not-allowed text-left"
+                class="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border transition-all duration-150 active:scale-98 text-left"
                 :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
                   ? 'border-amber-500/40 bg-amber-500/12'
                   : 'border-white/8 bg-white/3 opacity-60'"
@@ -378,7 +391,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
         @click="emit('jump')"
         class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
         style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
-      ><i class="pi pi-search text-xs"></i> Jump</button>
+      ><i class="pi pi-search text-xs"></i> Go To</button>
 
       <button
         @click="emit('submit')"

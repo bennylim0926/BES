@@ -44,14 +44,29 @@ function computeAggregate(card) {
   return Number((weighted / totalWeight.value).toFixed(2))
 }
 
+const getCardIndexFromScroll = () => {
+  const container = scrollRef.value
+  if (!container) return 0
+  const snapPoint = container.clientWidth + 8
+  const biased = container.scrollLeft + snapPoint * 0.25
+  const idx = Math.round(biased / snapPoint)
+  return Math.max(0, Math.min(idx, props.cards.length - 1))
+}
+
 const observeCards = async () => {
   await nextTick()
-  const cards = scrollRef.value.querySelectorAll('[data-card]')
-  const observer = new IntersectionObserver(
-    (entries) => { entries.forEach((e) => { if (e.isIntersecting) currentIndex.value = Number(e.target.getAttribute('data-index')) }) },
-    { root: scrollRef.value, threshold: 0.6 }
-  )
-  cards.forEach((c) => observer.observe(c))
+  const container = scrollRef.value
+  if (!container) return
+
+  container.addEventListener('scroll', () => {
+    currentIndex.value = getCardIndexFromScroll()
+  }, { passive: true })
+  container.addEventListener('touchend', () => {
+    currentIndex.value = getCardIndexFromScroll()
+  })
+  container.addEventListener('scrollend', () => {
+    currentIndex.value = getCardIndexFromScroll()
+  })
 }
 
 const updateDecimal = (score, num) => score === 10 ? 10 : Math.floor(score) + num / 10
@@ -68,6 +83,7 @@ const aggregateDisplay = computed(() => {
 })
 
 onMounted(observeCards)
+
 </script>
 
 <template>
@@ -77,8 +93,8 @@ onMounted(observeCards)
     <div
       ref="scrollRef"
       v-if="props.cards && props.cards.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pt-2 pb-4"
-      style="scrollbar-width: none;"
+      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pt-2 pb-4 items-center h-full"
+      style="scrollbar-width: none; overflow-y: hidden;"
     >
       <div
         v-for="(card, idx) in props.cards"
@@ -194,7 +210,7 @@ onMounted(observeCards)
                 <template v-for="criterion in criteria" :key="criterion.id">
                   <div v-if="getActiveCriterion(idx) === criterion.name">
                     <button
-                      :disabled="idx !== currentIndex"
+                      
                       @click="setCriteriaScore(card, criterion.name, 10)"
                       class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
                       style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
@@ -205,7 +221,7 @@ onMounted(observeCards)
                         <div class="grid grid-cols-3 gap-1">
                           <button
                             v-for="value in 9" :key="'w'+criterion.name+value"
-                            :disabled="idx !== currentIndex"
+                            
                             @click="setCriteriaScore(card, criterion.name, Number(value))"
                             class="py-4 text-sm font-bold transition-all duration-100 active:scale-95 disabled:opacity-20"
                             :class="Math.floor(criteriaScore(card, criterion.name)) === value && criteriaScore(card, criterion.name) === value ? 'text-black' : 'text-white/55 hover:text-white'"
@@ -220,7 +236,7 @@ onMounted(observeCards)
                         <div class="grid grid-cols-3 gap-1">
                           <button
                             v-for="value in 9" :key="'d'+criterion.name+value"
-                            :disabled="idx !== currentIndex"
+                            
                             @click="updateCriteriaDecimal(card, criterion.name, value)"
                             class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95 disabled:opacity-20"
                             :class="(criteriaScore(card, criterion.name) * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
@@ -238,7 +254,7 @@ onMounted(observeCards)
               <!-- ── Single-score mode ── -->
               <template v-else>
                 <button
-                  :disabled="idx !== currentIndex"
+                  
                   @click="card.score = 10"
                   class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
                   style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
@@ -249,7 +265,7 @@ onMounted(observeCards)
                     <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9" :key="'w'+value"
-                        :disabled="idx !== currentIndex"
+                        
                         @click="card.score = Number(value)"
                         class="py-4 text-sm font-bold transition-all duration-100 active:scale-95 disabled:opacity-20"
                         :class="Math.floor(card.score) === value && card.score === value ? 'text-black' : 'text-white/55 hover:text-white'"
@@ -264,7 +280,7 @@ onMounted(observeCards)
                     <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9" :key="'d'+value"
-                        :disabled="idx !== currentIndex"
+                        
                         @click="card.score = updateDecimal(card.score, value)"
                         class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95 disabled:opacity-20"
                         :class="(card.score * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
@@ -307,7 +323,7 @@ onMounted(observeCards)
         @click="emit('jump')"
         class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
         style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
-      ><i class="pi pi-search text-xs"></i> Jump</button>
+      ><i class="pi pi-search text-xs"></i> Go To</button>
 
       <button
         @click="emit('submit')"

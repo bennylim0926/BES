@@ -324,15 +324,34 @@ const hasActiveSession = computed(() => !!selectedGenre.value && !!selectedRole.
 const wsClients = []
 
 watch(hasActiveSession, (active) => {
-  document.documentElement.style.overflow = active ? 'hidden' : ''
-  document.documentElement.style.height = active ? '100dvh' : ''
-  document.documentElement.style.touchAction = active ? 'manipulation' : ''
+  if (active) {
+    document.documentElement.style.overflow = 'hidden'
+    document.documentElement.style.height = '100dvh'
+    document.documentElement.style.touchAction = 'manipulation'
+    document.body.style.position = 'fixed'
+    document.body.style.overflow = 'hidden'
+    document.body.style.width = '100%'
+    document.body.style.height = '100dvh'
+    window.scrollTo(0, 0)
+  } else {
+    document.documentElement.style.overflow = ''
+    document.documentElement.style.height = ''
+    document.documentElement.style.touchAction = ''
+    document.body.style.position = ''
+    document.body.style.overflow = ''
+    document.body.style.width = ''
+    document.body.style.height = ''
+  }
 }, { immediate: true })
 
 onUnmounted(() => {
-  wsClients.forEach(c => deactivateClient(c))
-  document.documentElement.style.overflow = ''
-  document.documentElement.style.height = ''
+  wsClients.forEach(c => deactivateClient(c));
+  [document.documentElement, document.body].forEach(el => {
+    el.style.overflow = ''
+    el.style.height = ''
+  })
+  document.body.style.position = ''
+  document.body.style.width = ''
   document.documentElement.style.touchAction = ''
 })
 
@@ -468,7 +487,7 @@ onMounted(async () => {
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'flex-shrink-0' : 'mb-6'">
+      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 20px 60px rgba(0,0,0,0.8)' } : {}">
         <div class="flex flex-wrap items-center gap-3">
           <!-- Event name -->
           <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
