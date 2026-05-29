@@ -449,7 +449,7 @@ export const removeBattleJudge = async(id) =>{
     return null
   }
 }
-export const setBattlePair = async(leftBattler, rightBattler) =>{
+export const setBattlePair = async(leftBattler, rightBattler, isFinal = false) =>{
   try{
     return await fetch(`${domain}/api/v1/battle/battle-pair`,{
       method: 'POST',
@@ -460,7 +460,8 @@ export const setBattlePair = async(leftBattler, rightBattler) =>{
       },
       body: JSON.stringify({
         leftBattler: leftBattler,
-        rightBattler: rightBattler
+        rightBattler: rightBattler,
+        isFinal: isFinal
       })
     })
   }catch(e){

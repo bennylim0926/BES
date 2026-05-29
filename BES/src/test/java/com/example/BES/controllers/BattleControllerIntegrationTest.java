@@ -218,6 +218,93 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testSetBattlePairWithIsFinalTrue_getPairReturnsIsFinalTrue() throws Exception {
+        String json = objectMapper.writeValueAsString(Map.of(
+                "leftBattler", "W9",
+                "rightBattler", "W10",
+                "isFinal", true));
+
+        mockMvc.perform(post("/api/v1/battle/battle-pair")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/battle/battle-pair"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isFinal").value(true));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testSetBattlePairWithoutIsFinal_defaultsFalse() throws Exception {
+        String json = objectMapper.writeValueAsString(Map.of(
+                "leftBattler", "Alice",
+                "rightBattler", "Bob"));
+
+        mockMvc.perform(post("/api/v1/battle/battle-pair")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/battle/battle-pair"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isFinal").value(false));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testFinalTie_isBlockedWith409() throws Exception {
+        Judge j1 = new Judge(10L, "FinalJ1", null);
+        Judge j2 = new Judge(11L, "FinalJ2", null);
+        when(judgeService.getJudgeById(10L)).thenReturn(j1);
+        when(judgeService.getJudgeById(11L)).thenReturn(j2);
+
+        mockMvc.perform(post("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 10)))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 11)))).andExpect(status().isOk());
+
+        // j1 votes left (0), j2 votes right (1) → tie
+        mockMvc.perform(post("/api/v1/battle/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 10, "vote", 0)))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/battle/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 11, "vote", 1)))).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/battle/score")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isFinal\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.tie").value(true));
+
+        // Cleanup
+        mockMvc.perform(delete("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 10)))).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 11)))).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testRevote_resetsJudgeVotesToMinusOne() throws Exception {
+        Judge j = new Judge(12L, "RevoteJ", null);
+        when(judgeService.getJudgeById(12L)).thenReturn(j);
+
+        mockMvc.perform(post("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 12)))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/battle/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 12, "vote", 0)))).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/battle/revote"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Judge votes reset"));
+
+        // Cleanup
+        mockMvc.perform(delete("/api/v1/battle/judge").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 12)))).andExpect(status().isOk());
+    }
+
+    @Test
     @WithMockUser
     public void testGetOverlayConfig_returnsValidStructure() throws Exception {
         mockMvc.perform(get("/api/v1/battle/overlay-config"))

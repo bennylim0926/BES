@@ -37,6 +37,7 @@ public class BattleService {
     private List<Battler> battlers = new ArrayList<>();
     // IDLE | LOCKED | VOTING | REVEALED
     private String battlePhase = "IDLE";
+    private boolean currentIsFinal = false;
     private Map<String, Object> overlayConfig = new HashMap<>(Map.of(
         "showImages", true,
         "leftColor",  "#dc2626",
@@ -47,7 +48,7 @@ public class BattleService {
     }
     private String selectedMode;
     private BattlePair currentPair;
-    private List<BattleJudge> judges;
+    private final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
     // standby or judge
     private String status;
 
@@ -58,7 +59,6 @@ public class BattleService {
         Battler right = new Battler();
         currentPair.leftBattler = left;
         currentPair.rightBattler = right;
-        judges = new ArrayList<>();
     }
 
     public List<Battler> getSmokeBattlersService(){
@@ -81,12 +81,14 @@ public class BattleService {
         getCurrentPair().leftBattler.setScore(0);
         getCurrentPair().rightBattler.setName(dto.getRightBattler());
         getCurrentPair().rightBattler.setScore(0);
+        currentIsFinal = dto.isFinal();
         messagingTemplate.convertAndSend("/topic/battle/battle-pair",
             Map.of(
                 "left", currentPair.getLeftBattler().getName(),
                 "leftScore", currentPair.getLeftBattler().getScore(),
                 "right", currentPair.getRightBattler().getName(),
-                "rightScore", currentPair.getRightBattler().getScore()
+                "rightScore", currentPair.getRightBattler().getScore(),
+                "isFinal", currentIsFinal
             ));
         // Auto-transition to LOCKED when a new pair is set
         battlePhase = "LOCKED";
@@ -99,11 +101,13 @@ public class BattleService {
         // After that we add the point
         List<Integer> score = new ArrayList<>();
         Integer res = -100;
-        if(judges.size() == 0){
-            res = -2;
-        }
-        for (BattleJudge judge : judges) {
-            score.add(judge.getVote());
+        synchronized (judges) {
+            if(judges.size() == 0){
+                res = -2;
+            }
+            for (BattleJudge judge : judges) {
+                score.add(judge.getVote());
+            }
         }
         if(Collections.frequency(score, 0) == Collections.frequency(score, 1)){
             if (isFinal) return -3;   // final tie — blocked, do not broadcast
@@ -213,7 +217,10 @@ public class BattleService {
         return judges;
     }
     public void setJudges(List<BattleJudge> judges) {
-        this.judges = judges;
+        synchronized (this.judges) {
+            this.judges.clear();
+            this.judges.addAll(judges);
+        }
     }
     public String getStatus() {
         return status;
@@ -224,6 +231,10 @@ public class BattleService {
 
     public String getBattlePhase() {
         return battlePhase;
+    }
+
+    public boolean isCurrentFinal() {
+        return currentIsFinal;
     }
 
     public void setBattlePhaseService(String phase) {
@@ -247,8 +258,10 @@ public class BattleService {
     }
 
     public void resetJudgeVotesService() {
-        for (BattleJudge judge : judges) {
-            judge.setVote(-1);
+        synchronized (judges) {
+            for (BattleJudge judge : judges) {
+                judge.setVote(-1);
+            }
         }
         messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
     }

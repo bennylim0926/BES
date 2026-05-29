@@ -98,7 +98,8 @@ public class BattleController {
             "left", currentPair.getLeftBattler().getName(),
             "right", currentPair.getRightBattler().getName(),
             "rightScore", currentPair.getRightBattler().getScore(),
-            "leftScore", currentPair.getLeftBattler().getScore()
+            "leftScore", currentPair.getLeftBattler().getScore(),
+            "isFinal", battleService.isCurrentFinal()
         ));
     }
 
