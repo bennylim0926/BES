@@ -15,7 +15,6 @@ import lombok.Setter;
 public class AddParticipantDto {
     public String eventName;
     public String participantName;
-    public String participantEmail;
     public String residency;
     public List<String> genres;
     public Boolean paymentStatus;
