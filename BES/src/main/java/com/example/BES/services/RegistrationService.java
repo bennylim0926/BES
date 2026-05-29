@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -30,19 +28,12 @@ import com.example.BES.respositories.EventParticipantTeamMemberRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ParticipantRepo;
-import com.google.zxing.WriterException;
-
-import jakarta.mail.MessagingException;
 
 @Service
 public class RegistrationService {
-    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
     @Autowired(required = false)
     GoogleSheetService sheetService;
-
-    @Autowired
-    MailSenderService mailService;
 
     @Autowired
     EventRepo eventRepo;
@@ -69,7 +60,7 @@ public class RegistrationService {
     EventGenreRepo eventGenreRepo;
 
     public void addParticipantToEvent(AddParticipantToEventDto dto)
-    throws IOException, MessagingException, WriterException {
+    throws IOException {
         Event event = eventRepo.findByEventName(dto.eventName).orElse(null);
         if (event == null) throw new NullPointerException("event is null");
 
@@ -81,17 +72,7 @@ public class RegistrationService {
                 .findByEventAndParticipant(event, toAddParticipant).orElse(null);
 
             if (ep != null) {
-                if (ep.isEmailSent()) continue; // Case A: already emailed
-                if (!ep.isPaymentVerified()) continue; // Case C: waiting for manual verification
-                // Case B: payment verified but email not yet sent — retry
-                try {
-                    List<EventGenreParticipant> egps = getEgpsForParticipant(event.getEventId(), toAddParticipant.getParticipantId());
-                    mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ep, egps, ep.getReferenceCode());
-                    ep.setEmailSent(true);
-                    eventParticipantRepo.save(ep);
-                } catch (Exception e) {
-                    log.error("Failed to retry email for {}", toAddParticipant.getParticipantEmail(), e);
-                }
+                if (!ep.isPaymentVerified()) continue;
             } else {
                 // Case D: new participant — create EP and EGP entries
                 ep = new EventParticipant();
@@ -99,11 +80,10 @@ public class RegistrationService {
                 ep.setEvent(event);
                 ep.setStageName(participant.getStageName());
                 ep.setTeamName(participant.getTeamName());
-                ep.setDisplayName(resolveEmailDisplayName(participant));
+                ep.setDisplayName(resolveDisplayName(participant));
                 ep.setResidency(participant.getResidency());
                 ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
                 ep.setPaymentVerified(!event.isPaymentRequired());
-                ep.setEmailSent(false);
                 ep.setScreenshotUrl(participant.getScreenshotUrl());
                 ep.setReferenceCode(ReferenceCodeUtil.generate());
 
@@ -151,22 +131,11 @@ public class RegistrationService {
                     }
                 }
 
-                // Send email only if payment verified and EGPs exist
-                if (ep.isPaymentVerified() && !egps.isEmpty()) {
-                    try {
-                        mailService.sendEmailWithAttachment(dto.eventName, toAddParticipant, ep, egps, ep.getReferenceCode());
-                        ep.setEmailSent(true);
-                        eventParticipantRepo.save(ep);
-                    } catch (Exception e) {
-                        log.error("Failed to send email for {}", toAddParticipant.getParticipantEmail(), e);
-                    }
-                }
             }
         }
     }
 
-    public void verifyAndEmail(long participantId, long eventId)
-    throws MessagingException, WriterException, IOException {
+    public void verifyAndEmail(long participantId, long eventId) {
         Event event = eventRepo.findById(eventId).orElse(null);
         Participant participant = participantRepo.findById(participantId).orElse(null);
         if (event == null || participant == null) throw new RuntimeException("Event or participant not found");
@@ -176,18 +145,10 @@ public class RegistrationService {
         if (ep == null) throw new RuntimeException("EventParticipant not found");
 
         ep.setPaymentVerified(true);
-
-        if (!ep.isEmailSent()) {
-            List<EventGenreParticipant> egps = getEgpsForParticipant(eventId, participantId);
-            mailService.sendEmailWithAttachment(event.getEventName(), participant, ep, egps, ep.getReferenceCode());
-            ep.setEmailSent(true);
-        }
-
         eventParticipantRepo.save(ep);
     }
 
-    public void verifyAndEmailBatch(List<VerifyParticipantDto> list)
-    throws MessagingException, WriterException, IOException {
+    public void verifyAndEmailBatch(List<VerifyParticipantDto> list) {
         for (VerifyParticipantDto item : list) {
             verifyAndEmail(item.getParticipantId(), item.getEventId());
         }
@@ -215,10 +176,6 @@ public class RegistrationService {
         return result;
     }
 
-    private List<EventGenreParticipant> getEgpsForParticipant(long eventId, long participantId) {
-        return eventGenreParticipantRepo.findByEventIdAndParticipantId(eventId, participantId);
-    }
-
     /** A format is "team" if it is non-null and not "1v1". */
     private boolean isTeamFormat(String format) {
         return format != null && !format.equalsIgnoreCase("1v1");
@@ -229,8 +186,7 @@ public class RegistrationService {
         return (preferred != null && !preferred.isBlank()) ? preferred : fallback;
     }
 
-    /** Email display name: always the individual (stageName → participantName). */
-    private String resolveEmailDisplayName(AddParticipantDto dto) {
+    private String resolveDisplayName(AddParticipantDto dto) {
         if (dto.getStageName() != null && !dto.getStageName().isBlank()) {
             return dto.getStageName();
         }
