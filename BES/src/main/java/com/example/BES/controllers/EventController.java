@@ -50,6 +50,7 @@ import com.example.BES.dtos.UpdateParticipantGenreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.VerifyParticipantDto;
+import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
@@ -318,6 +319,18 @@ public class EventController {
             return new ResponseEntity<>(registerService.getUnverifiedParticipantsFromDb(eventName), HttpStatus.OK);
         } catch (Exception e) {
             log.error("Error fetching unverified participants", e);
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
+        }
+    }
+
+    @Operation(summary = "Get Check-in List", description = "Returns all participants for the event with their genre audition status")
+    @GetMapping("/{eventName}/checkin-list")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetCheckinListDto>> getCheckinList(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(registerService.getCheckinList(eventName), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error fetching checkin list", e);
             return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
         }
     }
