@@ -21,3 +21,6 @@ postgres-data/
 # SSL certs (local dev)
 BES-frontend/nginx/certs/*.crt
 BES-frontend/nginx/certs/*.key
+.agent-dispatch/shared/
+.agent-dispatch/.env
+.agent-docker/
