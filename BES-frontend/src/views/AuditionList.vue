@@ -392,7 +392,6 @@ onMounted(async () => {
           eventId: msg.eventId,
           genreId: msg.genreId,
           walkin: msg.walkin,
-          emailSent: false,
           score: 0,
           format: msg.format || null,
           rowId: participants.value.length
