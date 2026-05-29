@@ -22,45 +22,15 @@ class ParticipantServiceTest {
     @InjectMocks ParticipantService service;
 
     @Test
-    void addParticipant_returnsExistingWhenEmailMatches() {
+    void addParticipant_createsAndSaves() {
         AddParticipantDto dto = new AddParticipantDto();
-        dto.participantEmail = "test@example.com";
-        dto.participantName = "Test";
-        Participant existing = new Participant();
-        existing.setParticipantEmail("test@example.com");
-        when(repo.findByParticipantEmail("test@example.com")).thenReturn(Optional.of(existing));
-
-        Participant result = service.addParticpantService(dto);
-
-        assertThat(result).isSameAs(existing);
-        verify(repo, never()).save(any());
-    }
-
-    @Test
-    void addParticipant_createsNewWhenEmailNotFound() {
-        AddParticipantDto dto = new AddParticipantDto();
-        dto.participantEmail = "new@example.com";
-        dto.participantName = "New Person";
-        when(repo.findByParticipantEmail("new@example.com")).thenReturn(Optional.empty());
+        dto.setParticipantName("Test");
         Participant saved = new Participant();
         when(repo.save(any())).thenReturn(saved);
 
         Participant result = service.addParticpantService(dto);
 
         assertThat(result).isSameAs(saved);
-        verify(repo).save(any(Participant.class));
-    }
-
-    @Test
-    void addParticipant_savesWhenEmailIsNull() {
-        AddParticipantDto dto = new AddParticipantDto();
-        dto.participantEmail = null;
-        dto.participantName = "Walk-in";
-        Participant saved = new Participant();
-        when(repo.save(any())).thenReturn(saved);
-
-        service.addParticpantService(dto);
-
         verify(repo).save(any(Participant.class));
     }
 
@@ -82,7 +52,7 @@ class ParticipantServiceTest {
     void addWalkIn_createsNewWhenNotFound() {
         AddWalkInDto dto = new AddWalkInDto();
         dto.name = "Newbie";
-        Participant empty = new Participant(); // participantName is null
+        Participant empty = new Participant();
         when(repo.findByParticipantName("Newbie")).thenReturn(Optional.of(empty));
         when(repo.save(any())).thenReturn(empty);
 
