@@ -47,7 +47,7 @@ public class BattleService {
     }
     private String selectedMode;
     private BattlePair currentPair;
-    private List<BattleJudge> judges;
+    private final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
     // standby or judge
     private String status;
 
@@ -58,7 +58,6 @@ public class BattleService {
         Battler right = new Battler();
         currentPair.leftBattler = left;
         currentPair.rightBattler = right;
-        judges = new ArrayList<>();
     }
 
     public List<Battler> getSmokeBattlersService(){
@@ -99,11 +98,13 @@ public class BattleService {
         // After that we add the point
         List<Integer> score = new ArrayList<>();
         Integer res = -100;
-        if(judges.size() == 0){
-            res = -2;
-        }
-        for (BattleJudge judge : judges) {
-            score.add(judge.getVote());
+        synchronized (judges) {
+            if(judges.size() == 0){
+                res = -2;
+            }
+            for (BattleJudge judge : judges) {
+                score.add(judge.getVote());
+            }
         }
         if(Collections.frequency(score, 0) == Collections.frequency(score, 1)){
             if (isFinal) return -3;   // final tie — blocked, do not broadcast
@@ -213,7 +214,10 @@ public class BattleService {
         return judges;
     }
     public void setJudges(List<BattleJudge> judges) {
-        this.judges = judges;
+        synchronized (this.judges) {
+            this.judges.clear();
+            this.judges.addAll(judges);
+        }
     }
     public String getStatus() {
         return status;
@@ -247,8 +251,10 @@ public class BattleService {
     }
 
     public void resetJudgeVotesService() {
-        for (BattleJudge judge : judges) {
-            judge.setVote(-1);
+        synchronized (judges) {
+            for (BattleJudge judge : judges) {
+                judge.setVote(-1);
+            }
         }
         messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
     }

@@ -6,7 +6,7 @@ import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
-import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
+import { createClient, deactivateClient } from '@/utils/websocket'
 
 const { selectedEvent, selectedGenre, initialiseDropdown, selectedJudge } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
@@ -16,7 +16,7 @@ const battleJudges = ref([])
 const currentBattle = ref([])
 const currentWinner = ref(-2)
 const currentRound = ref(0)
-const currentTop = ref(localStorage.getItem('currentTop') || '')
+const currentTop = ref('')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
 const finalTieBlocked = ref(false)
@@ -458,17 +458,64 @@ const showFinalReveal = computed(() =>
 
 const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
+// Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
+const genreJudgeKey = (genre) => `battleJudges_${selectedEvent.value}_${genre}`
+let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
+
+const saveGenreJudges = (genre) => {
+  const judges = (battleJudges.value?.judges ?? []).map(j => ({ id: j.id, vote: j.vote }))
+  localStorage.setItem(genreJudgeKey(genre), JSON.stringify(judges))
+}
+
+// Called when genre switches: removes current backend judges, restores saved judges + votes for new genre
+const syncJudgesForGenre = async (newGenre, prevGenre) => {
+  if (judgeSyncing) return
+  judgeSyncing = true
+  try {
+    // Refresh from backend first so we save the true current state (not stale cache)
+    battleJudges.value = await getBattleJudges()
+    if (prevGenre) saveGenreJudges(prevGenre)
+    const toRemove = battleJudges.value?.judges ?? []
+    // Remove sequentially — parallel DELETEs cause ConcurrentModificationException on the
+    // backend's ArrayList, silently leaving judges behind and contaminating the next genre.
+    for (const j of toRemove) {
+      await removeBattleJudge(j.id)
+    }
+    const raw = JSON.parse(localStorage.getItem(genreJudgeKey(newGenre)) ?? '[]')
+    if (raw.length > 0) {
+      // Support both old format (array of ids) and new format (array of { id, vote })
+      const entries = raw.map(s => (typeof s === 'object' ? s : { id: s, vote: -1 }))
+      // Add sequentially for the same reason as removes above
+      for (const { id } of entries) {
+        await addBattleJudge(id)
+      }
+      // Restore non-default votes — addBattleJudge sets vote=-1, so only restore others
+      await Promise.all(
+        entries
+          .filter(({ vote }) => vote !== undefined && vote !== -1)
+          .map(({ id, vote }) => battleJudgeVote(id, vote))
+      )
+    }
+    battleJudges.value = await getBattleJudges()
+    syncJudgeVoteSubscriptions()
+  } finally {
+    judgeSyncing = false
+  }
+}
+
 const submitAddBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   const res = await addBattleJudge(j?.judgeId)
   if (res.status === 404) console.log("No judge in database")
   battleJudges.value = await getBattleJudges()
+  saveGenreJudges(selectedGenre.value)
 }
 
 const submitRemoveBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   await removeBattleJudge(j?.judgeId)
   battleJudges.value = await getBattleJudges()
+  saveGenreJudges(selectedGenre.value)
 }
 
 const submitGetScore = async () => {
@@ -484,6 +531,9 @@ const submitGetScore = async () => {
     return
   }
   if (currentBattle.value.length === 0) return
+  // Final match: if all judges voted with a clear winner, stop here.
+  // showFinalReveal is now true → button switches to "Reveal Champion" for the organiser to click.
+  if (isFinalInProgress.value && allJudgesVoted.value && tentativeWinner.value !== -1) return
   if (currentWinner.value === -1) {
     currentWinner.value = -2
     await resetJudgeVote()
@@ -519,12 +569,21 @@ const startRevote = async () => {
 
 const revealChampionForGenre = async () => {
   if (showFinalReveal.value) {
-    // Organiser revealed before broadcasting score — capture name first, then score
+    // Capture winner name before broadcasting (tentativeWinner computed from live votes)
     const winnerName = tentativeWinner.value === 0
       ? currentBattlePair.value?.[0]
       : currentBattlePair.value?.[1]
-    await submitGetScore()  // broadcasts winner to overlay and bracket
-    if (currentWinner.value === 0 || currentWinner.value === 1) {
+    // Directly broadcast the score — bypasses submitGetScore's early-return guard
+    const res = await setBattleScore(true)
+    if (res?.status === 409) {
+      // Defensive: shouldn't happen since tentativeWinner !== -1
+      finalTieBlocked.value = true
+      return
+    }
+    const data = await res.json()
+    currentWinner.value = Number(data.winner)
+    if (data.winner === 0 || data.winner === 1) {
+      setWinner(currentTop.value, currentRound.value, data.winner)
       await revealChampion(selectedGenre.value, winnerName)
       revealActive.value = true
     }
@@ -568,7 +627,7 @@ watch(selectedEvent, async (newVal) => {
   }
 }, { immediate: true })
 
-watch(selectedGenre, async (newVal) => {
+watch(selectedGenre, async (newVal, oldVal) => {
   revealActive.value = false
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
@@ -576,6 +635,10 @@ watch(selectedGenre, async (newVal) => {
     rounds.value = JSON.parse(storedRounds) || initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
     broadcastBracket()
+    // Sync per-genre judges on genre switch.
+    // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
+    // oldVal check (truthy) skips the immediate fire and empty-string initialization cases.
+    if (mountJudgeSyncDone && oldVal) await syncJudgesForGenre(newVal, oldVal)
   } else {
     pickupCrews.value = []
   }
@@ -593,25 +656,91 @@ watch(topSize, async (newVal) => {
 }, { immediate: true })
 
 const wsClient = ref(null)
+// Prevents watch-triggered syncJudgesForGenre from running before onMounted
+// has loaded battleJudges from the API (timing race on initialiseDropdown)
+let mountJudgeSyncDone = false
+
+// Per-judge vote subscriptions for real-time allJudgesVoted tracking
+// (individual votes go to /topic/battle/vote/{id}, not /topic/battle/judges)
+const judgeVoteSubscriptions = {}
+
+const syncJudgeVoteSubscriptions = () => {
+  if (!wsClient.value?.connected) return
+  const judges = battleJudges.value?.judges ?? []
+  const liveIds = new Set(judges.map(j => String(j.id)))
+  // Unsubscribe removed judges
+  for (const [key, sub] of Object.entries(judgeVoteSubscriptions)) {
+    if (!liveIds.has(key)) {
+      sub.unsubscribe()
+      delete judgeVoteSubscriptions[key]
+    }
+  }
+  // Subscribe new judges
+  for (const judge of judges) {
+    const key = String(judge.id)
+    if (!judgeVoteSubscriptions[key]) {
+      judgeVoteSubscriptions[key] = wsClient.value.subscribe(
+        `/topic/battle/vote/${judge.id}`,
+        (raw) => {
+          const msg = JSON.parse(raw.body)
+          const j = battleJudges.value?.judges?.find(j => j.id === msg.judge)
+          if (j) j.vote = msg.vote
+        }
+      )
+    }
+  }
+}
+
+// Re-sync vote subscriptions whenever judge list changes (add/remove)
+watch(() => battleJudges.value?.judges?.length, syncJudgeVoteSubscriptions)
 
 onMounted(async () => {
   initialiseDropdown()
   await fetchAllJudges(selectedEvent.value)
   battleJudges.value = await getBattleJudges()
+  // Sync backend to the current genre's saved judges.
+  // On reload, the backend may have stale judges from a previous genre.
+  // If localStorage has a saved state for this genre, use it as truth.
+  // If not, save what the backend has so future genre switches work correctly.
+  if (selectedGenre.value) {
+    const savedRaw = localStorage.getItem(genreJudgeKey(selectedGenre.value))
+    if (savedRaw !== null) {
+      await syncJudgesForGenre(selectedGenre.value, null)
+    } else {
+      saveGenreJudges(selectedGenre.value)
+    }
+  }
+  mountJudgeSyncDone = true
   const savedConfig = await getOverlayConfig()
   if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
+  // Restore currentTop from localStorage only if a battle is genuinely in progress
+  // (avoids stale 'Top2' from a previous session bleeding into non-final rounds)
+  if (battlePhase.value !== 'IDLE') {
+    const storedTop = localStorage.getItem('currentTop')
+    if (storedTop) currentTop.value = storedTop
+  }
   wsClient.value = createClient()
-  subscribeToChannel(wsClient.value, '/topic/battle/phase', (msg) => {
-    battlePhase.value = msg.phase
-  })
-  subscribeToChannel(wsClient.value, '/topic/battle/judges', (msg) => {
-    battleJudges.value = msg   // { judges: [...] } — keeps allJudgesVoted live
-  })
+  // Single onConnect handler — multiple subscribeToChannel calls before connection
+  // overwrite each other's onConnect, so we wire everything here directly.
+  wsClient.value.onConnect = () => {
+    wsClient.value.subscribe('/topic/battle/phase', (raw) => {
+      battlePhase.value = JSON.parse(raw.body).phase
+    })
+    // NOTE: /topic/battle/judges is intentionally NOT subscribed here.
+    // syncJudgesForGenre does multiple remove+add operations in sequence; each
+    // triggers a WS broadcast with an intermediate state. These late-arriving
+    // messages would race against the explicit getBattleJudges() call at the end
+    // of syncJudgesForGenre and corrupt battleJudges.value.
+    // We update battleJudges.value only via explicit getBattleJudges() calls.
+    syncJudgeVoteSubscriptions()
+  }
+  wsClient.value.activate()
 })
 
 onUnmounted(() => {
+  for (const sub of Object.values(judgeVoteSubscriptions)) sub.unsubscribe?.()
   deactivateClient(wsClient.value)
 })
 </script>
