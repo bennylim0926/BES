@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyAndEmailParticipant, verifyAndEmailBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -459,13 +459,6 @@ const saveFormat = async (genreName) => {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-const emailedCount = computed(() =>
-  new Set(
-    verifiedDbParticipants.value
-      .filter(p => !p.walkin && p.emailSent)
-      .map(p => p.participantId)
-  ).size
-)
 
 const toggleUnverifiedSelect = (participantId) => {
   if (selectedUnverified.value.has(participantId)) {
@@ -476,10 +469,10 @@ const toggleUnverifiedSelect = (participantId) => {
   selectedUnverified.value = new Set(selectedUnverified.value)
 }
 
-const handleVerifyAndEmail = async (participant) => {
+const handleVerifyPayment = async (participant) => {
   verifyingParticipantId.value = participant.participantId
   try {
-    await verifyAndEmailParticipant(participant.participantId, participant.eventId)
+    await verifyPayment(participant.participantId, participant.eventId)
     unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     selectedUnverified.value.delete(participant.participantId)
@@ -490,7 +483,7 @@ const handleVerifyAndEmail = async (participant) => {
   verifyingParticipantId.value = null
 }
 
-const handleBatchVerify = async () => {
+const handleBatchVerifyPayment = async () => {
   if (selectedUnverified.value.size === 0) return
   batchVerifying.value = true
   const list = [...selectedUnverified.value].map(pid => {
@@ -498,7 +491,7 @@ const handleBatchVerify = async () => {
     return { participantId: p.participantId, eventId: p.eventId }
   })
   try {
-    await verifyAndEmailBatch(list)
+    await verifyPaymentBatch(list)
     unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     selectedUnverified.value = new Set()
@@ -679,11 +672,6 @@ onUnmounted(() => {
         </p>
         <span class="text-xs text-content-muted">{{ totalVerified }} verified</span>
       </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Emails Sent</p>
-        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ emailedCount }}<span class="text-base font-medium text-content-muted"> / {{ totalVerified }}</span></p>
-        <span class="text-xs text-content-muted">QR emails</span>
-      </div>
     </div>
 
     <!-- Unverified (payment pending — DB-driven) -->
@@ -711,17 +699,17 @@ onUnmounted(() => {
           <div class="flex items-center justify-between mb-3">
             <p class="text-xs text-content-muted flex items-center gap-1.5">
               <i class="pi pi-info-circle"></i>
-              Select participants and click "Send Batch", or verify individually.
+              Select participants and click "Verify Batch", or verify individually.
             </p>
             <button
               v-if="selectedUnverified.size > 0"
-              @click="handleBatchVerify"
+              @click="handleBatchVerifyPayment"
               :disabled="batchVerifying"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-500 text-white text-xs font-semibold
                      hover:bg-primary-600 active:scale-95 disabled:opacity-50 transition-all"
             >
-              <i class="pi text-xs" :class="batchVerifying ? 'pi-spinner pi-spin' : 'pi-send'"></i>
-              {{ batchVerifying ? 'Sending…' : `Send Batch (${selectedUnverified.size})` }}
+              <i class="pi text-xs" :class="batchVerifying ? 'pi-spinner pi-spin' : 'pi-check'"></i>
+              {{ batchVerifying ? 'Verifying…' : `Verify Batch (${selectedUnverified.size})` }}
             </button>
           </div>
           <div class="space-y-2">
@@ -763,14 +751,14 @@ onUnmounted(() => {
                   View Receipt
                 </a>
                 <button
-                  @click="handleVerifyAndEmail(p)"
+                  @click="handleVerifyPayment(p)"
                   :disabled="verifyingParticipantId === p.participantId"
                   class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-600 text-white text-xs font-semibold
                          hover:bg-primary-500 hover:scale-[1.03] hover:shadow-[0_0_12px_rgba(34,211,238,0.3)]
                          active:scale-95 disabled:opacity-50 transition-all duration-150"
                 >
                   <i class="pi text-xs" :class="verifyingParticipantId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
-                  {{ verifyingParticipantId === p.participantId ? 'Sending…' : 'Verify & Email' }}
+                  {{ verifyingParticipantId === p.participantId ? 'Verifying…' : 'Verify Payment' }}
                 </button>
               </div>
             </div>
@@ -1061,10 +1049,6 @@ onUnmounted(() => {
             >
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
-                <span
-                  v-if="verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
-                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
-                ><i class="pi pi-check text-xs"></i> Email Sent</span>
               </div>
               <div class="flex flex-wrap gap-1">
                 <span v-for="g in p.genres" :key="g"
@@ -1160,12 +1144,6 @@ onUnmounted(() => {
                   <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
                 </span>
               </span>
-              <span v-else-if="p.entries.length > 0 && verifiedDbParticipants.find(v => v.participantName === p.name)?.emailSent"
-                class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-teal-300 border border-teal-900/30"
-              ><i class="pi pi-check text-xs"></i> Email Sent</span>
-              <span v-else-if="!p.walkin"
-                class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-amber-300 border border-amber-900/30"
-              ><i class="pi pi-clock text-xs"></i> Email Pending</span>
             </div>
             <div class="flex flex-wrap gap-1.5">
               <span v-for="e in p.entries" :key="e.genre"
