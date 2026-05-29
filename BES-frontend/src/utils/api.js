@@ -679,9 +679,9 @@ export const getUnverifiedParticipantsDB = async (eventName) => {
   }
 }
 
-export const verifyAndEmailParticipant = async (participantId, eventId) => {
+export const verifyPayment = async (participantId, eventId) => {
   try {
-    return await fetch(`${domain}/api/v1/event/participants/verify-email`, {
+    return await fetch(`${domain}/api/v1/event/participants/verify-payment`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -692,9 +692,9 @@ export const verifyAndEmailParticipant = async (participantId, eventId) => {
   }
 }
 
-export const verifyAndEmailBatch = async (list) => {
+export const verifyPaymentBatch = async (list) => {
   try {
-    return await fetch(`${domain}/api/v1/event/participants/verify-email-batch`, {
+    return await fetch(`${domain}/api/v1/event/participants/verify-payment-batch`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -1082,5 +1082,25 @@ export const setOverlayConfig = async (config) => {
     })
   } catch (err) {
     console.log(err)
+  }
+}
+
+export const getCheckinList = async (eventName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/checkin-list`, {
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const checkInParticipant = async (participantId, eventId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/register-participant/${participantId}/${eventId}`, {
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
   }
 }
