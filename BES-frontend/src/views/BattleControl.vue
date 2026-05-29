@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -16,9 +16,11 @@ const battleJudges = ref([])
 const currentBattle = ref([])
 const currentWinner = ref(-2)
 const currentRound = ref(0)
-const currentTop = ref('')
+const currentTop = ref(localStorage.getItem('currentTop') || '')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
+const finalTieBlocked = ref(false)
+const revealActive = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
@@ -131,6 +133,7 @@ const initiateBattlePair = async (top, pairList) => {
   battlePhase.value = 'LOCKED'
   currentRound.value = 0
   currentTop.value = top
+  localStorage.setItem('currentTop', top)
 }
 
 const prevPair = async () => {
@@ -171,6 +174,8 @@ const nextPair = async () => {
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
       currentBattle.value = []
+      currentTop.value = ''
+      localStorage.removeItem('currentTop')
     }
   }
 }
@@ -420,6 +425,37 @@ const uniqueGenres = computed(() => {
   return [...new Set(genres)].sort()
 })
 
+const currentGenreChampion = computed(() => {
+  if (isSmoke.value) return null
+  return rounds.value['Top2']?.[0]?.[2] ?? null
+})
+
+const isFinalInProgress = computed(() => !isSmoke.value && currentTop.value === 'Top2')
+
+// All judges have cast a vote (none still at -3 = "hasn't voted this round")
+const allJudgesVoted = computed(() => {
+  const judges = battleJudges.value?.judges ?? []
+  return judges.length > 0 && judges.every(j => j.vote !== -3)
+})
+
+// Tentative winner from live judge votes — mirrors backend scoring logic
+const tentativeWinner = computed(() => {
+  const judges = battleJudges.value?.judges ?? []
+  if (judges.some(j => j.vote === -3)) return -2   // not all voted yet
+  const leftVotes  = judges.filter(j => j.vote === 0).length
+  const rightVotes = judges.filter(j => j.vote === 1).length
+  if (leftVotes === rightVotes) return -1            // tie
+  return leftVotes > rightVotes ? 0 : 1
+})
+
+// Show "Reveal Champion" in VOTING when all judges voted + clear winner (final only)
+const showFinalReveal = computed(() =>
+  battlePhase.value === 'VOTING' &&
+  isFinalInProgress.value &&
+  allJudgesVoted.value &&
+  tentativeWinner.value !== -1
+)
+
 const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
 const submitAddBattleJudge = async (name) => {
@@ -459,10 +495,49 @@ const submitGetScore = async () => {
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
-  const res = await setBattleScore()
+  const isFinal = !isSmoke.value && currentTop.value === 'Top2'
+  const res = await setBattleScore(isFinal)
+  if (res?.status === 409) {
+    finalTieBlocked.value = true
+    // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
+    const [rLeft, rRight] = currentBattlePair.value ?? []
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight)
+    return
+  }
   const data = await res.json()
+  finalTieBlocked.value = false
   currentWinner.value = Number(data.winner)
   if (data.winner === 1 || data.winner === 0) { setWinner(currentTop.value, currentRound.value, data.winner) }
+}
+
+const startRevote = async () => {
+  await resetBattleVotes()
+  await resetJudgeVote()   // reset to -3 so allJudgesVoted tracks the fresh round
+  finalTieBlocked.value = false
+  currentWinner.value = -2
+}
+
+const revealChampionForGenre = async () => {
+  if (showFinalReveal.value) {
+    // Organiser revealed before broadcasting score — capture name first, then score
+    const winnerName = tentativeWinner.value === 0
+      ? currentBattlePair.value?.[0]
+      : currentBattlePair.value?.[1]
+    await submitGetScore()  // broadcasts winner to overlay and bracket
+    if (currentWinner.value === 0 || currentWinner.value === 1) {
+      await revealChampion(selectedGenre.value, winnerName)
+      revealActive.value = true
+    }
+    return
+  }
+  if (!currentGenreChampion.value) return
+  await revealChampion(selectedGenre.value, currentGenreChampion.value)
+  revealActive.value = true
+}
+
+const dismissReveal = async () => {
+  await dismissChampionReveal()
+  revealActive.value = false
 }
 
 const openVoting = async () => {
@@ -479,6 +554,8 @@ const confirmResetBracket = async () => {
   battlePhase.value = 'IDLE'
   currentWinner.value = -2
   currentBattle.value = []
+  currentTop.value = ''
+  localStorage.removeItem('currentTop')
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -492,6 +569,7 @@ watch(selectedEvent, async (newVal) => {
 }, { immediate: true })
 
 watch(selectedGenre, async (newVal) => {
+  revealActive.value = false
   if (newVal) {
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
@@ -527,6 +605,9 @@ onMounted(async () => {
   wsClient.value = createClient()
   subscribeToChannel(wsClient.value, '/topic/battle/phase', (msg) => {
     battlePhase.value = msg.phase
+  })
+  subscribeToChannel(wsClient.value, '/topic/battle/judges', (msg) => {
+    battleJudges.value = msg   // { judges: [...] } — keeps allJudgesVoted live
   })
 })
 
@@ -973,6 +1054,20 @@ onUnmounted(() => {
         >{{ battlePhase }}</span>
       </div>
 
+      <!-- Final tie warning -->
+      <div
+        v-if="finalTieBlocked"
+        class="px-4 py-3 rounded-xl text-sm font-semibold mb-4 flex items-center justify-between gap-3
+               bg-amber-500/10 border border-amber-500/40 text-amber-400"
+      >
+        <span><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
+        <button
+          @click="startRevote"
+          class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40
+                 text-amber-400 text-xs font-bold hover:bg-amber-500/30 transition-all"
+        >START REVOTE</button>
+      </div>
+
       <!-- Winner announcement -->
       <div
         class="px-4 py-3 rounded-xl text-center text-sm font-semibold mb-4"
@@ -1047,9 +1142,20 @@ onUnmounted(() => {
           Open Voting
         </button>
 
-        <!-- VOTING: get score / rematch -->
+        <!-- VOTING: final + all judges voted + clear winner → one-click Reveal Champion -->
         <button
-          v-if="battlePhase === 'VOTING'"
+          v-if="showFinalReveal"
+          @click="revealChampionForGenre"
+          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10
+                 text-sm font-semibold text-amber-400 hover:bg-amber-500/20 transition-all"
+        >
+          <i class="pi pi-star text-xs"></i>
+          Reveal Champion
+        </button>
+
+        <!-- VOTING: all other cases (non-final, not all voted, or tie) -->
+        <button
+          v-else-if="battlePhase === 'VOTING'"
           @click="submitGetScore"
           class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
                  font-semibold hover:bg-primary-700 transition-all shadow-sm"
@@ -1077,6 +1183,26 @@ onUnmounted(() => {
             <i class="pi pi-chevron-right text-xs"></i>
           </button>
         </template>
+
+        <!-- Champion Reveal -->
+        <button
+          v-if="currentGenreChampion && !revealActive"
+          @click="revealChampionForGenre"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10
+                 text-sm font-semibold text-amber-400 hover:bg-amber-500/20 transition-all"
+        >
+          <i class="pi pi-star text-xs"></i>
+          Reveal Champion
+        </button>
+        <button
+          v-if="revealActive"
+          @click="dismissReveal"
+          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
+                 text-sm font-semibold text-content-secondary hover:bg-surface-700 transition-all"
+        >
+          <i class="pi pi-times text-xs"></i>
+          Dismiss Reveal
+        </button>
 
         <button
           @click="showResetConfirm = true"

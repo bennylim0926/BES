@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
@@ -92,7 +93,7 @@ public class BattleService {
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
     }
 
-    public Integer setScoreService(){
+    public Integer setScoreService(boolean isFinal){
         // Broadcast the score here
         // This is where we reveal the judge decision on the screen
         // After that we add the point
@@ -105,6 +106,7 @@ public class BattleService {
             score.add(judge.getVote());
         }
         if(Collections.frequency(score, 0) == Collections.frequency(score, 1)){
+            if (isFinal) return -3;   // final tie — blocked, do not broadcast
             res = -1;
         }else if(Collections.frequency(score, 0) > Collections.frequency(score, 1)){
             currentPair.getLeftBattler().setScore(currentPair.leftBattler.getScore() + 1);
@@ -242,6 +244,25 @@ public class BattleService {
         newConfig.put("rightColor", dto.getRightColor());
         overlayConfig = newConfig;
         messagingTemplate.convertAndSend("/topic/battle/overlay-config", newConfig);
+    }
+
+    public void resetJudgeVotesService() {
+        for (BattleJudge judge : judges) {
+            judge.setVote(-1);
+        }
+        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
+    }
+
+    public void broadcastChampionReveal(ChampionRevealDto dto) {
+        if (dto.isDismiss()) {
+            messagingTemplate.convertAndSend("/topic/battle/champion-reveal",
+                Map.of("dismiss", true));
+        } else {
+            messagingTemplate.convertAndSend("/topic/battle/champion-reveal",
+                Map.of("dismiss", false,
+                       "genreName",     dto.getGenreName()     != null ? dto.getGenreName()     : "",
+                       "championName",  dto.getChampionName()  != null ? dto.getChampionName()  : ""));
+        }
     }
 
     public class BattleJudge {

@@ -469,17 +469,56 @@ export const setBattlePair = async(leftBattler, rightBattler) =>{
   }
 }
 
-export const setBattleScore = async() =>{
-  try{
-    return await fetch(`${domain}/api/v1/battle/score`,{
+export const setBattleScore = async (isFinal = false) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/score`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isFinal })
     })
-  }catch(e){
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const resetBattleVotes = async () => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/revote`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const revealChampion = async (genreName, championName) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/champion-reveal`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ genreName, championName, dismiss: false })
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const dismissChampionReveal = async () => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/champion-reveal`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dismiss: true })
+    })
+  } catch (e) {
     console.log(e)
     return null
   }
