@@ -955,12 +955,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-container space-y-6">
+  <div class="page-container relative">
+    <div class="color-bleed"></div>
+    <div class="relative z-10 space-y-6">
 
     <!-- Page header -->
     <div>
-      <h1 class="page-title">Battle Control</h1>
-      <p class="text-muted mt-1">Manage brackets, rounds, and live voting</p>
+      <div class="type-page-title">Battle Control</div>
+      <p class="type-label text-content-muted mt-1">Manage brackets, rounds, and live voting</p>
     </div>
 
     <!-- Quick access links -->
@@ -969,9 +971,7 @@ onUnmounted(() => {
         href="/battle/overlay"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
-               transition-all duration-200"
+        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
       >
         <i class="pi pi-desktop text-xs"></i>
         Stream Overlay
@@ -981,9 +981,7 @@ onUnmounted(() => {
         href="/battle/overlay?isSmoke=true"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
-               transition-all duration-200"
+        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
       >
         <i class="pi pi-desktop text-xs"></i>
         Smoke Overlay
@@ -993,9 +991,7 @@ onUnmounted(() => {
         href="/battle/judge"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
-               transition-all duration-200"
+        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
       >
         <i class="pi pi-users text-xs"></i>
         Judge View
@@ -1005,9 +1001,7 @@ onUnmounted(() => {
         href="/battle/bracket"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-               text-sm font-semibold text-content-secondary hover:border-primary-400 hover:text-primary-400
-               transition-all duration-200"
+        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
       >
         <i class="pi pi-sitemap text-xs"></i>
         Live Bracket
@@ -1023,54 +1017,57 @@ onUnmounted(() => {
         <span class="text-surface-600 select-none">|</span>
 
         <!-- Genre toggle -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+        <div class="flex flex-wrap gap-2">
           <button
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
-            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
             :class="selectedGenre === g
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
         <span class="text-surface-600 select-none">|</span>
 
         <!-- Format toggle -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+        <div class="flex flex-wrap gap-2">
           <button
             v-for="s in sizes"
             :key="s"
             @click="topSize = s"
-            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
             :class="topSize === s
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >{{ s === 7 ? '7 to Smoke' : `Top ${s}` }}</button>
         </div>
       </div>
 
       <!-- Judge management -->
-      <div class="flex flex-wrap items-center gap-3 pt-4 border-t border-surface-600/30">
-        <span class="text-xs font-semibold text-content-muted uppercase tracking-wide whitespace-nowrap">Judges</span>
+      <div class="section-rule mt-4">
+        <span class="section-rule-label">Judges</span>
+        <div class="section-rule-line"></div>
+      </div>
 
-        <!-- Active judge pills -->
-        <div class="flex flex-wrap gap-2">
-          <span
+      <div class="flex flex-wrap items-center gap-3 mt-3">
+        <!-- Active judge slots -->
+        <div class="flex flex-wrap gap-3 flex-1 min-w-0">
+          <div
             v-for="(j, index) in battleJudges?.judges || []"
             :key="index"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold
-                   text-content-secondary bg-surface-700 border border-surface-600"
+            class="card-hover p-2 relative inline-flex items-center gap-1.5 px-3"
           >
-            {{ j.name }}
+            <div class="corner-bar-tl"></div>
+            <span class="type-body text-content-primary">{{ j.name }}</span>
             <button
               @click="submitRemoveBattleJudge(j.name)"
               class="flex items-center justify-center hover:text-red-400 transition-colors"
             >
               <i class="pi pi-times text-xs"></i>
             </button>
-          </span>
-          <span v-if="!battleJudges?.judges?.length" class="text-xs text-content-muted italic">None added</span>
+          </div>
+          <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
         </div>
 
         <!-- Add control pushed to the right -->
@@ -1080,8 +1077,7 @@ onUnmounted(() => {
           </div>
           <button
             @click="submitAddBattleJudge(selectedJudge)"
-            class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary-600 text-white text-sm
-                   font-semibold hover:bg-primary-700 transition-all duration-200 whitespace-nowrap"
+            class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all duration-200 whitespace-nowrap"
           >
             <i class="pi pi-plus text-xs"></i>
             Add
@@ -1148,50 +1144,49 @@ onUnmounted(() => {
     <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
       </details>
 
-      <div class="h-px bg-surface-600/30 my-4"></div>
+      <div class="section-rule">
+        <span class="section-rule-label">Seeding</span>
+        <div class="section-rule-line"></div>
+      </div>
 
-      <!-- ── Seeding quick-fill ───────────────────────────── -->
-      <div class="flex flex-wrap items-center gap-3 mb-5">
-        <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Seed by</span>
-
+      <div class="flex flex-wrap items-center gap-2 mt-4 mb-5">
         <!-- Pickup crew sort toggle (mixed bracket only) -->
         <template v-if="isMixedBracket">
-          <div class="flex rounded-lg border border-surface-600/60 overflow-hidden text-xs font-semibold">
+          <div class="flex gap-1">
             <button
               @click="crewSortMode = 'leader'"
-              class="px-2.5 py-1.5 transition-all"
-              :class="crewSortMode === 'leader' ? 'bg-primary-600 text-white' : 'bg-surface-800 text-content-muted hover:text-content-primary'"
+              class="para-chip-sm px-2.5 py-1.5 type-label transition-all"
+              :class="crewSortMode === 'leader' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by their leader's individual audition score"
             >Leader</button>
             <button
               @click="crewSortMode = 'avg'"
-              class="px-2.5 py-1.5 transition-all"
-              :class="crewSortMode === 'avg' ? 'bg-primary-600 text-white' : 'bg-surface-800 text-content-muted hover:text-content-primary'"
+              class="para-chip-sm px-2.5 py-1.5 type-label transition-all"
+              :class="crewSortMode === 'avg' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by average score of all members"
             >Avg</button>
           </div>
           <span class="text-surface-600 select-none">|</span>
         </template>
 
-        <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-xs font-semibold">
+        <div class="flex flex-wrap gap-1">
           <button
             @click="autoFillSeeds"
-            class="flex items-center gap-1 px-3 py-1.5 text-content-secondary border-r border-surface-600/60
-                   hover:bg-surface-700 hover:text-content-primary transition-all"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 transition-all"
+            :class="rankAsc ? 'text-content-muted hover:text-content-primary' : 'text-content-muted hover:text-content-primary'"
             :title="rankAsc ? 'Lowest score first' : 'Highest score first'"
           >
             <i :class="rankAsc ? 'pi pi-sort-amount-up' : 'pi pi-sort-amount-down'" class="text-xs"></i>
             By Rank
-            <button
+            <span
               @click.stop="rankAsc = !rankAsc; autoFillSeeds()"
-              class="ml-0.5 px-1 py-0.5 rounded font-mono text-primary-400 hover:bg-primary-500/20 transition-all"
+              class="ml-0.5 px-1 py-0.5 type-label text-accent cursor-pointer"
               :title="rankAsc ? 'Switch to highest first' : 'Switch to lowest first'"
-            >{{ rankAsc ? '↑' : '↓' }}</button>
+            >{{ rankAsc ? '↑' : '↓' }}</span>
           </button>
           <button
             @click="highVsLowFill"
-            class="flex items-center gap-1 px-3 py-1.5 text-content-secondary border-r border-surface-600/60
-                   hover:bg-surface-700 hover:text-content-primary transition-all"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-primary transition-all"
             title="Pair highest with lowest (1st vs last, 2nd vs 2nd-last...)"
           >
             <i class="pi pi-arrows-v text-xs"></i>
@@ -1199,8 +1194,7 @@ onUnmounted(() => {
           </button>
           <button
             @click="randomFill"
-            class="flex items-center gap-1 px-3 py-1.5 text-content-secondary transition-all"
-            :class="isMixedBracket ? 'border-r border-surface-600/60 hover:bg-surface-700 hover:text-content-primary' : 'hover:bg-surface-700 hover:text-content-primary'"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-primary transition-all"
             title="Random shuffle"
           >
             <i class="pi pi-refresh text-xs"></i>
@@ -1209,7 +1203,7 @@ onUnmounted(() => {
           <button
             v-if="isMixedBracket"
             @click="splitBracketFill"
-            class="flex items-center gap-1 px-3 py-1.5 text-primary-400 hover:bg-primary-500/10 transition-all"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-accent transition-all"
             title="Pre-formed teams on left half, pickup crews on right half"
           >
             <i class="pi pi-table text-xs"></i>
@@ -1218,21 +1212,23 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ── Battle Guests ──────────────────────────────── -->
-      <div v-if="!isSmoke" class="flex flex-wrap items-start gap-3 mb-5 pt-4 border-t border-surface-600/30">
-        <span class="text-xs font-semibold text-content-muted uppercase tracking-wide whitespace-nowrap pt-1">Guests</span>
+      <div class="section-rule">
+        <span class="section-rule-label">Battle Guests</span>
+        <div class="section-rule-line"></div>
+      </div>
 
-        <!-- Guest pills -->
+      <div v-if="!isSmoke" class="flex flex-wrap items-start gap-3 mt-3 mb-5">
+        <!-- Guest slots -->
         <div class="flex flex-wrap gap-2 flex-1 min-w-0">
           <span
             v-for="g in guestsForCurrentGenre"
             :key="g.id"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold
-                   text-content-secondary bg-surface-700 border border-primary-500/30"
+            class="card-hover p-2 relative inline-flex items-center gap-1.5 px-2.5"
           >
-            <i class="pi pi-star text-primary-400" style="font-size:0.6rem"></i>
-            {{ g.guestName }}
-            <span class="text-surface-500 text-[10px]">→ {{ g.entryRound }}</span>
+            <div class="corner-bar-tl"></div>
+            <i class="pi pi-star text-accent" style="font-size:0.6rem"></i>
+            <span class="type-body text-content-primary">{{ g.guestName }}</span>
+            <span class="type-label text-content-muted">→ {{ g.entryRound }}</span>
             <button
               @click="submitRemoveBattleGuest(g)"
               class="flex items-center justify-center hover:text-red-400 transition-colors ml-0.5"
@@ -1240,7 +1236,7 @@ onUnmounted(() => {
               <i class="pi pi-times text-xs"></i>
             </button>
           </span>
-          <span v-if="!guestsForCurrentGenre.length" class="text-xs text-content-muted italic pt-1">None added</span>
+          <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
 
         <!-- Add guest form pushed to the right -->
@@ -1249,14 +1245,12 @@ onUnmounted(() => {
             v-model="newGuestName"
             type="text"
             placeholder="Guest name"
-            class="w-36 px-2.5 py-1.5 rounded-lg bg-surface-700 border border-surface-600 text-xs font-semibold
-                   text-content-primary placeholder:text-content-muted outline-none focus:border-primary-500/50"
+            class="input-base w-36"
             @keyup.enter="submitAddBattleGuest"
           />
           <select
             v-model="newGuestEntryRound"
-            class="px-2.5 py-1.5 rounded-lg bg-surface-700 border border-surface-600 text-xs font-semibold
-                   text-content-primary outline-none focus:border-primary-500/50 cursor-pointer"
+            class="input-base w-24"
           >
             <option value="" disabled>Round</option>
             <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
@@ -1264,8 +1258,7 @@ onUnmounted(() => {
           <button
             @click="submitAddBattleGuest"
             :disabled="addingGuest || !newGuestName.trim() || !newGuestEntryRound"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-600 text-white text-xs
-                   font-semibold hover:bg-primary-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
           >
             <i class="pi pi-plus text-xs"></i>
             Add
@@ -1273,31 +1266,37 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="section-rule">
+        <span class="section-rule-label">Bracket</span>
+        <div class="section-rule-line"></div>
+      </div>
+
       <!-- ── Standard bracket ──────────────────────────── -->
-      <div v-if="Number(topSize) !== 7">
+      <div v-if="Number(topSize) !== 7" class="mt-3">
         <!-- Round tabs -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600 self-start mb-4 w-fit">
+        <div class="flex flex-wrap gap-1 mb-4">
           <button
             v-for="(size, idx) in roundSizes"
             :key="idx"
             @click="activeRoundIdx = idx"
-            class="px-5 py-2 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-4 py-1.5 type-label transition-all duration-150"
             :class="activeRoundIdx === idx
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >Top {{ size }}</button>
         </div>
 
         <!-- Active round matches -->
         <template v-for="(size, idx) in roundSizes" :key="idx">
-          <div v-if="activeRoundIdx === idx" class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50">
+          <div v-if="activeRoundIdx === idx" class="card p-4">
             <div class="flex flex-col gap-2 mb-3">
               <!-- Match card: horizontal Left VS Right layout -->
               <div
                 v-for="(match, mIdx) in rounds[`Top${size}`]"
                 :key="mIdx"
-                class="rounded-lg border border-surface-600/40 bg-surface-800/50 overflow-hidden flex items-stretch min-h-[44px]"
+                class="card-hover p-3 relative flex items-stretch min-h-[44px]"
               >
+                <div class="corner-bar-tl"></div>
                 <!-- Slot 0 — left -->
                 <div
                   class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
@@ -1317,10 +1316,10 @@ onUnmounted(() => {
                     draggable="true"
                     @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 0, e)"
                     @dragend="onDragEnd"
-                    class="flex-1 min-w-0 text-xs font-semibold truncate select-none cursor-grab active:cursor-grabbing"
+                    class="flex-1 min-w-0 type-body truncate select-none cursor-grab active:cursor-grabbing"
                     :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary'"
                   >{{ match[0] }}</div>
-                  <span v-else class="flex-1 text-xs text-surface-600/60 italic">Drop here</span>
+                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
                   <button v-if="match[0]" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[0]"
@@ -1354,10 +1353,10 @@ onUnmounted(() => {
                     draggable="true"
                     @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 1, e)"
                     @dragend="onDragEnd"
-                    class="flex-1 min-w-0 text-xs font-semibold truncate select-none cursor-grab active:cursor-grabbing"
+                    class="flex-1 min-w-0 type-body truncate select-none cursor-grab active:cursor-grabbing"
                     :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary'"
                   >{{ match[1] }}</div>
-                  <span v-else class="flex-1 text-xs text-surface-600/60 italic">Drop here</span>
+                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
                   <button v-if="match[1]" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[1]"
@@ -1371,8 +1370,7 @@ onUnmounted(() => {
 
             <button
               @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
-              class="w-full py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
-                     hover:bg-primary-700 active:bg-primary-800 transition-all duration-200"
+              class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
             >
               <i class="pi pi-play text-xs mr-1.5"></i>
               Start Round
@@ -1382,26 +1380,29 @@ onUnmounted(() => {
       </div>
 
       <!-- ── 7 to Smoke bracket ──────────────────────────── -->
-      <div v-else class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50">
-        <div class="text-xs font-bold text-primary-400 uppercase tracking-widest mb-3">7 to Smoke — Queue</div>
+      <div v-else class="mt-3">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">7 to Smoke — Queue</span>
+          <div class="section-rule-line"></div>
+        </div>
 
         <!-- Queue: ordered chips, populated by fill buttons above -->
         <div v-if="Array.isArray(rounds) && rounds.some(r => r.name)" class="flex flex-wrap gap-2 mb-4">
           <div
             v-for="(match, mIdx) in rounds"
             :key="mIdx"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-600/40 bg-surface-800/50 text-sm font-semibold text-content-secondary"
+            class="card-hover p-2 relative flex items-center gap-1.5 px-3"
           >
-            <span class="text-xs font-source text-primary-400 font-bold">{{ mIdx + 1 }}</span>
-            <span>{{ match.name || '—' }}</span>
+            <div class="corner-bar-tl"></div>
+            <span class="type-label text-accent">{{ mIdx + 1 }}</span>
+            <span class="type-body text-content-primary">{{ match.name || '—' }}</span>
           </div>
         </div>
-        <p v-else class="text-xs text-content-muted mb-4">Use the Seed by buttons above to fill the queue.</p>
+        <p v-else class="type-body text-content-muted mb-4">Use the Seed by buttons above to fill the queue.</p>
 
         <button
           @click="initiateBattlePair(0, 0)"
-          class="w-full py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
-                 hover:bg-primary-700 transition-all duration-200"
+          class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
         >
           <i class="pi pi-play text-xs mr-1.5"></i>
           Start Round
@@ -1412,18 +1413,18 @@ onUnmounted(() => {
     <!-- Reset bracket confirmation modal -->
     <Transition name="fade">
       <div v-if="showResetConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="bg-surface-800 rounded-2xl border border-surface-600 p-6 max-w-sm w-full mx-4 shadow-xl">
-          <h3 class="font-heading font-bold text-content-primary text-lg mb-2">Reset Bracket?</h3>
-          <p class="text-sm text-content-muted mb-6">This will clear all bracket data and set the battle phase to IDLE. This cannot be undone.</p>
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">Reset Bracket?</div>
+          <p class="type-body text-content-muted mb-6">This will clear all bracket data and set the battle phase to IDLE. This cannot be undone.</p>
           <div class="flex gap-3 justify-end">
             <button
               @click="showResetConfirm = false"
-              class="px-4 py-2 rounded-xl border border-surface-600 bg-surface-700 text-sm font-semibold
-                     text-content-secondary hover:bg-surface-600 transition-all"
+              class="para-chip-sm px-4 py-2 type-label transition-all"
             >Cancel</button>
             <button
               @click="confirmResetBracket"
-              class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all"
+              class="para-chip-sm px-4 py-2 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all"
             >Reset</button>
           </div>
         </div>
@@ -1432,91 +1433,111 @@ onUnmounted(() => {
 
     <!-- Live match tracker -->
     <div class="card p-5">
+      <div class="section-rule mb-4">
+        <span class="section-rule-label">Live Match</span>
+        <div class="section-rule-line"></div>
+      </div>
+
       <div class="flex items-center gap-3 mb-4">
-        <h2 class="font-heading font-bold text-content-secondary">Live Match</h2>
-        <span
-          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide"
+        <div
+          class="inline-flex items-center gap-2 px-3 py-1.5"
           :class="{
-            'bg-surface-700 text-surface-400': battlePhase === 'IDLE',
-            'bg-amber-500/20 text-amber-400 border border-amber-500/40': battlePhase === 'LOCKED',
-            'bg-primary-500/20 text-primary-400 border border-primary-500/40 animate-pulse': battlePhase === 'VOTING',
-            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': battlePhase === 'REVEALED',
+            'semantic-chip-success': battlePhase === 'REVEALED',
+            'semantic-chip-warning': battlePhase === 'LOCKED',
+            'semantic-chip-warning animate-pulse': battlePhase === 'VOTING',
+            'semantic-chip-warning opacity-50': battlePhase === 'IDLE',
           }"
-        >{{ battlePhase }}</span>
+        >
+          <div
+            class="w-2 h-2 rounded-full"
+            :style="battlePhase === 'REVEALED' ? 'background:#34d399;box-shadow:0 0 8px rgba(52,211,153,0.8)' : battlePhase === 'LOCKED' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : battlePhase === 'VOTING' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : 'background:#6b7280;box-shadow:0 0 8px rgba(107,114,128,0.5)'"
+          ></div>
+          <span class="type-body" :class="battlePhase === 'REVEALED' ? 'text-emerald-400' : battlePhase === 'LOCKED' ? 'text-amber-400' : battlePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ battlePhase }}</span>
+        </div>
+      </div>
       </div>
 
       <!-- Final tie warning -->
       <div
         v-if="finalTieBlocked"
-        class="px-4 py-3 rounded-xl text-sm font-semibold mb-4 flex items-center justify-between gap-3
-               bg-amber-500/10 border border-amber-500/40 text-amber-400"
+        class="semantic-chip-warning px-4 py-3 flex items-center justify-between gap-3 mb-4"
       >
-        <span><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
+        <div class="w-2 h-2 rounded-full" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)"></div>
+        <span class="type-body flex-1 text-amber-400"><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
         <button
           @click="startRevote"
-          class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40
-                 text-amber-400 text-xs font-bold hover:bg-amber-500/30 transition-all"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent transition-all"
         >START REVOTE</button>
       </div>
 
       <!-- Winner announcement -->
       <div
-        class="px-4 py-3 rounded-xl text-center text-sm font-semibold mb-4"
+        class="px-4 py-3 mb-4"
         :class="{
-          'bg-amber-950 text-amber-400 border border-amber-700/50': winnerVariant === 'ongoing',
-          'bg-amber-950 text-amber-400 border border-amber-700/50': winnerVariant === 'wait',
-          'bg-primary-100 text-primary-400 border border-primary-500/40': winnerVariant === 'winner',
-          'bg-surface-700 text-content-secondary border border-surface-500': winnerVariant === 'tie',
+          'semantic-chip-warning': winnerVariant === 'ongoing',
+          'semantic-chip-warning': winnerVariant === 'wait',
+          'semantic-chip-success': winnerVariant === 'winner',
+          'border-l-3 border-gray-400 bg-gray-500/10': winnerVariant === 'tie',
         }"
       >
-        {{ winnerAnnouncement }}
+        <div
+          class="w-2 h-2 rounded-full mb-1"
+          :class="winnerVariant === 'winner' ? 'bg-emerald-400' : winnerVariant === 'tie' ? 'bg-gray-400' : 'bg-amber-400'"
+          :style="winnerVariant === 'winner' ? 'box-shadow:0 0 8px rgba(52,211,153,0.8)' : winnerVariant === 'tie' ? '' : 'box-shadow:0 0 8px rgba(245,158,11,0.8)'"
+        ></div>
+        <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
       </div>
 
       <!-- Match pairs (standard) -->
       <div v-if="!isSmoke" class="grid grid-cols-3 gap-3 mb-4">
-        <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Previous</div>
+        <div class="stat-card relative">
+          <div class="corner-bar-tl"></div>
+          <span class="type-label text-content-muted mb-1">Previous</span>
           <template v-if="previousBattlePair">
-            <span class="font-bold text-content-secondary">{{ previousBattlePair[0] }}</span>
-            <span class="text-content-muted mx-2">vs</span>
-            <span class="font-bold text-content-secondary">{{ previousBattlePair[1] }}</span>
+            <span class="type-body text-content-secondary block">{{ previousBattlePair[0] }}</span>
+            <span class="type-label text-content-muted">vs</span>
+            <span class="type-body text-content-secondary block">{{ previousBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-content-disabled">—</span>
+          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
-        <div class="card p-4 text-sm ring-2 ring-primary-200">
-          <div class="text-xs font-semibold text-primary-500 uppercase tracking-wider mb-2">Current</div>
+        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
+          <div class="corner-bar-tl"></div>
+          <span class="type-label text-accent mb-1">Current</span>
           <template v-if="currentBattlePair">
-            <span class="font-bold text-content-primary">{{ currentBattlePair[0] }}</span>
-            <span class="text-content-muted mx-2">vs</span>
-            <span class="font-bold text-content-primary">{{ currentBattlePair[1] }}</span>
+            <span class="type-body text-content-primary block">{{ currentBattlePair[0] }}</span>
+            <span class="type-label text-content-muted">vs</span>
+            <span class="type-body text-content-primary block">{{ currentBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-content-disabled">—</span>
+          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
-        <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Next</div>
+        <div class="stat-card relative">
+          <div class="corner-bar-tl"></div>
+          <span class="type-label text-content-muted mb-1">Next</span>
           <template v-if="nextBattlePair">
-            <span class="font-bold text-content-secondary">{{ nextBattlePair[0] }}</span>
-            <span class="text-content-muted mx-2">vs</span>
-            <span class="font-bold text-content-secondary">{{ nextBattlePair[1] }}</span>
+            <span class="type-body text-content-secondary block">{{ nextBattlePair[0] }}</span>
+            <span class="type-label text-content-muted">vs</span>
+            <span class="type-body text-content-secondary block">{{ nextBattlePair[1] }}</span>
           </template>
-          <span v-else class="text-content-disabled">—</span>
+          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
       </div>
 
       <!-- Match pairs (smoke) -->
       <div v-else class="grid grid-cols-2 gap-3 mb-4">
-        <div class="card p-4 text-sm ring-2 ring-primary-200">
-          <div class="text-xs font-semibold text-primary-500 uppercase tracking-wider mb-2">Current Match</div>
+        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
+          <div class="corner-bar-tl"></div>
+          <span class="type-label text-accent mb-1">Current Match</span>
           <template v-if="currentBattlePair">
-            <span class="font-bold text-content-primary">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
-            <span class="text-content-muted mx-2">vs</span>
-            <span class="font-bold text-content-primary">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
+            <span class="type-body text-content-primary block">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
+            <span class="type-label text-content-muted">vs</span>
+            <span class="type-body text-content-primary block">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
           </template>
         </div>
-        <div class="card p-4 text-sm">
-          <div class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Queue</div>
-          <span v-if="nextBattlePair" class="text-content-muted">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
-          <span v-else class="text-content-disabled">—</span>
+        <div class="stat-card relative">
+          <div class="corner-bar-tl"></div>
+          <span class="type-label text-content-muted mb-1">Queue</span>
+          <span v-if="nextBattlePair" class="type-body text-content-secondary block">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
+          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
       </div>
 
@@ -1526,8 +1547,7 @@ onUnmounted(() => {
         <button
           v-if="battlePhase === 'LOCKED'"
           @click="openVoting"
-          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                 font-semibold hover:bg-primary-700 transition-all shadow-sm"
+          class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
           <i class="pi pi-lock-open text-xs"></i>
           Open Voting
@@ -1537,8 +1557,7 @@ onUnmounted(() => {
         <button
           v-if="showFinalReveal"
           @click="revealChampionForGenre"
-          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10
-                 text-sm font-semibold text-amber-400 hover:bg-amber-500/20 transition-all"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
           <i class="pi pi-star text-xs"></i>
           Reveal Champion
@@ -1548,8 +1567,7 @@ onUnmounted(() => {
         <button
           v-else-if="battlePhase === 'VOTING'"
           @click="submitGetScore"
-          class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                 font-semibold hover:bg-primary-700 transition-all shadow-sm"
+          class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
           <i class="pi pi-bolt text-xs"></i>
           {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
@@ -1559,16 +1577,14 @@ onUnmounted(() => {
         <template v-if="battlePhase === 'REVEALED'">
           <button
             @click="prevPair"
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-                   text-sm font-semibold text-content-secondary hover:border-surface-500 transition-all"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
           >
             <i class="pi pi-chevron-left text-xs"></i>
             Previous
           </button>
           <button
             @click="nextPair"
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                   font-semibold hover:bg-primary-700 transition-all shadow-sm"
+            class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
           >
             Next
             <i class="pi pi-chevron-right text-xs"></i>
@@ -1579,8 +1595,7 @@ onUnmounted(() => {
         <button
           v-if="currentGenreChampion && !revealActive"
           @click="revealChampionForGenre"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10
-                 text-sm font-semibold text-amber-400 hover:bg-amber-500/20 transition-all"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
           <i class="pi pi-star text-xs"></i>
           Reveal Champion
@@ -1588,8 +1603,7 @@ onUnmounted(() => {
         <button
           v-if="revealActive"
           @click="dismissReveal"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-                 text-sm font-semibold text-content-secondary hover:bg-surface-700 transition-all"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
           <i class="pi pi-times text-xs"></i>
           Dismiss Reveal
@@ -1597,8 +1611,7 @@ onUnmounted(() => {
 
         <button
           @click="showResetConfirm = true"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 bg-surface-800
-                 text-sm font-semibold text-red-400 hover:bg-red-950 transition-all"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 transition-all"
         >
           <i class="pi pi-refresh text-xs"></i>
           Reset Bracket
@@ -1606,8 +1619,7 @@ onUnmounted(() => {
 
         <!-- File upload -->
         <label
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface-600 bg-surface-800
-                 text-sm font-semibold text-content-secondary hover:border-surface-500 cursor-pointer transition-all"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <i class="pi pi-upload text-xs"></i>
           Upload Images
@@ -1616,33 +1628,31 @@ onUnmounted(() => {
       </div>
 
       <!-- Uploaded images list -->
-      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4 border-t border-surface-600/30">
-        <div class="flex items-center gap-2 mb-3">
-          <i class="pi pi-images text-content-muted text-sm"></i>
-          <span class="text-sm font-semibold text-content-secondary">Uploaded Images</span>
-          <span class="badge-neutral inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-700
-                       text-xs font-bold text-content-muted">{{ uploadedFiles.length }}</span>
+      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
+        <div class="section-rule mb-3">
+          <span class="section-rule-label">Uploaded Images</span>
+          <div class="section-rule-line"></div>
         </div>
         <div class="flex flex-wrap gap-2">
           <div
             v-for="(name, idx) in uploadedFiles"
             :key="idx"
-            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-surface-600
-                   bg-surface-900 text-sm text-content-secondary"
+            class="card-hover p-2 relative flex items-center gap-2 px-3"
           >
-            <span class="max-w-[160px] truncate">{{ name }}</span>
+            <div class="corner-bar-tl"></div>
+            <span class="type-body text-content-primary max-w-[160px] truncate">{{ name }}</span>
             <button
               @click="removeUploadedFile(idx)"
-              class="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full
-                     hover:bg-surface-600 transition-colors"
+              class="flex-shrink-0 w-5 h-5 flex items-center justify-center hover:text-red-400 transition-colors"
             >
-              <i class="pi pi-times text-xs text-content-muted"></i>
+              <i class="pi pi-times text-xs"></i>
             </button>
           </div>
         </div>
       </div>
     </div>
 
+    </div>
   </div>
 </template>
 
