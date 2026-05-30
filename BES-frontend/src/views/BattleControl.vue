@@ -423,12 +423,6 @@ function initRounds() {
 
 const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value)
 
-function updateMatch(roundKey, matchIdx, slotIdx, value) {
-  rounds.value[roundKey][matchIdx][slotIdx] = value
-  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
-  broadcastBracket()
-}
-
 const onDragStart = (roundKey, matchIdx, slotIdx, event) => {
   dragSource.value = { roundKey, matchIdx, slotIdx }
 
