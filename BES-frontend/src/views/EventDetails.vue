@@ -630,14 +630,7 @@ onUnmounted(() => {
           class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
         >
           <i class="pi pi-sliders-h text-sm"></i>
-          Adjust Genres
-        </button>
-        <button
-          @click="openTemplateModal"
-          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
-        >
-          <i class="pi pi-envelope text-sm"></i>
-          Email Template
+          Genre Entries
         </button>
         <RouterLink
           to="/event/audition-number"
@@ -1276,7 +1269,7 @@ onUnmounted(() => {
           <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
             <div class="flex items-center gap-2">
               <i class="pi pi-sliders-h text-content-muted text-xs"></i>
-              <span class="type-body text-content-primary">Adjust Genres</span>
+              <span class="type-body text-content-primary">Genre Entries</span>
               <span class="badge-neutral type-label">{{ props.eventName }}</span>
             </div>
             <button @click="closeAdjustModal" class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors">
@@ -1300,7 +1293,7 @@ onUnmounted(() => {
                   type="text"
                   placeholder="Filter by name…"
                   autocomplete="off"
-                  class="input-base pl-8"
+                  class="input-base pl-9"
                 />
                 <button
                   v-if="adjustSearch"
