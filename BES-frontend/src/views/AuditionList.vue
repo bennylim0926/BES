@@ -431,27 +431,26 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container" :style="hasActiveSession ? { display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 64px)', overflow: 'hidden', padding: '8px 16px' } : {}">
+  <div class="page-container relative" :style="hasActiveSession ? { display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 64px)', overflow: 'hidden', padding: '8px 16px' } : {}">
+    <div class="color-bleed"></div>
 
     <!-- Context bar (active session: genre + role both selected) -->
     <div
       v-if="hasActiveSession"
-      class="flex items-center justify-between px-4 py-2.5 mb-4 rounded-xl border border-white/8 flex-shrink-0"
-      style="background: #060818;"
+      class="para-chip px-4 py-2.5 mb-4 flex-shrink-0 flex items-center justify-between"
     >
-      <div class="flex items-center gap-2 text-sm font-bold text-white/60 flex-wrap">
-        <span class="font-heading text-white/80">{{ selectedEvent }}</span>
-        <span class="text-white/15">·</span>
+      <div class="flex items-center gap-2 type-label text-content-muted flex-wrap">
+        <span class="text-accent">{{ selectedEvent }}</span>
+        <span class="text-content-muted opacity-30">·</span>
         <span>{{ selectedGenre }}</span>
-        <span class="text-white/15">·</span>
-        <span class="uppercase text-xs tracking-widest">{{ judgingMode }}</span>
-        <span class="text-white/15">·</span>
+        <span class="text-content-muted opacity-30">·</span>
+        <span class="uppercase tracking-widest">{{ judgingMode }}</span>
+        <span class="text-content-muted opacity-30">·</span>
         <span>{{ selectedRole }}</span>
       </div>
       <button
         @click="showFilters = !showFilters"
-        class="p-1.5 rounded-lg border transition-all active:scale-95"
-        :class="showFilters ? 'border-white/30 text-white/70 bg-white/10' : 'border-white/10 text-white/30 hover:border-white/25 hover:text-white/60'"
+        class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-all"
       >
         <i class="pi pi-sliders-h text-xs"></i>
       </button>
@@ -460,17 +459,14 @@ onMounted(async () => {
     <!-- Page header (no active session yet) -->
     <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
-        <h1 class="page-title">Audition List</h1>
-        <p class="text-muted mt-1">
+        <div class="type-page-title mb-1">Audition List</div>
+        <p class="type-label text-content-muted">
           {{ selectedRole === 'Judge' ? 'Score participants for your genre' : 'Track audition progress' }}
         </p>
       </div>
       <button
         @click="showFilters = !showFilters"
-        class="flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all duration-200 self-start"
-        :class="showFilters
-          ? 'bg-surface-600 text-content-primary border-surface-500'
-          : 'bg-surface-800 text-content-secondary border-surface-600 hover:border-surface-500'"
+        class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all duration-200 self-start"
       >
         <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
         Filters
@@ -486,51 +482,51 @@ onMounted(async () => {
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 20px 60px rgba(0,0,0,0.8)' } : {}">
+      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.12)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.9)', clipPath: 'none' } : { clipPath: 'none' }">
         <div class="flex flex-wrap items-center gap-3">
           <!-- Event name -->
-          <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+          <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
           <span class="text-surface-600 select-none">|</span>
 
           <!-- Role toggle -->
-          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <div class="flex gap-1">
             <button
               v-for="r in roles"
               :key="r"
               @click="selectedRole = r"
-              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
               :class="selectedRole === r
-                ? 'bg-surface-600 text-white'
-                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                ? 'text-accent border-[color:var(--accent-muted)]'
+                : 'text-content-muted hover:text-content-primary'"
             >{{ r }}</button>
           </div>
           <span class="text-surface-600 select-none">|</span>
 
           <!-- Genre toggle -->
-          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <div class="flex gap-1">
             <button
               v-for="g in uniqueGenres"
               :key="g"
               @click="selectedGenre = g"
-              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
               :class="selectedGenre === g
-                ? 'bg-surface-600 text-white'
-                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                ? 'text-accent border-[color:var(--accent-muted)]'
+                : 'text-content-muted hover:text-content-primary'"
             >{{ g }}</button>
           </div>
 
           <!-- Type toggle (conditional) -->
           <template v-if="hasTeamAndSoloMix">
             <span class="text-surface-600 select-none">|</span>
-            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <div class="flex gap-1">
               <button
                 v-for="t in ['Teams', 'Solo']"
                 :key="t"
                 @click="selectedEntryType = t"
-                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
                 :class="selectedEntryType === t
-                  ? 'bg-surface-600 text-white'
-                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                  ? 'text-accent border-[color:var(--accent-muted)]'
+                  : 'text-content-muted hover:text-content-primary'"
               >{{ t }}</button>
             </div>
           </template>
@@ -538,15 +534,15 @@ onMounted(async () => {
           <!-- Judging mode toggle (admin only) -->
           <template v-if="isAdmin && selectedEvent">
             <span class="text-surface-600 select-none">|</span>
-            <div class="flex rounded-xl overflow-hidden border border-surface-600">
+            <div class="flex gap-1">
               <button
                 v-for="m in ['SOLO', 'PAIR']"
                 :key="m"
                 @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
-                class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+                class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
                 :class="judgingMode === m
-                  ? 'bg-surface-600 text-white'
-                  : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                  ? 'text-accent border-[color:var(--accent-muted)]'
+                  : 'text-content-muted hover:text-content-primary'"
               >{{ m }}</button>
             </div>
           </template>
@@ -567,21 +563,25 @@ onMounted(async () => {
     <!-- No judges banner -->
     <div
       v-if="noJudgesConfigured"
-      class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-800/40 bg-amber-950/30 text-sm flex-shrink-0"
+      class="semantic-chip-warning flex items-center gap-3 px-4 py-3 mb-4 flex-shrink-0"
     >
-      <i class="pi pi-exclamation-triangle text-amber-400 text-sm flex-shrink-0"></i>
-      <span class="text-amber-200/80">
-        No judges configured for <strong class="text-amber-200">{{ selectedEvent }}</strong>.
+      <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(245,158,11,0.8)"></div>
+      <span class="type-label text-amber-300/90">
+        No judges configured for <span class="text-amber-200">{{ selectedEvent }}</span>.
       </span>
       <RouterLink
         :to="`/events/${selectedEvent}`"
-        class="ml-auto flex-shrink-0 text-xs font-semibold text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors"
+        class="ml-auto flex-shrink-0 type-label text-accent underline underline-offset-2 transition-colors"
       >
-        Add judges in Event Details →
+        Add judges →
       </RouterLink>
     </div>
 
     <!-- Emcee view: Timer + round view -->
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Participants</span>
+      <div class="section-rule-line"></div>
+    </div>
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView
@@ -627,11 +627,11 @@ onMounted(async () => {
       v-else-if="selectedRole && selectedGenre && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
       class="flex flex-col items-center justify-center h-full text-center"
     >
-      <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
         <i class="pi pi-list text-content-muted text-xl"></i>
       </div>
-      <p class="font-heading font-semibold text-content-secondary">No participants found</p>
-      <p class="text-muted text-sm mt-1">Select a different event or genre</p>
+      <p class="type-body text-content-secondary">No participants found</p>
+      <p class="type-label text-content-muted mt-1">Select a different event or genre</p>
     </div>
 
     <!-- No role selected -->
@@ -639,11 +639,11 @@ onMounted(async () => {
       v-else-if="!selectedRole"
       class="flex flex-col items-center justify-center py-24 text-center"
     >
-      <div class="w-14 h-14 rounded-2xl bg-primary-100 flex items-center justify-center mb-4">
-        <i class="pi pi-filter text-primary-400 text-xl"></i>
+      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
+        <i class="pi pi-filter text-accent text-xl"></i>
       </div>
-      <p class="font-heading font-semibold text-content-secondary">Select your role to begin</p>
-      <p class="text-muted text-sm mt-1">Choose Emcee or Judge in the filter panel above</p>
+      <p class="type-body text-content-secondary">Select your role to begin</p>
+      <p class="type-label text-content-muted mt-1">Choose Emcee or Judge in the filter panel above</p>
     </div>
 
     </div>
@@ -656,7 +656,7 @@ onMounted(async () => {
     @accept="() => { dynamicCallBack() }"
     @close="() => { showModal = false }"
   >
-    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
+    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
   </ActionDoneModal>
 
   <FeedbackPopout

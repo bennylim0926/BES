@@ -1138,3 +1138,18 @@ export const removeBattleGuest = async (guestId) => {
     console.log(e)
   }
 }
+
+export const getAppConfig = async () => {
+  const res = await fetch('/api/v1/config/app', { credentials: 'include' })
+  return res.json()
+}
+
+export const postAppConfig = async (accentColor) => {
+  const res = await fetch('/api/v1/config/app', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accentColor })
+  })
+  return res.json()
+}

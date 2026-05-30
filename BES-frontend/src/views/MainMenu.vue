@@ -1,225 +1,131 @@
 <script setup>
 import { computed } from 'vue'
 import { useAuthStore } from '@/utils/auth'
-import { useScrollReveal } from '@/utils/useScrollReveal'
 
 const authStore = useAuthStore()
-const { revealRef } = useScrollReveal()
 
 const role = computed(() =>
   authStore.user ? authStore.user['role'][0]['authority'] : ''
 )
 
-const roleLabel = computed(() => {
-  const map = {
-    ROLE_ADMIN:     'Admin',
-    ROLE_ORGANISER: 'Organiser',
-    ROLE_JUDGE:     'Judge',
-    ROLE_EMCEE:     'Emcee',
-  }
-  return map[role.value] ?? 'User'
-})
+const activeEvent = computed(() => authStore.activeEvent)
 
-// Quick action cards per role
-const quickActions = computed(() => {
-  const r = role.value
-  const all = [
-    {
-      icon: 'pi-calendar',
-      title: 'Events',
-      desc: 'Browse and manage dance battle events',
-      route: '/events',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
-    },
-    {
-      icon: 'pi-users',
-      title: 'Participants',
-      desc: 'Assign judges and manage participant entries',
-      route: '/event/update-event-details',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
-    },
-    {
-      icon: 'pi-chart-bar',
-      title: 'Scoreboard',
-      desc: 'View and compare scores across genres',
-      route: '/event/score',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'],
-    },
-    {
-      icon: 'pi-list',
-      title: 'Audition List',
-      desc: 'Manage auditions, score participants, and run the timer',
-      route: '/event/audition-list',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'],
-    },
-    {
-      icon: 'pi-bolt',
-      title: 'Battle Control',
-      desc: 'Run the bracket, manage rounds and voting',
-      route: '/battle/control',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
-    },
-    {
-      icon: 'pi-sitemap',
-      title: 'Crew Formation',
-      desc: 'Form pickup crews from solo auditioners',
-      route: '/event/crew-formation',
-      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'],
-    },
-    {
-      icon: 'pi-thumbs-up',
-      title: 'Battle Judge',
-      desc: 'Cast your vote during live battle rounds',
-      route: '/battle/judge',
-      roles: ['ROLE_JUDGE'],
-    },
-    {
-      icon: 'pi-cog',
-      title: 'Admin',
-      desc: 'Manage judges, genres, and system settings',
-      route: '/admin',
-      roles: ['ROLE_ADMIN'],
-    },
-  ]
-  return all.filter(a => a.roles.includes(r))
+const roleDisplay = computed(() => {
+  const labels = { ROLE_ADMIN: 'Admin', ROLE_ORGANISER: 'Organiser', ROLE_JUDGE: 'Judge', ROLE_EMCEE: 'Emcee' }
+  const label = labels[role.value]
+  return label ? { label } : null
 })
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container relative">
+    <!-- Color bleed -->
+    <div class="color-bleed"></div>
 
-    <!-- Welcome header -->
-    <div class="mb-10">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="badge-neutral text-xs px-2.5 py-1">{{ roleLabel }}</span>
+    <div class="relative z-10">
+      <!-- Page header -->
+      <div class="mb-8">
+        <div class="type-page-title mb-1">Home</div>
+        <p class="type-label text-content-muted">{{ roleDisplay?.label ?? 'Welcome' }}</p>
       </div>
-      <h1 class="page-title">Welcome to BES</h1>
-      <p class="text-muted mt-1">Battle Event System — your quick access dashboard</p>
-    </div>
 
-    <!-- Quick action cards with scroll reveal -->
-    <div
-      :ref="revealRef"
-      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12"
-    >
-      <button
-        v-for="(action, i) in quickActions"
-        :key="action.title"
-        @click="$router.push(action.route)"
-        class="group card-hover text-left p-6 focus:outline-none
-               focus:ring-2 focus:ring-primary-500/30 reveal"
-        :class="`reveal-delay-${Math.min(i + 1, 4)}`"
-      >
-        <!-- Icon -->
-        <div class="w-11 h-11 rounded-xl bg-primary-100 group-hover:bg-primary-200
-                    flex items-center justify-center mb-4 transition-colors duration-200">
-          <i class="pi text-primary-400 text-xl" :class="action.icon"></i>
-        </div>
-        <!-- Text -->
-        <h3 class="font-heading font-bold text-content-primary text-base mb-1">
-          {{ action.title }}
-        </h3>
-        <p class="text-content-muted text-sm leading-relaxed">{{ action.desc }}</p>
-        <!-- Arrow -->
-        <div class="flex items-center gap-1 mt-4 text-primary-400 text-xs font-semibold
-                    opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          Open <i class="pi pi-arrow-right text-xs"></i>
-        </div>
-      </button>
-    </div>
+      <!-- Quick actions section -->
+      <div class="section-rule mb-6">
+        <span class="section-rule-label">Quick Actions</span>
+        <div class="section-rule-line"></div>
+      </div>
 
-    <!-- How to use — collapsible -->
-    <div class="card overflow-hidden">
-      <details class="group">
-        <summary
-          class="flex items-center justify-between px-6 py-4 cursor-pointer
-                 list-none select-none hover:bg-surface-700/40 transition-colors"
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <!-- Events card (Admin / Organiser) -->
+        <router-link
+          v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+          to="/events"
+          class="card-hover p-6 relative cursor-pointer group"
         >
-          <div class="flex items-center gap-2.5">
-            <i class="pi pi-book text-content-muted text-sm"></i>
-            <span class="font-heading font-semibold text-content-secondary text-sm">How to Use</span>
-          </div>
-          <i class="pi pi-chevron-down text-content-muted text-xs
-                    group-open:rotate-180 transition-transform duration-200"></i>
-        </summary>
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-calendar text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Events</div>
+          <p class="type-label text-content-muted">Manage and browse events</p>
+        </router-link>
 
-        <div class="px-6 pb-6 pt-2 border-t border-surface-600/30">
-          <div class="prose prose-sm max-w-none text-content-secondary space-y-6">
+        <!-- Audition List -->
+        <router-link
+          v-if="activeEvent"
+          :to="{ name: 'Audition List' }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-list text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Audition</div>
+          <p class="type-label text-content-muted">Score and timer controls</p>
+        </router-link>
 
-            <!-- Before Event Day -->
-            <section>
-              <h2 class="font-heading font-bold text-content-secondary text-base mb-3">Before Event Day</h2>
-              <ol class="list-decimal list-inside space-y-1.5 text-sm text-content-muted">
-                <li>Each folder should contain one response form.</li>
-                <li>Each response should contain at least: <strong class="text-content-secondary">Name, Category/Categories, Email</strong>.</li>
-                <li>Go to <em>Events</em> and choose one.</li>
-                <li>The first table shows participant breakdown for each genre.</li>
-              </ol>
-              <div class="mt-4 pl-4 border-l-2 border-surface-600/30 space-y-3 text-sm">
-                <div>
-                  <p class="font-semibold text-content-secondary mb-1">If there is a record of this event:</p>
-                  <p class="text-content-muted">A table will be shown with participants and categories joined.</p>
-                </div>
-                <div>
-                  <p class="font-semibold text-content-secondary mb-1">Else:</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Choose categories.</li>
-                    <li>Name the judges.</li>
-                    <li>Insert a record in the database.</li>
-                    <li>Refresh the database once you verify payment from Google response.</li>
-                  </ol>
-                </div>
-                <div>
-                  <p class="font-semibold text-content-secondary mb-1">If different judges per category:</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Go to <em>Participants</em>.</li>
-                    <li>Assign judges to each participant and press the update button.</li>
-                  </ol>
-                </div>
-              </div>
-            </section>
+        <!-- Participants (Admin / Organiser) -->
+        <router-link
+          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          :to="{ name: 'Update Event Details' }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-users text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Participants</div>
+          <p class="type-label text-content-muted">Manage registrations and judges</p>
+        </router-link>
 
-            <!-- On Event Day -->
-            <section>
-              <h2 class="font-heading font-bold text-content-secondary text-base mb-3">On the Event Day</h2>
-              <div class="grid sm:grid-cols-2 gap-4 text-sm">
-                <div class="bg-surface-700/50 rounded-xl p-4">
-                  <p class="font-semibold text-content-secondary mb-2">Event Organiser</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Display <em>Audition Number</em> screen.</li>
-                    <li>Scan QR → audition number + category shown.</li>
-                    <li>Give wrist tag with number.</li>
-                  </ol>
-                </div>
-                <div class="bg-surface-700/50 rounded-xl p-4">
-                  <p class="font-semibold text-content-secondary mb-2">Emcee</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Go to <em>Audition List</em>, update the filter.</li>
-                    <li>Use the timer for countdown.</li>
-                  </ol>
-                </div>
-                <div class="bg-surface-700/50 rounded-xl p-4">
-                  <p class="font-semibold text-content-secondary mb-2">Judge</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Go to <em>Audition List</em>, update the filter.</li>
-                    <li>Ensure <em>Current Judge</em> is selected.</li>
-                    <li>Give score and submit.</li>
-                  </ol>
-                </div>
-                <div class="bg-surface-700/50 rounded-xl p-4">
-                  <p class="font-semibold text-content-secondary mb-2">When Audition Ends</p>
-                  <ol class="list-decimal list-inside space-y-1 text-content-muted">
-                    <li>Go to <em>Scoreboard</em> to get top-n participants.</li>
-                    <li>If judges were assigned, choose <em>By Judge</em>.</li>
-                  </ol>
-                </div>
-              </div>
-            </section>
+        <!-- Scoreboard (Admin / Organiser / Emcee) -->
+        <router-link
+          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE')"
+          :to="{ name: 'Score' }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-chart-bar text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Scoreboard</div>
+          <p class="type-label text-content-muted">Live leaderboard</p>
+        </router-link>
 
-          </div>
+        <!-- Battle Control (Admin / Organiser) -->
+        <router-link
+          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          :to="{ name: 'Battle Control' }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-bolt text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Battle</div>
+          <p class="type-label text-content-muted">Bracket and match control</p>
+        </router-link>
+
+        <!-- Admin (Admin only) -->
+        <router-link
+          v-if="role === 'ROLE_ADMIN'"
+          to="/admin"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Admin</div>
+          <p class="type-label text-content-muted">Genres, judges, theme config</p>
+        </router-link>
+
+      </div>
+
+      <!-- No event selected hint -->
+      <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE')"
+        class="mt-8 p-4 semantic-chip-warning flex items-start gap-3">
+        <div class="w-2 h-2 rounded-full bg-amber-400 box-shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0"></div>
+        <div>
+          <div class="type-body text-amber-400 mb-1">No Active Event</div>
+          <p class="type-label text-content-muted">
+            Select an event to access audition, scoring, and battle features.
+          </p>
+          <router-link :to="{ name: 'EventSelector' }" class="type-label text-accent underline mt-2 inline-block">
+            Select Event →
+          </router-link>
         </div>
-      </details>
-    </div>
+      </div>
 
+    </div>
   </div>
 </template>

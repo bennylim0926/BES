@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
 /* Local fonts */
 @font-face {
@@ -43,8 +43,8 @@
 ───────────────────────────────────────── */
 @theme {
   /* Typography */
-  --font-sans:    'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-heading: 'Outfit', sans-serif;
+  --font-sans:    'Anton SC', sans-serif;
+  --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-eagle:   'EagleHorizonP', sans-serif;
   --font-anton:   'Anton SC', sans-serif;
   --font-source:  'JetBrains Mono', 'Source Code Pro', monospace;
@@ -83,18 +83,33 @@
 }
 
 /* ─────────────────────────────────────────
+   Runtime Accent Color Tokens
+   JS sets --accent-server on <html> (not --accent-color directly).
+   CSS cascades --accent-color from --accent-server.
+   [data-theme="light"] overrides --accent-color via CSS cascade
+   (CSS rules win over inline styles on ancestor elements when
+   the property is set on a different custom property).
+───────────────────────────────────────── */
+:root {
+  --accent-server:  #ffffff;
+  --accent-color:   var(--accent-server);
+  --accent-muted:   color-mix(in srgb, var(--accent-color) 25%, transparent);
+  --accent-subtle:  color-mix(in srgb, var(--accent-color) 7%, transparent);
+}
+
+/* ─────────────────────────────────────────
    Global Resets & Base
 ───────────────────────────────────────── */
 @layer base {
   body {
-    @apply font-sans bg-surface-950 text-content-primary antialiased leading-relaxed min-h-screen;
+    @apply font-sans bg-surface-950 text-content-primary antialiased leading-tight min-h-screen;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     scrollbar-gutter: stable;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading font-bold tracking-tight text-content-primary;
+    @apply font-sans tracking-wide uppercase text-content-primary;
   }
 
   *,
@@ -116,9 +131,8 @@
 
   /* Global focus-visible ring */
   *:focus-visible {
-    outline: 2px solid rgba(229, 57, 53, 0.6);
+    outline: 2px solid var(--accent-muted);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   /* Tabular numerals for stat numbers */
@@ -132,6 +146,15 @@
     letter-spacing: 0.12em;
     font-size: 0.7rem;
   }
+
+  /* Default colors for type tiers — in @layer base so Tailwind utility classes
+     (text-surface-900, text-white, etc.) from @layer utilities can override them */
+  .type-display    { color: #ffffff; }
+  .type-page-title { color: #f0f0f0; }
+  .type-section    { color: rgba(255,255,255,0.55); }
+  .type-body       { color: rgba(255,255,255,0.75); }
+  .type-label      { color: rgba(255,255,255,0.35); }
+  .type-stat       { color: #ffffff; }
 }
 
 /* ─────────────────────────────────────────
@@ -144,19 +167,29 @@
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
   }
 
+  /* ── Accent token utilities ─────────────────────────────────── */
+  .text-accent   { color: var(--accent-color); }
+  .bg-accent     { background: var(--accent-color); }
+  .border-accent { border-color: var(--accent-color); }
+  .glow-accent   { box-shadow: 0 0 14px var(--accent-muted); }
+
   /* Cards */
   .card {
-    @apply bg-surface-800 rounded-2xl border border-surface-700;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
   }
 
   .card-hover {
-    @apply bg-surface-800 rounded-2xl border border-surface-700 transition-all duration-200;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+    transition: background 0.2s, border-color 0.2s;
   }
   .card-hover:hover {
-    @apply bg-surface-700 border-surface-600;
-    box-shadow: 0 0 0 1px rgba(229,57,53,0.15), 0 4px 24px rgba(229,57,53,0.08);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--accent-muted);
+    box-shadow: 0 0 14px var(--accent-muted);
   }
 
   /* Glassmorphism (use sparingly) */
@@ -172,10 +205,25 @@
 
   /* Inputs */
   .input-base {
-    @apply w-full rounded-xl border border-surface-600 bg-surface-900 px-4 py-2.5
-           text-sm text-content-primary shadow-sm placeholder:text-content-disabled
-           focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
-           transition-all duration-200;
+    width: 100%;
+    clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.625rem 1rem;
+    font-family: 'Anton SC', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.88);
+  }
+  .input-base::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.1em;
+  }
+  .input-base:focus {
+    outline: none;
+    border-color: var(--accent-muted);
+    box-shadow: 0 0 8px var(--accent-subtle);
   }
 
   /* Badges / Pills — each class is fully self-contained (Tailwind v4 forbids @apply of custom classes) */
@@ -186,26 +234,27 @@
   .badge-warning,
   .badge-danger,
   .badge-neutral {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider;
+    clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
   }
 
-  .badge-primary   { @apply bg-primary-100  text-primary-400 border border-primary-200/30; }
-  .badge-secondary { @apply bg-accent-100   text-accent-500;   }  /* accent = orange; medal/ranking use only */
-  .badge-success   { @apply bg-surface-700  text-teal-300   border border-teal-900/30; }
-  .badge-warning   { @apply bg-surface-700  text-amber-300  border border-amber-900/30; }
-  .badge-danger    { @apply bg-surface-700  text-rose-300   border border-rose-900/30; }
-  .badge-neutral   { @apply bg-surface-700  text-content-secondary border border-surface-600; }
+  .badge-primary   { background: rgba(255,255,255,0.08); color: var(--accent-color); border: 1px solid var(--accent-muted); }
+  .badge-secondary { @apply bg-accent-100 text-accent-500; }
+  .badge-success   { background: rgba(52,211,153,0.10); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+  .badge-warning   { background: rgba(245,158,11,0.08); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+  .badge-danger    { background: rgba(239,68,68,0.10);  color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .badge-neutral   { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.80); border: 1px solid rgba(255,255,255,0.20); }
 
   /* Icon wrapper */
   .icon-wrap { }
 
   /* Typography helpers */
   .section-title {
-    @apply text-xl font-heading font-bold text-content-primary tracking-tight;
+    @apply text-xl font-sans font-bold text-content-primary tracking-tight;
   }
 
   .page-title {
-    @apply text-2xl sm:text-3xl font-heading font-extrabold text-content-primary tracking-tight;
+    @apply text-2xl sm:text-3xl font-sans font-extrabold text-content-primary tracking-tight;
   }
 
   .text-muted {
@@ -223,17 +272,195 @@
 
   /* Stat cards */
   .stat-card {
-    @apply bg-surface-800 rounded-2xl border border-surface-700
-           flex flex-col items-center justify-center p-5 text-center gap-1;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    @apply flex flex-col items-center justify-center p-5 text-center gap-1 relative;
   }
 
   .stat-value {
-    @apply text-3xl font-source font-extrabold text-content-primary tabular-nums;
+    font-family: 'Anton SC', sans-serif;
+    font-size: 48px;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   .stat-label {
-    @apply text-xs font-medium text-content-muted uppercase tracking-wider;
+    font-family: 'Anton SC', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    line-height: 1;
+  }
+
+  /* ── Parallelogram chip (rows, list items, stat boxes) ──────── */
+  .para-chip {
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .para-chip-sm {
+    clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  /* Button-specific interaction states */
+  button.para-chip:hover:not(:disabled),
+  button.para-chip-sm:hover:not(:disabled),
+  a.para-chip:hover,
+  a.para-chip-sm:hover {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  button.para-chip:active:not(:disabled),
+  button.para-chip-sm:active:not(:disabled),
+  a.para-chip:active,
+  a.para-chip-sm:active {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+  button.para-chip:disabled,
+  button.para-chip-sm:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* Filled accent buttons (bg-accent overrides bg, keep hover/active) */
+  button.bg-accent:hover:not(:disabled) {
+    filter: brightness(0.88);
+  }
+  button.bg-accent:active:not(:disabled) {
+    filter: brightness(0.75);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
+  }
+
+  /* ── Section rule (label + hairline) ───────────────────────── */
+  .section-rule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-rule-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .section-rule-label {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+    white-space: nowrap;
+  }
+
+  /* ── Corner accent bars (panels, modals) ───────────────────── */
+  .corner-bar-tl {
+    position: absolute; top: 0; left: 0;
+    width: 2px; height: 28%;
+    background: linear-gradient(to bottom, var(--accent-color), transparent);
+    pointer-events: none;
+  }
+  .corner-bar-bl {
+    position: absolute; bottom: 0; left: 0;
+    height: 2px; width: 30%;
+    background: linear-gradient(to right, var(--accent-color), transparent);
+    pointer-events: none;
+  }
+
+  /* ── Color bleed (page root only) ──────────────────────────── */
+  .color-bleed {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 50% 45% at 0% 100%, var(--accent-subtle), transparent 70%),
+      radial-gradient(ellipse 40% 40% at 100% 100%, color-mix(in srgb, var(--accent-color) 4%, transparent), transparent 70%);
+  }
+
+  /* ── Glowing status dot ─────────────────────────────────────── */
+  .glow-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-color);
+    box-shadow: 0 0 8px var(--accent-muted);
+    flex-shrink: 0;
+  }
+
+  /* ── Semantic state chips (left border + dot) ───────────────── */
+  .semantic-chip-error {
+    border-left: 3px solid #ef4444;
+    border-top: 1px solid rgba(239,68,68,0.2);
+    border-right: 1px solid rgba(239,68,68,0.2);
+    border-bottom: 1px solid rgba(239,68,68,0.2);
+    background: rgba(239,68,68,0.10);
+    border-radius: 0;
+  }
+  .semantic-chip-warning {
+    border-left: 3px solid #f59e0b;
+    border-top: 1px solid rgba(245,158,11,0.2);
+    border-right: 1px solid rgba(245,158,11,0.2);
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    background: rgba(245,158,11,0.08);
+  }
+  .semantic-chip-success {
+    border-left: 3px solid #34d399;
+    border-top: 1px solid rgba(52,211,153,0.2);
+    border-right: 1px solid rgba(52,211,153,0.2);
+    border-bottom: 1px solid rgba(52,211,153,0.2);
+    background: rgba(52,211,153,0.08);
+  }
+
+  /* ── Typography tier utilities ──────────────────────────────── */
+  .type-display {
+    font-family: 'Anton SC', sans-serif;
+    font-size: clamp(36px, 5vw, 56px);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1;
+    text-shadow: 2px 2px 0 var(--accent-muted);
+  }
+  .type-page-title {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 32px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1;
+    text-shadow: 1px 1px 0 var(--accent-muted);
+  }
+  .type-section {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .type-body {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  .type-label {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .type-stat {
+    font-family: 'Anton SC', sans-serif;
+    font-size: 48px;
+    letter-spacing: 0.02em;
+    line-height: 1;
   }
 
   /* Divider */
@@ -524,6 +751,9 @@ html.theme-transition *::after {
   --color-content-muted:     #757575;
   --color-content-disabled:  #b0b0b0;
 
+  /* Accent — CSS wins because JS only sets --accent-server (see :root block above) */
+  --accent-color: rgba(0, 0, 0, 0.78);
+
   /* Primary tints — light red tints for hover/bg */
   --color-primary-50:  #fff5f5;
   --color-primary-100: #ffeded;
@@ -614,6 +844,45 @@ html.theme-transition *::after {
 /* Scrollbar — light */
 [data-theme="light"] ::-webkit-scrollbar-thumb       { background: #e2e2e2; }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #c8c8c8; }
+
+/* Parallelogram chip surfaces on light */
+[data-theme="light"] .para-chip,
+[data-theme="light"] .para-chip-sm {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .card-hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04) !important;
+}
+[data-theme="light"] .card-hover:hover { border-color: var(--accent-muted); }
+
+[data-theme="light"] .section-rule-line { background: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .section-rule-label { color: rgba(0, 0, 0, 0.35); }
+
+[data-theme="light"] .badge-neutral {
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.55);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .scanlines { opacity: 0.5; }
+[data-theme="light"] .color-bleed { display: none; }
+
+[data-theme="light"] .corner-bar-tl,
+[data-theme="light"] .corner-bar-bl {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
+}
+
+[data-theme="light"] .type-display    { color: #0d0d0d; text-shadow: 2px 2px 0 rgba(0,0,0,0.08); }
+[data-theme="light"] .type-page-title { color: #1a1a1a; text-shadow: 1px 1px 0 rgba(0,0,0,0.06); }
+[data-theme="light"] .type-section    { color: rgba(0,0,0,0.55); }
+[data-theme="light"] .type-body       { color: rgba(0,0,0,0.75); }
+[data-theme="light"] .type-label      { color: rgba(0,0,0,0.40); }
+[data-theme="light"] .type-stat       { color: #0d0d0d; }
 
 /* ─────────────────────────────────────────
    Page Transitions (must be outside @layer so Tailwind does not purge them)

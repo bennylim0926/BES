@@ -428,13 +428,15 @@ function transformForScore(data) {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container relative">
+    <div class="color-bleed"></div>
+    <div class="relative z-10">
 
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <div>
-        <h1 class="page-title">Scoreboard</h1>
-        <p class="text-muted mt-1">View and compare scores across genres and judges</p>
+        <div class="type-page-title mb-1">Scoreboard</div>
+        <p class="type-label text-content-muted">View and compare scores across genres and judges</p>
       </div>
     </div>
 
@@ -442,81 +444,82 @@ function transformForScore(data) {
     <div class="card p-5 mb-6">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Event name -->
-        <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+        <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
         <span class="text-surface-600 select-none">|</span>
 
         <!-- Genre toggle -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+        <div class="flex gap-1">
           <button
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
-            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
             :class="selectedGenre === g
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
         <span class="text-surface-600 select-none">|</span>
 
         <!-- Group By toggle -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+        <div class="flex gap-1">
           <button
             v-for="t in tabulationMethod"
             :key="t"
             @click="selectedTabulation = t"
-            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
             :class="selectedTabulation === t
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >{{ t }}</button>
         </div>
         <span class="text-surface-600 select-none">|</span>
 
         <!-- Show Top toggle -->
-        <div class="flex rounded-xl overflow-hidden border border-surface-600">
+        <div class="flex gap-1">
           <button
             v-for="n in topNOptions"
             :key="n"
             @click="selectedTopN = n"
-            class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
             :class="selectedTopN === n
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
           >{{ n }}</button>
         </div>
 
         <!-- Type toggle (conditional) -->
         <template v-if="hasTeamAndSoloMix">
           <span class="text-surface-600 select-none">|</span>
-          <div class="flex rounded-xl overflow-hidden border border-surface-600">
+          <div class="flex gap-1">
             <button
               v-for="t in ['Teams', 'Solo']"
               :key="t"
               @click="selectedEntryType = t"
-              class="px-3.5 py-1.5 text-sm font-semibold transition-all duration-150"
+              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
               :class="selectedEntryType === t
-                ? 'bg-primary-600 text-white'
-                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                ? 'text-accent border-[color:var(--accent-muted)]'
+                : 'text-content-muted hover:text-content-primary'"
             >{{ t }}</button>
           </div>
         </template>
       </div>
 
       <!-- Release Results toggle (admin/organiser only) -->
-      <div v-if="isAdminOrOrganiser" class="mt-4 pt-4 border-t border-surface-700/50 flex items-center justify-between">
-        <div>
-          <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Results Portal</p>
-          <p class="text-xs text-content-muted mt-0.5">
-            {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
-          </p>
-        </div>
+      <div v-if="isAdminOrOrganiser" class="section-rule mt-4 pt-4">
+        <span class="section-rule-label">Results Portal</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <div v-if="isAdminOrOrganiser" class="flex items-center justify-between mt-3">
+        <p class="type-label text-content-muted">
+          {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
+        </p>
         <button
           @click="toggleRelease"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200"
+          class="type-label transition-all duration-200"
           :class="resultsReleased
-            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15'
-            : 'bg-surface-700/50 border-surface-600/50 text-content-muted hover:border-surface-500 hover:bg-surface-700'"
+            ? 'bg-accent para-chip-sm px-3 py-1.5 text-surface-900'
+            : 'para-chip-sm px-3 py-1.5 border-accent text-content-muted hover:text-content-primary'"
         >
           <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'"></i>
           {{ resultsReleased ? 'Released' : 'Release Results' }}
@@ -657,42 +660,44 @@ function transformForScore(data) {
           v-if="finalRows.length >= 3"
           class="grid grid-cols-3 gap-4 mb-6"
         >
-          <div class="stat-card p-5 text-center order-1 border-t-2 border-t-content-secondary">
-            <div class="text-2xl font-heading font-extrabold text-content-muted mb-1">2</div>
-            <div class="font-heading font-bold text-content-secondary text-sm leading-tight mb-2">
+          <div class="stat-card relative order-1">
+            <div class="corner-bar-tl"></div>
+            <span class="badge-neutral type-label mb-1">2</span>
+            <div class="type-body text-content-secondary mb-1">
               {{ finalRows[1].participantName }}
             </div>
-            <div class="text-2xl font-source font-extrabold text-content-secondary">
+            <div class="type-stat">
               {{ finalRows[1].totalScore }}
             </div>
           </div>
           <div
-            class="stat-card p-5 text-center order-2 ring-2 ring-primary-500/30 relative border-t-2 border-t-accent-500 animate-float"
-            style="box-shadow: 0 0 0 1px rgba(6,182,212,0.3), 0 8px 40px rgba(6,182,212,0.15);"
+            class="stat-card relative order-2"
+            style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);"
           >
-            <div class="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span
-                class="px-2 py-0.5 rounded-full bg-primary-600 text-white text-xs font-bold"
-                style="box-shadow: 0 0 12px rgba(6,182,212,0.5);"
-              >1st</span>
-            </div>
-            <div class="text-2xl font-heading font-extrabold text-primary-400 mb-1">1</div>
-            <div class="font-heading font-bold text-content-primary text-sm leading-tight mb-2">
+            <div class="corner-bar-tl"></div>
+            <span class="badge-neutral type-label mb-1">1</span>
+            <div class="type-body text-content-primary mb-1">
               {{ finalRows[0].participantName }}
             </div>
-            <div class="text-4xl font-source font-extrabold text-primary-400">
+            <div class="type-stat text-accent">
               {{ finalRows[0].totalScore }}
             </div>
           </div>
-          <div class="stat-card p-5 text-center order-3 border-t-2 border-t-accent-700">
-            <div class="text-2xl font-heading font-extrabold text-surface-600 mb-1">3</div>
-            <div class="font-heading font-bold text-content-muted text-sm leading-tight mb-2">
+          <div class="stat-card relative order-3">
+            <div class="corner-bar-tl"></div>
+            <span class="badge-neutral type-label mb-1">3</span>
+            <div class="type-body text-content-muted mb-1">
               {{ finalRows[2].participantName }}
             </div>
-            <div class="text-2xl font-source font-extrabold text-content-muted">
+            <div class="type-stat">
               {{ finalRows[2].totalScore }}
             </div>
           </div>
+        </div>
+
+        <div class="section-rule mb-4 mt-8">
+          <span class="section-rule-label">Full Rankings</span>
+          <div class="section-rule-line"></div>
         </div>
 
         <!-- Full rankings table: custom for admin/organiser, standard for others -->
@@ -716,7 +721,7 @@ function transformForScore(data) {
                 <tr
                   v-for="row in pagedFinalRows"
                   :key="row.id"
-                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-primary-100/30 transition-colors duration-150"
+                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-accent/5 transition-colors duration-150"
                 >
                   <td class="px-4 py-3 whitespace-nowrap">
                     <span class="text-content-secondary">{{ row.id }}</span>
@@ -724,7 +729,7 @@ function transformForScore(data) {
                   <td class="px-4 py-3 whitespace-nowrap">
                     <button
                       @click="editScore(row.participantName)"
-                      class="text-primary-400 hover:text-primary-300 font-medium hover:underline focus:outline-none"
+                      class="text-accent hover:text-accent/80 font-medium hover:underline focus:outline-none"
                     >{{ row.participantName }}</button>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap">
@@ -744,7 +749,7 @@ function transformForScore(data) {
                         v-if="topNResult.isMultiAspect"
                         @click="viewBreakdown(row.participantName)"
                         title="View score breakdown"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
                         <i class="pi pi-chart-bar text-sm"></i>
                       </button>
@@ -752,7 +757,7 @@ function transformForScore(data) {
                       <button
                         @click="viewFeedback(row.participantName)"
                         title="View judge feedback"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
                         <i class="pi pi-comment text-sm"></i>
                       </button>
@@ -797,7 +802,7 @@ function transformForScore(data) {
                 @click="tablePage = p"
                 class="w-8 h-8 rounded-lg text-sm font-semibold border transition-all"
                 :class="tablePage === p
-                  ? 'bg-primary-600 text-white border-primary-600'
+                  ? 'bg-accent text-surface-900 border-accent'
                   : 'border-surface-600 bg-surface-800 text-content-secondary hover:bg-surface-700'"
               >{{ p }}</button>
               <button
@@ -827,11 +832,11 @@ function transformForScore(data) {
 
       <!-- Empty state -->
       <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+        <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="font-heading font-semibold text-content-secondary">No scores yet</p>
-        <p class="text-muted text-sm mt-1">Select an event and genre to view scores</p>
+        <p class="type-body text-content-secondary">No scores yet</p>
+        <p class="type-label text-content-muted mt-1">Select an event and genre to view scores</p>
       </div>
     </template>
 
@@ -843,12 +848,9 @@ function transformForScore(data) {
           :key="judge"
           class="mb-8"
         >
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
-              <i class="pi pi-user text-content-secondary text-xs"></i>
-            </div>
-            <h2 class="font-heading font-bold text-content-secondary">{{ judge }}</h2>
-            <span class="badge-neutral text-xs">{{ group.rows.length }} participants</span>
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">{{ judge }}</span>
+            <div class="section-rule-line"></div>
           </div>
           <DynamicTable
             @onClick="editScore"
@@ -860,14 +862,15 @@ function transformForScore(data) {
 
       <!-- Empty state -->
       <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+        <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="font-heading font-semibold text-content-secondary">No scores yet</p>
-        <p class="text-muted text-sm mt-1">Select an event and genre to view scores</p>
+        <p class="type-body text-content-secondary">No scores yet</p>
+        <p class="type-label text-content-muted mt-1">Select an event and genre to view scores</p>
       </div>
     </template>
 
+  </div>
   </div>
 
   <UpdateScoreForm
@@ -915,7 +918,7 @@ function transformForScore(data) {
         <div class="overflow-y-auto px-5 py-4 flex-1">
           <!-- Loading -->
           <div v-if="feedbackLoading" class="flex items-center justify-center py-12">
-            <i class="pi pi-spin pi-spinner text-primary-400 text-2xl"></i>
+            <i class="pi pi-spin pi-spinner text-accent text-2xl"></i>
           </div>
 
           <!-- No feedback empty state -->
@@ -1015,7 +1018,7 @@ function transformForScore(data) {
                 class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-700/50"
               >
                 <span class="text-sm text-content-secondary">{{ aspect }}</span>
-                <span class="font-source font-bold text-primary-400 text-sm">{{ score }}</span>
+                <span class="font-source font-bold text-accent text-sm">{{ score }}</span>
               </div>
             </div>
           </div>

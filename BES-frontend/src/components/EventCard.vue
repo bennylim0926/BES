@@ -42,19 +42,16 @@ const actions = [
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
-    <!-- ── Header card (always visible, fixed height) ── -->
+    <!-- ── Header card (always visible) ── -->
     <div
-      class="bg-surface-800 border border-surface-600/50 border-l-[4px] border-l-primary-500
-             transition-all duration-150 cursor-pointer"
-      :class="isHovered || props.expanded
-        ? 'rounded-t-2xl border-b-transparent shadow-[0_0_0_1px_rgba(6,182,212,0.2)]'
-        : 'rounded-2xl'"
+      class="card-hover p-4 cursor-pointer relative"
       @click.stop="emit('toggle')"
     >
-      <div class="flex items-center gap-3 px-4 py-4">
-        <h3 class="font-heading font-bold text-sm text-content-primary leading-snug line-clamp-2 flex-1">
+      <div class="corner-bar-tl"></div>
+      <div class="flex items-center gap-3">
+        <div class="type-body flex-1 line-clamp-2">
           {{ props.buttonName }}
-        </h3>
+        </div>
 
         <!-- Access code (admin only) -->
         <div v-if="props.accessCode !== null" class="flex items-center gap-1.5 flex-shrink-0" @click.stop>
@@ -66,26 +63,29 @@ const actions = [
               @mousedown.stop="codeVisible = true" @mouseup.stop="codeVisible = false"
               @mouseleave.stop="codeVisible = false" @touchstart.prevent.stop="codeVisible = true"
               @touchend.stop="codeVisible = false"
-              class="text-content-muted hover:text-primary-400 transition-colors select-none touch-none"
+              class="text-content-muted hover:text-accent transition-colors select-none touch-none"
             ><i class="pi pi-eye text-xs"></i></button>
-            <button @click.stop="startEdit" class="text-content-muted hover:text-primary-400 transition-colors"
+            <button @click.stop="startEdit" class="text-content-muted hover:text-accent transition-colors"
             ><i class="pi pi-pencil text-xs"></i></button>
           </template>
           <template v-else>
             <input v-model="newCode" type="text" inputmode="numeric" maxlength="4" @click.stop
-              class="w-14 px-1.5 py-0.5 rounded border border-primary-400 bg-surface-900 font-source text-xs tracking-widest text-center text-content-primary focus:outline-none"
+              class="w-14 px-1.5 py-0.5 border border-[color:var(--accent-muted)] bg-surface-900 font-source text-xs tracking-widest text-center text-content-primary focus:outline-none"
+              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
             />
             <button @click.stop="saveCode" :disabled="saving"
-              class="text-xs px-1.5 py-0.5 rounded bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+              class="text-xs px-1.5 py-0.5 bg-accent text-surface-900 transition-colors"
+              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
             >{{ saving ? '…' : 'Save' }}</button>
             <button @click.stop="cancelEdit"
-              class="text-xs px-1.5 py-0.5 rounded border border-surface-600 text-content-secondary hover:bg-surface-700 transition-colors"
+              class="text-xs px-1.5 py-0.5 border border-surface-600 text-content-secondary hover:bg-surface-700 transition-colors"
+              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
             >✕</button>
           </template>
         </div>
 
         <i class="pi pi-chevron-down text-xs text-surface-500 transition-all duration-200 flex-shrink-0"
-           :class="isHovered || props.expanded ? 'text-primary-400 rotate-180' : ''"></i>
+           :class="isHovered || props.expanded ? 'text-accent rotate-180' : ''"></i>
       </div>
     </div>
 
@@ -100,22 +100,20 @@ const actions = [
     >
       <div
         v-if="isHovered || props.expanded"
-        class="absolute top-full left-0 right-0 z-20
-               bg-surface-800 border border-t-0 border-primary-500/40
-               border-l-[4px] border-l-primary-500 rounded-b-2xl overflow-hidden
-               shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+        class="absolute top-full left-0 right-0 z-20 bg-surface-800 border border-[rgba(255,255,255,0.07)] overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+        style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
         @click.stop="emit('toggle')"
       >
-        <div class="grid grid-cols-5 divide-x divide-surface-700/60">
+        <div class="grid grid-cols-5">
           <button
             v-for="action in actions"
             :key="action.key"
             @click.stop="emit(action.key)"
             class="flex flex-col items-center gap-1.5 py-3.5 text-content-muted
-                   hover:text-primary-400 hover:bg-primary-500/10 transition-all duration-150"
+                   hover:text-accent hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150"
           >
-            <i class="pi text-base" :class="action.icon"></i>
-            <span class="text-[9px] font-bold uppercase tracking-wide leading-none">{{ action.label }}</span>
+            <i class="pi text-base text-accent" :class="action.icon"></i>
+            <span class="type-label">{{ action.label }}</span>
           </button>
         </div>
       </div>

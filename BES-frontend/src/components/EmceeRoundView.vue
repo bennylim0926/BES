@@ -88,17 +88,17 @@ const swipeHint = computed(() => {
         <div
           v-for="({ slots, roundNumber }, uIdx) in visibleRounds"
           :key="roundNumber"
-          class="queue-item rounded-xl border overflow-hidden flex-shrink-0"
+          class="queue-item para-chip-sm overflow-hidden flex-shrink-0"
           :class="uIdx === visibleRounds.length - 1 ? 'border-white/15 bg-white/5' : 'border-white/5 bg-transparent'"
           :style="{ opacity: uIdx === visibleRounds.length - 1 ? '1' : uIdx === visibleRounds.length - 2 ? '0.5' : uIdx === visibleRounds.length - 3 ? '0.3' : '0.15' }"
         >
           <div class="flex items-center justify-between px-2 py-1">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-white/30">
+            <span class="type-label text-content-muted">
               Round {{ roundNumber }}
             </span>
             <span
               v-if="uIdx === visibleRounds.length - 1"
-              class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/10 font-bold uppercase tracking-wider"
+              class="badge-neutral type-label"
             >Up Next</span>
           </div>
           <div class="px-2 pb-1.5">
@@ -107,8 +107,8 @@ const swipeHint = computed(() => {
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
               <div v-else class="flex items-center gap-2 flex-wrap">
-                <span class="font-anton text-xl" :class="uIdx === visibleRounds.length - 1 ? 'text-white/60' : 'text-white/25'">#{{ slot.auditionNumber }}</span>
-                <span class="font-heading font-bold text-sm" :class="uIdx === visibleRounds.length - 1 ? 'text-white/70' : 'text-white/30'" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ slot.participantName }}</span>
+                <span class="type-stat text-[22px]" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
+                <span class="type-body" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
                 <span v-if="mode === 'PAIR' && sIdx === 0" class="text-white/20 text-xs">&amp;</span>
               </div>
             </template>
@@ -119,7 +119,7 @@ const swipeHint = computed(() => {
         v-if="hiddenRoundsCount > 0"
         class="flex-shrink-0 text-center pb-1"
       >
-        <span class="text-[10px] text-white/15 font-bold uppercase tracking-widest">+{{ hiddenRoundsCount }} more rounds</span>
+        <span class="type-label text-content-muted">+{{ hiddenRoundsCount }} more rounds</span>
       </div>
     </div>
 
@@ -146,15 +146,16 @@ const swipeHint = computed(() => {
             @touchstart.passive="onTouchStart"
             @touchmove.passive="onTouchMove"
             @touchend="onTouchEnd"
-            class="rounded-2xl border border-white/20 bg-white/5 select-none touch-pan-y"
+            class="card-hover p-0 relative select-none touch-pan-y"
             style="box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.6);"
           >
+            <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-white/8">
               <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-white animate-pulse inline-block"></span>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-white/50">Now on Stage</span>
+                <span class="glow-dot"></span>
+                <span class="type-label text-content-muted">Now on Stage</span>
               </div>
-              <span class="text-[10px] text-white/25 font-bold uppercase tracking-widest">
+              <span class="type-label text-content-muted">
                 Rd {{ currentRound }} / {{ totalRounds }}
               </span>
             </div>
@@ -166,17 +167,17 @@ const swipeHint = computed(() => {
                 <div v-else>
                   <div v-if="mode === 'PAIR' && sIdx > 0" class="text-white/20 text-sm my-1 pl-1">&amp;</div>
                   <div class="flex items-baseline gap-2">
-                    <span class="font-anton text-white/40" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
-                    <span class="font-anton text-white leading-tight" style="font-size: clamp(1.5rem, 6vw, 2.8rem); text-transform: uppercase; letter-spacing: 0.05em;">{{ slot.participantName }}</span>
+                    <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
+                    <span class="type-body text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
                   </div>
                   <div v-if="slot.judgeName" class="text-xs text-white/25 mt-0.5 pl-1">{{ slot.judgeName }}</div>
                 </div>
               </template>
             </div>
             <div class="flex items-center justify-between px-4 pb-1.5">
-              <span class="text-[8px] text-white/12 tracking-wider">← Prev</span>
-              <span class="text-[8px] text-white/12">swipe</span>
-              <span class="text-[8px] text-white/12 tracking-wider">Next →</span>
+              <span class="type-label text-content-muted">← Prev</span>
+              <span class="type-label text-content-muted">swipe</span>
+              <span class="type-label text-content-muted">Next →</span>
             </div>
           </div>
         </Transition>
@@ -184,7 +185,7 @@ const swipeHint = computed(() => {
     </div>
 
     <!-- ── Timer at bottom (thumb reach) ── -->
-    <div class="emcee-timer px-3 pb-3 pt-2 border-t border-white/5">
+    <div class="emcee-timer px-3 pb-3 pt-2">
       <Timer />
     </div>
 

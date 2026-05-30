@@ -73,205 +73,240 @@ const groupTags = (tags) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface-900 flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-surface-700/50 bg-surface-900/80 backdrop-blur-sm">
-      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center flex-shrink-0">
-          <i class="pi pi-star text-white text-sm"></i>
+  <div class="min-h-screen flex overflow-hidden bg-surface-950 relative">
+
+    <!-- Color bleed -->
+    <div class="color-bleed"></div>
+
+    <div class="flex-1 flex flex-col lg:flex-row relative z-10">
+
+      <!-- ── Left panel: BES hero (≥md) ────────────────────────────── -->
+      <div class="hidden lg:flex lg:w-[44%] relative flex-col justify-between p-14 overflow-hidden">
+        <div class="absolute inset-0 bg-surface-900"></div>
+        <div class="corner-bar-tl" style="height: 40%"></div>
+        <div class="corner-bar-bl" style="width: 40%"></div>
+
+        <!-- Wordmark -->
+        <div class="relative z-10 flex items-center gap-2.5">
+          <div class="glow-dot"></div>
+          <span class="type-body tracking-[0.12em]">BES</span>
         </div>
-        <div>
-          <p class="font-heading font-bold text-content-primary text-sm leading-none">BES Results Portal</p>
-          <p class="text-xs text-content-muted mt-0.5">Battle Event System</p>
-        </div>
-      </div>
-    </header>
 
-    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-10">
-
-      <!-- Lookup card -->
-      <div class="card p-6 mb-8 max-w-xl mx-auto">
-        <h1 class="font-heading font-bold text-content-primary text-xl mb-1">View Your Results</h1>
-        <p class="text-sm text-content-muted mb-5">Enter the reference code from your registration email to view your scores and judge feedback.</p>
-
-        <div class="flex gap-3">
-          <div class="flex-1">
-            <input
-              :value="refCode"
-              @input="onInput"
-              placeholder="e.g. AB3K-9XPQ"
-              maxlength="9"
-              class="input-base font-source text-lg tracking-widest uppercase w-full"
-              @keydown.enter="lookup"
-            />
+        <!-- Hero -->
+        <div class="relative z-10">
+          <div class="type-display mb-6">BES</div>
+          <div class="section-rule mb-6">
+            <div class="section-rule-line"></div>
           </div>
-          <button
-            @click="lookup"
-            :disabled="loading || refCode.length !== 9"
-            class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-semibold text-sm
-                   hover:bg-primary-500 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed
-                   transition-all duration-200 flex items-center gap-2 flex-shrink-0"
-          >
-            <i v-if="loading" class="pi pi-spin pi-spinner"></i>
-            <i v-else class="pi pi-search"></i>
-            {{ loading ? 'Looking up…' : 'Look up' }}
-          </button>
+          <p class="type-body text-content-secondary leading-relaxed max-w-md">
+            View your scores, judge feedback, and performance details — all in one place.
+          </p>
+          <div class="flex flex-wrap gap-2 mt-8">
+            <span class="badge-neutral px-3 py-1.5">Scores</span>
+            <span class="badge-neutral px-3 py-1.5">Feedback</span>
+            <span class="badge-neutral px-3 py-1.5">Results</span>
+          </div>
         </div>
 
-        <div
-          v-if="errorMsg"
-          class="mt-4 flex items-start gap-2.5 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/8"
-        >
-          <i class="pi pi-exclamation-circle text-red-400 mt-0.5 flex-shrink-0"></i>
-          <p class="text-sm text-red-300">{{ errorMsg }}</p>
+        <!-- Footer -->
+        <div class="relative z-10 type-label text-content-muted">
+          &copy; {{ new Date().getFullYear() }} BES Platform
         </div>
       </div>
 
-      <!-- Results -->
-      <template v-if="results">
-        <!-- Participant header -->
-        <div class="flex items-center gap-4 mb-6 max-w-xl mx-auto">
-          <div class="w-12 h-12 rounded-2xl bg-primary-600/20 border border-primary-500/30 flex items-center justify-center flex-shrink-0">
-            <i class="pi pi-user text-primary-400 text-lg"></i>
-          </div>
-          <div>
-            <h2 class="font-heading font-bold text-content-primary text-xl">{{ results.participantName }}</h2>
-            <p class="text-sm text-content-muted">{{ results.eventName }}</p>
-          </div>
-        </div>
+      <!-- ── Right panel: Results lookup ───────────────────────── -->
+      <div class="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 lg:p-14 overflow-y-auto">
+        <div class="w-full max-w-xl">
 
-        <!-- Genre results — row layout, centered when single -->
-        <div
-          :class="results.genres.length === 1
-            ? 'flex justify-center'
-            : 'grid grid-cols-1 sm:grid-cols-2 gap-4'"
-        >
-          <div
-            v-for="genre in results.genres"
-            :key="genre.genreName"
-            class="card p-5"
-            :class="results.genres.length === 1 ? 'w-full max-w-xl' : ''"
-          >
-            <!-- Genre header -->
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="px-3 py-1 rounded-full bg-primary-500/15 text-primary-400 text-xs font-bold border border-primary-500/25 uppercase tracking-wide">
-                  {{ genre.genreName }}
-                </span>
-                <span
-                  v-if="genre.format"
-                  class="px-2 py-0.5 rounded-full bg-surface-700 text-content-muted text-xs font-source border border-surface-600/60"
+          <!-- Lookup form -->
+          <div class="relative" v-if="!results">
+            <div class="corner-bar-tl"></div>
+            <div class="corner-bar-bl"></div>
+            <div class="p-8 bg-surface-900 border border-[rgba(255,255,255,0.07)]"
+              style="clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+
+              <div class="mb-6">
+                <div class="type-page-title mb-1">My Results</div>
+                <p class="type-label text-content-muted">Enter your reference code</p>
+              </div>
+
+              <div class="flex gap-3">
+                <div class="flex-1">
+                  <input
+                    :value="refCode"
+                    @input="onInput"
+                    placeholder="e.g. AB3K-9XPQ"
+                    maxlength="9"
+                    class="input-base w-full"
+                    @keydown.enter="lookup"
+                  />
+                </div>
+                <button
+                  @click="lookup"
+                  :disabled="loading || refCode.length !== 9"
+                  class="px-5 py-2.5 bg-accent text-surface-900 type-body transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
+                  style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
                 >
-                  {{ genre.format }}
-                </span>
-                <span v-if="genre.auditionNumber" class="text-xs text-content-muted">
-                  Audition #{{ genre.auditionNumber }}
-                </span>
+                  <i v-if="loading" class="pi pi-spin pi-spinner"></i>
+                  <i v-else class="pi pi-search"></i>
+                  {{ loading ? 'Looking up…' : 'Look up' }}
+                </button>
               </div>
-              <div v-if="genre.scores && genre.scores.length > 0" class="text-right ml-2 flex-shrink-0">
-                <p class="text-xs text-content-muted">Total</p>
-                <p class="font-source font-bold text-primary-400 text-xl">{{ totalScore(genre.scores) }}</p>
+
+              <!-- Error state -->
+              <div
+                v-if="errorMsg"
+                class="mt-4 semantic-chip-error flex items-start gap-3 p-4"
+              >
+                <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-0.5" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)"></div>
+                <p class="type-body text-content-secondary">{{ errorMsg }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results display -->
+          <template v-if="results">
+            <!-- Participant header -->
+            <div class="mb-8">
+              <div class="type-page-title mb-1">{{ results.participantName }}</div>
+              <div class="section-rule">
+                <span class="section-rule-label">{{ results.eventName }}</span>
+                <div class="section-rule-line"></div>
               </div>
             </div>
 
-            <!-- Scores -->
-            <div v-if="genre.scores && genre.scores.length > 0" class="mb-4">
-              <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">Scores</p>
+            <!-- Genre results -->
+            <div
+              :class="results.genres.length === 1
+                ? 'flex justify-center'
+                : 'grid grid-cols-1 sm:grid-cols-2 gap-4'"
+            >
+              <div
+                v-for="genre in results.genres"
+                :key="genre.genreName"
+                class="card-hover p-4 relative"
+                :class="results.genres.length === 1 ? 'w-full max-w-xl' : ''"
+              >
+                <div class="corner-bar-tl"></div>
 
-              <template v-if="isMultiCriteria(genre.scores)">
-                <div class="space-y-3">
-                  <div
-                    v-for="(aspects, judge) in groupScoresByJudge(genre.scores)"
-                    :key="judge"
-                    class="rounded-xl bg-surface-700/50 border border-surface-600/40 px-3 py-2.5"
-                  >
-                    <p class="text-xs font-semibold text-content-muted mb-2">{{ judge }}</p>
-                    <div class="space-y-1">
-                      <div
-                        v-for="(score, aspect) in aspects"
-                        :key="aspect"
-                        class="flex items-center justify-between"
-                      >
-                        <span class="text-xs text-content-secondary">{{ aspect }}</span>
-                        <span class="font-source font-bold text-primary-400 text-sm">{{ score }}</span>
-                      </div>
-                    </div>
+                <!-- Genre header -->
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="badge-neutral">{{ genre.genreName }}</span>
+                    <span
+                      v-if="genre.format"
+                      class="badge-neutral"
+                    >{{ genre.format }}</span>
+                    <span v-if="genre.auditionNumber" class="type-label text-content-muted">
+                      #{{ genre.auditionNumber }}
+                    </span>
+                  </div>
+                  <div v-if="genre.scores && genre.scores.length > 0" class="text-right ml-2 flex-shrink-0">
+                    <div class="type-label text-content-muted">Total</div>
+                    <div class="type-stat text-[28px]">{{ totalScore(genre.scores) }}</div>
                   </div>
                 </div>
-              </template>
 
-              <template v-else>
-                <div class="grid grid-cols-2 gap-2">
-                  <div
-                    v-for="score in genre.scores"
-                    :key="score.judgeName"
-                    class="rounded-xl bg-surface-700/50 border border-surface-600/40 px-3 py-2.5"
-                  >
-                    <p class="text-xs text-content-muted truncate">{{ score.judgeName }}</p>
-                    <p class="font-source font-bold text-content-primary text-lg">{{ score.score }}</p>
+                <!-- Scores -->
+                <div v-if="genre.scores && genre.scores.length > 0" class="mb-4">
+                  <div class="section-rule mb-3">
+                    <span class="section-rule-label">Scores</span>
+                    <div class="section-rule-line"></div>
                   </div>
-                </div>
-              </template>
-            </div>
-            <div v-else class="mb-4">
-              <p class="text-sm text-content-muted italic">No scores recorded yet</p>
-            </div>
 
-            <!-- Feedback -->
-            <template v-if="genre.feedback && genre.feedback.length > 0">
-              <div class="border-t border-surface-700/50 pt-4">
-                <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-3">Judge Feedback</p>
-                <div class="space-y-4">
-                  <div
-                    v-for="entry in genre.feedback"
-                    :key="entry.judgeName"
-                    class="rounded-xl border border-surface-600/40 bg-surface-700/20 p-3.5"
-                  >
-                    <p class="text-xs font-bold text-content-secondary mb-2">{{ entry.judgeName }}</p>
-
-                    <template v-if="entry.tags && entry.tags.length > 0">
+                  <template v-if="isMultiCriteria(genre.scores)">
+                    <div class="space-y-3">
                       <div
-                        v-for="(tags, groupName) in groupTags(entry.tags)"
-                        :key="groupName"
-                        class="mb-2"
+                        v-for="(aspects, judge) in groupScoresByJudge(genre.scores)"
+                        :key="judge"
+                        class="para-chip px-3 py-2.5"
                       >
-                        <p class="text-xs text-content-muted mb-1">{{ groupName }}</p>
-                        <div class="flex flex-wrap gap-1.5">
-                          <span
-                            v-for="tag in tags"
-                            :key="tag.label"
-                            class="text-xs px-2.5 py-1 rounded-full font-medium border"
-                            :class="groupName === 'Strengths'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'"
-                          >{{ tag.label }}</span>
+                        <div class="type-body text-content-secondary mb-2">{{ judge }}</div>
+                        <div class="space-y-1">
+                          <div
+                            v-for="(score, aspect) in aspects"
+                            :key="aspect"
+                            class="flex items-center justify-between"
+                          >
+                            <span class="type-label text-content-muted">{{ aspect }}</span>
+                            <span class="type-stat text-[18px]">{{ score }}</span>
+                          </div>
                         </div>
                       </div>
-                    </template>
-
-                    <div v-if="entry.note" class="mt-2 pt-2 border-t border-surface-600/30">
-                      <p class="text-xs text-content-secondary italic">"{{ entry.note }}"</p>
                     </div>
+                  </template>
 
-                    <p
-                      v-if="(!entry.tags || entry.tags.length === 0) && !entry.note"
-                      class="text-xs text-content-muted italic"
-                    >No feedback provided</p>
+                  <template v-else>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div
+                        v-for="score in genre.scores"
+                        :key="score.judgeName"
+                        class="para-chip px-3 py-2.5"
+                      >
+                        <div class="type-label text-content-muted truncate">{{ score.judgeName }}</div>
+                        <div class="type-stat text-[22px]">{{ score.score }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <div v-else class="mb-4">
+                  <p class="type-body text-content-muted">No scores recorded yet</p>
+                </div>
+
+                <!-- Feedback -->
+                <template v-if="genre.feedback && genre.feedback.length > 0">
+                  <div class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
+                    <div class="section-rule mb-3">
+                      <span class="section-rule-label">Judge Feedback</span>
+                      <div class="section-rule-line"></div>
+                    </div>
+                    <div class="space-y-4">
+                      <div
+                        v-for="entry in genre.feedback"
+                        :key="entry.judgeName"
+                        class="para-chip px-3 py-3"
+                      >
+                        <div class="type-body text-content-secondary mb-2">{{ entry.judgeName }}</div>
+
+                        <template v-if="entry.tags && entry.tags.length > 0">
+                          <div
+                            v-for="(tags, groupName) in groupTags(entry.tags)"
+                            :key="groupName"
+                            class="mb-2"
+                          >
+                            <div class="type-label text-content-muted mb-1">{{ groupName }}</div>
+                            <div class="flex flex-wrap gap-1.5">
+                              <span
+                                v-for="tag in tags"
+                                :key="tag.label"
+                                class="badge-neutral"
+                              >{{ tag.label }}</span>
+                            </div>
+                          </div>
+                        </template>
+
+                        <div v-if="entry.note" class="mt-2 pt-2" style="border-top: 1px solid rgba(255,255,255,0.06)">
+                          <p class="type-body text-content-secondary">"{{ entry.note }}"</p>
+                        </div>
+
+                        <p
+                          v-if="(!entry.tags || entry.tags.length === 0) && !entry.note"
+                          class="type-label text-content-muted"
+                        >No feedback provided</p>
+                      </div>
+                    </div>
                   </div>
+                </template>
+                <div v-else class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
+                  <p class="type-label text-content-muted">No judge feedback for this genre</p>
                 </div>
               </div>
-            </template>
-            <div v-else class="border-t border-surface-700/50 pt-4">
-              <p class="text-xs text-content-muted italic">No judge feedback for this genre</p>
             </div>
-          </div>
+          </template>
+
         </div>
-      </template>
+      </div>
 
-    </main>
-
-    <footer class="border-t border-surface-700/50 py-4">
-      <p class="text-center text-xs text-content-muted">Battle Event System · Results Portal</p>
-    </footer>
+    </div>
   </div>
 </template>

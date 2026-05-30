@@ -36,59 +36,66 @@ const print = () => window.print()
 </script>
 
 <template>
-  <div class="min-h-screen bg-white flex flex-col items-center justify-center p-8 print:p-4">
+  <div class="min-h-screen flex flex-col items-center justify-center p-8 print:p-4 relative bg-surface-950">
 
-    <!-- Loading -->
-    <div v-if="loading" class="flex flex-col items-center gap-3">
-      <i class="pi pi-spin pi-spinner text-4xl text-surface-400"></i>
-      <p class="text-sm text-surface-500">Generating QR code…</p>
-    </div>
+    <!-- Color bleed -->
+    <div class="color-bleed"></div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="flex flex-col items-center gap-3 text-center">
-      <i class="pi pi-exclamation-circle text-4xl text-red-400"></i>
-      <p class="text-sm text-surface-600">{{ error }}</p>
-    </div>
+    <div class="relative z-10 w-full max-w-lg flex flex-col items-center">
 
-    <!-- QR Card -->
-    <div v-else class="flex flex-col items-center gap-6 w-full max-w-xs">
-      <!-- BES branding -->
-      <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center">
-          <i class="pi pi-star text-white text-xs"></i>
+      <!-- Loading -->
+      <div v-if="loading" class="flex flex-col items-center gap-3">
+        <i class="pi pi-spin pi-spinner text-4xl text-content-muted"></i>
+        <p class="type-body text-content-muted">Loading...</p>
+      </div>
+
+      <!-- Error -->
+      <div v-else-if="error" class="semantic-chip-error flex items-start gap-3 p-4 w-full max-w-md">
+        <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-0.5" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)"></div>
+        <p class="type-body text-content-secondary">{{ error }}</p>
+      </div>
+
+      <!-- QR Card -->
+      <div v-else class="flex flex-col items-center gap-6 w-full">
+        <!-- BES branding -->
+        <div class="flex items-center gap-2.5">
+          <div class="glow-dot"></div>
+          <span class="type-body tracking-[0.12em]">BES</span>
         </div>
-        <span class="font-heading font-bold text-surface-700 text-sm">BES Results Portal</span>
-      </div>
 
-      <!-- QR code image -->
-      <div class="rounded-2xl border-2 border-surface-200 p-4 bg-white shadow-sm">
-        <img
-          :src="qrImageUrl"
-          alt="Results QR Code"
-          class="w-64 h-64 block"
-        />
-      </div>
+        <!-- QR code image -->
+        <div class="card-hover p-6 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
+          <img
+            :src="qrImageUrl"
+            alt="Results QR Code"
+            class="w-64 h-64 block"
+          />
+        </div>
 
-      <!-- Participant info -->
-      <div class="text-center">
-        <p class="font-heading font-bold text-surface-800 text-lg">{{ participantName }}</p>
-        <p class="text-sm text-surface-500 mt-0.5 font-source tracking-widest">{{ refCode }}</p>
-      </div>
+        <!-- Participant info -->
+        <div class="text-center">
+          <div class="type-page-title">{{ participantName }}</div>
+          <p class="type-label text-content-muted mt-1">{{ refCode }}</p>
+        </div>
 
-      <!-- Instructions -->
-      <div class="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-center">
-        <p class="text-xs text-surface-600 font-medium">Scan this QR code to view your scores and feedback</p>
-        <p class="text-xs text-surface-400 mt-1">Results are released by the organiser after all auditions</p>
-      </div>
+        <!-- Instructions -->
+        <div class="para-chip px-5 py-4 text-center w-full max-w-sm">
+          <p class="type-label text-content-muted">Scan this QR code to view your scores and feedback</p>
+          <p class="type-label text-content-muted mt-1 opacity-60">Results are released by the organiser after all auditions</p>
+        </div>
 
-      <!-- Print button (hidden in print) -->
-      <button
-        @click="print"
-        class="print:hidden flex items-center gap-2 px-5 py-2.5 rounded-xl bg-surface-800 text-white text-sm font-semibold hover:bg-surface-700 transition-colors"
-      >
-        <i class="pi pi-print"></i>
-        Print / Save
-      </button>
+        <!-- Print button (hidden in print) -->
+        <button
+          @click="print"
+          class="print:hidden px-5 py-2.5 bg-accent text-surface-900 type-body transition-all duration-200 flex items-center gap-2"
+          style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
+        >
+          <i class="pi pi-print"></i>
+          Print / Save
+        </button>
+      </div>
     </div>
   </div>
 </template>

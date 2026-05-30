@@ -3,7 +3,7 @@ import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGe
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, fetchAllGenres } from '@/utils/api';
+import { fetchAllEvents, fetchAllGenres, getAppConfig, postAppConfig } from '@/utils/api';
 import UpdateFieldForm from '@/components/UpdateFieldForm.vue';
 
 const addGenreInput = ref('');
@@ -51,6 +51,10 @@ const feedbackGroups = ref([])
 const addGroupInput = ref('')
 const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
+
+const accentInput = ref('#ffffff')
+const activeTab = ref('genres')
+const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -140,252 +144,255 @@ const submitDeleteTag = async (tagId) => {
   }
 }
 
+const saveAccent = async () => {
+  await postAppConfig(accentInput.value)
+}
+
 onMounted(async () => {
   genres.value = await fetchAllGenres() ?? []
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
+  const cfg = await getAppConfig()
+  accentInput.value = cfg?.accentColor ?? '#ffffff'
 })
 </script>
 
 <template>
-  <div class="page-container space-y-8">
+  <div class="page-container relative">
+    <div class="color-bleed"></div>
+    <div class="relative z-10 space-y-8">
 
-    <!-- Page header -->
-    <div>
-      <h1 class="page-title">Admin</h1>
-      <p class="text-muted mt-1">Manage genres, events, and system settings</p>
-    </div>
-
-    <!-- Genres section -->
-    <section class="card p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
-          <i class="pi pi-tag text-primary-400 text-sm"></i>
-        </div>
-        <h2 class="font-heading font-bold text-content-secondary text-lg">Genres</h2>
-        <span class="badge-neutral text-xs">{{ genres.length }}</span>
+      <!-- Page header -->
+      <div>
+        <div class="type-page-title">Admin</div>
       </div>
 
-      <!-- Add genre -->
-      <div class="flex gap-3 mb-5">
-        <input
-          v-model="addGenreInput"
-          type="text"
-          placeholder="Genre name…"
-          class="input-base flex-1 max-w-xs"
-          @keyup.enter="submitAddGenre"
-        />
+      <!-- Section tabs -->
+      <div class="flex flex-wrap gap-2">
         <button
-          @click="submitAddGenre"
-          class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm
-                 font-semibold hover:bg-primary-700 transition-all duration-200 shadow-sm"
-        >
-          <i class="pi pi-plus text-xs"></i>
-          Add Genre
-        </button>
+          v-for="tab in tabs"
+          :key="tab"
+          @click="activeTab = tab"
+          class="para-chip-sm type-label px-3 py-1.5 transition-all duration-150"
+          :class="activeTab === tab ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+        >{{ tab }}</button>
       </div>
 
-      <!-- Genre list -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-        <div
-          v-for="g in genres"
-          :key="g.id"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800 hover:border-surface-500 transition-all"
-        >
-          <button
-            @click="selectId(g.id, 'genre')"
-            class="text-sm font-medium text-content-secondary hover:text-primary-400 text-left truncate flex-1 transition-colors"
+      <!-- ── Genres ──────────────────────────────────────────── -->
+      <div v-if="activeTab === 'genres'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Genres</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ genres.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="flex gap-3 mb-5">
+          <input
+            v-model="addGenreInput"
+            type="text"
+            placeholder="Genre name…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitAddGenre"
+          />
+          <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Genre</button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          <div
+            v-for="g in genres"
+            :key="g.id"
+            class="card-hover p-3 relative flex items-center justify-between"
           >
-            {{ g.genreName }}
-          </button>
-          <button
-            @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
-            class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-          >
-            <i class="pi pi-times text-xs"></i>
-          </button>
-        </div>
-        <div v-if="genres.length === 0" class="col-span-full text-sm text-content-muted py-4">
-          No genres added yet
-        </div>
-      </div>
-    </section>
-
-    <!-- Reset Scores section -->
-    <section class="card p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-red-950 flex items-center justify-center">
-          <i class="pi pi-trash text-red-400 text-sm"></i>
-        </div>
-        <div>
-          <h2 class="font-heading font-bold text-content-secondary text-lg">Reset Scores</h2>
-          <p class="text-xs text-content-muted">Permanently removes all scores for an event</p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-        <div
-          v-for="e in events"
-          :key="e.id"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800"
-        >
-          <span class="text-sm font-medium text-content-secondary truncate flex-1">{{ e.name }}</span>
-          <button
-            @click="confirmResetScore(e.id, 'Reset Scores?', `This will permanently delete all scores for ${e.name}.`)"
-            class="ml-2 flex-shrink-0 px-2 py-1 rounded-lg text-xs font-semibold text-red-400
-                   hover:bg-red-950 transition-all"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feedback Tags section -->
-    <section class="card p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
-          <i class="pi pi-comment text-primary-400 text-sm"></i>
-        </div>
-        <h2 class="font-heading font-bold text-content-secondary text-lg">Feedback Tags</h2>
-        <span class="badge-neutral text-xs">{{ feedbackGroups.length }} groups</span>
-      </div>
-
-      <!-- Add group -->
-      <div class="flex gap-3 mb-6">
-        <input
-          v-model="addGroupInput"
-          type="text"
-          placeholder="New group name…"
-          class="input-base flex-1 max-w-xs"
-          @keyup.enter="submitAddGroup"
-        />
-        <button
-          @click="submitAddGroup"
-          class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium
-                 bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-        >
-          <i class="pi pi-plus text-xs"></i>
-          Add Group
-        </button>
-      </div>
-
-      <!-- Groups list -->
-      <div class="space-y-5">
-        <div
-          v-for="group in feedbackGroups"
-          :key="group.id"
-          class="border border-surface-600/50 rounded-xl p-4 bg-surface-700/20"
-        >
-          <!-- Group header -->
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-content-primary">{{ group.name }}</h3>
+            <div class="corner-bar-tl"></div>
             <button
-              @click="submitDeleteGroup(group.id)"
-              class="w-6 h-6 rounded-full flex items-center justify-center
-                     text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-              title="Delete group"
+              @click="selectId(g.id, 'genre')"
+              class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
+            >
+              {{ g.genreName }}
+            </button>
+            <button
+              @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
+              class="ml-2 flex-shrink-0 w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
             >
               <i class="pi pi-times text-xs"></i>
             </button>
           </div>
-
-          <!-- Tags -->
-          <div class="flex flex-wrap gap-2 mb-3">
-            <div
-              v-for="tag in group.tags"
-              :key="tag.id"
-              class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
-                     bg-surface-600/60 border border-surface-500/50 text-content-secondary"
-            >
-              {{ tag.label }}
-              <button
-                @click="submitDeleteTag(tag.id)"
-                class="text-surface-400 hover:text-red-400 transition-colors leading-none"
-              >
-                <i class="pi pi-times" style="font-size: 0.6rem"></i>
-              </button>
-            </div>
-            <p v-if="!group.tags?.length" class="text-xs text-content-muted py-1">No tags yet</p>
+          <div v-if="genres.length === 0" class="col-span-full type-label text-content-muted py-4">
+            No genres added yet
           </div>
+        </div>
+      </div>
 
-          <!-- Add tag input -->
-          <div class="flex gap-2">
-            <input
-              v-model="addTagInputs[group.id]"
-              type="text"
-              :placeholder="`Add tag to ${group.name}…`"
-              class="input-base flex-1 text-sm py-1.5"
-              @keyup.enter="submitAddTag(group.id)"
-            />
+      <!-- ── Reset Scores ───────────────────────────────────── -->
+      <div v-if="activeTab === 'scores'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Reset Scores</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <p class="type-label text-content-muted mb-4">Permanently removes all scores for an event.</p>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div
+            v-for="e in events"
+            :key="e.id"
+            class="card-hover p-3 relative flex items-center justify-between"
+          >
+            <div class="corner-bar-tl"></div>
+            <span class="type-body text-content-secondary truncate flex-1">{{ e.name }}</span>
             <button
-              @click="submitAddTag(group.id)"
-              class="px-3 py-1.5 rounded-xl text-xs font-medium
-                     bg-surface-600 text-content-secondary hover:bg-surface-500 transition-colors"
+              @click="confirmResetScore(e.id, 'Reset Scores?', `This will permanently delete all scores for ${e.name}.`)"
+              class="ml-2 flex-shrink-0 para-chip-sm type-label px-2 py-1 text-red-400 hover:bg-red-950 transition-all"
             >
-              <i class="pi pi-plus text-xs"></i>
+              Reset
             </button>
           </div>
         </div>
-
-        <p v-if="feedbackGroups.length === 0" class="text-sm text-content-muted py-2">
-          No groups configured. Create groups above, then add tags to each.
-        </p>
       </div>
-    </section>
 
-    <!-- Images section -->
-    <section class="card p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="icon-wrap w-8 h-8 rounded-xl bg-surface-700 flex items-center justify-center">
-          <i class="pi pi-image text-content-muted text-sm"></i>
+      <!-- ── Feedback Tags ──────────────────────────────────── -->
+      <div v-if="activeTab === 'feedback'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Feedback Tags</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ feedbackGroups.length }} groups</span>
+          <div class="section-rule-line"></div>
         </div>
-        <h2 class="font-heading font-bold text-content-secondary text-lg">Uploaded Images</h2>
-        <span class="badge-neutral text-xs">{{ images.length }}</span>
-      </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-        <div
-          v-for="img in images"
-          :key="img"
-          class="flex items-center justify-between px-3 py-2.5 rounded-xl border border-surface-600 bg-surface-800"
-        >
-          <span class="text-sm text-content-secondary truncate flex-1">{{ img }}</span>
-          <button
-            @click="confirmRemoveImage(img, `Delete ${img}?`, 'Are you sure you want to delete this image?')"
-            class="ml-2 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-                   text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+        <div class="flex gap-3 mb-6">
+          <input
+            v-model="addGroupInput"
+            type="text"
+            placeholder="New group name…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitAddGroup"
+          />
+          <button @click="submitAddGroup" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Group</button>
+        </div>
+
+        <div class="space-y-5">
+          <div
+            v-for="group in feedbackGroups"
+            :key="group.id"
+            class="card-hover p-4 relative"
           >
-            <i class="pi pi-times text-xs"></i>
-          </button>
-        </div>
-        <div v-if="images.length === 0" class="col-span-full text-sm text-content-muted py-4">
-          No images uploaded
+            <div class="corner-bar-tl"></div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="type-body text-content-primary">{{ group.name }}</span>
+              <button
+                @click="submitDeleteGroup(group.id)"
+                class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                title="Delete group"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-3">
+              <div
+                v-for="tag in group.tags"
+                :key="tag.id"
+                class="para-chip-sm px-3 py-1 type-label text-content-secondary flex items-center gap-1.5"
+              >
+                {{ tag.label }}
+                <button
+                  @click="submitDeleteTag(tag.id)"
+                  class="text-content-muted hover:text-red-400 transition-colors leading-none"
+                >
+                  <i class="pi pi-times" style="font-size: 0.6rem"></i>
+                </button>
+              </div>
+              <p v-if="!group.tags?.length" class="type-label text-content-muted py-1">No tags yet</p>
+            </div>
+
+            <div class="flex gap-2">
+              <input
+                v-model="addTagInputs[group.id]"
+                type="text"
+                :placeholder="`Add tag to ${group.name}…`"
+                class="input-base flex-1 text-sm py-1.5"
+                @keyup.enter="submitAddTag(group.id)"
+              />
+              <button
+                @click="submitAddTag(group.id)"
+                class="para-chip-sm type-label px-3 py-1.5 text-content-secondary hover:text-content-primary transition-colors"
+              >
+                <i class="pi pi-plus text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <p v-if="feedbackGroups.length === 0" class="type-label text-content-muted py-2">
+            No groups configured. Create groups above, then add tags to each.
+          </p>
         </div>
       </div>
-    </section>
 
+      <!-- ── Uploaded Images ────────────────────────────────── -->
+      <div v-if="activeTab === 'images'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Uploaded Images</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ images.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div
+            v-for="img in images"
+            :key="img"
+            class="card-hover p-3 relative flex items-center justify-between"
+          >
+            <div class="corner-bar-tl"></div>
+            <span class="type-body text-content-secondary truncate flex-1">{{ img }}</span>
+            <button
+              @click="confirmRemoveImage(img, `Delete ${img}?`, 'Are you sure you want to delete this image?')"
+              class="ml-2 flex-shrink-0 w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+          <div v-if="images.length === 0" class="col-span-full type-label text-content-muted py-4">
+            No images uploaded
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Theme Config ───────────────────────────────────── -->
+      <div v-if="activeTab === 'theme'">
+        <div class="section-rule mb-6">
+          <span class="section-rule-label">Accent Color</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="card-hover p-6 relative">
+          <div class="corner-bar-tl"></div>
+          <p class="type-label text-content-muted mb-4">Sets the global accent color for all connected clients in real-time.</p>
+          <div class="flex items-center gap-4">
+            <input type="color" v-model="accentInput" class="w-12 h-10 cursor-pointer bg-transparent border-0" />
+            <span class="type-body text-accent">{{ accentInput }}</span>
+            <button @click="saveAccent" class="bg-accent para-chip type-label text-surface-900 px-4 py-2">Apply</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <ActionDoneModal
+      :show="showModal"
+      :title="modalTitle"
+      :variant="modalVariant"
+      @accept="() => { dynamicHandler() }"
+      @close="() => { showModal = false }"
+    >
+      <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+    </ActionDoneModal>
+
+    <UpdateFieldForm
+      :show="showUpdateModal"
+      :title="updateModalTitle"
+      :type="updateType"
+      @close="showUpdateModal = false"
+      @submitUpdate="submitUpdate"
+    >
+      {{ updateModalMessage }}
+    </UpdateFieldForm>
   </div>
-
-  <ActionDoneModal
-    :show="showModal"
-    :title="modalTitle"
-    :variant="modalVariant"
-    @accept="() => { dynamicHandler() }"
-    @close="() => { showModal = false }"
-  >
-    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
-  </ActionDoneModal>
-
-  <UpdateFieldForm
-    :show="showUpdateModal"
-    :title="updateModalTitle"
-    :type="updateType"
-    @close="showUpdateModal = false"
-    @submitUpdate="submitUpdate"
-  >
-    {{ updateModalMessage }}
-  </UpdateFieldForm>
 </template>

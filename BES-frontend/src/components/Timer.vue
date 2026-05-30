@@ -64,54 +64,53 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex flex-col items-center gap-1 select-none">
-    <!-- Anton SC number -->
     <div class="text-center leading-none">
       <div
-        class="font-anton tabular-nums transition-colors duration-300"
-        style="font-size: clamp(4rem, 15vw, 6rem);"
+        class="type-stat transition-colors duration-300"
+        style="font-size: clamp(4rem, 14vh, 8rem); line-height: 1;"
         :class="{
           'text-red-500 animate-pulse': isNearEnd,
-          'text-white/40':              isFinished && !isNearEnd,
+          'text-content-muted':         isFinished && !isNearEnd,
           'text-green-400':             countUp && !isNearEnd && !isFinished,
-          'text-white':                 !isNearEnd && !isFinished && !countUp,
+          'text-content-primary':       !isNearEnd && !isFinished && !countUp,
         }"
       >{{ displayTime }}</div>
-      <div class="text-[10px] text-white/20 uppercase tracking-widest">
+      <div class="type-label text-content-muted">
         {{ selectedTime > 0 ? `OF ${selectedTime}S` : 'SECONDS' }}
       </div>
     </div>
 
     <!-- Progress bar -->
-    <div class="w-full max-w-xs h-px bg-white/8 rounded-full overflow-hidden">
+    <div class="w-full max-w-xs h-px bg-white/8 overflow-hidden">
       <div
-        class="h-full rounded-full transition-all duration-1000"
+        class="h-full transition-all duration-1000"
         :class="isNearEnd ? 'bg-red-500' : countUp ? 'bg-green-400' : 'bg-white/50'"
         :style="{ width: progressPct + '%' }"
       ></div>
     </div>
 
     <!-- Controls -->
-    <div class="flex items-center gap-1 flex-wrap justify-center">
+    <div class="flex items-center gap-2 flex-wrap justify-center">
       <button
         @click="toggleMode"
-        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
+        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
         :class="countUp
-          ? 'bg-white/15 border-white/30 text-white'
-          : 'bg-transparent border-white/15 text-white/40 hover:border-white/30 hover:text-white/60'"
+          ? 'text-accent border-[color:var(--accent-muted)]'
+          : 'text-content-muted hover:text-content-primary'"
       >
-        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-0.5 text-[9px]"></i>
-        {{ countUp ? 'Up' : 'Dn' }}
+        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-1 text-xs"></i>
+        {{ countUp ? 'Up' : 'Down' }}
       </button>
-      <div class="w-px h-5 bg-white/12"></div>
+      <div class="w-px h-8 bg-white/12"></div>
       <button
         v-for="t in [30, 45, 60, 90]"
         :key="t"
         @click="startTimer(t)"
-        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
+        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
         :class="selectedTime === t && isRunning
-          ? 'bg-white/20 border-white/40 text-white'
-          : 'bg-transparent border-white/15 text-white/40 hover:border-white/30 hover:text-white/60'"
-      >{{ t }}</button>
+          ? 'text-accent border-[color:var(--accent-muted)]'
+          : 'text-content-muted hover:text-content-primary'"
+      >{{ t }}s</button>
     </div>
   </div>
 </template>

@@ -106,10 +106,10 @@ onMounted(observeCards)
       >
         <!-- Score card -->
         <div
-          class="rounded-2xl border p-3 transition-all duration-200"
-          :class="[idx === currentIndex ? 'bg-surface-800 border-amber-500/25' : 'bg-surface-900 border-white/5 opacity-40']"
+          class="card-hover p-3 relative transition-all duration-200"
+          :class="[idx === currentIndex ? 'border-[color:var(--accent-muted)]' : 'border-white/5 opacity-40']"
           :style="idx === currentIndex
-            ? { boxShadow: '0 0 0 1px rgba(245,158,11,0.12), 0 8px 32px rgba(0,0,0,0.7)' }
+            ? { boxShadow: '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
             : {}"
         >
           <div class="score-card-body">
@@ -118,55 +118,56 @@ onMounted(observeCards)
             <div class="score-card-info">
 
               <!-- Participant header -->
-              <div class="flex items-start justify-between mb-2">
-                <div>
-                  <span class="font-anton text-amber-400 leading-none block" style="font-size: 2.8rem;">#{{ card.auditionNumber }}</span>
-                  <div class="font-heading font-bold text-xl text-white leading-tight mt-0.5">{{ card.participantName }}</div>
-                </div>
-                <!-- Score display -->
-                <div class="text-right flex-shrink-0 ml-3">
-                  <div class="text-[9px] font-bold text-white/25 uppercase tracking-widest mb-0.5">
-                    {{ hasCriteria ? 'AVG' : 'SCORE' }}
-                  </div>
-                  <div
-                    class="font-anton tabular-nums leading-none"
-                    style="font-size: 3.5rem;"
-                    :class="card.score === 0 ? 'text-white/20' : 'text-amber-400'"
-                  >{{ card.score === 0 ? '—' : card.score }}</div>
-                </div>
+              <div class="text-center mb-2">
+                <span class="type-stat text-accent leading-none block" style="font-size: 2.8rem;">#{{ card.auditionNumber }}</span>
+                <div class="type-body text-content-primary text-xl leading-tight mt-0.5">{{ card.participantName }}</div>
+              </div>
+
+              <!-- Score — grows to fill remaining space and centers -->
+              <div class="score-card-score-area">
+                <div class="type-label text-content-muted mb-0.5">{{ hasCriteria ? 'AVG' : 'SCORE' }}</div>
+                <div
+                  class="type-stat tabular-nums leading-none"
+                  style="font-size: 3.5rem;"
+                  :class="card.score === 0 ? 'text-white/20' : 'text-accent'"
+                >{{ card.score === 0 ? '—' : card.score }}</div>
               </div>
 
               <!-- Feedback button -->
-              <button
-                @click.stop="emit('open-feedback', card)"
-                class="mb-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
-                :class="feedbackData?.get(card.auditionNumber)
-                  ? 'bg-green-500/15 border-green-500/35 text-green-400'
-                  : 'bg-white/4 border-white/10 text-white/35 hover:text-white/60 hover:border-white/20'"
-              >
-                <i class="pi pi-comment text-xs" />
-                {{ feedbackData?.get(card.auditionNumber) ? 'Edit Feedback' : 'Feedback' }}
-                <span v-if="feedbackData?.get(card.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
-              </button>
+              <div class="flex justify-center mb-2">
+                <button
+                  @click.stop="emit('open-feedback', card)"
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
+                  :class="feedbackData?.get(card.auditionNumber)
+                    ? 'text-green-400 border-green-500/35'
+                    : 'text-content-muted hover:text-content-primary'"
+                >
+                  <i class="pi pi-comment text-xs" />
+                  {{ feedbackData?.get(card.auditionNumber) ? 'Edit' : 'Feedback' }}
+                  <span v-if="feedbackData?.get(card.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
+                </button>
+              </div>
 
               <!-- Feedback tag preview -->
               <div
                 v-if="feedbackData?.get(card.auditionNumber)"
-                class="mb-2 p-2 rounded-xl border border-white/6 bg-white/[0.02]"
+                class="mb-2 p-2 border border-white/15 bg-white/[0.08]"
+                style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
               >
                 <div v-if="feedbackData.get(card.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
                   <span
                     v-for="tag in feedbackData.get(card.auditionNumber).tagLabels"
                     :key="tag.id"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
+                    style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
                   >
                     {{ tag.label }}
-                    <button @click.stop="emit('remove-tag', { auditionNumber: card.auditionNumber, tagId: tag.id })" class="text-amber-400/40 hover:text-red-400 transition-colors">
+                    <button @click.stop="emit('remove-tag', { auditionNumber: card.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
                       <i class="pi pi-times text-[9px]" />
                     </button>
                   </span>
                 </div>
-                <div v-if="feedbackData.get(card.auditionNumber).note" class="text-xs text-white/35 line-clamp-2">
+                <div v-if="feedbackData.get(card.auditionNumber).note" class="text-xs text-white/65 line-clamp-2">
                   {{ feedbackData.get(card.auditionNumber).note }}
                 </div>
               </div>
@@ -181,19 +182,19 @@ onMounted(observeCards)
                     @click="setActiveCriterion(idx, criterion.name)"
                     class="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-bold border-b-2 transition-all duration-150 -mb-px"
                     :class="getActiveCriterion(idx) === criterion.name
-                      ? 'border-amber-400 text-amber-400'
+                      ? 'border-[color:var(--accent-color)] text-accent'
                       : 'border-transparent text-white/25 hover:text-white/50'"
                   >
                     {{ criterion.name }}
-                    <span v-if="criteriaScore(card, criterion.name) > 0" class="font-source tabular-nums text-amber-300/60 text-[10px]">
+                    <span v-if="criteriaScore(card, criterion.name) > 0" class="font-source tabular-nums text-accent/60 text-[10px]">
                       {{ criteriaScore(card, criterion.name) }}
                     </span>
                   </button>
                 </div>
                 <template v-for="criterion in criteria" :key="criterion.id">
                   <div v-if="getActiveCriterion(idx) === criterion.name" class="flex items-center justify-between mb-2">
-                    <span class="text-[9px] font-bold text-white/25 uppercase tracking-widest">{{ criterion.name }}<span v-if="criterion.weight != null" class="text-amber-400/40 ml-1">×{{ criterion.weight }}</span></span>
-                    <span class="font-anton text-2xl tabular-nums" :class="criteriaScore(card, criterion.name) === 0 ? 'text-white/15' : 'text-amber-400'">
+                    <span class="text-[9px] font-bold text-white/25 uppercase tracking-widest">{{ criterion.name }}<span v-if="criterion.weight != null" class="text-accent/40 ml-1">×{{ criterion.weight }}</span></span>
+                    <span class="type-stat text-2xl tabular-nums" :class="criteriaScore(card, criterion.name) === 0 ? 'text-white/15' : 'text-accent'">
                       {{ criteriaScore(card, criterion.name) === 0 ? '—' : criteriaScore(card, criterion.name) }}
                     </span>
                   </div>
@@ -315,20 +316,17 @@ onMounted(observeCards)
     >
       <button
         @click="emit('reset')"
-        class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
-        style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
+        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-undo text-xs"></i> Reset</button>
 
       <button
         @click="emit('jump')"
-        class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
-        style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
+        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-search text-xs"></i> Go To</button>
 
       <button
         @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold transition-all duration-150 active:scale-[0.98]"
-        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); background: rgb(245,158,11); color: #000;"
+        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent para-chip type-label text-surface-900 transition-all duration-150 active:scale-[0.98]"
       ><i class="pi pi-send text-xs"></i> Submit All</button>
 
       <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">
@@ -346,7 +344,20 @@ onMounted(observeCards)
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;
-    align-items: start;
+    align-items: stretch;
+  }
+  .score-card-info {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .score-card-score-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 }
 </style>

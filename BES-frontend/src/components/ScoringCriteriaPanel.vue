@@ -64,18 +64,19 @@ const remove = async (id) => {
       <div
         v-for="c in criteria"
         :key="c.id"
-        class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-700/60 border border-surface-600/50"
+        class="card-hover p-3 relative"
       >
+        <div class="corner-bar-tl"></div>
         <div class="flex items-center gap-2 flex-1 min-w-0">
           <span class="text-sm font-semibold text-content-primary truncate">{{ c.name }}</span>
           <span class="text-xs text-content-muted shrink-0">max {{ c.maxScore }}</span>
-          <span v-if="c.weight != null" class="text-xs px-1.5 py-0.5 rounded bg-primary-500/15 text-primary-400 border border-primary-500/20 shrink-0">
+          <span v-if="c.weight != null" class="badge-neutral type-label shrink-0">
             ×{{ c.weight }}
           </span>
         </div>
         <button
           @click="remove(c.id)"
-          class="ml-2 p-1 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+          class="ml-2 p-1 para-chip-sm type-label text-content-muted hover:text-red-400 transition-colors shrink-0"
           title="Remove criterion"
         >
           <i class="pi pi-times text-xs" />
@@ -84,12 +85,11 @@ const remove = async (id) => {
     </div>
 
     <!-- Add form -->
-    <div v-if="showAddForm" class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-3 mb-3 space-y-2">
+    <div v-if="showAddForm" class="card-hover p-3 mb-3 space-y-2">
       <input
         v-model="newName"
         placeholder="Criterion name (e.g. Musicality)"
-        class="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-sm text-content-primary
-               placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+        class="w-full input-base"
         @keydown.enter="add"
       />
       <div class="grid grid-cols-2 gap-2">
@@ -98,8 +98,7 @@ const remove = async (id) => {
           <input
             v-model="newMaxScore"
             type="number" min="1" max="100" step="1"
-            class="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                   focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+            class="w-full input-base"
           />
         </div>
         <div>
@@ -107,8 +106,7 @@ const remove = async (id) => {
           <input
             v-model="newWeight"
             type="number" min="0" step="0.5" placeholder="—"
-            class="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                   placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+            class="w-full input-base"
           />
         </div>
       </div>
@@ -116,16 +114,14 @@ const remove = async (id) => {
         <button
           @click="add"
           :disabled="saving || !newName.trim()"
-          class="flex-1 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold
-                 hover:bg-primary-500 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          class="flex-1 py-1.5 bg-accent para-chip type-label text-surface-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           <i v-if="saving" class="pi pi-spin pi-spinner mr-1" />
           Add
         </button>
         <button
           @click="showAddForm = false; newName = ''; newMaxScore = 10; newWeight = null"
-          class="px-3 py-1.5 rounded-lg border border-surface-600 bg-surface-700 text-xs text-content-muted
-                 hover:border-surface-500 hover:bg-surface-600 transition-all"
+          class="px-3 py-1.5 para-chip type-label border-accent text-content-muted hover:text-content-primary transition-all"
         >
           Cancel
         </button>
@@ -136,8 +132,7 @@ const remove = async (id) => {
     <button
       v-if="!showAddForm"
       @click="showAddForm = true"
-      class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-surface-600
-             text-xs text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all duration-150"
+      class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent text-content-muted hover:text-accent transition-all duration-150"
     >
       <i class="pi pi-plus text-xs" />
       Add Criterion

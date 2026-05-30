@@ -6,7 +6,6 @@ import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenr
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
-import ReusableButton from '@/components/ReusableButton.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
@@ -607,47 +606,41 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container relative">
+    <div class="color-bleed"></div>
+    <div class="relative z-10">
 
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
       <div>
-        <h1 class="page-title">{{ props.eventName }}</h1>
-        <p class="text-muted mt-1">Event overview and participant management</p>
+        <div class="type-page-title mb-1">{{ props.eventName }}</div>
+        <p class="type-label text-content-muted">Event overview and participant management</p>
       </div>
       <div class="flex flex-wrap gap-2 self-start">
         <button
           @click="showWalkInForm = true"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
-                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
-                 transition-all duration-200"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
         >
           <i class="pi pi-user-plus text-sm"></i>
           Add Walk-in
         </button>
         <button
           @click="showAdjustModal = true"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
-                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
-                 transition-all duration-200"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
         >
           <i class="pi pi-sliders-h text-sm"></i>
           Adjust Genres
         </button>
         <button
           @click="openTemplateModal"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
-                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
-                 transition-all duration-200"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
         >
           <i class="pi pi-envelope text-sm"></i>
           Email Template
         </button>
         <RouterLink
           to="/event/audition-number"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
-                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
-                 transition-all duration-200"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
         >
           <i class="pi pi-hashtag text-sm"></i>
           Audition Screen
@@ -655,44 +648,42 @@ onUnmounted(() => {
         <button
           @click="refreshParticipant"
           :disabled="loading"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-600 bg-surface-800 text-sm
-                 font-semibold text-content-secondary hover:bg-surface-700 hover:border-surface-500
-                 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          class="flex items-center gap-2 px-4 py-2 bg-accent para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin text-primary-500' : 'pi-cloud-download'"></i>
+          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin' : 'pi-cloud-download'"></i>
           {{ loading ? 'Importing…' : 'Import from Sheets' }}
         </button>
       </div>
     </div>
 
     <!-- Tab toggle -->
-    <div class="flex rounded-xl overflow-hidden border border-surface-600 w-fit mb-6">
+    <div class="flex gap-2 mb-6">
       <button
         @click="activeTab = 'setup'"
-        class="px-5 py-2 text-sm font-semibold transition-all duration-150"
+        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
         :class="activeTab === 'setup'
-          ? 'bg-primary-600 text-white'
-          : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          ? 'text-accent border-accent'
+          : 'text-content-muted hover:text-content-primary'"
       >
         <i class="pi pi-cog text-xs mr-1.5"></i>
         Setup
       </button>
       <button
         @click="activeTab = 'event-day'"
-        class="px-5 py-2 text-sm font-semibold transition-all duration-150"
+        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
         :class="activeTab === 'event-day'
-          ? 'bg-primary-600 text-white'
-          : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+          ? 'text-accent border-accent'
+          : 'text-content-muted hover:text-content-primary'"
       >
         <i class="pi pi-calendar text-xs mr-1.5"></i>
         Event Day
         <span
           v-if="totalNotShownUp > 0"
-          class="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-amber-500 text-white"
+          class="ml-1.5 inline-flex items-center justify-center badge-warning px-1.5 py-0.5 text-[10px]"
         >{{ totalNotShownUp }}</span>
         <span
           v-else-if="unverifiedParticipants.length > 0 && activeTab !== 'event-day'"
-          class="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-rose-500 text-white"
+          class="ml-1.5 inline-flex items-center justify-center badge-danger px-1.5 py-0.5 text-[10px]"
         >{{ unverifiedParticipants.length }}</span>
       </button>
     </div>
@@ -702,44 +693,41 @@ onUnmounted(() => {
 
     <!-- Stat strip -->
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Total</p>
-        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ (totalParticipants || 0) + totalWalkIn }}</p>
+      <div class="stat-card relative">
+        <div class="corner-bar-tl"></div>
+        <div class="type-stat">{{ (totalParticipants || 0) + totalWalkIn }}</div>
+        <div class="type-label">Total</div>
         <div class="flex gap-3 mt-1">
-          <span class="text-xs text-content-muted">Form: <strong class="text-content-secondary">{{ totalParticipants || 0 }}</strong></span>
-          <span class="text-xs text-content-muted">Walk-in: <strong class="text-content-secondary">{{ totalWalkIn }}</strong></span>
+          <span class="type-label text-content-muted">Form: {{ totalParticipants || 0 }}</span>
+          <span class="type-label text-content-muted">Walk-in: {{ totalWalkIn }}</span>
         </div>
       </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Pending Verification</p>
-        <p class="text-2xl font-heading font-extrabold" :class="unverifiedParticipants.length > 0 ? 'text-rose-300' : 'text-content-primary'">
-          {{ unverifiedParticipants.length }}
-        </p>
-        <span class="text-xs text-content-muted">{{ totalVerified }} verified</span>
+      <div class="stat-card relative">
+        <div class="corner-bar-tl"></div>
+        <div class="type-stat" :class="unverifiedParticipants.length > 0 ? 'text-red-400' : ''">{{ unverifiedParticipants.length }}</div>
+        <div class="type-label">Pending Verification</div>
+        <div class="type-label text-content-muted mt-1">{{ totalVerified }} verified</div>
       </div>
     </div>
 
     <!-- Unverified (payment pending — DB-driven) -->
-      <div v-if="unverifiedParticipants.length > 0" class="card overflow-hidden panel-danger">
+      <div v-if="unverifiedParticipants.length > 0" class="card-hover p-4 relative">
+        <div class="corner-bar-tl"></div>
         <button
           @click="expandedPeople.has('unverified') ? expandedPeople.delete('unverified') : expandedPeople.add('unverified'); expandedPeople = new Set(expandedPeople)"
           :aria-expanded="expandedPeople.has('unverified')"
           aria-controls="panel-unverified"
-          class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
+          class="w-full flex items-center justify-between text-left"
         >
           <div class="flex items-center gap-3">
-            <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-exclamation-circle text-rose-300 text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary truncate">Awaiting Payment Verification</span>
-            <span class="badge-danger inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-rose-300 border border-rose-900/30">
-              {{ unverifiedParticipants.length }}
-            </span>
+            <i class="pi pi-exclamation-circle text-rose-300 text-xs"></i>
+            <span class="type-body text-content-secondary truncate">Awaiting Payment Verification</span>
+            <span class="badge-danger">{{ unverifiedParticipants.length }}</span>
           </div>
           <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
              :class="{ 'rotate-180': expandedPeople.has('unverified') }"></i>
         </button>
-        <div v-if="expandedPeople.has('unverified')" id="panel-unverified" class="px-5 pb-5 border-t border-surface-600/30 pt-4 shadow-[inset_0_4px_8px_rgba(0,0,0,0.2)]">
+        <div v-if="expandedPeople.has('unverified')" id="panel-unverified" class="mt-4 pt-4 border-t border-surface-600/30">
           <!-- Batch action bar -->
           <div class="flex items-center justify-between mb-3">
             <p class="text-xs text-content-muted flex items-center gap-1.5">
@@ -750,8 +738,7 @@ onUnmounted(() => {
               v-if="selectedUnverified.size > 0"
               @click="handleBatchVerifyPayment"
               :disabled="batchVerifying"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-500 text-white text-xs font-semibold
-                     hover:bg-primary-600 active:scale-95 disabled:opacity-50 transition-all"
+              class="bg-accent para-chip-sm px-3 py-1.5 type-label disabled:opacity-50"
             >
               <i class="pi text-xs" :class="batchVerifying ? 'pi-spinner pi-spin' : 'pi-check'"></i>
               {{ batchVerifying ? 'Verifying…' : `Verify Batch (${selectedUnverified.size})` }}
@@ -761,36 +748,33 @@ onUnmounted(() => {
             <div
               v-for="p in unverifiedParticipants"
               :key="p.participantId"
-              class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-700/50 border border-l-2 transition-colors"
-              :class="selectedUnverified.has(p.participantId) ? 'border-primary-500/40 bg-primary-100/10 border-l-primary-500' : 'border-surface-600 border-l-rose-800/50'"
+              class="para-chip p-3"
+              :class="selectedUnverified.has(p.participantId) ? 'border-accent' : ''"
             >
-              <!-- Top row: checkbox + name + genres -->
               <div class="flex items-start gap-3">
                 <input
                   type="checkbox"
                   :checked="selectedUnverified.has(p.participantId)"
                   @change="toggleUnverifiedSelect(p.participantId)"
-                  class="checkbox-custom shrink-0 mt-0.5"
+                  class="shrink-0 mt-0.5"
                 />
                 <div class="flex-1 min-w-0">
-                  <span class="text-sm font-semibold text-content-secondary block">{{ p.name }}</span>
+                  <span class="type-body text-content-secondary block">{{ p.name }}</span>
                   <div class="flex flex-wrap gap-1 mt-1">
                     <span
                       v-for="g in p.genres"
                       :key="g"
-                      class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-surface-900 border border-surface-500/40 text-content-secondary"
+                      class="badge-neutral text-xs"
                     >{{ g }}</span>
                   </div>
                 </div>
               </div>
-              <!-- Bottom row: action buttons -->
-              <div class="flex items-center gap-2 justify-end">
+              <div class="flex items-center gap-2 justify-end mt-2">
                 <a
                   v-if="p.screenshotUrl && /^https?:\/\//.test(p.screenshotUrl)"
                   :href="p.screenshotUrl"
                   target="_blank"
-                  class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-700 text-content-muted text-xs font-medium
-                         hover:bg-surface-600 border border-surface-600 transition-colors"
+                  class="para-chip-sm px-2.5 py-1 type-label"
                 >
                   <i class="pi pi-image text-xs"></i>
                   View Receipt
@@ -798,9 +782,7 @@ onUnmounted(() => {
                 <button
                   @click="handleVerifyPayment(p)"
                   :disabled="verifyingParticipantId === p.participantId"
-                  class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-600 text-white text-xs font-semibold
-                         hover:bg-primary-500 hover:scale-[1.03] hover:shadow-[0_0_12px_rgba(34,211,238,0.3)]
-                         active:scale-95 disabled:opacity-50 transition-all duration-150"
+                  class="bg-accent para-chip-sm px-2.5 py-1 type-label disabled:opacity-50"
                 >
                   <i class="pi text-xs" :class="verifyingParticipantId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
                   {{ verifyingParticipantId === p.participantId ? 'Verifying…' : 'Verify Payment' }}
@@ -813,66 +795,59 @@ onUnmounted(() => {
 
 
     <!-- Setup section (when no table exists) -->
-    <div v-if="!tableExist" class="card p-6">
+    <div v-if="!tableExist" class="card-hover p-6 relative">
+      <div class="corner-bar-tl"></div>
       <div class="flex items-center gap-3 mb-6">
-        <div class="icon-wrap w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
-          <i class="pi pi-exclamation-triangle text-amber-300 text-sm"></i>
-        </div>
+        <i class="pi pi-exclamation-triangle text-amber-300 text-sm"></i>
         <div>
-          <h2 class="font-heading font-bold text-content-secondary">Event Setup Required</h2>
-          <p class="text-muted text-sm">No record found for this event. Select genres to initialise.</p>
+          <div class="type-body text-content-secondary">Event Setup Required</div>
+          <p class="type-label text-content-muted">No record found for this event. Select genres to initialise.</p>
         </div>
       </div>
 
-      <div class="mb-6">
-        <label class="block text-sm font-semibold text-content-secondary mb-3">
-          Genres / Categories
-        </label>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          <div
-            v-for="g in genreOptions"
-            :key="g.genreName"
-            class="flex flex-col gap-2 px-4 py-3 rounded-xl border transition-all duration-150"
-            :class="createTable.genres.includes(g.genreName)
-              ? 'bg-primary-100 border-primary-300'
-              : 'bg-surface-800 border-surface-600 hover:border-surface-500'"
+      <div class="section-rule mb-4">
+        <span class="section-rule-label">Genres / Categories</span>
+        <div class="section-rule-line"></div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-6">
+        <div
+          v-for="g in genreOptions"
+          :key="g.genreName"
+          class="para-chip-sm p-3 transition-all duration-150"
+          :class="createTable.genres.includes(g.genreName) ? 'border-accent' : ''"
+        >
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              :id="g.genreName"
+              :value="g.genreName"
+              v-model="createTable.genres"
+              class="w-4 h-4"
+            />
+            <span class="type-body capitalize">{{ g.genreName }}</span>
+          </label>
+          <select
+            v-if="createTable.genres.includes(g.genreName)"
+            v-model="createTable.genreFormats[g.genreName]"
+            class="input-base text-xs mt-2"
           >
-            <label class="flex items-center gap-2.5 cursor-pointer"
-              :class="createTable.genres.includes(g.genreName) ? 'text-primary-400' : 'text-content-secondary'"
-            >
-              <input
-                type="checkbox"
-                :id="g.genreName"
-                :value="g.genreName"
-                v-model="createTable.genres"
-                class="w-4 h-4 rounded accent-primary-600"
-              />
-              <span class="text-sm font-medium capitalize">{{ g.genreName }}</span>
-            </label>
-            <select
-              v-if="createTable.genres.includes(g.genreName)"
-              v-model="createTable.genreFormats[g.genreName]"
-              class="text-xs px-2 py-1 rounded-lg bg-white/70 border border-primary-300 text-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-500/40 w-full"
-            >
-              <option value="">No format</option>
-              <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
-          </div>
+            <option value="">No format</option>
+            <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
         </div>
       </div>
 
       <!-- Payment required toggle -->
       <div class="mb-6">
         <label
-          class="flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150 w-fit"
-          :class="paymentRequired
-            ? 'bg-amber-950 border-amber-300 text-amber-400'
-            : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit"
+          :class="paymentRequired ? 'border-accent' : ''"
         >
-          <input type="checkbox" v-model="paymentRequired" class="w-4 h-4 rounded accent-amber-500" />
+          <input type="checkbox" v-model="paymentRequired" class="w-4 h-4" />
           <div>
-            <span class="text-sm font-semibold">Payment Required</span>
-            <p class="text-xs mt-0.5" :class="paymentRequired ? 'text-amber-400' : 'text-content-muted'">
+            <span class="type-body">Payment Required</span>
+            <p class="type-label mt-0.5" :class="paymentRequired ? 'text-amber-400' : 'text-content-muted'">
               {{ paymentRequired ? 'Participants will be placed in an unverified queue until you manually verify payment in-app.' : 'All participants will be auto-verified and emailed immediately on import.' }}
             </p>
           </div>
@@ -880,28 +855,36 @@ onUnmounted(() => {
       </div>
 
       <div class="flex justify-end">
-        <ReusableButton variant="primary" @onClick="onSubmit" :disabled="loading">
-          <template #default>
-            <i class="pi text-xs" :class="loading ? 'pi-spinner pi-spin' : 'pi-database'"></i>
-            {{ loading ? 'Setting up…' : 'Initialise Event' }}
-          </template>
-        </ReusableButton>
+        <button
+          @click="onSubmit"
+          :disabled="loading"
+          class="bg-accent para-chip type-label disabled:opacity-50 px-5 py-2 flex items-center gap-2"
+        >
+          <i class="pi text-xs" :class="loading ? 'pi-spinner pi-spin' : 'pi-database'"></i>
+          {{ loading ? 'Setting up…' : 'Initialise Event' }}
+        </button>
       </div>
     </div>
 
   <!-- Genre Configuration — unified per-genre tabs (participants, format, criteria, judges) -->
-  <div v-if="tableExist && eventGenres.length > 0" class="card overflow-hidden mt-6">
+  <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">
+    <div class="corner-bar-tl"></div>
+
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Genre Configuration</span>
+      <div class="section-rule-line"></div>
+    </div>
 
     <!-- Genre tab bar -->
-    <div class="flex border-b border-surface-700/50 bg-surface-900/30 overflow-x-auto">
+    <div class="flex flex-wrap gap-2 mb-4">
       <button
         v-for="g in eventGenres"
         :key="g.genreName"
         @click="activeGenreTab = g.genreName"
-        class="px-5 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-150 border-b-2"
+        class="para-chip-sm px-4 py-2 type-label transition-all duration-150"
         :class="activeGenreTab === g.genreName
-          ? 'border-primary-500 text-content-primary bg-surface-800/50'
-          : 'border-transparent text-content-muted hover:text-content-secondary hover:bg-surface-700/30'"
+          ? 'text-accent border-accent'
+          : 'text-content-muted hover:text-content-primary'"
       >
         {{ g.genreName }}
         <span
@@ -935,11 +918,11 @@ onUnmounted(() => {
               <span
                 v-for="p in getUnregistered(normalizeGenreName(g.genreName)).unregistered"
                 :key="p.participantName"
-                class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-800 text-rose-300 text-xs font-medium border border-rose-300/20 font-source"
+                class="badge-danger font-source"
               >{{ p.participantName }}</span>
             </div>
           </div>
-          <div v-else class="flex items-center gap-2 text-teal-300 text-xs">
+          <div v-else class="flex items-center gap-2 type-body text-emerald-400">
             <i class="pi pi-check-circle"></i>
             <span>All participants registered</span>
           </div>
@@ -951,16 +934,16 @@ onUnmounted(() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
           <!-- Battle Format -->
-          <div class="flex flex-col gap-2 p-3 rounded-xl bg-surface-800/60 border border-surface-600/30">
-            <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Battle Format</p>
+          <div class="flex flex-col gap-2 p-3 para-chip">
+            <p class="type-label text-content-muted">Battle Format</p>
             <template v-if="editingFormatFor !== g.genreName">
               <div class="flex items-center justify-between">
-                <span class="font-source text-sm" :class="g.format ? 'text-primary-400' : 'text-content-muted'">
+                <span class="type-body" :class="g.format ? 'text-accent' : 'text-content-muted'">
                   {{ g.format || 'No format' }}
                 </span>
                 <button
                   @click="startEditFormat(g)"
-                  class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 hover:text-content-primary transition-all"
+                  class="para-chip-sm px-2.5 py-1 type-label"
                 ><i class="pi pi-pencil" style="font-size:0.65rem"></i> Edit</button>
               </div>
             </template>
@@ -980,12 +963,12 @@ onUnmounted(() => {
           </div>
 
           <!-- Scoring Criteria -->
-          <div class="flex flex-col gap-2 p-3 rounded-xl bg-surface-800/60 border border-surface-600/30">
+          <div class="flex flex-col gap-2 p-3 para-chip">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-content-muted uppercase tracking-wide">Scoring Criteria</p>
+              <p class="type-label text-content-muted">Scoring Criteria</p>
               <button
                 @click="showCriteriaModal = true"
-                class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all whitespace-nowrap"
+                class="para-chip-sm px-2.5 py-1 type-label"
               ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
             </div>
             <template v-if="criteriaByGenre[g.genreName]?.length">
@@ -1019,23 +1002,23 @@ onUnmounted(() => {
               <span class="font-heading font-semibold text-content-secondary text-sm flex-1">{{ j.judgeName }}</span>
               <button
                 @click="submitRemoveJudge(j.judgeId)"
-                class="text-xs px-2.5 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-red-800/50 hover:text-red-400 transition-all"
+                class="para-chip-sm px-2.5 py-1 type-label"
               >Remove</button>
             </div>
-            <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-surface-600/40 mt-0.5">
+            <div class="flex items-center gap-2 para-chip p-2">
               <input
                 v-model="addJudgeInput"
                 type="text"
                 placeholder="Add judge…"
-                class="flex-1 bg-transparent text-sm text-content-secondary placeholder:text-content-muted focus:outline-none"
+                class="flex-1 bg-transparent type-body placeholder:text-content-muted focus:outline-none"
                 @keyup.enter="submitAddJudge"
               />
               <button
                 @click="submitAddJudge"
-                class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface-600 text-content-secondary hover:bg-surface-500 transition-colors"
+                class="bg-accent para-chip-sm px-2.5 py-1 type-label"
               ><i class="pi pi-plus" style="font-size:0.65rem"></i> Add</button>
             </div>
-            <p v-if="eventJudges.length === 0" class="text-xs text-content-muted px-1">No judges added yet</p>
+            <p v-if="eventJudges.length === 0" class="type-label text-content-muted px-1">No judges added yet</p>
           </div>
         </div>
 
@@ -1051,56 +1034,53 @@ onUnmounted(() => {
 
     <!-- Stat strip -->
     <div class="grid grid-cols-2 gap-3 mb-6">
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Registered</p>
-        <p class="text-2xl font-heading font-extrabold text-content-primary">{{ totalDbRegistered.length }}</p>
-        <span class="text-xs text-content-muted">Have audition numbers</span>
+      <div class="stat-card relative">
+        <div class="corner-bar-tl"></div>
+        <div class="type-stat">{{ totalDbRegistered.length }}</div>
+        <div class="type-label">Registered</div>
+        <div class="type-label text-content-muted mt-1">Have audition numbers</div>
       </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1">Not Shown Up</p>
-        <p class="text-2xl font-heading font-extrabold" :class="totalNotShownUp > 0 ? 'text-amber-300' : 'text-content-primary'">
-          {{ totalNotShownUp }}
-        </p>
-        <span class="text-xs text-content-muted">Verified but no audition number yet</span>
+      <div class="stat-card relative">
+        <div class="corner-bar-tl"></div>
+        <div class="type-stat" :class="totalNotShownUp > 0 ? 'text-amber-400' : ''">{{ totalNotShownUp }}</div>
+        <div class="type-label">Not Shown Up</div>
+        <div class="type-label text-content-muted mt-1">Verified but no audition number yet</div>
       </div>
     </div>
 
     <!-- Not Shown Up panel -->
     <div class="space-y-2 mb-6">
-      <div v-if="notShownUpList.length > 0" class="card overflow-hidden panel-warning">
+      <div v-if="notShownUpList.length > 0" class="card-hover p-4 relative">
+        <div class="corner-bar-tl"></div>
         <button
           @click="expandedPeople.has('notShownUp') ? expandedPeople.delete('notShownUp') : expandedPeople.add('notShownUp'); expandedPeople = new Set(expandedPeople)"
           :aria-expanded="expandedPeople.has('notShownUp')"
-          class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
+          class="w-full flex items-center justify-between text-left"
         >
           <div class="flex items-center gap-3">
-            <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-clock text-amber-300 text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary">Not Shown Up</span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30">
-              {{ notShownUpList.length }}
-            </span>
+            <i class="pi pi-clock text-amber-300 text-xs"></i>
+            <span class="type-body text-content-secondary">Not Shown Up</span>
+            <span class="badge-warning">{{ notShownUpList.length }}</span>
           </div>
           <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
              :class="{ 'rotate-180': expandedPeople.has('notShownUp') }"></i>
         </button>
-        <div v-if="expandedPeople.has('notShownUp')" class="px-4 pb-4 border-t border-surface-600/30 pt-4">
+        <div v-if="expandedPeople.has('notShownUp')" class="mt-4 pt-4 border-t border-surface-600/30">
           <div class="space-y-2">
             <div
               v-for="p in notShownUpList"
               :key="p.name"
-              class="flex flex-col gap-1.5 px-3 py-2.5 rounded-xl bg-surface-700/50 border border-surface-600"
+              class="para-chip p-3"
             >
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
+                <span class="type-body text-content-secondary">{{ p.name }}</span>
               </div>
-              <div class="flex flex-wrap gap-1">
+              <div class="flex flex-wrap gap-1 mt-1">
                 <span v-for="g in p.genres" :key="g"
-                  class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-surface-800 border border-surface-600 text-content-muted"
+                  class="badge-neutral"
                 >{{ g }}</span>
               </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted mt-0.5">
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
                 <i class="pi pi-users" style="font-size:0.65rem"></i>
                 <span>{{ p.memberNames.join(', ') }}</span>
               </div>
@@ -1108,7 +1088,7 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <p v-else class="text-sm text-teal-300 flex items-center gap-2 px-1">
+      <p v-else class="type-body text-emerald-400 flex items-center gap-2 px-1">
         <i class="pi pi-check-circle"></i> All verified participants have shown up
       </p>
     </div>
@@ -1117,72 +1097,68 @@ onUnmounted(() => {
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
       <!-- Check-In card -->
-      <div class="card flex flex-col h-[520px]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-600/30 shrink-0">
+      <div class="card-hover p-4 relative flex flex-col h-[520px]">
+        <div class="corner-bar-tl"></div>
+        <div class="flex items-center justify-between mb-4 shrink-0">
           <div class="flex items-center gap-3">
-            <div class="w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-users text-content-muted text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary">Check-In</span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30">
-              {{ checkinList.filter(p => !isCheckedIn(p)).length }} pending
-            </span>
+            <i class="pi pi-users text-content-muted text-xs"></i>
+            <span class="type-body text-content-secondary">Check-In</span>
+            <span class="badge-warning">{{ checkinList.filter(p => !isCheckedIn(p)).length }} pending</span>
           </div>
         </div>
-        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
-          <div v-if="loadingCheckinList" class="flex items-center justify-center h-full text-content-muted text-sm">
+        <div class="flex-1 overflow-y-auto space-y-2 min-h-0">
+          <div v-if="loadingCheckinList" class="flex items-center justify-center h-full type-label text-content-muted">
             <i class="pi pi-spinner pi-spin mr-2"></i> Loading…
           </div>
-          <div v-else-if="checkinList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+          <div v-else-if="checkinList.length === 0" class="flex items-center justify-center h-full type-label text-content-muted">
             No participants found
           </div>
           <template v-else>
             <div v-for="p in sortedCheckinList" :key="p.participantId"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors"
-              :class="isCheckedIn(p) ? 'bg-surface-700/30 border-surface-600/20 opacity-50' : 'bg-surface-800 border-surface-600'"
+              class="para-chip p-3 transition-colors"
+              :class="isCheckedIn(p) ? 'opacity-50' : ''"
             >
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold text-content-secondary truncate">{{ p.label }}</p>
+                <p class="type-body text-content-secondary truncate">{{ p.label }}</p>
                 <div class="flex flex-wrap gap-1 mt-0.5">
                   <span v-for="g in p.genres" :key="g.genreName"
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-surface-700 border border-surface-600 text-content-muted"
+                    class="badge-neutral"
                   >
                     <span class="capitalize">{{ g.genreName }}</span>
-                    <span v-if="g.auditionNumber !== null" class="font-heading font-extrabold text-primary-400">#{{ g.auditionNumber }}</span>
+                    <span v-if="g.auditionNumber !== null" class="text-accent ml-1">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
               </div>
-              <button v-if="!isCheckedIn(p)" @click="checkIn(p)" :disabled="checkingInId === p.participantId"
-                class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:bg-primary-500 active:scale-95 disabled:opacity-50 transition-all"
-              >
-                <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
-                {{ checkingInId === p.participantId ? '…' : 'Check In' }}
-              </button>
-              <i v-else class="pi pi-check-circle text-teal-400 text-sm shrink-0"></i>
+              <div class="flex items-center gap-2 mt-2 justify-end">
+                <button v-if="!isCheckedIn(p)" @click="checkIn(p)" :disabled="checkingInId === p.participantId"
+                  class="bg-accent para-chip-sm px-3 py-1.5 type-label disabled:opacity-50"
+                >
+                  <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
+                  {{ checkingInId === p.participantId ? '…' : 'Check In' }}
+                </button>
+                <i v-else class="pi pi-check-circle text-emerald-400 text-sm"></i>
+              </div>
             </div>
           </template>
         </div>
       </div>
 
       <!-- Registered card -->
-      <div class="card flex flex-col h-[520px]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-600/30 shrink-0">
+      <div class="card-hover p-4 relative flex flex-col h-[520px]">
+        <div class="corner-bar-tl"></div>
+        <div class="flex items-center justify-between mb-4 shrink-0">
           <div class="flex items-center gap-3">
-            <div class="w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-              <i class="pi pi-check-circle text-teal-400 text-xs"></i>
-            </div>
-            <span class="font-heading font-bold text-content-secondary">Registered</span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
-              {{ registeredList.length }}
-            </span>
+            <i class="pi pi-check-circle text-emerald-400 text-xs"></i>
+            <span class="type-body text-content-secondary">Registered</span>
+            <span class="badge-success">{{ registeredList.length }}</span>
           </div>
         </div>
-        <div class="px-4 py-3 border-b border-surface-600/20 shrink-0">
+        <div class="mb-4 shrink-0">
           <div class="flex gap-2">
             <div class="relative flex-1">
               <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
               <input v-model="registeredSearch" type="text" placeholder="Search by name or genre…" autocomplete="off"
-                class="w-full pl-8 pr-8 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-primary placeholder-content-muted focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+                class="input-base pl-8 pr-8"
               />
               <button v-if="registeredSearch" @click="registeredSearch = ''"
                 class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
@@ -1190,54 +1166,54 @@ onUnmounted(() => {
               </button>
             </div>
             <select v-model="registeredGenreFilter"
-              class="px-3 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-secondary focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+              class="input-base w-auto"
             >
               <option value="">All genres</option>
               <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>
             </select>
           </div>
-          <p v-if="registeredSearch || registeredGenreFilter" class="text-xs text-content-muted mt-2">
+          <p v-if="registeredSearch || registeredGenreFilter" class="type-label text-content-muted mt-2">
             {{ filteredRegisteredList.length }} result{{ filteredRegisteredList.length !== 1 ? 's' : '' }}
           </p>
         </div>
-        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
-          <div v-if="registeredList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+        <div class="flex-1 overflow-y-auto space-y-2 min-h-0">
+          <div v-if="registeredList.length === 0" class="flex items-center justify-center h-full type-label text-content-muted">
             No registered participants yet
           </div>
-          <div v-else-if="filteredRegisteredList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+          <div v-else-if="filteredRegisteredList.length === 0" class="flex items-center justify-center h-full type-label text-content-muted">
             No results match your search
           </div>
           <template v-else>
             <div v-for="p in filteredRegisteredList" :key="p.name"
-              class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-900 border border-surface-600"
+              class="para-chip p-3"
             >
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
-                <span v-if="p.walkin" class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600">walk-in</span>
+                <span class="type-body text-content-secondary">{{ p.name }}</span>
+                <span v-if="p.walkin" class="badge-neutral">walk-in</span>
                 <span v-if="p.walkin && p.referenceCode"
-                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 badge-neutral cursor-pointer select-none touch-none"
                   @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
                   @touchstart.prevent="revealingRef = p.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
                 >
                   <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
                   <span class="text-content-muted">Ref code</span>
                   <span v-if="revealingRef === p.name"
-                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 para-chip shadow-xl whitespace-nowrap z-50 pointer-events-none"
                   >
-                    <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
+                    <span class="font-source tracking-widest text-accent text-base font-bold">{{ p.referenceCode }}</span>
                     <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
                   </span>
                 </span>
               </div>
-              <div class="flex flex-wrap gap-1.5">
+              <div class="flex flex-wrap gap-1.5 mt-1">
                 <span v-for="e in p.entries" :key="e.genre"
-                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-800 border border-primary-200 text-sm"
+                  class="badge-neutral"
                 >
-                  <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
-                  <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
+                  <span class="text-content-muted capitalize">{{ e.genre }}</span>
+                  <span class="text-accent ml-1">#{{ e.auditionNumber }}</span>
                 </span>
               </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
                 <i class="pi pi-users" style="font-size:0.65rem"></i>
                 <span>{{ p.memberNames.join(', ') }}</span>
               </div>
@@ -1251,6 +1227,7 @@ onUnmounted(() => {
   </template>
   <!-- ── END EVENT DAY TAB ──────────────────────────────────────────────────── -->
 
+  </div><!-- end relative z-10 -->
   </div><!-- end page-container -->
 
   <ActionDoneModal
@@ -1260,7 +1237,7 @@ onUnmounted(() => {
     @accept="handleAccept"
     @close="handleAccept"
   >
-    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
+    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
   </ActionDoneModal>
 
   <LoadingOverlay v-if="onStartLoading">Loading event data…</LoadingOverlay>
