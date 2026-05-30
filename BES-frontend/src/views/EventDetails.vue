@@ -1114,7 +1114,8 @@ onUnmounted(() => {
             <div class="relative flex-1">
               <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
               <input v-model="registeredSearch" type="text" placeholder="Search by name or genre…" autocomplete="off"
-                class="input-base pl-11 pr-8"
+                class="input-base pr-8"
+                style="padding-left: 2.25rem"
               />
               <button v-if="registeredSearch" @click="registeredSearch = ''"
                 class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
@@ -1255,7 +1256,8 @@ onUnmounted(() => {
                   type="text"
                   placeholder="Filter by name…"
                   autocomplete="off"
-                  class="input-base pl-11"
+                  class="input-base"
+                  style="padding-left: 2.25rem"
                 />
                 <button
                   v-if="adjustSearch"
