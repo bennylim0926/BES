@@ -233,50 +233,80 @@ Scoring only:
 
 ## Frontend Design System
 
-All frontend work must follow this design system consistently across every component and view.
+> **Full spec:** `docs/superpowers/specs/2026-05-30-ui-overhaul-design.md`
+> All frontend work must follow this design system. When adding or updating any UI, read the spec first.
 
-### Color Tokens (defined in `base.css` `@theme`)
-| Role | Token | Hex |
-|------|-------|-----|
-| Primary | `primary-500` | `#e53935` (red) |
-| Primary Dark | `primary-600/700` | `#c62828 / #b71c1c` |
-| Primary Text (dark mode) | `primary-400` | `#f87171` (light red) |
-| Accent | `accent-500` | `#f97316` (orange) |
-| Surface Dark | `surface-900` | `#111111` (near-black) |
-| Surface Card | `surface-800` | `#1a1a1a` |
-| Surface Border | `surface-600/700` | `#2c2c2c / #222222` |
-| Content | `content-primary` | `#f0f0f0` (off-white) |
+### Design Language — Cinematic Battle
 
-### Typography
-| Use | Font | Class |
-|-----|------|-------|
-| Body / UI | Inter | `font-sans` |
-| Headings | Outfit | `font-heading` |
-| Numbers / Code | JetBrains Mono | `font-source` |
-| Display titles | Anton SC | `font-anton` |
+The entire app uses a unified cinematic aesthetic inspired by `BattleOverlay.vue` and `BracketVisualization.vue`. Every screen should feel like part of the same broadcast production system.
 
-### Spacing & Shape
-- Border radius: `rounded-xl` (inputs, cards) · `rounded-2xl` (panels, modals) · `rounded-full` (badges, pills)
-- Card style: `bg-surface-800 rounded-2xl border border-surface-700`
-- Page container: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8`
-- Navbar height offset: `h-16` (64px)
+**Do NOT change** `BattleOverlay.vue`, `BracketVisualization.vue`, or `Chart.vue` — they already have their own bespoke CSS and are the reference point, not the target.
 
-### Colour Usage Rules (60-30-10)
-- **60% Neutral** — `surface-*` for backgrounds, borders, text hierarchy (true neutral blacks/grays — no blue tinting)
-- **30% Structure** — `surface-800/900` + `content-primary` for nav, headers, dark surfaces
-- **10% Brand** — `primary-*` (red) for ALL interactive elements only
-- **Semantic** — emerald=success, amber=warning, red=error — functional use only, never decorative
-- **Orange `accent-*`** — medals/rankings ONLY; never buttons, nav, or role badges
-- **Button secondary** → `bg-surface-600 text-content-primary` (neutral dark, not orange)
-- **Role badges** → all use `bg-surface-700 text-content-secondary border-surface-600` (label is differentiator)
+### Accent Color (runtime-configurable)
 
-### Interaction States
-- Active nav item: `bg-primary-500 text-white` (filled red pill)
-- Button active: `active:scale-95`
-- Focus ring: `focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500`
-- Row hover: `hover:bg-primary-50` or `hover:bg-surface-700`
+- **CSS custom property:** `--accent-color` — set on `<html>` at runtime via `App.vue`
+- **Dark mode default:** `#ffffff` (white/silver)
+- **Light mode override:** `rgba(0,0,0,0.78)` — set via `[data-theme="light"]` CSS, ignores server value
+- **Derived tokens** (auto-computed in CSS): `--accent-muted` = `color-mix(in srgb, var(--accent-color) 25%, transparent)` · `--accent-subtle` = `color-mix(in srgb, var(--accent-color) 7%, transparent)`
+- **Utility classes:** `.text-accent` · `.bg-accent` · `.border-accent` · `.glow-accent`
+- Admin can change the color globally via `AdminPage.vue` → saved to `AppConfig` DB table → broadcast via `/topic/app-config` WebSocket → all clients update live
+
+### Red (`primary-*`) — Error/Danger ONLY
+
+Red is **no longer a brand color**. It is reserved exclusively for error states, destructive actions, and warning indicators. Never use `primary-*` for buttons, links, nav, or interactive chrome.
+
+### Semantic State Pattern (left border + glowing dot)
+
+All alert banners, warning chips, and status callouts use:
+- **3px solid left border** in the semantic color (red / amber / green)
+- **Subtle tint background** (10–12% opacity)
+- **Glowing dot indicator** (same color with `box-shadow` glow)
+- Never use full solid fills or low-opacity tints alone — both were hard to read
+
+### Typography — Full Anton SC
+
+**Every text element uses Anton SC.** `--font-sans` is `'Anton SC'` (the default body font). Inter is available as `--font-body` but is not used by default. All text is `text-transform: uppercase`. Letter-spacing + opacity provide hierarchy (Anton SC has only one weight).
+
+| Tier | Size | Letter-spacing | Use |
+|------|------|----------------|-----|
+| Display | `clamp(36px,5vw,56px)` | `0.06em` | Page heroes, login |
+| Page title | `28px` | `0.06em` | View `h1` headings |
+| Section header | `13px` | `0.18em` | Group labels + rule line |
+| Body / row | `13px` | `0.05em` | Table rows, cards, form values |
+| Label | `10px` | `0.22em` | Field labels, badges, breadcrumbs |
+| Number / stat | `42px` | `0.02em` | Scores, counts, audition numbers |
+
+Text shadows use `var(--accent-muted)`: Display `2px 2px 0`, Page title `1px 1px 0`, others none.
+
+### Shape — Parallelogram (universal)
+
+All cards, list rows, stat boxes, and badges use **parallelogram clip-path** in both dark and light mode:
+```css
+clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)
+```
+**No more** `rounded-2xl` cards or `rounded-full` badges. The `.card` and `.badge-*` utilities in `base.css` use this shape.
+
+### Six Cinematic Chrome Elements
+
+| Element | Where | Notes |
+|---------|-------|-------|
+| **Scanlines** | `App.vue` global overlay | Always on; 50% opacity in light mode |
+| **Parallelogram chips** | All cards, rows, badges | Core shape of every UI element |
+| **Corner accent bars** | Panels, modals only | Top-left + bottom-left bars only (not all 4 corners) |
+| **Section rules** | Every section header | Label + `flex:1` hairline — replaces `border-b` dividers |
+| **Color bleed** | Page root only | Radial gradients from bottom corners using `--accent-subtle`; hidden in light mode |
+| **Topbar** | `App.vue` navbar | Anton SC, parallelogram nav chips, glowing dot |
+
+### Surface Scale (unchanged)
+| Token | Value | Use |
+|-------|-------|-----|
+| `surface-900` | `#111111` | Page base |
+| `surface-800` | `#1a1a1a` | Cards, panels |
+| `surface-600` | `#2c2c2c` | Borders, dividers |
+| Chip fill | `rgba(255,255,255,0.04)` | Parallelogram background |
+| Chip border | `rgba(255,255,255,0.07)` | Parallelogram border |
 
 ### Target Audience UX Rules
-- **Judges**: Large touch targets (min 48px), very large font for scores/numbers, minimal steps to complete a score
-- **Emcees**: Clear status badges (scored/unscored), prominent search, always-visible participant count
+- **Judges**: Large touch targets (min 48px), Number/stat tier for scores, minimal steps to submit
+- **Emcees**: Clear status badges, always-visible participant count
 - **Organisers**: Scannable stat cards, collapsible complexity, clear workflow steps
