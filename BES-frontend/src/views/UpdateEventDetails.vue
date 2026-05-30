@@ -110,32 +110,31 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container relative">
+  <div class="color-bleed"></div>
+  <div class="relative z-10">
 
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <div>
-        <h1 class="page-title">Participants</h1>
-        <p class="text-muted mt-1">Assign judges and manage participant entries</p>
+        <div class="type-page-title mb-1">Participants</div>
+        <p class="type-label text-content-muted">Assign judges and manage participant entries</p>
       </div>
-      <ReusableButton
-        variant="primary"
-        size="sm"
-        @onClick="showCreateNewEntry = true"
+      <button
+        @click="showCreateNewEntry = true"
+        class="bg-accent para-chip type-label text-surface-900 px-4 py-2 flex items-center gap-2"
       >
-        <template #default>
-          <i class="pi pi-plus text-xs"></i>
-          Add Participant
-        </template>
-      </ReusableButton>
+        <i class="pi pi-plus text-xs"></i>
+        Add Participant
+      </button>
     </div>
 
     <!-- Filter bar -->
-    <div class="card p-5 mb-6">
+    <div class="para-chip p-5 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
-          <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
+          <span class="type-label text-content-muted">Event</span>
+          <span class="badge-neutral type-body px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
         <div>
           <ReusableDropdown
@@ -150,14 +149,18 @@ onMounted(async () => {
       <!-- Participant count -->
       <div class="flex items-center gap-2 mt-4 pt-4 border-t border-surface-600/30">
         <i class="pi pi-users text-content-muted text-sm"></i>
-        <span class="text-sm text-content-muted">
-          Showing <strong class="text-content-primary">{{ filteredParticipants.length }}</strong>
-          of <strong class="text-content-primary">{{ participants.length }}</strong> participants
+        <span class="type-label text-content-muted">
+          Showing <span class="text-accent">{{ filteredParticipants.length }}</span>
+          of <span class="text-accent">{{ participants.length }}</span> participants
         </span>
       </div>
     </div>
 
-    <!-- Table -->
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Participants</span>
+      <div class="section-rule-line"></div>
+    </div>
+
     <div class="mb-6">
       <DynamicTable
         v-if="participants.length > 0"
@@ -175,24 +178,26 @@ onMounted(async () => {
         v-if="participants.length === 0 && selectedEvent"
         class="flex flex-col items-center justify-center py-20 text-center"
       >
-        <div class="icon-wrap w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+        <div class="w-14 h-14 para-chip flex items-center justify-center mb-4">
           <i class="pi pi-users text-content-muted text-xl"></i>
         </div>
-        <p class="font-heading font-semibold text-content-secondary">No participants found</p>
-        <p class="text-muted text-sm mt-1">Select a different event or add a participant</p>
+        <p class="type-body text-content-secondary">No participants found</p>
+        <p class="type-label text-content-muted mt-1">Select a different event or add a participant</p>
       </div>
     </div>
 
     <!-- Save action -->
     <div class="flex justify-end">
-      <ReusableButton variant="primary" @onClick="updateParticipantJudge">
-        <template #default>
-          <i class="pi pi-check text-xs"></i>
-          Save Judge Assignments
-        </template>
-      </ReusableButton>
+      <button
+        @click="updateParticipantJudge"
+        class="bg-accent para-chip type-label text-surface-900 px-5 py-2 flex items-center gap-2"
+      >
+        <i class="pi pi-check text-xs"></i>
+        Save Judge Assignments
+      </button>
     </div>
 
+  </div><!-- end relative z-10 -->
   </div>
 
   <ActionDoneModal
@@ -202,7 +207,7 @@ onMounted(async () => {
     @accept="handleAccept"
     @close="handleAccept"
   >
-    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
+    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
   </ActionDoneModal>
 
   <CreateParticipantForm
