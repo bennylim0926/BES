@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, battleJudgeVote, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -38,6 +38,14 @@ const activeRoundIdx = ref(0)
 
 const pickupCrews = ref([])
 const crewSortMode = ref('leader')  // 'leader' | 'avg'
+
+const battleGuests = ref([])
+const newGuestName = ref('')
+const newGuestEntryRound = ref('')
+const addingGuest = ref(false)
+
+const dragSource = ref(null)  // { roundKey, matchIdx, slotIdx }
+const dragOverKey = ref(null) // `${roundKey}-${matchIdx}-${slotIdx}`
 
 const uploadedFiles = ref([])
 
@@ -226,21 +234,31 @@ const sortedPickupCrews = computed(() =>
 // True only when BOTH pre-formed teams AND pickup crews exist — Split bracket is only relevant then
 const isMixedBracket = computed(() => preFormedTeams.value.length > 0 && pickupCrews.value.length > 0)
 
+const guestsForCurrentGenre = computed(() =>
+  battleGuests.value.filter(g => g.genreName === selectedGenre.value)
+)
+
+const entryRoundOptions = computed(() =>
+  roundSizes.value.map(s => `Top${s}`)
+)
+
 // Pool used by bracket slot dropdowns, seeding picker, and all sort/fill functions.
 // When pre-formed teams exist, exclude raw individual names from the pool — team names only.
 const bracketPool = computed(() => {
+  let pool
   if (isMixedBracket.value) {
-    return [
+    pool = [
       ...preFormedTeams.value.map(t => t.name),
       ...sortedPickupCrews.value.map(c => c.crewName),
     ]
+  } else if (preFormedTeams.value.length > 0) {
+    pool = preFormedTeams.value.map(t => t.name)
+  } else {
+    pool = topNParticipants.value
   }
-  // Pure team genre (pre-formed teams, no pickup crews) — only team names
-  if (preFormedTeams.value.length > 0) {
-    return preFormedTeams.value.map(t => t.name)
-  }
-  // Pure solo genre — original behavior
-  return topNParticipants.value
+  // Include battle guests not already in pool so they appear in bracket slot dropdowns
+  const guestNames = guestsForCurrentGenre.value.map(g => g.guestName).filter(n => !pool.includes(n))
+  return [...pool, ...guestNames]
 })
 
 // Bracket seeding
@@ -342,6 +360,24 @@ const splitBracketFill = () => {
   activeSeedIdx.value = null
   applyToFirstRound()
 }
+const placeGuestsInBracket = () => {
+  if (isSmoke.value) return
+  const guests = guestsForCurrentGenre.value
+  if (guests.length === 0) return
+  for (const guest of guests) {
+    const roundKey = guest.entryRound
+    if (!rounds.value[roundKey]) continue
+    const alreadyPlaced = rounds.value[roundKey].some(m => m[0] === guest.guestName || m[1] === guest.guestName)
+    if (alreadyPlaced) continue
+    for (const match of rounds.value[roundKey]) {
+      if (match[0] === null) { match[0] = guest.guestName; break }
+      if (match[1] === null) { match[1] = guest.guestName; break }
+    }
+  }
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
 const applyToFirstRound = () => {
   if (isSmoke.value) {
     rounds.value = seeds.value.map((name, i) => ({
@@ -356,6 +392,18 @@ const applyToFirstRound = () => {
   for (let i = 0; i < bracketSize.value / 2; i++) {
     rounds.value[key][i][0] = seeds.value[i * 2] ?? null
     rounds.value[key][i][1] = seeds.value[i * 2 + 1] ?? null
+  }
+  // Re-apply guest placements after seeding — guests override auto-fill for their slots
+  for (const guest of guestsForCurrentGenre.value) {
+    const roundKey = guest.entryRound
+    if (!rounds.value[roundKey]) continue
+    const alreadyPlaced = rounds.value[roundKey].some(m => m[0] === guest.guestName || m[1] === guest.guestName)
+    if (!alreadyPlaced) {
+      for (const match of rounds.value[roundKey]) {
+        if (match[0] === null) { match[0] = guest.guestName; break }
+        if (match[1] === null) { match[1] = guest.guestName; break }
+      }
+    }
   }
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
@@ -377,6 +425,69 @@ const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.valu
 
 function updateMatch(roundKey, matchIdx, slotIdx, value) {
   rounds.value[roundKey][matchIdx][slotIdx] = value
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
+const onDragStart = (roundKey, matchIdx, slotIdx, event) => {
+  dragSource.value = { roundKey, matchIdx, slotIdx }
+
+  const name = rounds.value[roundKey][matchIdx][slotIdx] || ''
+  const ghost = document.createElement('div')
+  ghost.textContent = name
+  Object.assign(ghost.style, {
+    position: 'fixed',
+    top: '-9999px',
+    left: '-9999px',
+    padding: '5px 14px',
+    background: '#1a1a1a',
+    border: '1.5px solid rgba(248,113,113,0.65)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#f0f0f0',
+    boxShadow: '0 10px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(229,57,53,0.15)',
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+  })
+  document.body.appendChild(ghost)
+  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+  requestAnimationFrame(() => document.body.removeChild(ghost))
+}
+
+const onDragOver = (roundKey, matchIdx, slotIdx) => {
+  if (!dragSource.value) return
+  dragOverKey.value = `${roundKey}-${matchIdx}-${slotIdx}`
+}
+
+const onDragEnd = () => {
+  dragSource.value = null
+  dragOverKey.value = null
+}
+
+const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
+  if (!dragSource.value) return
+  const { roundKey: srcRound, matchIdx: srcMatch, slotIdx: srcSlot } = dragSource.value
+  dragSource.value = null
+  dragOverKey.value = null
+  if (srcRound === tgtRound && srcMatch === tgtMatch && srcSlot === tgtSlot) return
+
+  const srcVal = rounds.value[srcRound][srcMatch][srcSlot]
+  const tgtVal = rounds.value[tgtRound][tgtMatch][tgtSlot]
+  rounds.value[srcRound][srcMatch][srcSlot] = tgtVal
+  rounds.value[tgtRound][tgtMatch][tgtSlot] = srcVal
+  // Clear winner state for affected matches to avoid stale highlights
+  rounds.value[srcRound][srcMatch][2] = null
+  if (srcRound !== tgtRound || srcMatch !== tgtMatch) rounds.value[tgtRound][tgtMatch][2] = null
+
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
+const clearSlot = (roundKey, matchIdx, slotIdx) => {
+  const match = rounds.value[roundKey][matchIdx]
+  match[slotIdx] = null
+  match[2] = null
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
 }
@@ -575,6 +686,42 @@ const submitRemoveBattleJudge = async (name) => {
   saveGenreJudges(selectedGenre.value)
 }
 
+const fetchBattleGuests = async () => {
+  if (!selectedEvent.value) return
+  const res = await getBattleGuests(selectedEvent.value)
+  if (res?.ok) battleGuests.value = await res.json()
+}
+
+const submitAddBattleGuest = async () => {
+  if (!newGuestName.value.trim() || !newGuestEntryRound.value || !selectedGenre.value) return
+  addingGuest.value = true
+  const res = await addBattleGuest(selectedEvent.value, selectedGenre.value, newGuestName.value.trim(), newGuestEntryRound.value)
+  if (res?.ok) {
+    const guest = await res.json()
+    battleGuests.value.push(guest)
+    newGuestName.value = ''
+    newGuestEntryRound.value = ''
+    placeGuestsInBracket()
+  }
+  addingGuest.value = false
+}
+
+const submitRemoveBattleGuest = async (guest) => {
+  await removeBattleGuest(guest.id)
+  battleGuests.value = battleGuests.value.filter(g => g.id !== guest.id)
+  // Remove guest name from bracket slots
+  for (const roundKey of Object.keys(rounds.value)) {
+    if (!Array.isArray(rounds.value[roundKey])) continue
+    for (const match of rounds.value[roundKey]) {
+      if (!Array.isArray(match)) continue
+      if (match[0] === guest.guestName) match[0] = null
+      if (match[1] === guest.guestName) match[1] = null
+    }
+  }
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
 const submitGetScore = async () => {
   battleJudges.value = await getBattleJudges()
   const hasMinusThree = battleJudges?.value.judges.some(j => j.vote === -3)
@@ -683,6 +830,7 @@ watch(selectedEvent, async (newVal) => {
     participants.value = res.sort((a, b) => b.score - a.score)
     pickupCrews.value = []
     await fetchAllJudges(newVal)
+    await fetchBattleGuests()
   }
 }, { immediate: true })
 
@@ -695,6 +843,7 @@ watch(selectedGenre, async (newVal, oldVal) => {
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
     rounds.value = JSON.parse(storedRounds) || initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
+    placeGuestsInBracket()
     broadcastBracket()
     if (oldVal) {
       saveGenreBattleState(oldVal)
@@ -762,6 +911,7 @@ watch(() => battleJudges.value?.judges?.length, syncJudgeVoteSubscriptions)
 onMounted(async () => {
   initialiseDropdown()
   await fetchAllJudges(selectedEvent.value)
+  await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
   // Sync backend to the current genre's saved judges.
   // On reload, the backend may have stale judges from a previous genre.
@@ -1074,6 +1224,61 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- ── Battle Guests ──────────────────────────────── -->
+      <div v-if="!isSmoke" class="flex flex-wrap items-start gap-3 mb-5 pt-4 border-t border-surface-600/30">
+        <span class="text-xs font-semibold text-content-muted uppercase tracking-wide whitespace-nowrap pt-1">Guests</span>
+
+        <!-- Guest pills -->
+        <div class="flex flex-wrap gap-2 flex-1 min-w-0">
+          <span
+            v-for="g in guestsForCurrentGenre"
+            :key="g.id"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold
+                   text-content-secondary bg-surface-700 border border-primary-500/30"
+          >
+            <i class="pi pi-star text-primary-400" style="font-size:0.6rem"></i>
+            {{ g.guestName }}
+            <span class="text-surface-500 text-[10px]">→ {{ g.entryRound }}</span>
+            <button
+              @click="submitRemoveBattleGuest(g)"
+              class="flex items-center justify-center hover:text-red-400 transition-colors ml-0.5"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </span>
+          <span v-if="!guestsForCurrentGenre.length" class="text-xs text-content-muted italic pt-1">None added</span>
+        </div>
+
+        <!-- Add guest form pushed to the right -->
+        <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+          <input
+            v-model="newGuestName"
+            type="text"
+            placeholder="Guest name"
+            class="w-36 px-2.5 py-1.5 rounded-lg bg-surface-700 border border-surface-600 text-xs font-semibold
+                   text-content-primary placeholder:text-content-muted outline-none focus:border-primary-500/50"
+            @keyup.enter="submitAddBattleGuest"
+          />
+          <select
+            v-model="newGuestEntryRound"
+            class="px-2.5 py-1.5 rounded-lg bg-surface-700 border border-surface-600 text-xs font-semibold
+                   text-content-primary outline-none focus:border-primary-500/50 cursor-pointer"
+          >
+            <option value="" disabled>Round</option>
+            <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
+          </select>
+          <button
+            @click="submitAddBattleGuest"
+            :disabled="addingGuest || !newGuestName.trim() || !newGuestEntryRound"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-600 text-white text-xs
+                   font-semibold hover:bg-primary-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <i class="pi pi-plus text-xs"></i>
+            Add
+          </button>
+        </div>
+      </div>
+
       <!-- ── Standard bracket ──────────────────────────── -->
       <div v-if="Number(topSize) !== 7">
         <!-- Round tabs -->
@@ -1092,81 +1297,79 @@ onUnmounted(() => {
         <!-- Active round matches -->
         <template v-for="(size, idx) in roundSizes" :key="idx">
           <div v-if="activeRoundIdx === idx" class="bg-surface-900/60 rounded-2xl p-4 border border-surface-600/50">
-            <!-- 2-col grid for 4+ matches, single col otherwise -->
-            <div
-              class="mb-3"
-              :class="rounds[`Top${size}`]?.length >= 4 ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2'"
-            >
+            <div class="flex flex-col gap-2 mb-3">
+              <!-- Match card: horizontal Left VS Right layout -->
               <div
                 v-for="(match, mIdx) in rounds[`Top${size}`]"
                 :key="mIdx"
-                class="rounded-lg border border-surface-600/40 bg-surface-800/50 overflow-hidden"
+                class="rounded-lg border border-surface-600/40 bg-surface-800/50 overflow-hidden flex items-stretch min-h-[44px]"
               >
-                <!-- Player 0 -->
+                <!-- Slot 0 — left -->
                 <div
-                  class="flex items-center gap-1.5 px-2 py-1.5 transition-colors"
-                  :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : ''"
+                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  :class="[
+                    match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
+                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
+                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                      : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                  ]"
+                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 0)"
+                  @dragleave="dragOverKey = null"
+                  @drop.prevent="onDrop(`Top${size}`, mIdx, 0)"
                 >
-                  <i
-                    class="pi pi-crown text-xs flex-shrink-0 transition-colors"
-                    :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"
-                  ></i>
-                  <select
-                    class="flex-1 min-w-0 bg-transparent text-xs font-semibold outline-none cursor-pointer
-                           text-content-primary disabled:text-content-muted"
-                    :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : ''"
-                    v-model="rounds[`Top${size}`][mIdx][0]"
-                    @change="updateMatch(`Top${size}`, mIdx, 0, rounds[`Top${size}`][mIdx][0])"
-                  >
-                    <option :value="null" disabled>Select…</option>
-                    <option v-for="p in bracketPool" :key="p" :value="p">{{ p }}</option>
-                  </select>
+                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <div
+                    v-if="match[0]"
+                    draggable="true"
+                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 0, e)"
+                    @dragend="onDragEnd"
+                    class="flex-1 min-w-0 text-xs font-semibold truncate select-none cursor-grab active:cursor-grabbing"
+                    :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary'"
+                  >{{ match[0] }}</div>
+                  <span v-else class="flex-1 text-xs text-surface-600/60 italic">Drop here</span>
+                  <button v-if="match[0]" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[0]"
                     @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 0)"
-                    class="flex-shrink-0 w-10 text-center rounded text-xs font-bold transition-all
-                           disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[0] && match[0]
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40'
-                      : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                    :title="match[2] === match[0] && match[0] ? 'Click to unselect winner' : 'Set as winner'"
+                    class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
                 </div>
 
-                <!-- VS divider -->
-                <div class="flex items-center gap-1.5 px-2 border-y border-surface-600/30 bg-surface-900/30">
-                  <div class="flex-1 h-px bg-surface-600/20"></div>
-                  <span class="text-xs font-bold text-surface-600 py-0.5">VS</span>
-                  <div class="flex-1 h-px bg-surface-600/20"></div>
+                <!-- VS badge (vertical divider) -->
+                <div class="flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
+                  <span class="text-[9px] font-black text-surface-600 tracking-widest rotate-0">VS</span>
                 </div>
 
-                <!-- Player 1 -->
+                <!-- Slot 1 — right -->
                 <div
-                  class="flex items-center gap-1.5 px-2 py-1.5 transition-colors"
-                  :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : ''"
+                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  :class="[
+                    match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
+                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
+                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                      : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                  ]"
+                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 1)"
+                  @dragleave="dragOverKey = null"
+                  @drop.prevent="onDrop(`Top${size}`, mIdx, 1)"
                 >
-                  <i
-                    class="pi pi-crown text-xs flex-shrink-0 transition-colors"
-                    :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"
-                  ></i>
-                  <select
-                    class="flex-1 min-w-0 bg-transparent text-xs font-semibold outline-none cursor-pointer text-content-primary"
-                    :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : ''"
-                    v-model="rounds[`Top${size}`][mIdx][1]"
-                    @change="updateMatch(`Top${size}`, mIdx, 1, rounds[`Top${size}`][mIdx][1])"
-                  >
-                    <option :value="null" disabled>Select…</option>
-                    <option v-for="p in bracketPool" :key="p" :value="p">{{ p }}</option>
-                  </select>
+                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <div
+                    v-if="match[1]"
+                    draggable="true"
+                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 1, e)"
+                    @dragend="onDragEnd"
+                    class="flex-1 min-w-0 text-xs font-semibold truncate select-none cursor-grab active:cursor-grabbing"
+                    :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary'"
+                  >{{ match[1] }}</div>
+                  <span v-else class="flex-1 text-xs text-surface-600/60 italic">Drop here</span>
+                  <button v-if="match[1]" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[1]"
                     @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 1)"
-                    class="flex-shrink-0 w-10 text-center rounded text-xs font-bold transition-all
-                           disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[1] && match[1]
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40'
-                      : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                    :title="match[2] === match[1] && match[1] ? 'Click to unselect winner' : 'Set as winner'"
+                    class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
               </div>

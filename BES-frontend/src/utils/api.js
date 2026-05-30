@@ -1104,3 +1104,37 @@ export const checkInParticipant = async (participantId, eventId) => {
     console.log(e)
   }
 }
+
+export const getBattleGuests = async (eventName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/battle-guests/${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const addBattleGuest = async (eventName, genreName, guestName, entryRound) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/battle-guests/${encodeURIComponent(eventName)}/${encodeURIComponent(genreName)}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guestName, entryRound })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const removeBattleGuest = async (guestId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/battle-guests/${guestId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}

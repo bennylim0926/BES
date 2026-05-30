@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -31,6 +31,9 @@ const unverifiedParticipants = ref([])
 const selectedUnverified = ref(new Set())
 const verifyingParticipantId = ref(null)
 const batchVerifying = ref(false)
+const checkinList = ref([])
+const loadingCheckinList = ref(false)
+const checkingInId = ref(null)
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
 
@@ -222,8 +225,6 @@ const registeredList = computed(() => {
 
 const registeredSearch = ref('')
 const registeredGenreFilter = ref('')
-const registeredPage = ref(1)
-const REGISTERED_PAGE_SIZE = 10
 
 const registeredGenreOptions = computed(() => {
   const genres = new Set()
@@ -238,19 +239,20 @@ const filteredRegisteredList = computed(() => {
     p.name.toLowerCase().includes(q) ||
     p.entries.some(e => e.genre.toLowerCase().includes(q))
   )
-  if (registeredGenreFilter.value)
-    list = list.filter(p => p.entries.some(e => e.genre === registeredGenreFilter.value))
+  if (registeredGenreFilter.value) {
+    list = list
+      .filter(p => p.entries.some(e => e.genre === registeredGenreFilter.value))
+      .map(p => ({
+        ...p,
+        entries: [
+          ...p.entries.filter(e => e.genre === registeredGenreFilter.value),
+          ...p.entries.filter(e => e.genre !== registeredGenreFilter.value)
+        ]
+      }))
+      .sort((a, b) => (a.entries[0]?.auditionNumber ?? 0) - (b.entries[0]?.auditionNumber ?? 0))
+  }
   return list
 })
-
-const registeredTotalPages = computed(() => Math.max(1, Math.ceil(filteredRegisteredList.value.length / REGISTERED_PAGE_SIZE)))
-
-const paginatedRegisteredList = computed(() => {
-  const start = (registeredPage.value - 1) * REGISTERED_PAGE_SIZE
-  return filteredRegisteredList.value.slice(start, start + REGISTERED_PAGE_SIZE)
-})
-
-watch([registeredSearch, registeredGenreFilter], () => { registeredPage.value = 1 })
 
 const adjustSearchResults = computed(() => {
   if (!adjustSearch.value.trim()) return []
@@ -377,7 +379,7 @@ const refreshFromDb = async () => {
 
 const handleWalkInCreated = async () => {
   showWalkInForm.value = false
-  await refreshFromDb()
+  await Promise.all([refreshFromDb(), fetchCheckinList()])
 }
 
 const closeAdjustModal = () => {
@@ -501,6 +503,39 @@ const handleBatchVerifyPayment = async () => {
   batchVerifying.value = false
 }
 
+const isCheckedIn = (p) => p.genres.length > 0 && p.genres.every(g => g.auditionNumber !== null)
+
+const sortedCheckinList = computed(() =>
+  [...checkinList.value].sort((a, b) => {
+    const aIn = isCheckedIn(a)
+    const bIn = isCheckedIn(b)
+    if (aIn !== bIn) return aIn ? 1 : -1
+    return a.label.localeCompare(b.label)
+  })
+)
+
+const fetchCheckinList = async () => {
+  loadingCheckinList.value = true
+  try {
+    const res = await getCheckinList(eventName.value)
+    if (res?.ok) checkinList.value = await res.json()
+  } catch (e) {
+    console.error(e)
+  }
+  loadingCheckinList.value = false
+}
+
+const checkIn = async (p) => {
+  checkingInId.value = p.participantId
+  try {
+    await checkInParticipant(p.participantId, p.eventId)
+    await Promise.all([fetchCheckinList(), refreshFromDb()])
+  } catch (e) {
+    console.error(e)
+  }
+  checkingInId.value = null
+}
+
 watch(
   fileId,
   async () => {
@@ -538,6 +573,7 @@ onMounted(async () => {
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
     unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+    await fetchCheckinList()
   }
   await useDelay().wait(2500)
   onStartLoading.value = false
@@ -547,10 +583,19 @@ onMounted(async () => {
     let refreshPending = false
     subscribeToChannel(wsClient, '/topic/audition/', (msg) => {
       if (msg.eventName !== props.eventName) return
+      const participant = checkinList.value.find(p => p.participantId === msg.participantId)
+      if (participant) {
+        const genre = participant.genres.find(g => g.genreName === msg.genre)
+        if (genre) genre.auditionNumber = msg.auditionNumber
+      }
       if (!refreshPending) {
         refreshPending = true
         refreshFromDb().finally(() => { refreshPending = false })
       }
+    })
+    subscribeToChannel(wsClient, '/topic/walkin/', (msg) => {
+      if (msg.eventName !== props.eventName) return
+      fetchCheckinList()
     })
   }
 })
@@ -1068,126 +1113,139 @@ onUnmounted(() => {
       </p>
     </div>
 
-    <!-- Registered panel -->
-    <div v-if="registeredList.length > 0" class="card overflow-hidden panel-success">
-      <button
-        @click="expandedPeople.has('registered') ? expandedPeople.delete('registered') : expandedPeople.add('registered'); expandedPeople = new Set(expandedPeople)"
-        :aria-expanded="expandedPeople.has('registered')"
-        class="w-full flex items-center justify-between px-5 py-4 bg-surface-900/40 hover:bg-surface-700/60 transition-colors duration-150 text-left"
-      >
-        <div class="flex items-center gap-3">
-          <div class="icon-wrap w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
-            <i class="pi pi-check-circle text-teal-400 text-xs"></i>
+    <!-- Side by side: Check-In + Registered -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+      <!-- Check-In card -->
+      <div class="card flex flex-col h-[520px]">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-600/30 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
+              <i class="pi pi-users text-content-muted text-xs"></i>
+            </div>
+            <span class="font-heading font-bold text-content-secondary">Check-In</span>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30">
+              {{ checkinList.filter(p => !isCheckedIn(p)).length }} pending
+            </span>
           </div>
-          <span class="font-heading font-bold text-content-secondary">Registered</span>
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
-            {{ registeredList.length }}
-          </span>
         </div>
-        <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-           :class="{ 'rotate-180': expandedPeople.has('registered') }"></i>
-      </button>
-      <div v-if="expandedPeople.has('registered')" class="px-5 pb-4 border-t border-surface-600/30 pt-4">
-        <!-- Search + genre filter -->
-        <div class="flex gap-2 mb-3">
-          <div class="relative flex-1">
-            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
-            <input
-              v-model="registeredSearch"
-              type="text"
-              placeholder="Search by name or genre…"
-              autocomplete="off"
-              class="w-full pl-8 pr-8 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-primary placeholder-content-muted
-                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
-            />
-            <button v-if="registeredSearch" @click="registeredSearch = ''"
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
-              <i class="pi pi-times text-xs"></i>
-            </button>
+        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+          <div v-if="loadingCheckinList" class="flex items-center justify-center h-full text-content-muted text-sm">
+            <i class="pi pi-spinner pi-spin mr-2"></i> Loading…
           </div>
-          <select
-            v-model="registeredGenreFilter"
-            class="px-3 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-secondary
-                   focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
-          >
-            <option value="">All genres</option>
-            <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>
-          </select>
-        </div>
-        <!-- Result count -->
-        <p v-if="registeredSearch || registeredGenreFilter" class="text-xs text-content-muted mb-2">
-          {{ filteredRegisteredList.length }} result{{ filteredRegisteredList.length !== 1 ? 's' : '' }}
-        </p>
-        <div class="space-y-2">
-          <div
-            v-for="p in paginatedRegisteredList"
-            :key="p.name"
-            class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-900 border border-surface-600"
-          >
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
-              <span v-if="p.walkin"
-                class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600"
-              >walk-in</span>
-              <span
-                v-if="p.walkin && p.referenceCode"
-                class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
-                @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
-                @touchstart.prevent="revealingRef = p.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
+          <div v-else-if="checkinList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+            No participants found
+          </div>
+          <template v-else>
+            <div v-for="p in sortedCheckinList" :key="p.participantId"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors"
+              :class="isCheckedIn(p) ? 'bg-surface-700/30 border-surface-600/20 opacity-50' : 'bg-surface-800 border-surface-600'"
+            >
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-content-secondary truncate">{{ p.label }}</p>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                  <span v-for="g in p.genres" :key="g.genreName"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-surface-700 border border-surface-600 text-content-muted"
+                  >
+                    <span class="capitalize">{{ g.genreName }}</span>
+                    <span v-if="g.auditionNumber !== null" class="font-heading font-extrabold text-primary-400">#{{ g.auditionNumber }}</span>
+                  </span>
+                </div>
+              </div>
+              <button v-if="!isCheckedIn(p)" @click="checkIn(p)" :disabled="checkingInId === p.participantId"
+                class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:bg-primary-500 active:scale-95 disabled:opacity-50 transition-all"
               >
-                <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
-                <span class="text-content-muted">Ref code</span>
-                <span v-if="revealingRef === p.name"
-                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
-                >
-                  <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
-                  <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
-                </span>
-              </span>
+                <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
+                {{ checkingInId === p.participantId ? '…' : 'Check In' }}
+              </button>
+              <i v-else class="pi pi-check-circle text-teal-400 text-sm shrink-0"></i>
             </div>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="e in p.entries" :key="e.genre"
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-800 border border-primary-200 text-sm"
-              >
-                <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
-                <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
-              </span>
-            </div>
-            <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
-              <i class="pi pi-users" style="font-size:0.65rem"></i>
-              <span>{{ p.memberNames.join(', ') }}</span>
-            </div>
-          </div>
-        </div>
-        <!-- Pagination -->
-        <div v-if="registeredTotalPages > 1" class="flex items-center justify-between mt-4 pt-3 border-t border-surface-600/30">
-          <span class="text-xs text-content-muted">
-            Page {{ registeredPage }} of {{ registeredTotalPages }}
-          </span>
-          <div class="flex items-center gap-1">
-            <button
-              @click="registeredPage--"
-              :disabled="registeredPage === 1"
-              class="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-600 text-content-muted
-                     hover:bg-surface-700 hover:text-content-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            ><i class="pi pi-chevron-left text-xs"></i></button>
-            <button
-              v-for="n in registeredTotalPages"
-              :key="n"
-              @click="registeredPage = n"
-              :class="n === registeredPage
-                ? 'w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold bg-primary-500 text-white'
-                : 'w-7 h-7 flex items-center justify-center rounded-lg text-xs font-medium border border-surface-600 text-content-muted hover:bg-surface-700 hover:text-content-secondary transition-colors'"
-            >{{ n }}</button>
-            <button
-              @click="registeredPage++"
-              :disabled="registeredPage === registeredTotalPages"
-              class="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-600 text-content-muted
-                     hover:bg-surface-700 hover:text-content-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            ><i class="pi pi-chevron-right text-xs"></i></button>
-          </div>
+          </template>
         </div>
       </div>
+
+      <!-- Registered card -->
+      <div class="card flex flex-col h-[520px]">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-600/30 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-surface-700 flex items-center justify-center shrink-0">
+              <i class="pi pi-check-circle text-teal-400 text-xs"></i>
+            </div>
+            <span class="font-heading font-bold text-content-secondary">Registered</span>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
+              {{ registeredList.length }}
+            </span>
+          </div>
+        </div>
+        <div class="px-4 py-3 border-b border-surface-600/20 shrink-0">
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+              <input v-model="registeredSearch" type="text" placeholder="Search by name or genre…" autocomplete="off"
+                class="w-full pl-8 pr-8 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-primary placeholder-content-muted focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+              />
+              <button v-if="registeredSearch" @click="registeredSearch = ''"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <select v-model="registeredGenreFilter"
+              class="px-3 py-2 rounded-lg border border-surface-600 bg-surface-900 text-sm text-content-secondary focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+            >
+              <option value="">All genres</option>
+              <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+          <p v-if="registeredSearch || registeredGenreFilter" class="text-xs text-content-muted mt-2">
+            {{ filteredRegisteredList.length }} result{{ filteredRegisteredList.length !== 1 ? 's' : '' }}
+          </p>
+        </div>
+        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+          <div v-if="registeredList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+            No registered participants yet
+          </div>
+          <div v-else-if="filteredRegisteredList.length === 0" class="flex items-center justify-center h-full text-content-muted text-sm">
+            No results match your search
+          </div>
+          <template v-else>
+            <div v-for="p in filteredRegisteredList" :key="p.name"
+              class="flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-surface-900 border border-surface-600"
+            >
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-semibold text-content-secondary">{{ p.name }}</span>
+                <span v-if="p.walkin" class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-surface-700 text-content-muted border border-surface-600">walk-in</span>
+                <span v-if="p.walkin && p.referenceCode"
+                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-surface-800 border border-surface-600 cursor-pointer select-none touch-none"
+                  @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
+                  @touchstart.prevent="revealingRef = p.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
+                >
+                  <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
+                  <span class="text-content-muted">Ref code</span>
+                  <span v-if="revealingRef === p.name"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+                  >
+                    <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ p.referenceCode }}</span>
+                    <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
+                  </span>
+                </span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-for="e in p.entries" :key="e.genre"
+                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-800 border border-primary-200 text-sm"
+                >
+                  <span class="text-content-muted capitalize text-xs">{{ e.genre }}</span>
+                  <span class="font-heading font-extrabold text-primary-400">#{{ e.auditionNumber }}</span>
+                </span>
+              </div>
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 text-xs text-content-muted">
+                <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <span>{{ p.memberNames.join(', ') }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
     </div>
 
   </template>
