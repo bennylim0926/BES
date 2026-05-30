@@ -62,21 +62,25 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="page-container flex items-start justify-center">
-    <div class="w-full max-w-md mt-10">
+  <div class="page-container flex items-start justify-center relative">
+    <div class="color-bleed"></div>
+    <div class="relative z-10 w-full max-w-md mt-10">
       <div class="card p-8">
 
         <!-- Header -->
         <div class="mb-8">
-          <h1 class="font-heading font-bold text-content-primary text-2xl mb-1">Select Event</h1>
-          <p class="text-muted text-sm">Choose the event you are working on today</p>
+          <div class="type-page-title mb-1">Select Event</div>
+          <p class="type-label text-content-muted">{{ events.length }} available</p>
         </div>
 
         <form @submit.prevent="handleSubmit" class="space-y-5">
 
           <!-- Event grid -->
           <div>
-            <label class="block text-sm font-semibold text-content-secondary mb-2">Event</label>
+            <div class="section-rule mb-4">
+              <span class="section-rule-label">Available Events</span>
+              <div class="section-rule-line"></div>
+            </div>
             <div class="grid gap-2" :class="events.length > 4 ? 'grid-cols-2' : 'grid-cols-1'">
               <button
                 v-for="event in events"
@@ -84,59 +88,55 @@ const handleSubmit = async () => {
                 type="button"
                 @click="selectedEventId = event.id; accessCode = ''; error = ''"
                 :class="[
-                  'text-center px-3 py-4 rounded-xl border transition-all duration-150',
-                  selectedEventId === event.id
-                    ? 'border-primary-500 bg-primary-500/15 text-primary-400 font-semibold'
-                    : 'border-surface-600 bg-surface-700 hover:border-primary-500/50 hover:bg-surface-600 text-content-primary'
+                  'card-hover p-5 text-left relative group w-full',
+                  selectedEventId === event.id ? 'border-[color:var(--accent-muted)]' : ''
                 ]"
               >
-                <div class="font-heading font-semibold text-sm leading-snug">{{ event.name }}</div>
+                <div class="corner-bar-tl"></div>
+                <div class="type-body mb-1">{{ event.name }}</div>
                 <div
                   v-if="isAdmin && event.accessCode"
-                  class="font-source text-xs text-content-muted tracking-widest mt-0.5"
+                  class="type-label text-content-muted"
                 >
                   {{ event.accessCode }}
                 </div>
               </button>
             </div>
-            <p v-if="events.length === 0" class="text-sm text-muted mt-2">No events found.</p>
+            <p v-if="events.length === 0" class="type-label text-content-muted mt-2">No events found.</p>
           </div>
 
           <!-- Already verified chip -->
           <div
             v-if="alreadyVerified && !isAdmin"
-            class="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950 border border-emerald-800/50"
+            class="semantic-chip-success flex items-center gap-2 px-3 py-2"
           >
-            <i class="pi pi-check-circle text-emerald-400 text-sm"></i>
-            <span class="text-emerald-400 text-sm font-medium">Already verified — you can proceed directly</span>
+            <div class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(52,211,153,0.8)"></div>
+            <span class="type-label text-emerald-400">Already verified — you can proceed directly</span>
           </div>
 
           <!-- Access code input (non-admin, not yet verified) -->
           <div v-if="selectedEventId !== null && !isAdmin && !alreadyVerified">
-            <label class="block text-sm font-semibold text-content-secondary mb-2">Access Code</label>
+            <label class="type-label text-content-muted block mb-2">Access Code</label>
             <input
               v-model="accessCode"
               type="text"
               inputmode="numeric"
               maxlength="4"
               placeholder="0000"
-              class="input-base font-source text-2xl tracking-widest text-center"
+              class="input-base text-2xl tracking-widest text-center"
               autocomplete="off"
             />
           </div>
 
           <!-- Error -->
-          <p v-if="error" class="text-sm text-red-400 font-medium">{{ error }}</p>
+          <p v-if="error" class="type-label text-red-400">{{ error }}</p>
 
           <!-- Submit -->
           <button
             type="submit"
             :disabled="isLoading || !selectedEventId"
-            class="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white
-                   bg-primary-600 hover:bg-primary-700 active:scale-95
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all duration-200 btn-glow
-                   flex items-center justify-center gap-2"
+            class="w-full py-3 type-body bg-accent text-surface-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+            style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
           >
             <span v-if="isLoading">
               <i class="pi pi-spin pi-spinner mr-2"></i>Verifying…

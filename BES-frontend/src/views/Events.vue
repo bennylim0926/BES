@@ -66,15 +66,18 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="page-container relative">
+    <div class="color-bleed"></div>
+
+    <div class="relative z-10">
 
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <div>
-        <h1 class="page-title">Events</h1>
-        <p class="text-muted mt-1">Select an event to manage participants and scores</p>
+        <div class="type-page-title mb-1">Events</div>
+        <p class="type-label text-content-muted">Select an event to manage participants and scores</p>
       </div>
-      <span class="badge-neutral self-start sm:self-auto text-sm px-3 py-1">
+      <span class="badge-neutral type-label self-start sm:self-auto px-3 py-1">
         {{ events.length }} event{{ events.length !== 1 ? 's' : '' }}
       </span>
     </div>
@@ -87,9 +90,14 @@ onMounted(async () => {
       <input
         v-model="search"
         type="text"
-        placeholder="Search events…"
+        placeholder="Search events"
         class="input-base !pl-10"
       />
+    </div>
+
+    <div class="section-rule mb-6">
+      <span class="section-rule-label">All Events</span>
+      <div class="section-rule-line"></div>
     </div>
 
     <!-- Events grid -->
@@ -115,14 +123,15 @@ onMounted(async () => {
 
     <!-- Empty state -->
     <div v-else class="flex flex-col items-center justify-center py-24 text-center">
-      <div class="icon-wrap w-16 h-16 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
+      <div class="para-chip w-16 h-16 flex items-center justify-center mb-4">
         <i class="pi pi-calendar text-content-muted text-2xl"></i>
       </div>
-      <p class="font-heading font-semibold text-content-secondary text-lg">No events found</p>
-      <p class="text-muted mt-1">
+      <p class="type-body text-content-secondary">No events found</p>
+      <p class="type-label text-content-muted mt-1">
         {{ search ? 'Try a different search term' : 'No events are available yet' }}
       </p>
     </div>
 
+  </div>
   </div>
 </template>
