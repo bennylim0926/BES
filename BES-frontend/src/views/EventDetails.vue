@@ -144,23 +144,6 @@ const totalNotShownUp = computed(() => {
     .filter(rows => rows.every(r => r.auditionNumber === null)).length
 })
 
-const notShownUpList = computed(() => {
-  const grouped = {}
-  verifiedDbParticipants.value
-    .filter(p => !p.walkin)
-    .forEach(p => {
-      if (!grouped[p.participantName]) grouped[p.participantName] = []
-      grouped[p.participantName].push(p)
-    })
-  return Object.entries(grouped)
-    .filter(([, rows]) => rows.every(r => r.auditionNumber === null))
-    .map(([name, rows]) => ({
-      name,
-      genres: rows.map(r => r.genreName),
-      memberNames: rows.find(r => r.memberNames?.length)?.memberNames || []
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-})
 
 const registeredList = computed(() => {
   const grouped = {}
@@ -1004,51 +987,6 @@ onUnmounted(() => {
         <div class="type-label">Not Shown Up</div>
         <div class="type-label text-content-muted mt-1">Verified but no audition number yet</div>
       </div>
-    </div>
-
-    <!-- Not Shown Up panel -->
-    <div class="space-y-2 mb-6">
-      <div v-if="notShownUpList.length > 0" class="card-hover p-4 relative">
-        <div class="corner-bar-tl"></div>
-        <button
-          @click="expandedPeople.has('notShownUp') ? expandedPeople.delete('notShownUp') : expandedPeople.add('notShownUp'); expandedPeople = new Set(expandedPeople)"
-          :aria-expanded="expandedPeople.has('notShownUp')"
-          class="w-full flex items-center justify-between text-left"
-        >
-          <div class="flex items-center gap-3">
-            <i class="pi pi-clock text-amber-300 text-xs"></i>
-            <span class="type-body text-content-secondary">Not Shown Up</span>
-            <span class="badge-warning">{{ notShownUpList.length }}</span>
-          </div>
-          <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-             :class="{ 'rotate-180': expandedPeople.has('notShownUp') }"></i>
-        </button>
-        <div v-if="expandedPeople.has('notShownUp')" class="mt-4 pt-4 border-t border-surface-600/30">
-          <div class="space-y-2">
-            <div
-              v-for="p in notShownUpList"
-              :key="p.name"
-              class="para-chip p-3"
-            >
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="type-body text-content-secondary">{{ p.name }}</span>
-              </div>
-              <div class="flex flex-wrap gap-1 mt-1">
-                <span v-for="g in p.genres" :key="g"
-                  class="badge-neutral"
-                >{{ g }}</span>
-              </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
-                <i class="pi pi-users" style="font-size:0.65rem"></i>
-                <span>{{ p.memberNames.join(', ') }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p v-else class="type-body text-emerald-400 flex items-center gap-2 px-1">
-        <i class="pi pi-check-circle"></i> All verified participants have shown up
-      </p>
     </div>
 
     <!-- Side by side: Check-In + Registered -->
