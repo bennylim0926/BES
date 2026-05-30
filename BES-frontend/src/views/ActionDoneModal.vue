@@ -1,8 +1,9 @@
 <script setup>
 defineProps({
-  show:    { type: Boolean, default: false },
-  title:   { type: String,  default: 'Notification' },
-  variant: { type: String,  default: 'info' }
+  show:        { type: Boolean, default: false },
+  title:       { type: String,  default: 'Notification' },
+  variant:     { type: String,  default: 'info' },
+  acceptLabel: { type: String,  default: 'OK' }
 })
 
 defineEmits(['close', 'accept'])
@@ -54,8 +55,8 @@ defineEmits(['close', 'accept'])
 
         <button
           @click="$emit('accept')"
-          class="bg-accent para-chip type-label text-surface-900 px-6 py-2 w-full"
-        >OK</button>
+          class="para-chip type-label px-6 py-3 w-full border-2 border-accent text-accent hover:bg-accent hover:text-surface-900 transition-colors"
+        >{{ acceptLabel }}</button>
       </div>
     </div>
   </Transition>

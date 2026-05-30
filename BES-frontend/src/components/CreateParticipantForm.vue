@@ -102,6 +102,7 @@ onMounted(async () => {
     :show="props.show"
     :title="props.title"
     variant="info"
+    acceptLabel="Add Participant"
     @accept="submitNewEntry"
     @close="$emit('close')"
   >
@@ -114,7 +115,7 @@ onMounted(async () => {
         <input
           v-model="name"
           type="text"
-          placeholder="Enter stage name\u2026"
+          placeholder="Enter stage name…"
           class="input-base"
           @keyup.enter="submitNewEntry"
         />
@@ -192,7 +193,7 @@ onMounted(async () => {
               <input
                 v-model="teamNames[g]"
                 type="text"
-                placeholder="Enter team name\u2026"
+                placeholder="Enter team name…"
                 class="input-base"
               />
             </div>
@@ -210,7 +211,7 @@ onMounted(async () => {
                   :value="(teamMemberNames[g] || [])[i - 1] || ''"
                   @input="updateMemberName(g, i - 1, $event.target.value)"
                   type="text"
-                  :placeholder="`Member ${i + 1} stage name\u2026`"
+                  :placeholder="`Member ${i + 1} stage name…`"
                   class="input-base"
                 />
               </div>

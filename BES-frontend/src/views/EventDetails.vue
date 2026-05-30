@@ -858,12 +858,12 @@ onUnmounted(() => {
         <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName))">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).total }}</span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-teal-300 border border-teal-900/30">
+            <span class="badge-success">
               Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).registered }}
             </span>
             <span
               v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered > 0"
-              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-rose-300 border border-rose-900/30"
+              class="badge-danger"
             >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered }}</span>
           </div>
 
