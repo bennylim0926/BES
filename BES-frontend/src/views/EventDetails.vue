@@ -948,33 +948,35 @@ onUnmounted(() => {
           <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
             Judges <span class="normal-case font-normal opacity-60">(shared across all genres)</span>
           </p>
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-wrap items-center gap-2">
             <div
               v-for="j in eventJudges"
               :key="j.judgeId"
-              class="flex items-center gap-3 para-chip px-3 py-1.5 w-fit"
+              class="flex items-center gap-2 para-chip px-2.5 py-1"
             >
               <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
               <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
               <button
                 @click="submitRemoveJudge(j.judgeId)"
-                class="para-chip-sm px-2.5 py-1 type-label"
-              >Remove</button>
+                class="type-label text-content-muted hover:text-content-primary transition-colors"
+                title="Remove"
+              ><i class="pi pi-times text-xs"></i></button>
             </div>
-            <div class="flex items-center gap-2 para-chip p-2">
+            <div class="flex items-center gap-1.5 para-chip px-2.5 py-1">
               <input
                 v-model="addJudgeInput"
                 type="text"
                 placeholder="Add judge…"
-                class="flex-1 bg-transparent type-body placeholder:text-content-muted focus:outline-none"
+                autocomplete="off"
+                class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-28"
                 @keyup.enter="submitAddJudge"
               />
               <button
                 @click="submitAddJudge"
-                class="bg-accent para-chip-sm px-2.5 py-1 type-label"
-              ><i class="pi pi-plus" style="font-size:0.65rem"></i> Add</button>
+                class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+                title="Add"
+              ><i class="pi pi-plus text-xs"></i></button>
             </div>
-            <p v-if="eventJudges.length === 0" class="type-label text-content-muted px-1">No judges added yet</p>
           </div>
         </div>
 
