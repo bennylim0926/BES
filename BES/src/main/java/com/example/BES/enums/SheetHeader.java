@@ -9,4 +9,5 @@ public class SheetHeader {
     public static final String SCREENSHOT = "screenshot";
     public static final String STAGE_NAME = "stage name";
     public static final String TEAM_NAME  = "team name";
+    public static final String ENTRY_TYPE = "entry type";
 }

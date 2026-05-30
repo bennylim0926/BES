@@ -1,6 +1,6 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
-import { onMounted, ref, reactive, watch, computed } from 'vue';
+import { onMounted, ref, reactive, watch } from 'vue';
 import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
 
 const props = defineProps({
@@ -14,65 +14,73 @@ const emit = defineEmits(['createNewEntry', 'close'])
 
 const name = ref("")
 const selectedJudge = ref("")
-const genreOptions = ref([])  // array of { genreName, format }
+const genreOptions = ref([])
 const allJudges = ref([])
 const createTable = reactive({ genres: [] })
 const showError = ref(false)
-const teamMemberNames = ref([])
-const teamName = ref("")
-const entryMode = ref('team') // 'team' | 'solo'
 
-// First crew format among selected genres (e.g. "3v3")
-const crewFormat = computed(() => {
-  for (const genreName of createTable.genres) {
-    const option = genreOptions.value.find(o => o.genreName === genreName)
-    if (option && option.format && option.format.toLowerCase() !== '1v1') {
-      return option.format
+const entryModes = reactive({})
+const teamNames = reactive({})
+const teamMemberNames = reactive({})
+
+function selectedFormat(genreName) {
+  const option = genreOptions.value.find(o => o.genreName === genreName)
+  return option ? option.format : null
+}
+
+function isTeamFormat(genreName) {
+  const fmt = selectedFormat(genreName)
+  return fmt !== null && fmt.toLowerCase() !== '1v1'
+}
+
+function additionalMembersCountForGenre(genreName) {
+  const fmt = selectedFormat(genreName)
+  if (!fmt || entryModes[genreName] === 'solo') return 0
+  const match = fmt.match(/^(\d+)v\d+$/i)
+  return match ? parseInt(match[1]) - 1 : 0
+}
+
+function updateMemberName(genre, index, value) {
+  const arr = teamMemberNames[genre] || []
+  arr[index] = value
+  teamMemberNames[genre] = [...arr]
+}
+
+watch(() => createTable.genres.slice(), (selected) => {
+  for (const genreName of selected) {
+    if (isTeamFormat(genreName)) {
+      if (!(genreName in entryModes)) entryModes[genreName] = 'team'
+      if (!(genreName in teamNames)) teamNames[genreName] = ''
+      if (!(genreName in teamMemberNames)) teamMemberNames[genreName] = []
     }
   }
-  return null
-})
-
-// Show team/solo toggle only when a crew-format genre is selected
-const showEntryModeToggle = computed(() => crewFormat.value !== null)
-
-// How many additional member fields to show (crew size minus the representative)
-const additionalMembersCount = computed(() => {
-  if (!crewFormat.value || entryMode.value === 'solo') return 0
-  const match = crewFormat.value.match(/^(\d+)v\d+$/i)
-  return match ? parseInt(match[1]) - 1 : 0
-})
-
-// Keep teamMemberNames array sized to additionalMembersCount
-watch(additionalMembersCount, (count) => {
-  while (teamMemberNames.value.length < count) teamMemberNames.value.push("")
-  teamMemberNames.value.splice(count)
-})
-
-// Reset entryMode when crew-format genres are all deselected
-watch(showEntryModeToggle, (show) => {
-  if (!show) entryMode.value = 'team'
-})
+  for (const key of Object.keys(entryModes)) {
+    if (!selected.includes(key)) {
+      delete entryModes[key]
+      delete teamNames[key]
+      delete teamMemberNames[key]
+    }
+  }
+}, { deep: true })
 
 const submitNewEntry = async () => {
   if (name.value.trim() === "") {
     showError.value = true
     return
   }
-  const members = entryMode.value === 'solo' ? [] : teamMemberNames.value.filter(m => m.trim() !== "")
-  const tName = entryMode.value === 'solo' ? '' : teamName.value
   for (const g of createTable.genres) {
-    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName)
+    const mode = entryModes[g] || 'team'
+    const members = mode === 'solo' ? [] : (teamMemberNames[g] || []).filter(m => m.trim() !== "")
+    const tName = mode === 'solo' ? '' : (teamNames[g] || '')
+    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
   }
   name.value = ""
-  teamName.value = ""
   createTable.genres = []
-  teamMemberNames.value = []
-  entryMode.value = 'team'
+  Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
+  selectedJudge.value = ""
   emit("createNewEntry")
 }
 
-// Watch eventGenres prop so genres update when the parent fetches them
 watch(() => props.eventGenres, (newGenres) => {
   if (newGenres && newGenres.length > 0) {
     genreOptions.value = newGenres.map(g => ({ genreName: g.genreName, format: g.format || null }))
@@ -80,7 +88,6 @@ watch(() => props.eventGenres, (newGenres) => {
 }, { immediate: true })
 
 onMounted(async () => {
-  // Fallback to all genres only if no event-specific genres were provided
   if (!props.eventGenres || props.eventGenres.length === 0) {
     const genres = await fetchAllGenres()
     genreOptions.value = genres.map(g => ({ genreName: g.genreName, format: g.format || null }))
@@ -107,7 +114,7 @@ onMounted(async () => {
         <input
           v-model="name"
           type="text"
-          placeholder="Enter stage name…"
+          placeholder="Enter stage name\u2026"
           class="input-base"
           @keyup.enter="submitNewEntry"
         />
@@ -142,73 +149,75 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Solo / Team toggle — shown only when a crew-format genre is selected -->
-      <div v-if="showEntryModeToggle">
-        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
-          Entry Type
-          <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ crewFormat }}</span>
-        </label>
-        <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm font-semibold">
-          <button
-            type="button"
-            @click="entryMode = 'team'"
-            class="flex-1 px-4 py-2 transition-all"
-            :class="entryMode === 'team'
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
-          >
-            Team entry
-          </button>
-          <button
-            type="button"
-            @click="entryMode = 'solo'"
-            class="flex-1 px-4 py-2 border-l border-surface-600/60 transition-all"
-            :class="entryMode === 'solo'
-              ? 'bg-primary-600 text-white'
-              : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
-          >
-            Solo (pickup crew)
-          </button>
-        </div>
-        <p v-if="entryMode === 'solo'" class="text-xs text-content-muted mt-1.5">
-          Auditions individually. Can be grouped into a crew after auditions.
-        </p>
-      </div>
-
-      <!-- Team name + members — shown only when team entry mode and a crew-format genre is selected -->
-      <template v-if="additionalMembersCount > 0">
-        <div>
-          <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
-            Team Name
-            <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ crewFormat }}</span>
+      <!-- Per-genre Team|Solo toggles -->
+      <div v-for="g in createTable.genres" :key="g">
+        <template v-if="isTeamFormat(g)">
+          <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
+            {{ g }} Entry Type
+            <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ selectedFormat(g) }}</span>
           </label>
-          <input
-            v-model="teamName"
-            type="text"
-            placeholder="Enter team name…"
-            class="input-base"
-          />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1">
-            Team Members
-          </label>
-          <p class="text-xs text-surface-500 mb-2">
-            Stage name is Member 1 (representative). Enter the other {{ additionalMembersCount }}.
-          </p>
-          <div class="space-y-2">
-            <input
-              v-for="i in additionalMembersCount"
-              :key="i"
-              v-model="teamMemberNames[i - 1]"
-              type="text"
-              :placeholder="`Member ${i + 1} stage name…`"
-              class="input-base"
-            />
+          <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm font-semibold mb-3">
+            <button
+              type="button"
+              @click="entryModes[g] = 'team'"
+              class="flex-1 px-4 py-2 transition-all"
+              :class="entryModes[g] === 'team'
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >
+              Team entry
+            </button>
+            <button
+              type="button"
+              @click="entryModes[g] = 'solo'"
+              class="flex-1 px-4 py-2 border-l border-surface-600/60 transition-all"
+              :class="entryModes[g] === 'solo'
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+            >
+              Solo (pickup crew)
+            </button>
           </div>
-        </div>
-      </template>
+          <p v-if="entryModes[g] === 'solo'" class="text-xs text-content-muted mt-1.5 mb-2">
+            Auditions individually. Can be grouped into a crew after auditions.
+          </p>
+
+          <!-- Team name + members for this genre -->
+          <template v-if="entryModes[g] === 'team' && additionalMembersCountForGenre(g) > 0">
+            <div class="mb-2">
+              <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
+                {{ g }} Team Name
+                <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ selectedFormat(g) }}</span>
+              </label>
+              <input
+                v-model="teamNames[g]"
+                type="text"
+                placeholder="Enter team name\u2026"
+                class="input-base"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1">
+                {{ g }} Team Members
+              </label>
+              <p class="text-xs text-surface-500 mb-2">
+                Stage name is Member 1 (representative). Enter the other {{ additionalMembersCountForGenre(g) }}.
+              </p>
+              <div class="space-y-2">
+                <input
+                  v-for="i in additionalMembersCountForGenre(g)"
+                  :key="i"
+                  :value="(teamMemberNames[g] || [])[i - 1] || ''"
+                  @input="updateMemberName(g, i - 1, $event.target.value)"
+                  type="text"
+                  :placeholder="`Member ${i + 1} stage name\u2026`"
+                  class="input-base"
+                />
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
     </div>
   </ActionDoneModal>
 

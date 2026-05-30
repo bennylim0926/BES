@@ -33,6 +33,8 @@ import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
+import com.example.BES.models.EventGenreParticipantMember;
+import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
 
@@ -64,29 +66,51 @@ public class EventGenreParticpantService {
     @Autowired
     EventGenreRepo eventGenreRepo;
 
-    public EventGenreParticipant addWalkInToEventGenreParticipant(Participant p, String genre, EventParticipant ep, String judge){
-        
+    @Autowired
+    EventGenreParticipantMemberRepo egpMemberRepo;
+
+    public EventGenreParticipant addWalkInToEventGenreParticipant(
+            Participant p, String genre, EventParticipant ep,
+            String judgeName, String entryMode, String teamName, List<String> teamMembers) {
+
         Genre g = genreRepo.findByGenreName(genre).orElse(null);
-        Judge j = judgeRepo.findByName(judge).orElse(null);
+        Judge j = judgeRepo.findByName(judgeName).orElse(null);
         EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
-        if(egp == null){
+        if (egp == null) {
             egp = new EventGenreParticipant();
             egp.setId(id);
             egp.setJudge(j);
             egp.setEvent(ep.getEvent());
             egp.setParticipant(p);
             egp.setGenre(g);
-            egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
+
             EventGenre eg = eventGenreRepo.findByEventAndGenre(ep.getEvent(), g).orElse(null);
-            if (eg != null) {
-                String genreFormat = eg.getFormat();
-                boolean isTeamEntry = (ep.getTeamName() != null && !ep.getTeamName().isBlank())
-                    || (ep.getTeamMembers() != null && !ep.getTeamMembers().isEmpty());
-                egp.setFormat(isTeamFormat(genreFormat) && !isTeamEntry ? null : genreFormat);
+            String genreFormat = eg != null ? eg.getFormat() : null;
+            boolean isTeamFormat = isTeamFormat(genreFormat);
+            boolean isTeamEntry = isTeamFormat && !"solo".equalsIgnoreCase(entryMode);
+
+            if (isTeamEntry) {
+                validateTeamEntry(genreFormat, teamName, teamMembers);
+                egp.setFormat(genreFormat);
+                egp.setTeamName(teamName);
+                egp.setDisplayName(teamName);
+            } else {
+                egp.setFormat(isTeamFormat ? null : genreFormat);
+                egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
             }
         }
-        return repo.save(egp);
+        EventGenreParticipant saved = repo.save(egp);
+
+        if (!"solo".equalsIgnoreCase(entryMode) && isTeamFormat(saved.getFormat())
+                && teamMembers != null) {
+            for (String memberName : teamMembers) {
+                if (memberName != null && !memberName.isBlank()) {
+                    egpMemberRepo.save(new EventGenreParticipantMember(saved, memberName));
+                }
+            }
+        }
+        return saved;
     }
 
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
@@ -227,10 +251,19 @@ public class EventGenreParticpantService {
             if(j != null){
                 dto.judgeName = j.getName();
             }
-            // Only expose member names for team-format EGPs (format != "1v1")
             String fmt = res.getFormat();
             if (fmt != null && !fmt.equalsIgnoreCase("1v1")) {
-                dto.memberNames = memberNamesMap.get(pid);
+                // Prefer EGP-level team members (new data); fall back to EP-level (legacy)
+                List<EventGenreParticipantMember> egpMembers = res.getMembers();
+                if (egpMembers != null && !egpMembers.isEmpty()) {
+                    List<String> memberList = new ArrayList<>();
+                    String leaderName = res.getDisplayName() != null ? res.getDisplayName() : res.getParticipant().getParticipantName();
+                    memberList.add(leaderName);
+                    egpMembers.stream().map(EventGenreParticipantMember::getMemberName).forEach(memberList::add);
+                    dto.memberNames = memberList;
+                } else {
+                    dto.memberNames = memberNamesMap.get(pid);
+                }
             }
             dto.format = fmt;
             dtos.add(dto);
@@ -284,6 +317,19 @@ public class EventGenreParticpantService {
         egp.setGenre(genre);
         egp.setParticipant(participant);
         egp.setDisplayName(ep != null ? ep.getDisplayName() : participant.getParticipantName());
+
+        EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+        String genreFormat = eg != null ? eg.getFormat() : null;
+        boolean isTeamEntry = isTeamFormat(genreFormat)
+            && ep != null
+            && ((ep.getTeamName() != null && !ep.getTeamName().isBlank())
+                || (ep.getTeamMembers() != null && !ep.getTeamMembers().isEmpty()));
+        egp.setFormat(isTeamEntry ? genreFormat : (isTeamFormat(genreFormat) ? null : genreFormat));
+        if (isTeamEntry && ep != null) {
+            egp.setDisplayName(ep.getTeamName() != null ? ep.getTeamName() : egp.getDisplayName());
+            egp.setTeamName(ep.getTeamName());
+        }
+
         repo.save(egp);
         if (ep != null) {
             String current = ep.getGenre();
@@ -320,6 +366,23 @@ public class EventGenreParticpantService {
 
     private boolean isTeamFormat(String fmt) {
         return fmt != null && !fmt.equalsIgnoreCase("1v1");
+    }
+
+    int parseFormatSize(String format) {
+        if (format == null) return 0;
+        String[] parts = format.split("v");
+        try { return Integer.parseInt(parts[0]); } catch (NumberFormatException e) { return 0; }
+    }
+
+    void validateTeamEntry(String format, String teamName, List<String> memberNames) {
+        int required = parseFormatSize(format) - 1;
+        if (teamName == null || teamName.isBlank())
+            throw new IllegalArgumentException("Team name is required for team entry");
+        long nonBlank = memberNames == null ? 0L
+            : memberNames.stream().filter(m -> m != null && !m.isBlank()).count();
+        if (nonBlank != required)
+            throw new IllegalArgumentException(
+                "Expected " + required + " additional member(s) for " + format + ", got " + nonBlank);
     }
 
 }

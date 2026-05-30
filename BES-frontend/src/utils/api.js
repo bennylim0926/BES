@@ -309,7 +309,7 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
   }
 }
 
-export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '')=>{
+export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '', entryMode = 'team')=>{
   try{
   return await fetch(`${domain}/api/v1/event/walkins/`, {
     method: 'POST',
@@ -324,7 +324,8 @@ export const addWalkinToSystem = async (participantName, eventName, genreName, j
         genre: genreName,
         judgeName: judgeName,
         teamMembers: teamMembers,
-        teamName: teamName
+        teamName: teamName,
+        entryMode: entryMode
     })
   })
   }catch(e){

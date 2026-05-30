@@ -157,6 +157,7 @@ public class GoogleSheetService {
             String h = headers.get(i).toLowerCase();
             if (h.contains(SheetHeader.STAGE_NAME)) colIndexMap.putIfAbsent(SheetHeader.STAGE_NAME, i);
             if (h.contains(SheetHeader.TEAM_NAME))  colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i);
+            if (h.contains(SheetHeader.ENTRY_TYPE)) colIndexMap.putIfAbsent(SheetHeader.ENTRY_TYPE, i);
         }
 
         // Normalize headers: remove extra name columns (passing pre-scan map so special cols are skipped)

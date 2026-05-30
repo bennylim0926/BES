@@ -73,6 +73,7 @@ import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
 import com.example.BES.dtos.GetAuditionFeedbackDto;
+import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
 import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
@@ -293,24 +294,28 @@ public class EventController {
     public ResponseEntity<String> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
-            eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep, dto.judgeName);
+            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
+            eventGenreParticipantService.addWalkInToEventGenreParticipant(
+                p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
             Map<String, Object> walkinMsg = new java.util.HashMap<>();
             walkinMsg.put("eventName", dto.eventName);
             messagingTemplate.convertAndSend("/topic/walkin/", walkinMsg);
             return new ResponseEntity<>(gson.toJson("Added walkin"), HttpStatus.CREATED);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
-            return new ResponseEntity<>(gson.toJson("error"), HttpStatus.BAD_REQUEST);
+            log.error("Error adding walk-in", e);
+            return new ResponseEntity<>(gson.toJson("Error adding participant"), HttpStatus.BAD_REQUEST);
         }
     }
 
     @Operation(summary = "Add List of Participants", description = "Adds participants to an event, typically read from a Google Sheet")
     @PostMapping("/participants/")
-    public ResponseEntity<String> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
+    public ResponseEntity<?> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
             throws IOException, MessagingException, WriterException {
         try {
-            registerService.addParticipantToEvent(dto);
-            return new ResponseEntity<>(gson.toJson("Participants list updated!"), HttpStatus.CREATED);
+            ImportResultDto result = registerService.addParticipantToEvent(dto);
+            return new ResponseEntity<>(result, HttpStatus.OK);
         } catch (NullPointerException e) {
             log.error("NPE in addParticipantsToSystem", e);
             return new ResponseEntity<>(

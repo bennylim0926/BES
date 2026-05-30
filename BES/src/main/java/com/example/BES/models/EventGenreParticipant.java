@@ -1,5 +1,6 @@
 package com.example.BES.models;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.AttributeOverride;
@@ -66,4 +67,12 @@ public class EventGenreParticipant {
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "eventGenreParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Score> scores;
+
+    @Column(name = "team_name")
+    private String teamName;
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @OneToMany(mappedBy = "eventGenreParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EventGenreParticipantMember> members = new ArrayList<>();
 }

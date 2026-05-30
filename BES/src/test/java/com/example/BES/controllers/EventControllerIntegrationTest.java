@@ -27,6 +27,7 @@ import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.dtos.AddParticipantToEventGenreDto;
+import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetGenreDto;
@@ -152,8 +153,8 @@ public class EventControllerIntegrationTest {
         egp.setParticipant(p);
 
         when(participantService.addWalkInService(any())).thenReturn(p);
-        when(eventParticipantService.addNewWalkInInEventService(any(), any(), any(), any(), any())).thenReturn(ep);
-        when(eventGenreParticipantService.addWalkInToEventGenreParticipant(any(), any(), any(), any())).thenReturn(egp);
+        when(eventParticipantService.addNewWalkInInEventService(any(), any())).thenReturn(ep);
+        when(eventGenreParticipantService.addWalkInToEventGenreParticipant(any(), any(), any(), any(), any(), any(), any())).thenReturn(egp);
 
         mockMvc.perform(post("/api/v1/event/walkins/")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -167,13 +168,13 @@ public class EventControllerIntegrationTest {
     public void testAddParticipantsList() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of());
 
-        doNothing().when(registerService).addParticipantToEvent(any(AddParticipantToEventDto.class));
+        when(registerService.addParticipantToEvent(any(AddParticipantToEventDto.class)))
+            .thenReturn(new ImportResultDto());
 
         mockMvc.perform(post("/api/v1/event/participants/")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value("Participants list updated!"));
+                .andExpect(status().isOk());
     }
 
     @Test

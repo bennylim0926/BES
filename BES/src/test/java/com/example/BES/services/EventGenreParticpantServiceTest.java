@@ -9,6 +9,7 @@ import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
+import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
@@ -36,6 +37,7 @@ class EventGenreParticpantServiceTest {
     @Mock JudgeRepo judgeRepo;
     @Mock EventParticipantRepo eventParticipantRepo;
     @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventGenreParticipantMemberRepo egpMemberRepo;
     @InjectMocks EventGenreParticpantService service;
 
     @Test

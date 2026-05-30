@@ -55,6 +55,12 @@ public class RegistrationDtoMapper {
         }
         dto.setMemberNames(memberNames);
 
+        // Entry type
+        Integer entryTypeIdx = colIndexMap.get(SheetHeader.ENTRY_TYPE);
+        if (entryTypeIdx != null && row.size() > entryTypeIdx && !row.get(entryTypeIdx).isBlank()) {
+            dto.setEntryType(row.get(entryTypeIdx).trim().toLowerCase());
+        }
+
         if (colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)) {
             int residencyIdx = colIndexMap.get(SheetHeader.LOCAL_OVERSEAS);
             if (row.size() > residencyIdx) {
