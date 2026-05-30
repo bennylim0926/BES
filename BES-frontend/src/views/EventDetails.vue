@@ -252,15 +252,25 @@ const filteredRegisteredList = computed(() => {
   return list
 })
 
-const adjustSearchResults = computed(() => {
-  if (!adjustSearch.value.trim()) return []
-  const q = adjustSearch.value.toLowerCase()
-  const names = new Set(
+// Participants with no audition numbers in any genre — eligible for genre changes
+const eligibleParticipants = computed(() => {
+  const locked = new Set(
     verifiedDbParticipants.value
-      .filter(p => p.participantName.toLowerCase().includes(q))
+      .filter(p => p.auditionNumber !== null)
       .map(p => p.participantName)
   )
-  return [...names]
+  const names = new Set(
+    verifiedDbParticipants.value
+      .filter(p => !locked.has(p.participantName))
+      .map(p => p.participantName)
+  )
+  return [...names].sort()
+})
+
+const adjustSearchResults = computed(() => {
+  const q = adjustSearch.value.trim().toLowerCase()
+  if (!q) return eligibleParticipants.value
+  return eligibleParticipants.value.filter(n => n.toLowerCase().includes(q))
 })
 
 const adjustParticipantGenres = computed(() =>
@@ -398,7 +408,10 @@ const toggleAdjustGenre = async (genre) => {
       await addGenreToParticipant(participantId, eventId, genre.genreName)
     }
   }
-  verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+  await Promise.all([
+    getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
+    fetchCheckinList()
+  ])
   adjustLoading.value = false
 }
 
@@ -1274,15 +1287,18 @@ onUnmounted(() => {
           <!-- Body -->
           <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
 
-            <!-- Search -->
+            <!-- Search + eligible list -->
             <div>
-              <label class="type-label text-content-muted block mb-1.5">Participant</label>
-              <div class="relative">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="type-label text-content-muted">Eligible Participants</label>
+                <span class="type-label text-content-muted">{{ eligibleParticipants.length }} available</span>
+              </div>
+              <div class="relative mb-2">
                 <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
                 <input
                   v-model="adjustSearch"
                   type="text"
-                  placeholder="Search by name…"
+                  placeholder="Filter by name…"
                   autocomplete="off"
                   class="input-base pl-8"
                 />
@@ -1294,15 +1310,22 @@ onUnmounted(() => {
                   <i class="pi pi-times text-xs"></i>
                 </button>
               </div>
-              <!-- Inline results — no absolute overlay -->
-              <div v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant" class="mt-2 flex flex-wrap gap-1.5">
+              <!-- Participant list — always visible, filtered by search -->
+              <div v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant" class="flex flex-wrap gap-1.5">
                 <button
                   v-for="name in adjustSearchResults"
                   :key="name"
                   @click="adjustParticipant = name; adjustSearch = name"
-                  class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-all"
+                  class="para-chip-sm px-3 py-1.5 type-label transition-all"
+                  :class="adjustParticipant === name ? 'text-accent border-[color:var(--accent-color)]' : 'text-content-secondary hover:text-accent'"
                 >{{ name }}</button>
               </div>
+              <p v-else-if="adjustSearchResults.length === 0 && eligibleParticipants.length === 0" class="type-label text-content-muted px-1">
+                No eligible participants — all have audition numbers
+              </p>
+              <p v-else-if="adjustSearchResults.length === 0" class="type-label text-content-muted px-1">
+                No matches
+              </p>
             </div>
 
             <!-- Selected participant -->
@@ -1351,11 +1374,6 @@ onUnmounted(() => {
               </p>
             </template>
 
-            <!-- Empty state -->
-            <div v-else-if="!adjustSearch" class="py-10 text-center">
-              <i class="pi pi-search text-content-muted text-xl mb-3 block opacity-40"></i>
-              <p class="type-label text-content-muted">Search for a participant above</p>
-            </div>
 
           </div>
         </div>

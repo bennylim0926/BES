@@ -340,11 +340,6 @@ public class EventGenreParticpantService {
             }
             eventParticipantRepo.save(ep);
         }
-        AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
-        dto.participantId = participantId;
-        dto.eventId = eventId;
-        dto.genreId = genre.getGenreId();
-        getAuditionNumViaQR(dto);
     }
 
     public void updateParticipantsJudgeService(UpdateParticipantJudgeDto dto){
