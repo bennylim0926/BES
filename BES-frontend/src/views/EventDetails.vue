@@ -71,7 +71,6 @@ const showAdjustModal = ref(false)
 const adjustSearch = ref('')
 const adjustParticipant = ref(null)
 const adjustParticipantIds = ref({ participantId: null, eventId: null })
-const pendingRemoveItem = ref(null)
 const adjustLoading = ref(false)
 
 // Email template popup
@@ -268,10 +267,8 @@ const adjustParticipantGenres = computed(() =>
   verifiedDbParticipants.value.filter(p => p.participantName === adjustParticipant.value)
 )
 
-const adjustAvailableGenres = computed(() =>
-  eventGenres.value.filter(g =>
-    !adjustParticipantGenres.value.some(p => p.genreName === g.genreName)
-  )
+const adjustParticipantLocked = computed(() =>
+  adjustParticipantGenres.value.some(p => p.auditionNumber !== null)
 )
 
 // Persist IDs whenever the selected participant has EGP rows (survives after all genres removed)
@@ -386,30 +383,21 @@ const closeAdjustModal = () => {
   adjustSearch.value = ''
   adjustParticipant.value = null
   adjustParticipantIds.value = { participantId: null, eventId: null }
-  pendingRemoveItem.value = null
 }
 
-const requestRemoveGenre = (item) => {
-  if (item.auditionNumber !== null) {
-    pendingRemoveItem.value = item
+const toggleAdjustGenre = async (genre) => {
+  if (adjustParticipantLocked.value || adjustLoading.value) return
+  adjustLoading.value = true
+  const isEnrolled = adjustParticipantGenres.value.some(p => p.genreName === genre.genreName)
+  if (isEnrolled) {
+    const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.genreName)
+    await removeParticipantGenre(egp.participantId, egp.eventId, egp.genreId)
   } else {
-    confirmRemoveGenre(item)
+    const { participantId, eventId } = adjustParticipantIds.value
+    if (participantId && eventId) {
+      await addGenreToParticipant(participantId, eventId, genre.genreName)
+    }
   }
-}
-
-const confirmRemoveGenre = async (item) => {
-  adjustLoading.value = true
-  pendingRemoveItem.value = null
-  await removeParticipantGenre(item.participantId, item.eventId, item.genreId)
-  verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
-  adjustLoading.value = false
-}
-
-const addGenre = async (genreName) => {
-  const { participantId, eventId } = adjustParticipantIds.value
-  if (!participantId || !eventId) return
-  adjustLoading.value = true
-  await addGenreToParticipant(participantId, eventId, genreName)
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   adjustLoading.value = false
 }
@@ -1254,153 +1242,125 @@ onUnmounted(() => {
 
   <!-- Genre Adjustment Modal -->
   <Teleport to="body">
-    <div
-      v-if="showAdjustModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      @click.self="closeAdjustModal"
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
     >
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-      <div class="relative bg-surface-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height: 90vh;">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-surface-600/30">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
-              <i class="pi pi-sliders-h text-primary-400 text-sm"></i>
+      <div
+        v-if="showAdjustModal"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      >
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeAdjustModal" />
+        <div class="card-hover relative w-full sm:max-w-md flex flex-col" style="max-height: 85vh;">
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
+            <div class="flex items-center gap-2">
+              <i class="pi pi-sliders-h text-content-muted text-xs"></i>
+              <span class="type-body text-content-primary">Adjust Genres</span>
+              <span class="badge-neutral type-label">{{ props.eventName }}</span>
             </div>
+            <button @click="closeAdjustModal" class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+
+            <!-- Search -->
             <div>
-              <h2 class="font-heading font-bold text-content-primary text-base">Adjust Genres</h2>
-              <p class="text-xs text-content-muted">{{ props.eventName }}</p>
-            </div>
-          </div>
-          <button
-            @click="closeAdjustModal"
-            class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-content-muted hover:text-content-secondary transition-colors"
-          >
-            <i class="pi pi-times text-sm"></i>
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <!-- Search -->
-          <div
-            class="relative"
-            :style="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant ? 'padding-bottom: 200px' : ''"
-          >
-            <label class="block text-sm font-semibold text-content-secondary mb-1.5">Search Participant</label>
-            <div class="relative">
-              <input
-                v-model="adjustSearch"
-                type="text"
-                placeholder="Type a name…"
-                autocomplete="off"
-                class="w-full px-4 py-2.5 pr-9 rounded-xl border border-surface-600 text-sm text-content-primary
-                       focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
-              />
-              <button
-                v-if="adjustSearch"
-                @click="adjustSearch = ''; adjustParticipant = null"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors"
-              >
-                <i class="pi pi-times text-xs"></i>
-              </button>
-            </div>
-            <!-- Realtime dropdown results -->
-            <div
-              v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant"
-              class="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-surface-600
-                     bg-surface-800 shadow-xl overflow-hidden"
-            >
-              <button
-                v-for="name in adjustSearchResults"
-                :key="name"
-                @click="adjustParticipant = name; adjustSearch = name"
-                class="w-full text-left px-4 py-2.5 text-sm font-medium text-content-secondary
-                       hover:bg-primary-500/10 hover:text-primary-400 transition-colors border-b border-surface-700
-                       last:border-b-0"
-              >
-                {{ name }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Selected participant view -->
-          <div v-if="adjustParticipant">
-            <!-- Current genres -->
-            <div class="mb-5">
-              <p class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Current Genres</p>
-              <div v-if="adjustParticipantGenres.length === 0" class="text-sm text-content-muted">No genres assigned</div>
-              <div class="space-y-2">
-                <div
-                  v-for="p in adjustParticipantGenres"
-                  :key="p.genreId"
-                  class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-900 border border-surface-600"
+              <label class="type-label text-content-muted block mb-1.5">Participant</label>
+              <div class="relative">
+                <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+                <input
+                  v-model="adjustSearch"
+                  type="text"
+                  placeholder="Search by name…"
+                  autocomplete="off"
+                  class="input-base pl-8"
+                />
+                <button
+                  v-if="adjustSearch"
+                  @click="adjustSearch = ''; adjustParticipant = null"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors"
                 >
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-content-secondary">{{ p.genreName }}</span>
-                    <span
-                      v-if="p.auditionNumber !== null"
-                      class="badge-warning inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-surface-700 text-amber-300 border border-amber-900/30"
-                    >
-                      #{{ p.auditionNumber }}
-                    </span>
-                  </div>
-                  <!-- Confirm state -->
-                  <div v-if="pendingRemoveItem === p" class="flex items-center gap-2">
-                    <span class="text-xs text-amber-300">Audition #{{ p.auditionNumber }} will be withdrawn</span>
-                    <button
-                      @click="confirmRemoveGenre(p)"
-                      class="px-2.5 py-1 rounded-lg bg-rose-800 text-white text-xs font-semibold hover:bg-rose-700 transition-colors"
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      @click="pendingRemoveItem = null"
-                      class="px-2.5 py-1 rounded-lg border border-surface-600 text-xs font-semibold text-content-muted hover:bg-surface-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <button
-                    v-else
-                    @click="requestRemoveGenre(p)"
-                    :disabled="adjustLoading"
-                    class="px-2.5 py-1 rounded-lg bg-surface-700 text-rose-300 text-xs font-semibold
-                           hover:bg-surface-600 border border-rose-900/30 disabled:opacity-50 transition-colors"
-                  >
-                    Remove
-                  </button>
-                </div>
+                  <i class="pi pi-times text-xs"></i>
+                </button>
+              </div>
+              <!-- Inline results — no absolute overlay -->
+              <div v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant" class="mt-2 flex flex-wrap gap-1.5">
+                <button
+                  v-for="name in adjustSearchResults"
+                  :key="name"
+                  @click="adjustParticipant = name; adjustSearch = name"
+                  class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-all"
+                >{{ name }}</button>
               </div>
             </div>
 
-            <!-- Add genres -->
-            <div>
-              <p class="text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">Add Genre</p>
-              <div v-if="adjustAvailableGenres.length === 0" class="text-sm text-content-muted">All genres already assigned</div>
-              <div class="space-y-2">
-                <div
-                  v-for="g in adjustAvailableGenres"
+            <!-- Selected participant -->
+            <template v-if="adjustParticipant">
+              <div class="section-rule">
+                <span class="section-rule-label">{{ adjustParticipant }}</span>
+                <div class="section-rule-line"></div>
+              </div>
+
+              <!-- Lock warning -->
+              <div
+                v-if="adjustParticipantLocked"
+                class="flex items-center gap-2 px-3 py-2 para-chip"
+                style="border-left: 3px solid rgb(251 191 36); background: rgba(251,191,36,0.07);"
+              >
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow: 0 0 6px rgba(251,191,36,0.6)"></span>
+                <i class="pi pi-lock text-amber-400 text-xs shrink-0"></i>
+                <span class="type-label text-amber-400">Auditions started — genre changes locked</span>
+              </div>
+
+              <!-- Genre checklist -->
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="g in eventGenres"
                   :key="g.genreName"
-                  class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-900 border border-surface-600"
+                  @click="toggleAdjustGenre(g)"
+                  :disabled="adjustParticipantLocked || adjustLoading"
+                  class="para-chip p-3 flex items-center gap-2 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="adjustParticipantGenres.some(p => p.genreName === g.genreName)
+                    ? 'text-accent border-[color:var(--accent-color)]'
+                    : 'text-content-secondary'"
                 >
-                  <span class="text-sm font-medium text-content-secondary">{{ g.genreName }}</span>
-                  <button
-                    @click="addGenre(g.genreName)"
-                    :disabled="adjustLoading"
-                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-500 text-white text-xs font-semibold
-                           hover:bg-primary-600 active:scale-95 disabled:opacity-50 transition-all"
-                  >
-                    <i class="pi pi-plus text-xs"></i>
-                    Add
-                  </button>
-                </div>
+                  <i
+                    class="pi text-xs shrink-0"
+                    :class="adjustParticipantGenres.some(p => p.genreName === g.genreName)
+                      ? 'pi-check-circle text-accent'
+                      : 'pi-circle text-content-muted'"
+                  ></i>
+                  <span class="type-body flex-1 truncate">{{ g.genreName }}</span>
+                  <span v-if="g.format" class="type-label text-content-muted shrink-0">{{ g.format }}</span>
+                </button>
               </div>
+
+              <p v-if="eventGenres.length === 0" class="type-label text-content-muted text-center py-4">
+                No genres configured for this event
+              </p>
+            </template>
+
+            <!-- Empty state -->
+            <div v-else-if="!adjustSearch" class="py-10 text-center">
+              <i class="pi pi-search text-content-muted text-xl mb-3 block opacity-40"></i>
+              <p class="type-label text-content-muted">Search for a participant above</p>
             </div>
+
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 
   <!-- Email Template Modal -->
