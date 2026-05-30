@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, getEmailTemplate, updateEmailTemplate, resetEmailTemplate, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -73,44 +73,6 @@ const adjustParticipant = ref(null)
 const adjustParticipantIds = ref({ participantId: null, eventId: null })
 const adjustLoading = ref(false)
 
-// Email template popup
-const showTemplateModal = ref(false)
-const templateLoading = ref(false)
-const templateSubject = ref('')
-const templateBody = ref('')
-
-const openTemplateModal = async () => {
-  templateLoading.value = true
-  showTemplateModal.value = true
-  const tpl = await getEmailTemplate(props.eventName)
-  if (tpl) {
-    templateSubject.value = tpl.subject
-    templateBody.value = tpl.body
-  }
-  templateLoading.value = false
-}
-
-const saveTemplate = async () => {
-  templateLoading.value = true
-  const res = await updateEmailTemplate(props.eventName, templateSubject.value, templateBody.value)
-  templateLoading.value = false
-  if (res && res.ok) {
-    showTemplateModal.value = false
-    openModal('Template Saved', 'Email template updated successfully.', 'success')
-  } else {
-    openModal('Error', 'Failed to save email template.', 'error')
-  }
-}
-
-const resetTemplate = async () => {
-  templateLoading.value = true
-  const tpl = await resetEmailTemplate(props.eventName)
-  templateLoading.value = false
-  if (tpl) {
-    templateSubject.value = tpl.subject
-    templateBody.value = tpl.body
-  }
-}
 
 const openModal = (title, message, variant = 'success') => {
   modalTitle.value = title
@@ -1372,116 +1334,6 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
-  </Teleport>
-
-  <!-- Email Template Modal -->
-  <Teleport to="body">
-    <div
-      v-if="showTemplateModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      @click.self="showTemplateModal = false"
-    >
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-      <div class="relative bg-surface-800 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height: 90vh;">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-surface-600/30">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center">
-              <i class="pi pi-envelope text-primary-400 text-sm"></i>
-            </div>
-            <div>
-              <h2 class="font-heading font-bold text-content-primary text-base">Email Template</h2>
-              <p class="text-xs text-content-muted">{{ props.eventName }}</p>
-            </div>
-          </div>
-          <button
-            @click="showTemplateModal = false"
-            class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-content-muted hover:text-content-secondary transition-colors"
-          >
-            <i class="pi pi-times text-sm"></i>
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div v-if="templateLoading" class="flex-1 flex items-center justify-center py-12">
-          <i class="pi pi-spinner pi-spin text-primary-500 text-2xl"></i>
-        </div>
-        <div v-else class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div>
-            <label class="block text-sm font-semibold text-content-secondary mb-1.5">Subject</label>
-            <input
-              v-model="templateSubject"
-              type="text"
-              class="w-full px-4 py-2.5 rounded-xl border border-surface-600 text-sm text-content-primary
-                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
-              placeholder="Email subject…"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-content-secondary mb-2">Body</label>
-
-            <!-- Variable reference -->
-            <div class="mb-3 p-3 rounded-xl bg-surface-900/60 border border-surface-600/40 space-y-2 text-xs text-content-muted">
-              <p class="font-semibold text-content-secondary uppercase tracking-wider text-[10px]">Available Variables</p>
-              <div class="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{name}</code> — display name (team name or stage name)</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{stageName}</code> — representative's stage name</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{teamName}</code> — crew/team name</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{members}</code> — all team members (comma-separated)</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{soloCategories}</code> — solo (1v1) categories entered</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{teamCategories}</code> — team categories entered</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-primary-300">{refCode}</code> — results reference code</div>
-              </div>
-              <p class="font-semibold text-content-secondary uppercase tracking-wider text-[10px] pt-1">Conditional Blocks (for mixed events)</p>
-              <div class="space-y-1">
-                <div><code class="font-source bg-surface-700 px-1 rounded text-amber-300">{if:team}...{endif:team}</code> — shown only if participant has team categories</div>
-                <div><code class="font-source bg-surface-700 px-1 rounded text-amber-300">{if:solo}...{endif:solo}</code> — shown only if participant has solo categories</div>
-              </div>
-            </div>
-
-            <textarea
-              v-model="templateBody"
-              rows="10"
-              class="w-full px-4 py-2.5 rounded-xl border border-surface-600 text-sm text-content-primary font-source
-                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors resize-none"
-              placeholder="Email body…"
-            ></textarea>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex items-center justify-between gap-3 px-6 py-4 border-t border-surface-600/30">
-          <button
-            @click="resetTemplate"
-            :disabled="templateLoading"
-            class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-content-muted
-                   hover:text-content-secondary hover:bg-surface-700 disabled:opacity-50 transition-colors"
-            title="Regenerate smart default based on event genre formats"
-          >
-            <i class="pi pi-refresh text-xs"></i>
-            Reset to default
-          </button>
-          <div class="flex items-center gap-3">
-            <button
-              @click="showTemplateModal = false"
-              class="px-4 py-2 rounded-xl border border-surface-600 text-sm font-semibold text-content-secondary
-                     hover:bg-surface-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              @click="saveTemplate"
-              :disabled="templateLoading"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold
-                     hover:bg-primary-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              <i class="pi pi-check text-xs"></i>
-              Save Template
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   </Teleport>
 
   <!-- Scoring Criteria Modal -->
