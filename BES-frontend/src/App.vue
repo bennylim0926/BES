@@ -214,8 +214,9 @@ onUnmounted(() => {
               leave-to-class="opacity-0 translate-y-1"
             >
               <div v-if="eventMenuOpen"
-                class="absolute right-0 top-full mt-2 w-52 z-50 bg-surface-800 border border-[rgba(255,255,255,0.07)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden relative"
-                style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)">
+                class="absolute right-0 top-full mt-2 w-52 z-50 bg-surface-800 border border-[rgba(255,255,255,0.07)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden"
+                style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
+                @click.stop>
                 <div class="corner-bar-tl"></div>
                 <div class="px-3 py-2.5 border-b border-[rgba(255,255,255,0.07)]">
                   <p class="type-label text-content-muted mb-0.5">Current Event</p>
