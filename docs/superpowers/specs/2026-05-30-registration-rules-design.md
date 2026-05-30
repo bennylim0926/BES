@@ -13,7 +13,7 @@ Every `EventGenre` has a `format` field: `1v1`, `2v2`, `3v3`, or `4v4`.
 **Key constraints established during design:**
 - An event will not have two different team sizes simultaneously (no 2v2 + 3v3 in the same event). Team-format genres within one event all share the same crew size.
 - Solo participants commonly join multiple genres.
-- Teams almost never join multiple genres — one team-format genre per team entry is the norm.
+- Teams almost never join multiple genres, but a single person can be on Team A for one genre and Team B for another (different partners per genre). The walk-in form must support this; the sheet import does not (one team config per row).
 
 ### Entry types
 
@@ -44,14 +44,15 @@ Every `EventGenre` has a `format` field: `1v1`, `2v2`, `3v3`, or `4v4`.
 
 2. **Team-format genres** each show their own **Team | Solo** toggle. Default is `Team`.
 
-3. If **any** team-format genre is set to `Team`, a shared team block appears:
+3. If a team-format genre is set to `Team`, a team block appears **for that genre specifically**:
    - Team name field (required)
    - Exactly N−1 member name fields where N is the format size (e.g. 2v2 → 1 field, 3v3 → 2 fields)
    - All member fields are required — no silent drops
+   - Each genre's team block is independent — a person can be in Team A for Popping 2v2 and Team B for HipHop 2v2 in a single submission
 
-4. If **all** team-format genres are set to `Solo`, the team block is hidden and no team fields are required.
+4. If a team-format genre is set to `Solo`, no team fields are shown for that genre.
 
-5. The shared team name and members apply to every team-format genre where the toggle is set to `Team`. Since all team-format genres in one event share the same format size, one team block is sufficient.
+5. Since all team-format genres in one event share the same format size, all per-genre team blocks have the same number of member fields — only the team name and member names differ per genre.
 
 ### Validation (blocks submission)
 
@@ -80,6 +81,8 @@ Add an `ENTRY_TYPE` column to the import sheet. Required for any row that includ
 | `solo` (case-insensitive) | Solo pickup crew — team columns ignored |
 
 For rows that only contain 1v1 genres, `ENTRY_TYPE` is optional and ignored.
+
+**Sheet import limitation:** one team config per row applies to all team-format genres on that row. If a participant is on different teams for different genres, use the walk-in form instead, or submit them as two separate sheet rows (one per team entry).
 
 ### Column requirements by entry type
 
@@ -174,9 +177,18 @@ private void validateTeamEntry(String format, String teamName, List<String> memb
 
 ## Data Model
 
-No schema changes required. The existing fields handle all cases:
+### Schema change required
 
-| Scenario | `EGP.format` | `EP.teamName` | `EP.teamMembers` |
+Team info currently lives on `EventParticipant` (one record per person per event), which means a person can only have one team name and one set of members regardless of how many genres they compete in. To support per-genre team configuration, team info moves to the `EventGenreParticipant` level.
+
+**Changes:**
+- Add `team_name` column to `EventGenreParticipant` (nullable String)
+- Create new table `EventGenreParticipantMember` (FK to `EventGenreParticipant`, `member_name`)
+- `EventParticipant.teamName` and `EventParticipantTeamMember` are **deprecated** — kept in DB for backwards compatibility but no longer written by new registration paths. Read paths switch to EGP-level data.
+
+**New Flyway migration:** `V19__add_egp_team_info.sql`
+
+| Scenario | `EGP.format` | `EGP.teamName` | `EGP.members` |
 |---|---|---|---|
 | Solo 1v1 | `"1v1"` | null | empty |
 | Team 2v2 | `"2v2"` | set | set (1 member) |
@@ -188,16 +200,27 @@ The `ENTRY_TYPE` column is a sheet-only concept — it drives validation and det
 
 ## Files to Change
 
-### Frontend
-- `BES-frontend/src/components/CreateParticipantForm.vue` — per-genre toggles, shared team block, required field validation
+### Database
+- `BES/src/main/resources/db/migration/V19__add_egp_team_info.sql` — add `team_name` to `event_genre_participant`; create `event_genre_participant_member` table
 
-### Backend
-- `BES/src/main/java/com/example/BES/services/EventGenreParticpantService.java` — fix `addGenreToExistingParticipant`, add `validateTeamEntry`
-- `BES/src/main/java/com/example/BES/services/RegistrationService.java` — structured error response, call `validateTeamEntry`, handle `ENTRY_TYPE`
+### Backend — models
+- `BES/src/main/java/com/example/BES/models/EventGenreParticipant.java` — add `teamName` field + `@OneToMany` members list
+- `BES/src/main/java/com/example/BES/models/EventGenreParticipantMember.java` — new entity (FK to EGP, memberName)
+
+### Backend — services
+- `BES/src/main/java/com/example/BES/services/EventGenreParticpantService.java` — fix `addGenreToExistingParticipant` (set format); fix `getAllEventGenreParticipantByEventService` (read member names from EGP instead of EP); add `validateTeamEntry`
+- `BES/src/main/java/com/example/BES/services/RegistrationService.java` — write team info to EGP level; structured error response; call `validateTeamEntry`; handle `ENTRY_TYPE`
+
+### Backend — DTOs / utils
 - `BES/src/main/java/com/example/BES/utils/GoogleSheetParser.java` — parse `ENTRY_TYPE` column
 - `BES/src/main/java/com/example/BES/dtos/AddParticipantDto.java` — add `entryType` field
-- `BES/src/main/java/com/example/BES/dtos/AddWalkInDto.java` — no change needed (team intent already carried by teamName/members; backend now validates instead of silently accepting)
+- `BES/src/main/java/com/example/BES/dtos/AddWalkInDto.java` — add per-genre team info (list of `{ genreName, teamName, memberNames }`)
 - `BES/src/main/java/com/example/BES/controllers/EventController.java` — return import result DTO
 
-### New DTO
+### New files
 - `BES/src/main/java/com/example/BES/dtos/ImportResultDto.java` — `{ imported, skipped: [{ row, name, reason }] }`
+- `BES/src/main/java/com/example/BES/respositories/EventGenreParticipantMemberRepo.java`
+
+### Frontend
+- `BES-frontend/src/components/CreateParticipantForm.vue` — per-genre toggles, per-genre team name + member fields, required field validation
+- `BES-frontend/src/utils/api.js` — update `addWalkinToSystem` to send per-genre team info
