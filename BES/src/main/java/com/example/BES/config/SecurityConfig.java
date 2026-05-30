@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/battle/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/results").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/config/app").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                     .formLogin(AbstractHttpConfigurer::disable)
