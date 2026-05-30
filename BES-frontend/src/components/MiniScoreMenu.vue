@@ -46,21 +46,17 @@ const moveTo = (index) => {
         v-for="(card, idx) in props.cards"
         :key="idx"
         @click="moveTo(idx)"
-        class="flex items-center justify-between p-3 rounded-xl border border-surface-600/50
-               bg-surface-700/50 text-left hover:bg-surface-600/60 hover:border-primary-500/40
-               active:bg-surface-600 transition-all duration-150"
+        class="para-chip-sm p-2 type-label text-content-muted hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-left"
       >
-        <div>
-          <div class="text-sm font-semibold text-content-primary">
-            #{{ card.auditionNumber }} · {{ card.participantName }}
-          </div>
+        <div class="flex items-center gap-2 w-full">
+          <span class="type-body text-content-primary truncate flex-1">#{{ card.auditionNumber }} · {{ card.participantName }}</span>
+          <span
+            class="type-stat text-[16px] flex-shrink-0"
+            :class="card.score === 0 ? 'text-content-muted' : 'text-accent'"
+          >
+            {{ card.score === 0 ? '—' : card.score }}
+          </span>
         </div>
-        <span
-          class="text-sm font-bold ml-2 flex-shrink-0"
-          :class="card.score === 0 ? 'text-red-400' : 'text-primary-400'"
-        >
-          {{ card.score === 0 ? '—' : card.score }}
-        </span>
       </button>
     </div>
   </ActionDoneModal>

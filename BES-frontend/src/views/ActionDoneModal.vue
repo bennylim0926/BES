@@ -1,24 +1,14 @@
 <script setup>
-import ReusableButton from '@/components/ReusableButton.vue'
-
-const props = defineProps({
+defineProps({
   show:    { type: Boolean, default: false },
   title:   { type: String,  default: 'Notification' },
-  variant: { type: String,  default: 'info' }  // info | success | error | warning
+  variant: { type: String,  default: 'info' }
 })
 
 defineEmits(['close', 'accept'])
-
-const iconConfig = {
-  info:    { icon: 'pi-info-circle',         color: 'text-primary-400',   bg: 'bg-primary-100'  },
-  success: { icon: 'pi-check-circle',         color: 'text-emerald-400',   bg: 'bg-emerald-950'  },
-  error:   { icon: 'pi-times-circle',         color: 'text-red-400',       bg: 'bg-red-950'      },
-  warning: { icon: 'pi-exclamation-triangle', color: 'text-amber-400',     bg: 'bg-amber-950'    },
-}
 </script>
 
 <template>
-  <!-- Overlay fade -->
   <Transition
     enter-active-class="transition duration-200 ease-out"
     enter-from-class="opacity-0"
@@ -31,62 +21,43 @@ const iconConfig = {
       v-if="show"
       class="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
-      <!-- Backdrop -->
       <div
-        class="absolute inset-0 bg-surface-950/80 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/60"
         @click="$emit('close')"
       ></div>
 
-      <!-- Card (scale-in on mount) -->
       <div
-        class="relative w-full max-w-md max-h-[90vh] overflow-y-auto
-               bg-surface-800 rounded-2xl shadow-2xl border border-surface-600/40
-               animate-scale-in"
+        class="card-hover p-8 relative max-w-sm w-full mx-4"
       >
-        <!-- Header -->
-        <div class="flex items-start justify-between px-6 pt-6 pb-4">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-              :class="iconConfig[props.variant]?.bg ?? iconConfig.info.bg"
-            >
-              <i
-                class="pi text-xl"
-                :class="[
-                  iconConfig[props.variant]?.icon  ?? iconConfig.info.icon,
-                  iconConfig[props.variant]?.color ?? iconConfig.info.color
-                ]"
-              ></i>
-            </div>
-            <h3 class="text-lg font-heading font-bold text-content-primary leading-snug">
-              {{ title }}
-            </h3>
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
+
+        <div
+          v-if="variant === 'warning'"
+          class="semantic-chip-warning p-4 mb-4 flex items-start gap-3"
+        >
+          <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-1" style="box-shadow: 0 0 6px rgba(245,158,11,0.8)"></div>
+          <slot></slot>
+        </div>
+        <div
+          v-else-if="variant === 'error'"
+          class="semantic-chip-error p-4 mb-4 flex items-start gap-3"
+        >
+          <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-1" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)"></div>
+          <slot></slot>
+        </div>
+        <template v-else>
+          <p class="type-page-title mb-2">{{ title }}</p>
+          <div class="type-body text-content-muted mb-6">
+            <slot></slot>
           </div>
+        </template>
 
-          <button
-            @click="$emit('close')"
-            class="flex-shrink-0 ml-4 p-1.5 rounded-lg text-content-muted
-                   hover:text-content-secondary hover:bg-surface-700
-                   transition-colors duration-150"
-          >
-            <i class="pi pi-times text-sm"></i>
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div class="px-6 pb-2 text-content-secondary text-sm leading-relaxed whitespace-pre-line">
-          <slot />
-        </div>
-
-        <!-- Footer -->
-        <div class="px-6 py-5">
-          <ReusableButton
-            buttonName="Got it"
-            @onClick="$emit('accept')"
-          />
-        </div>
+        <button
+          @click="$emit('accept')"
+          class="bg-accent para-chip type-label text-surface-900 px-6 py-2 w-full"
+        >OK</button>
       </div>
-
     </div>
   </Transition>
 </template>

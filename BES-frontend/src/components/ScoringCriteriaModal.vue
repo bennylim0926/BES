@@ -150,17 +150,19 @@ const applyToAllGenres = async () => {
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close" />
 
         <!-- Panel -->
-        <div class="relative w-full max-w-xl bg-surface-800 rounded-2xl border border-surface-600/50 shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="card-hover p-6 relative w-full max-w-xl flex flex-col max-h-[85vh]">
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
 
           <!-- Header -->
-          <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50 flex-shrink-0">
+          <div class="flex items-center justify-between flex-shrink-0 mb-4">
             <div>
-              <h2 class="font-heading font-bold text-content-primary text-base">Scoring Criteria</h2>
-              <p class="text-xs text-content-muted mt-0.5">Define what judges score on. Leave empty for a single 0–10 score.</p>
+              <p class="type-page-title" style="font-size: 18px;">Scoring Criteria</p>
+              <p class="type-label text-content-muted mt-0.5">Define what judges score on. Leave empty for a single 0–10 score.</p>
             </div>
             <button
               @click="close"
-              class="p-2 rounded-lg text-surface-400 hover:text-content-primary hover:bg-surface-700 transition-colors"
+              class="p-1.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-colors"
             >
               <i class="pi pi-times text-sm" />
             </button>
@@ -172,10 +174,10 @@ const applyToAllGenres = async () => {
               v-for="tab in allTabs"
               :key="tab"
               @click="activeTab = tab"
-              class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150"
+              class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label transition-all duration-150"
               :class="activeTab === tab
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'bg-surface-700/60 border-surface-600/50 text-surface-300 hover:border-primary-500/50 hover:text-primary-300'"
+                ? 'bg-accent text-surface-900 border-accent'
+                : 'text-content-muted hover:text-content-primary'"
             >
               <i v-if="tab === 'event-level'" class="pi pi-globe text-[10px]" />
               {{ tab === 'event-level' ? 'Event Default' : tab }}
@@ -212,30 +214,30 @@ const applyToAllGenres = async () => {
               <div
                 v-for="c in activeCriteria"
                 :key="c.id"
-                class="rounded-xl border border-surface-600/50 overflow-hidden"
+                class="card-hover p-3 relative"
               >
                 <!-- View row -->
                 <div
                   v-if="editingId !== c.id"
-                  class="flex items-center justify-between px-3 py-2.5 bg-surface-700/40"
+                  class="flex items-center justify-between"
                 >
                   <div class="flex items-center gap-2 flex-1 min-w-0">
                     <span class="text-sm font-semibold text-content-primary truncate">{{ c.name }}</span>
-                    <span v-if="c.weight != null" class="text-xs px-1.5 py-0.5 rounded bg-primary-500/15 text-primary-400 border border-primary-500/20 shrink-0">
+                    <span v-if="c.weight != null" class="badge-neutral type-label shrink-0">
                       ×{{ c.weight }}
                     </span>
                   </div>
                   <div class="flex items-center gap-1 ml-2 shrink-0">
                     <button
                       @click="startEdit(c)"
-                      class="p-1.5 rounded-lg text-surface-400 hover:text-primary-400 hover:bg-primary-500/10 transition-colors"
+                      class="p-1.5 para-chip-sm type-label text-content-muted hover:text-accent transition-colors"
                       title="Edit"
                     >
                       <i class="pi pi-pencil text-xs" />
                     </button>
                     <button
                       @click="remove(c.id)"
-                      class="p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      class="p-1.5 para-chip-sm type-label text-content-muted hover:text-red-400 transition-colors"
                       title="Delete"
                     >
                       <i class="pi pi-times text-xs" />
@@ -244,37 +246,33 @@ const applyToAllGenres = async () => {
                 </div>
 
                 <!-- Edit row -->
-                <div v-else class="px-3 py-2.5 bg-surface-700/60 space-y-2">
+                <div v-else class="space-y-2">
                   <div class="flex gap-2">
                     <input
                       v-model="editName"
                       placeholder="Criterion name"
-                      class="flex-1 bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                             placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+                      class="flex-1 input-base"
                       @keydown.enter="saveEdit"
                       @keydown.escape="cancelEdit"
                     />
                     <input
                       v-model="editWeight"
                       type="number" min="0" step="0.5" placeholder="Weight"
-                      class="w-24 bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                             placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+                      class="w-24 input-base"
                     />
                   </div>
                   <div class="flex gap-2">
                     <button
                       @click="saveEdit"
                       :disabled="editSaving || !editName.trim()"
-                      class="flex-1 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold
-                             hover:bg-primary-500 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      class="flex-1 py-1.5 bg-accent para-chip type-label text-surface-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       <i v-if="editSaving" class="pi pi-spin pi-spinner mr-1" />
                       Save
                     </button>
                     <button
                       @click="cancelEdit"
-                      class="px-3 py-1.5 rounded-lg border border-surface-600 bg-surface-700 text-xs text-content-muted
-                             hover:border-surface-500 hover:bg-surface-600 transition-all"
+                      class="px-3 py-1.5 para-chip type-label border-accent text-content-muted hover:text-content-primary transition-all"
                     >
                       Cancel
                     </button>
@@ -284,37 +282,33 @@ const applyToAllGenres = async () => {
             </template>
 
             <!-- Add form -->
-            <div v-if="showAdd" class="bg-surface-700/40 border border-surface-600/50 rounded-xl p-3 space-y-2">
+            <div v-if="showAdd" class="card-hover p-3 space-y-2">
               <div class="flex gap-2">
                 <input
                   v-model="newName"
                   placeholder="Criterion name (e.g. Musicality)"
-                  class="flex-1 bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                         placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+                  class="flex-1 input-base"
                   @keydown.enter="add"
                   @keydown.escape="cancelAdd"
                 />
                 <input
                   v-model="newWeight"
                   type="number" min="0" step="0.5" placeholder="Weight"
-                  class="w-24 bg-surface-700 border border-surface-600 rounded-lg px-3 py-1.5 text-sm text-content-primary
-                         placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-colors"
+                  class="w-24 input-base"
                 />
               </div>
               <div class="flex gap-2">
                 <button
                   @click="add"
                   :disabled="saving || !newName.trim()"
-                  class="flex-1 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold
-                         hover:bg-primary-500 active:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  class="flex-1 py-1.5 bg-accent para-chip type-label text-surface-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   <i v-if="saving" class="pi pi-spin pi-spinner mr-1" />
                   Add
                 </button>
                 <button
                   @click="cancelAdd"
-                  class="px-3 py-1.5 rounded-lg border border-surface-600 bg-surface-700 text-xs text-content-muted
-                         hover:border-surface-500 hover:bg-surface-600 transition-all"
+                  class="px-3 py-1.5 para-chip type-label border-accent text-content-muted hover:text-content-primary transition-all"
                 >
                   Cancel
                 </button>
@@ -323,12 +317,11 @@ const applyToAllGenres = async () => {
           </div>
 
           <!-- Footer actions -->
-          <div class="px-5 py-4 border-t border-surface-700/50 flex items-center gap-2 flex-shrink-0">
+          <div class="flex items-center gap-2 flex-shrink-0 pt-4 border-t border-[rgba(255,255,255,0.07)]">
             <button
               v-if="!showAdd"
               @click="showAdd = true"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-surface-600
-                     text-xs text-content-muted hover:border-primary-500/50 hover:text-primary-400 transition-all duration-150"
+              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent text-content-muted hover:text-accent transition-all duration-150"
             >
               <i class="pi pi-plus text-xs" />
               Add Criterion
@@ -341,8 +334,7 @@ const applyToAllGenres = async () => {
               v-if="activeTab !== 'event-level' && genres.length > 1"
               @click="applyToAllGenres"
               :disabled="applyingAll || activeCriteria.length === 0"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-600 bg-surface-700/60
-                     text-xs text-content-muted hover:border-primary-500/50 hover:text-primary-400
+              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent text-content-muted hover:text-accent
                      disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
               title="Copy these criteria to all other genres and Event Default"
             >

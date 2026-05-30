@@ -75,48 +75,51 @@ function chipColors(groupIndex, isSelected) {
 
       <!-- Sheet / Modal -->
       <div
-        class="relative w-full sm:max-w-lg max-h-[85vh] overflow-y-auto
-               bg-surface-800 rounded-t-2xl sm:rounded-2xl shadow-2xl
-               border border-surface-600/40 animate-scale-in flex flex-col"
+        class="card-hover p-4 relative w-full sm:max-w-lg max-h-[85vh] overflow-y-auto flex flex-col"
       >
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+        <div class="flex items-center justify-between flex-shrink-0 mb-3">
           <div>
-            <p class="text-xs font-medium text-surface-400 uppercase tracking-wider mb-0.5">Leave Feedback</p>
+            <p class="type-label text-content-muted mb-0.5">Leave Feedback</p>
             <div class="flex items-center gap-2">
-              <span class="text-xs font-source text-primary-400 bg-primary-900/40 px-2 py-0.5 rounded-full">
+              <span class="badge-neutral type-label">
                 #{{ participant?.auditionNumber }}
               </span>
-              <h3 class="text-base font-heading font-bold text-content-primary">
+              <span class="type-body text-content-primary">
                 {{ participant?.participantName }}
-              </h3>
+              </span>
             </div>
           </div>
           <button
             @click="emit('close')"
-            class="p-1.5 rounded-lg text-surface-400 hover:text-content-primary hover:bg-surface-700 transition-colors"
+            class="p-1.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-colors"
           >
             <i class="pi pi-times text-sm" />
           </button>
         </div>
 
         <!-- Tag Groups -->
-        <div class="px-5 pb-3 flex-1 space-y-4">
+        <div class="flex-1 space-y-4 mb-4">
           <div
             v-for="(group, groupIndex) in tagGroups"
             :key="group.id"
             v-show="group.tags?.length"
           >
-            <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
-              {{ group.name }}
-            </p>
+            <div class="section-rule mb-2">
+              <span class="section-rule-label">{{ group.name }}</span>
+              <div class="section-rule-line"></div>
+            </div>
             <div class="flex flex-wrap gap-2">
               <button
                 v-for="tag in group.tags"
                 :key="tag.id"
                 @click="toggleTag(tag.id)"
-                class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150 active:scale-95"
-                :class="chipColors(groupIndex, selectedTagIds.has(tag.id))"
+                class="transition-all duration-150 active:scale-95"
+                :class="selectedTagIds.has(tag.id)
+                  ? 'bg-accent para-chip-sm type-label text-surface-900'
+                  : 'badge-neutral type-label'"
               >
                 {{ tag.label }}
               </button>
@@ -125,29 +128,29 @@ function chipColors(groupIndex, isSelected) {
 
           <!-- Optional note -->
           <div>
-            <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
-              Optional Note
-            </p>
+            <div class="section-rule mb-2">
+              <span class="section-rule-label">Optional Note</span>
+              <div class="section-rule-line"></div>
+            </div>
             <textarea
               v-model="note"
               rows="2"
               placeholder="Optional note for this dancer…"
-              class="w-full bg-surface-700 border border-surface-600 rounded-xl px-3 py-2
-                     text-sm text-content-primary placeholder-surface-400 resize-none
-                     focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
-                     transition-colors"
+              class="input-base resize-none"
             />
           </div>
         </div>
 
         <!-- Footer -->
-        <div class="px-5 pb-5 pt-2 flex gap-3 flex-shrink-0">
-          <div class="flex-1">
-            <ReusableButton buttonName="Skip" variant="outline" @onClick="emit('close')" />
-          </div>
-          <div class="flex-1">
-            <ReusableButton buttonName="Save Feedback" variant="primary" @onClick="handleSave" />
-          </div>
+        <div class="flex gap-3 flex-shrink-0">
+          <button
+            @click="emit('close')"
+            class="flex-1 py-2 para-chip type-label text-content-muted hover:text-content-primary transition-all"
+          >Skip</button>
+          <button
+            @click="handleSave"
+            class="flex-1 py-2 bg-accent para-chip type-label text-surface-900 transition-all"
+          >Save Feedback</button>
         </div>
       </div>
     </div>

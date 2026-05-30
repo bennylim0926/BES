@@ -139,10 +139,10 @@ onMounted(observeCards)
               <!-- Feedback button -->
               <button
                 @click.stop="emit('open-feedback', card)"
-                class="mb-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all duration-150 active:scale-95"
+                class="mb-2 flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150 active:scale-95"
                 :class="feedbackData?.get(card.auditionNumber)
-                  ? 'bg-green-500/15 border-green-500/35 text-green-400'
-                  : 'bg-white/4 border-white/10 text-white/35 hover:text-white/60 hover:border-white/20'"
+                  ? 'text-green-400 border-green-500/35'
+                  : 'text-content-muted hover:text-content-primary'"
               >
                 <i class="pi pi-comment text-xs" />
                 {{ feedbackData?.get(card.auditionNumber) ? 'Edit Feedback' : 'Feedback' }}
@@ -315,20 +315,17 @@ onMounted(observeCards)
     >
       <button
         @click="emit('reset')"
-        class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
-        style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
+        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-undo text-xs"></i> Reset</button>
 
       <button
         @click="emit('jump')"
-        class="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border transition-all duration-150 active:scale-95"
-        style="clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.35); background: transparent;"
+        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-search text-xs"></i> Go To</button>
 
       <button
         @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold transition-all duration-150 active:scale-[0.98]"
-        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); background: rgb(245,158,11); color: #000;"
+        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent para-chip type-label text-surface-900 transition-all duration-150 active:scale-[0.98]"
       ><i class="pi pi-send text-xs"></i> Submit All</button>
 
       <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">
