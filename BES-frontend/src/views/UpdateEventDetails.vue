@@ -3,7 +3,6 @@ import DynamicTable from '@/components/DynamicTable.vue';
 import { onMounted, ref, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue'
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import ReusableButton from '@/components/ReusableButton.vue';
 import { getActiveEvent } from '@/utils/auth';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue';
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")

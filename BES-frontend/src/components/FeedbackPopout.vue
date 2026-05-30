@@ -1,6 +1,5 @@
 <script setup>
 import { ref, watch } from 'vue'
-import ReusableButton from '@/components/ReusableButton.vue'
 
 const props = defineProps({
   visible:          { type: Boolean, default: false },
@@ -36,22 +35,7 @@ function handleSave() {
   })
 }
 
-// Color scheme: index 0 (Strengths) → emerald, index 1 (Areas to Improve) → amber, rest → cyan
-function chipColors(groupIndex, isSelected) {
-  if (groupIndex === 0) {
-    return isSelected
-      ? 'bg-emerald-500 text-white border-emerald-500'
-      : 'bg-surface-700 text-surface-300 border-surface-600 hover:border-emerald-500/60 hover:text-emerald-300'
-  }
-  if (groupIndex === 1) {
-    return isSelected
-      ? 'bg-amber-500 text-white border-amber-500'
-      : 'bg-surface-700 text-surface-300 border-surface-600 hover:border-amber-500/60 hover:text-amber-300'
-  }
-  return isSelected
-    ? 'bg-primary-600 text-white border-primary-600'
-    : 'bg-surface-700 text-surface-300 border-surface-600 hover:border-primary-500/60 hover:text-primary-300'
-}
+
 </script>
 
 <template>
@@ -103,7 +87,7 @@ function chipColors(groupIndex, isSelected) {
         <!-- Tag Groups -->
         <div class="flex-1 space-y-4 mb-4">
           <div
-            v-for="(group, groupIndex) in tagGroups"
+            v-for="group in tagGroups"
             :key="group.id"
             v-show="group.tags?.length"
           >

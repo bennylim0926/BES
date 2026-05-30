@@ -6,7 +6,6 @@ import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenr
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
-import ReusableButton from '@/components/ReusableButton.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ScoringCriteriaModal from '@/components/ScoringCriteriaModal.vue';
