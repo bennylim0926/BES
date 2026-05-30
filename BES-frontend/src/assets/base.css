@@ -241,11 +241,11 @@
 
   /* Typography helpers */
   .section-title {
-    @apply text-xl font-heading font-bold text-content-primary tracking-tight;
+    @apply text-xl font-sans font-bold text-content-primary tracking-tight;
   }
 
   .page-title {
-    @apply text-2xl sm:text-3xl font-heading font-extrabold text-content-primary tracking-tight;
+    @apply text-2xl sm:text-3xl font-sans font-extrabold text-content-primary tracking-tight;
   }
 
   .text-muted {
@@ -270,11 +270,21 @@
   }
 
   .stat-value {
-    @apply type-stat tabular-nums;
+    font-family: 'Anton SC', sans-serif;
+    font-size: 42px;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   .stat-label {
-    @apply type-label;
+    font-family: 'Anton SC', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    line-height: 1;
   }
 
   /* ── Parallelogram chip (rows, list items, stat boxes) ──────── */
