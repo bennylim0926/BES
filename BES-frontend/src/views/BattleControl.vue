@@ -1455,7 +1455,6 @@ onUnmounted(() => {
           <span class="type-body" :class="battlePhase === 'REVEALED' ? 'text-emerald-400' : battlePhase === 'LOCKED' ? 'text-amber-400' : battlePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ battlePhase }}</span>
         </div>
       </div>
-      </div>
 
       <!-- Final tie warning -->
       <div
