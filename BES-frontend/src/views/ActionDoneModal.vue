@@ -32,26 +32,25 @@ defineEmits(['close', 'accept'])
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>
 
+        <p class="type-page-title mb-4">{{ title }}</p>
+
         <div
           v-if="variant === 'warning'"
-          class="semantic-chip-warning p-4 mb-4 flex items-start gap-3"
+          class="semantic-chip-warning p-4 mb-6 flex items-start gap-3"
         >
-          <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-1" style="box-shadow: 0 0 6px rgba(245,158,11,0.8)"></div>
+          <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.8)"></div>
           <slot></slot>
         </div>
         <div
           v-else-if="variant === 'error'"
-          class="semantic-chip-error p-4 mb-4 flex items-start gap-3"
+          class="semantic-chip-error p-4 mb-6 flex items-start gap-3"
         >
-          <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-1" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)"></div>
+          <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f87171;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>
           <slot></slot>
         </div>
-        <template v-else>
-          <p class="type-page-title mb-2">{{ title }}</p>
-          <div class="type-body text-content-muted mb-6">
-            <slot></slot>
-          </div>
-        </template>
+        <div v-else class="type-body text-content-muted mb-6">
+          <slot></slot>
+        </div>
 
         <button
           @click="$emit('accept')"

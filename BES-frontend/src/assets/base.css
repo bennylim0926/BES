@@ -146,6 +146,15 @@
     letter-spacing: 0.12em;
     font-size: 0.7rem;
   }
+
+  /* Default colors for type tiers — in @layer base so Tailwind utility classes
+     (text-surface-900, text-white, etc.) from @layer utilities can override them */
+  .type-display    { color: #ffffff; }
+  .type-page-title { color: #f0f0f0; }
+  .type-section    { color: rgba(255,255,255,0.55); }
+  .type-body       { color: rgba(255,255,255,0.75); }
+  .type-label      { color: rgba(255,255,255,0.35); }
+  .type-stat       { color: #ffffff; }
 }
 
 /* ─────────────────────────────────────────
@@ -382,7 +391,6 @@
     font-size: clamp(36px, 5vw, 56px);
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #ffffff;
     line-height: 1;
     text-shadow: 2px 2px 0 var(--accent-muted);
   }
@@ -391,7 +399,6 @@
     font-size: 28px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #f0f0f0;
     line-height: 1;
     text-shadow: 1px 1px 0 var(--accent-muted);
   }
@@ -400,7 +407,6 @@
     font-size: 13px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: rgba(255,255,255,0.55);
     line-height: 1;
   }
   .type-body {
@@ -408,7 +414,6 @@
     font-size: 13px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: rgba(255,255,255,0.75);
     line-height: 1.1;
   }
   .type-label {
@@ -416,14 +421,12 @@
     font-size: 10px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: rgba(255,255,255,0.35);
     line-height: 1;
   }
   .type-stat {
     font-family: 'Anton SC', sans-serif;
     font-size: 42px;
     letter-spacing: 0.02em;
-    color: #ffffff;
     line-height: 1;
   }
 
