@@ -50,6 +50,8 @@ import com.example.BES.dtos.UpdateParticipantGenreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.VerifyParticipantDto;
+import com.example.BES.dtos.AddBattleGuestDto;
+import com.example.BES.dtos.GetBattleGuestDto;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
@@ -57,6 +59,7 @@ import com.example.BES.models.Participant;
 import com.example.BES.dtos.CreatePickupCrewDto;
 import com.example.BES.dtos.GetPickupCrewDto;
 import com.example.BES.services.AuditionFeedbackService;
+import com.example.BES.services.BattleGuestService;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.PickupCrewService;
 import com.example.BES.services.ScoringCriteriaService;
@@ -80,6 +83,7 @@ import com.google.zxing.WriterException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.mail.MessagingException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @RestController
 @CrossOrigin
@@ -126,6 +130,12 @@ public class EventController {
 
     @Autowired
     PickupCrewService pickupCrewService;
+
+    @Autowired
+    BattleGuestService battleGuestService;
+
+    @Autowired
+    SimpMessagingTemplate messagingTemplate;
 
     private static final Gson gson = new Gson();
 
@@ -284,13 +294,10 @@ public class EventController {
         try {
             Participant p = participantService.addWalkInService(dto);
             EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
-            EventGenreParticipant egp = eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep,
-                    dto.judgeName);
-            AddParticipantToEventGenreDto auditionDto = new AddParticipantToEventGenreDto();
-            auditionDto.eventId = egp.getEvent().getEventId();
-            auditionDto.genreId = egp.getGenre().getGenreId();
-            auditionDto.participantId = egp.getParticipant().getParticipantId();
-            eventGenreParticipantService.getAuditionNumViaQR(auditionDto);
+            eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep, dto.judgeName);
+            Map<String, Object> walkinMsg = new java.util.HashMap<>();
+            walkinMsg.put("eventName", dto.eventName);
+            messagingTemplate.convertAndSend("/topic/walkin/", walkinMsg);
             return new ResponseEntity<>(gson.toJson("Added walkin"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson("error"), HttpStatus.BAD_REQUEST);
@@ -670,6 +677,46 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> deletePickupCrew(@PathVariable Long crewId) {
         pickupCrewService.deleteCrew(crewId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Battle Guest endpoints ─────────────────────────────────────────────────
+
+    @Operation(summary = "Get Battle Guests", description = "Returns all battle guests for a given event and genre")
+    @GetMapping("/battle-guests/{eventName}/{genreName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetBattleGuestDto>> getBattleGuests(
+            @PathVariable String eventName,
+            @PathVariable String genreName) {
+        return ResponseEntity.ok(battleGuestService.getBattleGuests(eventName, genreName));
+    }
+
+    @Operation(summary = "Get All Battle Guests For Event", description = "Returns all battle guests across all genres for an event")
+    @GetMapping("/battle-guests/{eventName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetBattleGuestDto>> getAllBattleGuests(@PathVariable String eventName) {
+        return ResponseEntity.ok(battleGuestService.getAllBattleGuestsForEvent(eventName));
+    }
+
+    @Operation(summary = "Add Battle Guest", description = "Adds a battle guest to a genre in an event")
+    @PostMapping("/battle-guests/{eventName}/{genreName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> addBattleGuest(
+            @PathVariable String eventName,
+            @PathVariable String genreName,
+            @RequestBody AddBattleGuestDto dto) {
+        try {
+            return ResponseEntity.ok(battleGuestService.addBattleGuest(eventName, genreName, dto));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Remove Battle Guest", description = "Removes a battle guest by ID")
+    @DeleteMapping("/battle-guests/{guestId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> removeBattleGuest(@PathVariable Long guestId) {
+        battleGuestService.removeBattleGuest(guestId);
         return ResponseEntity.noContent().build();
     }
 }
