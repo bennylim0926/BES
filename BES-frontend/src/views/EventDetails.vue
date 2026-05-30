@@ -1079,9 +1079,8 @@ onUnmounted(() => {
               <div class="flex-1 min-w-0">
                 <p class="type-body text-content-secondary truncate">{{ p.label }}</p>
                 <div class="flex flex-wrap gap-1 mt-0.5">
-                  <span v-for="g in p.genres" :key="g.genreName" class="inline-flex items-center gap-1">
-                    <span class="badge-neutral capitalize">{{ g.genreName }}</span>
-                    <span v-if="g.auditionNumber !== null" class="badge-primary">#{{ g.auditionNumber }}</span>
+                  <span v-for="g in p.genres" :key="g.genreName" class="badge-neutral capitalize">
+                    {{ g.genreName }}<span v-if="g.auditionNumber !== null" style="color:var(--accent-color);margin-left:0.25rem">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
               </div>
@@ -1163,9 +1162,8 @@ onUnmounted(() => {
                 </span>
               </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
-                <span v-for="e in p.entries" :key="e.genre" class="inline-flex items-center gap-1">
-                  <span class="badge-neutral capitalize">{{ e.genre }}</span>
-                  <span class="badge-primary">#{{ e.auditionNumber }}</span>
+                <span v-for="e in p.entries" :key="e.genre" class="badge-neutral capitalize">
+                  {{ e.genre }}<span style="color:var(--accent-color);margin-left:0.25rem">#{{ e.auditionNumber }}</span>
                 </span>
               </div>
               <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
