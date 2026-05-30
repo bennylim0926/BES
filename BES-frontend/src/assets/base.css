@@ -211,7 +211,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 0.625rem 1rem;
     font-family: 'Anton SC', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.88);
@@ -243,7 +243,7 @@
   .badge-success   { background: rgba(52,211,153,0.10); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
   .badge-warning   { background: rgba(245,158,11,0.08); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
   .badge-danger    { background: rgba(239,68,68,0.10);  color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
-  .badge-neutral   { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.07); }
+  .badge-neutral   { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.80); border: 1px solid rgba(255,255,255,0.20); }
 
   /* Icon wrapper */
   .icon-wrap { }
@@ -280,7 +280,7 @@
 
   .stat-value {
     font-family: 'Anton SC', sans-serif;
-    font-size: 42px;
+    font-size: 48px;
     letter-spacing: 0.02em;
     color: #ffffff;
     line-height: 1;
@@ -289,7 +289,7 @@
 
   .stat-label {
     font-family: 'Anton SC', sans-serif;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(255,255,255,0.35);
@@ -301,11 +301,44 @@
     clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
   .para-chip-sm {
     clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  /* Button-specific interaction states */
+  button.para-chip:hover:not(:disabled),
+  button.para-chip-sm:hover:not(:disabled),
+  a.para-chip:hover,
+  a.para-chip-sm:hover {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  button.para-chip:active:not(:disabled),
+  button.para-chip-sm:active:not(:disabled),
+  a.para-chip:active,
+  a.para-chip-sm:active {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+  button.para-chip:disabled,
+  button.para-chip-sm:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* Filled accent buttons (bg-accent overrides bg, keep hover/active) */
+  button.bg-accent:hover:not(:disabled) {
+    filter: brightness(0.88);
+  }
+  button.bg-accent:active:not(:disabled) {
+    filter: brightness(0.75);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
   }
 
   /* ── Section rule (label + hairline) ───────────────────────── */
@@ -321,7 +354,7 @@
   }
   .section-rule-label {
     font-family: 'Anton SC', sans-serif;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.28);
@@ -396,7 +429,7 @@
   }
   .type-page-title {
     font-family: 'Anton SC', sans-serif;
-    font-size: 28px;
+    font-size: 32px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     line-height: 1;
@@ -404,28 +437,28 @@
   }
   .type-section {
     font-family: 'Anton SC', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     line-height: 1;
   }
   .type-body {
     font-family: 'Anton SC', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     line-height: 1.1;
   }
   .type-label {
     font-family: 'Anton SC', sans-serif;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     line-height: 1;
   }
   .type-stat {
     font-family: 'Anton SC', sans-serif;
-    font-size: 42px;
+    font-size: 48px;
     letter-spacing: 0.02em;
     line-height: 1;
   }

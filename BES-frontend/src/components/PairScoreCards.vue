@@ -180,12 +180,12 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 >#{{ card.auditionNumber }}</span>
                 <div class="flex-1 min-w-0">
                   <div
-                    class="type-body leading-tight truncate"
+                    class="type-body text-[22px] leading-tight truncate"
                     :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-content-primary' : 'text-content-muted'"
                   >{{ card.participantName }}</div>
                   <div
                     v-if="card.score > 0"
-                    class="text-[10px] font-source tabular-nums mt-0.5"
+                    class="text-[18px] font-source tabular-nums mt-0.5"
                     :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-amber-400/60' : 'text-white/20'"
                   >{{ card.score }}</div>
                 </div>
@@ -202,21 +202,23 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
               <!-- Info column -->
               <div class="pair-card-info">
-                <!-- Score display -->
-                <div class="flex items-center justify-between mb-2">
-                  <div>
-                    <div class="type-label text-content-muted mb-0.5">
-                      {{ hasCriteria ? 'AVG' : 'SCORE' }}
-                    </div>
-                    <div
-                      class="type-stat"
-                      :class="activeCard.score === 0 ? 'text-content-muted' : 'text-accent'"
-                    >{{ activeCard.score === 0 ? '—' : activeCard.score }}</div>
+
+                <!-- Score — grows to fill space and centers -->
+                <div class="pair-card-score-area">
+                  <div class="type-label text-content-muted mb-0.5">
+                    {{ hasCriteria ? 'AVG' : 'SCORE' }}
                   </div>
-                  <!-- Feedback button -->
+                  <div
+                    class="type-stat"
+                    :class="activeCard.score === 0 ? 'text-content-muted' : 'text-accent'"
+                  >{{ activeCard.score === 0 ? '—' : activeCard.score }}</div>
+                </div>
+
+                <!-- Feedback button -->
+                <div class="flex justify-center mb-2">
                   <button
                     @click.stop="emit('open-feedback', activeCard)"
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150 active:scale-95"
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
                     :class="feedbackData?.get(activeCard.auditionNumber)
                       ? 'text-green-400 border-green-500/35'
                       : 'text-content-muted hover:text-content-primary'"
@@ -230,21 +232,23 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <!-- Feedback preview -->
                 <div
                   v-if="feedbackData?.get(activeCard.auditionNumber)"
-                  class="mb-2 p-2 rounded-xl border border-white/6 bg-white/[0.02]"
+                  class="mb-2 p-2 border border-white/15 bg-white/[0.08]"
+                  style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
                 >
                   <div v-if="feedbackData.get(activeCard.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
                     <span
                       v-for="tag in feedbackData.get(activeCard.auditionNumber).tagLabels"
                       :key="tag.id"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
+                      style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
                     >
                       {{ tag.label }}
-                      <button @click.stop="emit('remove-tag', { auditionNumber: activeCard.auditionNumber, tagId: tag.id })" class="text-amber-400/40 hover:text-red-400 transition-colors">
+                      <button @click.stop="emit('remove-tag', { auditionNumber: activeCard.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
                         <i class="pi pi-times text-[9px]" />
                       </button>
                     </span>
                   </div>
-                  <div v-if="feedbackData.get(activeCard.auditionNumber).note" class="text-xs text-white/35 line-clamp-2">
+                  <div v-if="feedbackData.get(activeCard.auditionNumber).note" class="text-xs text-white/65 line-clamp-2">
                     {{ feedbackData.get(activeCard.auditionNumber).note }}
                   </div>
                 </div>
@@ -258,19 +262,19 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                       @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
                       class="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-bold border-b-2 transition-all duration-150 -mb-px"
                       :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'border-amber-400 text-amber-400'
+                        ? 'border-[color:var(--accent-color)] text-accent'
                         : 'border-transparent text-white/25 hover:text-white/50'"
                     >
                       {{ criterion.name }}
-                      <span v-if="criteriaScore(activeCard, criterion.name) > 0" class="font-source tabular-nums text-amber-300/60 text-[10px]">
+                      <span v-if="criteriaScore(activeCard, criterion.name) > 0" class="font-source tabular-nums text-accent/60 text-[10px]">
                         {{ criteriaScore(activeCard, criterion.name) }}
                       </span>
                     </button>
                   </div>
                   <template v-for="criterion in criteria" :key="criterion.id">
                     <div v-if="getActiveCriterion(activeCard.auditionNumber) === criterion.name" class="flex items-center justify-between mb-2">
-                      <span class="text-[9px] font-bold text-white/25 uppercase tracking-widest">{{ criterion.name }}<span v-if="criterion.weight != null" class="text-amber-400/40 ml-1">×{{ criterion.weight }}</span></span>
-                      <span class="font-anton text-2xl tabular-nums" :class="criteriaScore(activeCard, criterion.name) === 0 ? 'text-white/15' : 'text-amber-400'">
+                      <span class="text-[9px] font-bold text-white/25 uppercase tracking-widest">{{ criterion.name }}<span v-if="criterion.weight != null" class="text-accent/40 ml-1">×{{ criterion.weight }}</span></span>
+                      <span class="type-stat text-2xl tabular-nums" :class="criteriaScore(activeCard, criterion.name) === 0 ? 'text-white/15' : 'text-accent'">
                         {{ criteriaScore(activeCard, criterion.name) === 0 ? '—' : criteriaScore(activeCard, criterion.name) }}
                       </span>
                     </div>
@@ -411,7 +415,20 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;
-    align-items: start;
+    align-items: stretch;
+  }
+  .pair-card-info {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .pair-card-score-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 }
 </style>

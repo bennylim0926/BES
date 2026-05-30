@@ -67,6 +67,7 @@ onBeforeUnmount(() => {
     <div class="text-center leading-none">
       <div
         class="type-stat transition-colors duration-300"
+        style="font-size: clamp(4rem, 14vh, 8rem); line-height: 1;"
         :class="{
           'text-red-500 animate-pulse': isNearEnd,
           'text-content-muted':         isFinished && !isNearEnd,
@@ -89,27 +90,27 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Controls -->
-    <div class="flex items-center gap-1 flex-wrap justify-center">
+    <div class="flex items-center gap-2 flex-wrap justify-center">
       <button
         @click="toggleMode"
-        class="para-chip-sm type-label transition-all duration-150 active:scale-95"
+        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
         :class="countUp
           ? 'text-accent border-[color:var(--accent-muted)]'
           : 'text-content-muted hover:text-content-primary'"
       >
-        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-0.5 text-[9px]"></i>
-        {{ countUp ? 'Up' : 'Dn' }}
+        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-1 text-xs"></i>
+        {{ countUp ? 'Up' : 'Down' }}
       </button>
-      <div class="w-px h-5 bg-white/12"></div>
+      <div class="w-px h-8 bg-white/12"></div>
       <button
         v-for="t in [30, 45, 60, 90]"
         :key="t"
         @click="startTimer(t)"
-        class="para-chip-sm type-label transition-all duration-150 active:scale-95"
+        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
         :class="selectedTime === t && isRunning
           ? 'text-accent border-[color:var(--accent-muted)]'
           : 'text-content-muted hover:text-content-primary'"
-      >{{ t }}</button>
+      >{{ t }}s</button>
     </div>
   </div>
 </template>

@@ -721,7 +721,7 @@ function transformForScore(data) {
                 <tr
                   v-for="row in pagedFinalRows"
                   :key="row.id"
-                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-primary-100/30 transition-colors duration-150"
+                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-accent/5 transition-colors duration-150"
                 >
                   <td class="px-4 py-3 whitespace-nowrap">
                     <span class="text-content-secondary">{{ row.id }}</span>
@@ -729,7 +729,7 @@ function transformForScore(data) {
                   <td class="px-4 py-3 whitespace-nowrap">
                     <button
                       @click="editScore(row.participantName)"
-                      class="text-primary-400 hover:text-primary-300 font-medium hover:underline focus:outline-none"
+                      class="text-accent hover:text-accent/80 font-medium hover:underline focus:outline-none"
                     >{{ row.participantName }}</button>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap">
@@ -749,7 +749,7 @@ function transformForScore(data) {
                         v-if="topNResult.isMultiAspect"
                         @click="viewBreakdown(row.participantName)"
                         title="View score breakdown"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
                         <i class="pi pi-chart-bar text-sm"></i>
                       </button>
@@ -757,7 +757,7 @@ function transformForScore(data) {
                       <button
                         @click="viewFeedback(row.participantName)"
                         title="View judge feedback"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-primary-400 hover:bg-surface-700 transition-colors"
+                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
                         <i class="pi pi-comment text-sm"></i>
                       </button>
@@ -802,7 +802,7 @@ function transformForScore(data) {
                 @click="tablePage = p"
                 class="w-8 h-8 rounded-lg text-sm font-semibold border transition-all"
                 :class="tablePage === p
-                  ? 'bg-primary-600 text-white border-primary-600'
+                  ? 'bg-accent text-surface-900 border-accent'
                   : 'border-surface-600 bg-surface-800 text-content-secondary hover:bg-surface-700'"
               >{{ p }}</button>
               <button
@@ -918,7 +918,7 @@ function transformForScore(data) {
         <div class="overflow-y-auto px-5 py-4 flex-1">
           <!-- Loading -->
           <div v-if="feedbackLoading" class="flex items-center justify-center py-12">
-            <i class="pi pi-spin pi-spinner text-primary-400 text-2xl"></i>
+            <i class="pi pi-spin pi-spinner text-accent text-2xl"></i>
           </div>
 
           <!-- No feedback empty state -->
@@ -1018,7 +1018,7 @@ function transformForScore(data) {
                 class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-700/50"
               >
                 <span class="text-sm text-content-secondary">{{ aspect }}</span>
-                <span class="font-source font-bold text-primary-400 text-sm">{{ score }}</span>
+                <span class="font-source font-bold text-accent text-sm">{{ score }}</span>
               </div>
             </div>
           </div>

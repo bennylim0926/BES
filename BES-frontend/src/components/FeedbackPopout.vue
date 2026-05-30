@@ -116,11 +116,15 @@ function chipColors(groupIndex, isSelected) {
                 v-for="tag in group.tags"
                 :key="tag.id"
                 @click="toggleTag(tag.id)"
-                class="transition-all duration-150 active:scale-95"
+                class="para-chip-sm type-label inline-flex items-center gap-1.5 px-2.5 py-1 transition-all duration-150"
                 :class="selectedTagIds.has(tag.id)
-                  ? 'bg-accent para-chip-sm type-label text-surface-900'
-                  : 'badge-neutral type-label'"
+                  ? 'text-accent border-[color:var(--accent-color)]'
+                  : 'text-content-primary border-white/20 hover:border-white/40'"
+                :style="selectedTagIds.has(tag.id)
+                  ? { background: 'var(--accent-muted)', boxShadow: '0 0 8px var(--accent-muted)' }
+                  : {}"
               >
+                <i v-if="selectedTagIds.has(tag.id)" class="pi pi-check" style="font-size: 10px;" />
                 {{ tag.label }}
               </button>
             </div>
