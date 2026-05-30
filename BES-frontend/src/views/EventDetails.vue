@@ -1112,9 +1112,9 @@ onUnmounted(() => {
         <div class="mb-4 shrink-0">
           <div class="flex gap-2">
             <div class="relative flex-1">
-              <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+              <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
               <input v-model="registeredSearch" type="text" placeholder="Search by name or genre…" autocomplete="off"
-                class="input-base pl-8 pr-8"
+                class="input-base pl-11 pr-8"
               />
               <button v-if="registeredSearch" @click="registeredSearch = ''"
                 class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
@@ -1249,13 +1249,13 @@ onUnmounted(() => {
                 <span class="type-label text-content-muted">{{ eligibleParticipants.length }} available</span>
               </div>
               <div class="relative mb-2">
-                <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+                <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
                 <input
                   v-model="adjustSearch"
                   type="text"
                   placeholder="Filter by name…"
                   autocomplete="off"
-                  class="input-base pl-9"
+                  class="input-base pl-11"
                 />
                 <button
                   v-if="adjustSearch"
