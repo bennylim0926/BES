@@ -407,7 +407,7 @@ const submitRemoveJudge = async (judgeId) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Genre format editing ────────────────────────────────────────────────────
-const formatOptions = ['1v1', '2v2', '3v3', '4v4']
+const formatOptions = ['1v1', '2v2', '3v3', '4v4', '5v5']
 const editingFormatFor = ref(null)  // genreName currently being edited
 const editingFormatValue = ref('')
 
@@ -948,14 +948,14 @@ onUnmounted(() => {
           <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
             Judges <span class="normal-case font-normal opacity-60">(shared across all genres)</span>
           </p>
-          <div class="flex flex-col gap-1.5">
+          <div class="flex flex-col gap-1">
             <div
               v-for="j in eventJudges"
               :key="j.judgeId"
-              class="flex items-center gap-3 px-3 py-2 rounded-xl bg-surface-800/60 border border-surface-600/30"
+              class="flex items-center gap-3 para-chip px-3 py-1.5"
             >
               <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
-              <span class="font-heading font-semibold text-content-secondary text-sm flex-1">{{ j.judgeName }}</span>
+              <span class="type-body text-content-secondary flex-1">{{ j.judgeName }}</span>
               <button
                 @click="submitRemoveJudge(j.judgeId)"
                 class="para-chip-sm px-2.5 py-1 type-label"
@@ -1080,7 +1080,7 @@ onUnmounted(() => {
                   <span v-for="g in p.genres" :key="g.genreName"
                     class="badge-neutral"
                   >
-                    <span class="capitalize">{{ g.genreName }}</span>
+                    <span class="text-content-muted capitalize">{{ g.genreName }}</span>
                     <span v-if="g.auditionNumber !== null" class="text-accent ml-1">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
