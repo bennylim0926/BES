@@ -5,7 +5,9 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.Judge;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ class JudgeServiceTest {
 
     @Mock JudgeRepo judgeRepo;
     @Mock EventRepo eventRepo;
+    @Mock EventGenreRepo eventGenreRepo;
     @InjectMocks JudgeService service;
 
     private Judge judge(Long id, String name) {
@@ -113,20 +116,64 @@ class JudgeServiceTest {
 
         service.removeJudgeFromEvent("Missing", 1L);
 
-        verify(eventRepo, never()).save(any());
+        verify(eventRepo).findByEventNameIgnoreCase("Missing");
+        verifyNoMoreInteractions(eventGenreRepo);
     }
 
     @Test
-    void removeJudgeFromEvent_removesJudgeFromList() {
+    void removeJudgeFromEvent_removesJudgeFromDivision() {
         Judge j = judge(1L, "Mike");
         Event e = new Event();
         e.setEventName("Fest");
-        e.setJudges(new ArrayList<>(List.of(j)));
+        EventGenre eg = new EventGenre();
+        eg.setId(10L);
+        eg.setEvent(e);
+        eg.setJudges(new ArrayList<>(List.of(j)));
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
+        when(eventGenreRepo.findByEvent(e)).thenReturn(List.of(eg));
 
         service.removeJudgeFromEvent("Fest", 1L);
 
-        assertThat(e.getJudges()).isEmpty();
-        verify(eventRepo).save(e);
+        assertThat(eg.getJudges()).isEmpty();
+        verify(eventGenreRepo).saveAll(List.of(eg));
+    }
+
+    @Test
+    void getJudgesByDivision_returnsEmptyWhenDivisionNotFound() {
+        when(eventGenreRepo.findById(99L)).thenReturn(Optional.empty());
+
+        List<GetJudgeDto> result = service.getJudgesByDivision(99L);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void addJudgeToDivision_savesAndAddsJudge() {
+        Judge j = judge(1L, "Mike");
+        EventGenre eg = new EventGenre();
+        eg.setId(10L);
+        eg.setJudges(new ArrayList<>());
+        when(eventGenreRepo.findById(10L)).thenReturn(Optional.of(eg));
+        when(judgeRepo.save(any())).thenReturn(j);
+        when(eventGenreRepo.save(eg)).thenReturn(eg);
+
+        List<GetJudgeDto> result = service.addJudgeToDivision(10L, "Mike");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).judgeName).isEqualTo("Mike");
+    }
+
+    @Test
+    void removeJudgeFromDivision_removesJudge() {
+        Judge j = judge(1L, "Mike");
+        EventGenre eg = new EventGenre();
+        eg.setId(10L);
+        eg.setJudges(new ArrayList<>(List.of(j)));
+        when(eventGenreRepo.findById(10L)).thenReturn(Optional.of(eg));
+        when(eventGenreRepo.save(eg)).thenReturn(eg);
+
+        List<GetJudgeDto> result = service.removeJudgeFromDivision(10L, 1L);
+
+        assertThat(result).isEmpty();
     }
 }

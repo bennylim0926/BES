@@ -291,6 +291,29 @@ public class EventController {
         return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
     }
 
+    // ── Per-division judge endpoints ─────────────────────────────────────
+
+    @Operation(summary = "Get Judges by Division", description = "Returns judges assigned to a specific division")
+    @GetMapping("/{eventName}/divisions/{divisionId}/judges")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE', 'EMCEE')")
+    public ResponseEntity<List<GetJudgeDto>> getJudgesByDivision(@PathVariable String eventName, @PathVariable Long divisionId) {
+        return ResponseEntity.ok(judgeService.getJudgesByDivision(divisionId));
+    }
+
+    @Operation(summary = "Add Judge to Division", description = "Creates a new judge and links them to a division")
+    @PostMapping("/{eventName}/divisions/{divisionId}/judge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> addJudgeToDivision(@PathVariable String eventName, @PathVariable Long divisionId, @Valid @RequestBody AddJudgeDto dto) {
+        return ResponseEntity.ok(judgeService.addJudgeToDivision(divisionId, dto.judgeName));
+    }
+
+    @Operation(summary = "Remove Judge from Division", description = "Removes a judge from a division")
+    @DeleteMapping("/{eventName}/divisions/{divisionId}/judge/{judgeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> removeJudgeFromDivision(@PathVariable String eventName, @PathVariable Long divisionId, @PathVariable Long judgeId) {
+        return ResponseEntity.ok(judgeService.removeJudgeFromDivision(divisionId, judgeId));
+    }
+
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")

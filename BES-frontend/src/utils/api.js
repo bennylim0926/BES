@@ -208,24 +208,29 @@ export const removeEventJudge = async(eventName, judgeId) => {
   } catch(err) { console.log(err) }
 }
 
-export const addJudges = async(judgeList) => {
-  try{
-    const res = await fetch(`${domain}/api/v1/event/judges`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-          judges: judgeList
-      })
+export const getJudgesByDivision = async (eventName, divisionId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judges`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    return res.ok ? await res.json() : []
+  } catch (e) { return [] }
+}
+
+export const addJudgeToDivision = async (eventName, divisionId, judgeName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judge`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeName })
     })
-    return res.ok
-  }catch(e){
-      console.log(e)
-      return false
-  }
+  } catch (e) { return null }
+}
+
+export const removeJudgeFromDivision = async (eventName, divisionId, judgeId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judge/${judgeId}`, {
+      method: 'DELETE', credentials: 'include', headers: { 'Accept': 'application/json' }
+    })
+  } catch (e) { return null }
 }
 
 export const insertPaymentColumnInSheet = async (fileId) =>{

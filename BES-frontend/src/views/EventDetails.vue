@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, deleteDivision, getSheetCategories } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, deleteDivision, getSheetCategories } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -16,7 +16,6 @@ const activeFolderID = ref(null)
 const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("success")
-const inputs = ref([""])
 const genreOptions = ref(null)
 const eventGenres = ref([])
 const tableExist = ref(true)
@@ -287,7 +286,6 @@ const onSubmit = async () => {
     return
   }
   loading.value = true
-  await addJudges(inputs.value)
   await insertEventInTable(props.eventName, paymentRequired.value)
   const divisions = selectedInitGenres.value.map(g => ({ name: g.genreName, format: null, genreId: g.id }))
   const resp = await linkGenreToEvent(props.eventName, divisions)
@@ -489,21 +487,41 @@ const removeDivisionFromSection = async (divId) => {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-// ── Judges ──────────────────────────────────────────────────────────────────
-const eventJudges = ref([])
+// ── Judges (per division) ──────────────────────────────────────────────────
+const divisionJudges = ref({})
 const addJudgeInput = ref('')
 
-const submitAddJudge = async () => {
+const loadJudgesForDivision = async (genre) => {
+  if (!genre) return
+  divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
+}
+
+const submitAddJudge = async (divisionId) => {
   if (!addJudgeInput.value.trim()) return
-  const res = await addEventJudge(props.eventName, addJudgeInput.value.trim())
-  if (res?.ok) eventJudges.value = await res.json()
+  const res = await addJudgeToDivision(props.eventName, divisionId, addJudgeInput.value.trim())
+  if (res?.ok) {
+    const judges = await res.json()
+    const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
+    if (genre) divisionJudges.value[genre.name] = judges
+  }
   addJudgeInput.value = ''
 }
 
-const submitRemoveJudge = async (judgeId) => {
-  const res = await removeEventJudge(props.eventName, judgeId)
-  if (res?.ok) eventJudges.value = await res.json()
+const submitRemoveJudge = async (divisionId, judgeId) => {
+  const res = await removeJudgeFromDivision(props.eventName, divisionId, judgeId)
+  if (res?.ok) {
+    const judges = await res.json()
+    const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
+    if (genre) divisionJudges.value[genre.name] = judges
+  }
 }
+
+watch(activeGenreTab, async (tabName) => {
+  if (tabName && !divisionJudges.value[tabName]) {
+    const genre = eventGenres.value.find(g => g.name === tabName)
+    if (genre) await loadJudgesForDivision(genre)
+  }
+})
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Genre format editing ────────────────────────────────────────────────────
@@ -631,9 +649,11 @@ onMounted(async () => {
   }
   genreOptions.value = await fetchAllGenres()
   eventGenres.value = await getGenresByEvent(props.eventName)
-  if (eventGenres.value.length > 0) activeGenreTab.value = eventGenres.value[0].name
+  if (eventGenres.value.length > 0) {
+    activeGenreTab.value = eventGenres.value[0].name
+    await loadJudgesForDivision(eventGenres.value[0])
+  }
   await loadCriteriaForAllGenres(eventGenres.value)
-  eventJudges.value = await getEventJudges(props.eventName)
   if (tableExist.value) {
     verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
     verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
@@ -1179,21 +1199,21 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Judges -->
+        <!-- Judges (per division) -->
         <div>
           <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
-            Judges <span class="normal-case font-normal opacity-60">(shared across all genres)</span>
+            Judges
           </p>
           <div class="flex flex-wrap items-center gap-2">
             <div
-              v-for="j in eventJudges"
+              v-for="j in (divisionJudges[g.name] || [])"
               :key="j.judgeId"
               class="flex items-center gap-2 para-chip px-2.5 py-1"
             >
               <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
               <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
               <button
-                @click="submitRemoveJudge(j.judgeId)"
+                @click="submitRemoveJudge(g.eventGenreId, j.judgeId)"
                 class="type-label text-content-muted hover:text-content-primary transition-colors"
                 title="Remove"
               ><i class="pi pi-times text-xs"></i></button>
@@ -1205,10 +1225,10 @@ onUnmounted(() => {
                 placeholder="Add judge…"
                 autocomplete="off"
                 class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-28"
-                @keyup.enter="submitAddJudge"
+                @keyup.enter="submitAddJudge(g.eventGenreId)"
               />
               <button
-                @click="submitAddJudge"
+                @click="submitAddJudge(g.eventGenreId)"
                 class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
                 title="Add"
               ><i class="pi pi-plus text-xs"></i></button>
