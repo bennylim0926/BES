@@ -1161,7 +1161,7 @@ export const postAppConfig = async (accentColor) => {
 
 export const addDivision = async (eventName, name, format, genreId) => {
   try {
-    return await fetch(`${domain}/api/v1/event/${eventName}/divisions`, {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -1172,7 +1172,7 @@ export const addDivision = async (eventName, name, format, genreId) => {
 
 export const renameDivision = async (eventName, divisionId, name) => {
   try {
-    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}/name`, {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/name`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -1183,7 +1183,7 @@ export const renameDivision = async (eventName, divisionId, name) => {
 
 export const updateDivisionAliases = async (eventName, divisionId, aliases) => {
   try {
-    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}/aliases`, {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/aliases`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -1194,7 +1194,7 @@ export const updateDivisionAliases = async (eventName, divisionId, aliases) => {
 
 export const deleteDivision = async (eventName, divisionId) => {
   try {
-    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}`, {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}`, {
       method: 'DELETE',
       credentials: 'include'
     })
