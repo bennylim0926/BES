@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
@@ -214,6 +215,7 @@ public class RegistrationService {
         return result;
     }
 
+    @Transactional(readOnly = true)
     public List<GetCheckinListDto> getCheckinList(String eventName) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
@@ -232,6 +234,23 @@ public class RegistrationService {
                       : name;
             List<EventGenreParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
+            // Collect unique member names from EGP members (primary) or EventParticipantTeamMember (fallback)
+            java.util.LinkedHashSet<String> memberSet = new java.util.LinkedHashSet<>();
+            for (EventGenreParticipant egp : egps) {
+                if (egp.getMembers() != null) {
+                    egp.getMembers().stream()
+                        .map(com.example.BES.models.EventGenreParticipantMember::getMemberName)
+                        .filter(n -> n != null && !n.isBlank())
+                        .forEach(memberSet::add);
+                }
+            }
+            if (memberSet.isEmpty()) {
+                ep.getTeamMembers().stream()
+                    .map(m -> m.getMemberName())
+                    .filter(n -> n != null && !n.isBlank())
+                    .forEach(memberSet::add);
+            }
+            dto.memberNames = new ArrayList<>(memberSet);
             dto.genres = egps.stream().map(egp -> {
                 GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
                 gs.genreName = egp.getEventGenre().getName();

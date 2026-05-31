@@ -33,6 +33,7 @@ const batchVerifying = ref(false)
 const checkinList = ref([])
 const loadingCheckinList = ref(false)
 const checkingInId = ref(null)
+const checkinSearch = ref('')
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
 
@@ -590,6 +591,15 @@ const sortedCheckinList = computed(() =>
     return a.label.localeCompare(b.label)
   })
 )
+
+const filteredCheckinList = computed(() => {
+  const q = checkinSearch.value.trim().toLowerCase()
+  if (!q) return sortedCheckinList.value
+  return sortedCheckinList.value.filter(p =>
+    p.label.toLowerCase().includes(q) ||
+    (p.memberNames ?? []).some(m => m.toLowerCase().includes(q))
+  )
+})
 
 const fetchCheckinList = async () => {
   loadingCheckinList.value = true
@@ -1256,12 +1266,33 @@ onUnmounted(() => {
       <!-- Check-In card -->
       <div class="card-hover p-4 relative flex flex-col h-[520px]">
         <div class="corner-bar-tl"></div>
-        <div class="flex items-center justify-between mb-4 shrink-0">
+        <div class="flex items-center justify-between mb-3 shrink-0">
           <div class="flex items-center gap-3">
             <i class="pi pi-users text-content-muted text-xs"></i>
             <span class="type-body text-content-secondary">Check-In</span>
             <span class="badge-warning">{{ checkinList.filter(p => !isCheckedIn(p)).length }} pending</span>
           </div>
+        </div>
+        <!-- Search bar -->
+        <div class="mb-3 shrink-0">
+          <div class="relative">
+            <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+            <input
+              v-model="checkinSearch"
+              type="text"
+              placeholder="Search by name or member…"
+              autocomplete="off"
+              class="input-base"
+              style="padding-left: 2.25rem"
+            />
+            <button v-if="checkinSearch" @click="checkinSearch = ''"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+          <p v-if="checkinSearch" class="type-label text-content-muted mt-1.5">
+            {{ filteredCheckinList.length }} result{{ filteredCheckinList.length !== 1 ? 's' : '' }}
+          </p>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2 min-h-0">
           <div v-if="loadingCheckinList" class="flex items-center justify-center h-full type-label text-content-muted">
@@ -1270,13 +1301,21 @@ onUnmounted(() => {
           <div v-else-if="checkinList.length === 0" class="flex items-center justify-center h-full type-label text-content-muted">
             No participants found
           </div>
+          <div v-else-if="filteredCheckinList.length === 0" class="flex items-center justify-center h-full type-label text-content-muted">
+            No results match your search
+          </div>
           <template v-else>
-            <div v-for="p in sortedCheckinList" :key="p.participantId"
+            <div v-for="p in filteredCheckinList" :key="p.participantId"
               class="para-chip p-3 transition-colors"
               :class="isCheckedIn(p) ? 'opacity-50' : ''"
             >
               <div class="flex-1 min-w-0">
                 <p class="type-body text-content-secondary truncate">{{ p.label }}</p>
+                <!-- Member names for team entries -->
+                <div v-if="p.memberNames && p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
+                  <i class="pi pi-users" style="font-size:0.65rem"></i>
+                  <span>{{ p.memberNames.join(', ') }}</span>
+                </div>
                 <div class="flex flex-wrap gap-1 mt-1">
                   <!-- No divisions assigned -->
                   <span v-if="p.genres.length === 0" class="inline-flex items-center gap-1 badge-neutral">
@@ -1334,7 +1373,8 @@ onUnmounted(() => {
               </button>
             </div>
             <select v-model="registeredGenreFilter"
-              class="input-base w-auto"
+              class="input-base"
+              style="width: auto; flex-shrink: 0"
             >
               <option value="">All genres</option>
               <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>

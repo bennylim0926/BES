@@ -253,32 +253,35 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                   </div>
                 </div>
 
-                <!-- Criteria tabs -->
+                <!-- Criteria scores summary — clickable, active row highlighted -->
                 <template v-if="hasCriteria">
-                  <div class="flex gap-0 mb-2 overflow-x-auto border-b" style="scrollbar-width: none; border-color: rgba(255,255,255,0.06);">
+                  <div class="h-px mb-2 bg-white/5"></div>
+                  <div class="flex flex-col gap-1.5">
                     <button
                       v-for="criterion in criteria"
                       :key="criterion.id"
                       @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
-                      class="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-bold border-b-2 transition-all duration-150 -mb-px"
+                      class="flex items-center justify-between px-3 py-2 para-chip w-full text-left transition-all duration-150 active:scale-[0.99]"
                       :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'border-[color:var(--accent-color)] text-accent'
-                        : 'border-transparent text-white/25 hover:text-white/50'"
+                        ? 'border-accent'
+                        : criteriaScore(activeCard, criterion.name) > 0 ? 'border-accent/25' : 'border-white/[0.07]'"
+                      :style="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                        ? 'background: rgba(255,255,255,0.08); border-left: 3px solid var(--accent-color); box-shadow: 0 0 10px var(--accent-subtle)'
+                        : 'background: rgba(255,255,255,0.03)'"
                     >
-                      {{ criterion.name }}
-                      <span v-if="criteriaScore(activeCard, criterion.name) > 0" class="font-source tabular-nums text-accent/60 text-[10px]">
-                        {{ criteriaScore(activeCard, criterion.name) }}
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="type-body"
+                          :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-content-primary' : 'text-content-muted'"
+                        >{{ criterion.name }}</span>
+                        <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
+                      </div>
+                      <span
+                        class="font-source tabular-nums font-bold leading-none"
+                        style="font-size: 1.6rem"
+                        :class="criteriaScore(activeCard, criterion.name) > 0 ? 'text-accent' : 'text-white/15'"
+                      >{{ criteriaScore(activeCard, criterion.name) > 0 ? criteriaScore(activeCard, criterion.name) : '—' }}</span>
                     </button>
                   </div>
-                  <template v-for="criterion in criteria" :key="criterion.id">
-                    <div v-if="getActiveCriterion(activeCard.auditionNumber) === criterion.name" class="flex items-center justify-between mb-2">
-                      <span class="text-[9px] font-bold text-white/25 uppercase tracking-widest">{{ criterion.name }}<span v-if="criterion.weight != null" class="text-accent/40 ml-1">×{{ criterion.weight }}</span></span>
-                      <span class="type-stat text-2xl tabular-nums" :class="criteriaScore(activeCard, criterion.name) === 0 ? 'text-white/15' : 'text-accent'">
-                        {{ criteriaScore(activeCard, criterion.name) === 0 ? '—' : criteriaScore(activeCard, criterion.name) }}
-                      </span>
-                    </div>
-                  </template>
                 </template>
               </div><!-- /pair-card-info -->
 
@@ -287,6 +290,34 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
                 <!-- Multi-criteria mode -->
                 <template v-if="hasCriteria">
+                  <!-- Criterion selector chips — in keypad column for easy reach -->
+                  <div class="flex gap-2 mb-3 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
+                    <button
+                      v-for="criterion in criteria"
+                      :key="'sel-'+criterion.id"
+                      @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
+                      class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 para-chip transition-all duration-150 active:scale-95"
+                      :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                        ? 'bg-accent border-accent'
+                        : criteriaScore(activeCard, criterion.name) > 0
+                          ? 'border-accent/40 text-accent/80'
+                          : 'border-white/10 text-content-muted hover:text-content-primary'"
+                      :style="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                        ? 'box-shadow: 0 0 14px var(--accent-muted)'
+                        : ''"
+                    >
+                      <span class="type-label leading-none"
+                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-surface-900' : ''"
+                      >{{ criterion.name }}</span>
+                      <span
+                        v-if="criteriaScore(activeCard, criterion.name) > 0"
+                        class="font-source tabular-nums text-sm font-bold leading-none"
+                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-surface-900' : 'text-accent'"
+                      >{{ criteriaScore(activeCard, criterion.name) }}</span>
+                      <span v-else class="inline-block w-2 h-2 rounded-full bg-white/15 shrink-0"></span>
+                    </button>
+                  </div>
+
                   <template v-for="criterion in criteria" :key="criterion.id">
                     <div v-if="getActiveCriterion(activeCard.auditionNumber) === criterion.name">
                       <button

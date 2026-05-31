@@ -185,7 +185,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
           participants.value = participants.value.map(p => {
             const found = cached.find(c => c.participantName === p.participantName &&
               c.genreName === p.genreName && c.judgeName === p.judgeName)
-            return found ? { ...p, score: found.score, absent: found.absent } : p
+            return found ? { ...p, score: found.score, absent: found.absent, criteriaScores: found.criteriaScores ?? p.criteriaScores } : p
           })
         }
       }

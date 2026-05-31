@@ -251,14 +251,15 @@ const applyToAllGenres = async () => {
                     <input
                       v-model="editName"
                       placeholder="Criterion name"
-                      class="flex-1 input-base"
+                      class="flex-1 min-w-0 input-base"
                       @keydown.enter="saveEdit"
                       @keydown.escape="cancelEdit"
                     />
                     <input
                       v-model="editWeight"
                       type="number" min="0" step="0.5" placeholder="Weight"
-                      class="w-24 input-base"
+                      class="input-base"
+                      style="width: 6rem; flex-shrink: 0"
                     />
                   </div>
                   <div class="flex gap-2">
@@ -287,14 +288,15 @@ const applyToAllGenres = async () => {
                 <input
                   v-model="newName"
                   placeholder="Criterion name (e.g. Musicality)"
-                  class="flex-1 input-base"
+                  class="flex-1 min-w-0 input-base"
                   @keydown.enter="add"
                   @keydown.escape="cancelAdd"
                 />
                 <input
                   v-model="newWeight"
                   type="number" min="0" step="0.5" placeholder="Weight"
-                  class="w-24 input-base"
+                  class="input-base"
+                  style="width: 6rem; flex-shrink: 0"
                 />
               </div>
               <div class="flex gap-2">
