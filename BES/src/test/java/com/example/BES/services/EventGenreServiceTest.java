@@ -5,6 +5,7 @@ import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
+import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
@@ -27,6 +28,7 @@ class EventGenreServiceTest {
     @Mock EventGenreRepo eventGenreRepo;
     @Mock EventRepo eventRepo;
     @Mock GenreRepo genreRepo;
+    @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
     @InjectMocks EventGenreService service;
 
     private Event event(String name) {

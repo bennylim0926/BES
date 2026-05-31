@@ -31,7 +31,8 @@ function selectedFormat(genreName) {
 
 function isTeamFormat(genreName) {
   const fmt = selectedFormat(genreName)
-  return fmt !== null && fmt.toLowerCase() !== '1v1'
+  if (!fmt) return false
+  return /^\d+v\d+$/i.test(fmt) && fmt.toLowerCase() !== '1v1'
 }
 
 function additionalMembersCountForGenre(genreName) {
@@ -148,7 +149,7 @@ onMounted(async () => {
         <div class="space-y-3">
           <template v-for="group in groupedDivisions" :key="group.genreId">
             <div class="type-label text-content-muted text-xs mb-1 mt-2 first:mt-0">{{ group.label }}</div>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 gap-2">
               <label
                 v-for="g in group.divisions"
                 :key="g.genreName"

@@ -43,9 +43,11 @@ class RegistrationServiceImportTest {
 
         mockEventGenre = new EventGenre();
         mockEventGenre.setFormat("2v2");
+        mockEventGenre.setName("popping");
+        mockEventGenre.setSoloAllowed(false);
 
         when(eventRepo.findByEventName("TestEvent")).thenReturn(Optional.of(mockEvent));
-        when(eventGenreRepo.findByEventAndName(any(), any())).thenReturn(Optional.of(mockEventGenre));
+        when(eventGenreRepo.findByEvent(any())).thenReturn(List.of(mockEventGenre));
     }
 
     @Test

@@ -87,16 +87,6 @@ const openModal = (title, message, variant = 'success', errors = []) => {
   showModal.value = true
 }
 
-const getTitle = (statusCode) => {
-  if (statusCode >= 200 && statusCode <= 299) {
-    modalTitle.value = "Success"
-    modalVariant.value = "success"
-  } else {
-    modalTitle.value = "Failed"
-    modalVariant.value = "error"
-  }
-}
-
 const genreCounts = computed(() => {
   const counts = {}
   verifiedDbParticipants.value.forEach(p => {
@@ -548,26 +538,6 @@ watch(activeGenreTab, async (tabName) => {
   }
 })
 // ───────────────────────────────────────────────────────────────────────────
-
-// ── Genre format editing ────────────────────────────────────────────────────
-const formatOptions = ['1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
-const editingFormatFor = ref(null)  // genre name currently being edited
-const editingFormatValue = ref('')
-
-const startEditFormat = (genre) => {
-  editingFormatFor.value = genre.name
-  editingFormatValue.value = genre.format || ''
-}
-
-const saveFormat = async (genreName) => {
-  const eg = eventGenres.value.find(g => g.name === genreName)
-  if (!eg) return
-  await updateEventGenreFormat(props.eventName, eg.eventGenreId, editingFormatValue.value || null)
-  eventGenres.value = await getGenresByEvent(props.eventName)
-  editingFormatFor.value = null
-}
-// ───────────────────────────────────────────────────────────────────────────
-
 
 const toggleUnverifiedSelect = (participantId) => {
   if (selectedUnverified.value.has(participantId)) {

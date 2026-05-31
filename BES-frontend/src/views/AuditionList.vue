@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';

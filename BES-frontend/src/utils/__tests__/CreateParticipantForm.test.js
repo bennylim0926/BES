@@ -36,8 +36,8 @@ describe('CreateParticipantForm.vue', () => {
         show: true,
         event: 'TestEvent',
         eventGenres: [
-          { genreName: 'Popping', format: '3v3' },
-          { genreName: 'Waacking', format: '1v1' },
+          { name: 'Popping', format: '3v3' },
+          { name: 'Waacking', format: '1v1' },
         ],
       },
     })
@@ -60,7 +60,7 @@ describe('CreateParticipantForm.vue', () => {
         show: true,
         event: 'TestEvent',
         eventGenres: [
-          { genreName: 'Popping', format: '3v3' },
+          { name: 'Popping', format: '3v3' },
         ],
       },
     })
@@ -93,7 +93,7 @@ describe('CreateParticipantForm.vue', () => {
         show: true,
         event: 'TestEvent',
         eventGenres: [
-          { genreName: 'Popping', format: '3v3' },
+          { name: 'Popping', format: '3v3' },
         ],
       },
     })
