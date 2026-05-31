@@ -888,7 +888,7 @@ onUnmounted(() => {
           <div>
             <span class="type-body">Payment Required</span>
             <p class="type-label mt-0.5" :class="paymentRequired ? 'text-amber-400' : 'text-content-muted'">
-              {{ paymentRequired ? 'Participants will be placed in an unverified queue until you manually verify payment in-app.' : 'All participants will be auto-verified and emailed immediately on import.' }}
+              {{ paymentRequired ? 'Participants will be placed in an unverified queue until you manually verify payment in-app.' : 'All participants will be auto-verified on import.' }}
             </p>
           </div>
         </label>
