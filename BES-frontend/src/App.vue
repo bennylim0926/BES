@@ -152,7 +152,7 @@ onUnmounted(() => {
 
   <nav
     v-if="!hideNav"
-    class="fixed top-0 left-0 w-full z-40 bg-surface-900/95 border-b border-[rgba(255,255,255,0.07)] transition-all duration-300"
+    class="fixed top-0 left-0 w-full z-50 bg-surface-900/95 border-b border-[rgba(255,255,255,0.07)] transition-all duration-300"
   >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
@@ -257,7 +257,7 @@ onUnmounted(() => {
                 </div>
               </div>
             </Transition>
-            <div v-if="eventMenuOpen" class="fixed inset-0 z-40" @click="eventMenuOpen = false"></div>
+            <div v-if="eventMenuOpen" class="fixed inset-0 z-40 bg-black/20" @click="eventMenuOpen = false"></div>
           </div>
 
           <div v-if="isAuthenticated" class="h-4 w-px bg-[rgba(255,255,255,0.12)]"></div>

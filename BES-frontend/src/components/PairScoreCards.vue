@@ -397,7 +397,8 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
       <button
         @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent para-chip type-label text-surface-900 transition-all duration-150 active:scale-[0.98]"
+        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 para-chip type-label text-white transition-all duration-150 active:scale-[0.98]"
+        style="background:rgb(16,185,129);box-shadow:0 0 16px rgba(16,185,129,0.5)"
       ><i class="pi pi-send text-xs"></i> Submit All</button>
 
       <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">

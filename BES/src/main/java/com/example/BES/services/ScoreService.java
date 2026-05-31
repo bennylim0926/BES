@@ -54,7 +54,7 @@ public class ScoreService {
         for (ParticipantScoreDto d : dto.participantScore) {
             EventGenreParticipant record = eventGenreParticpantRepo
                     .findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName).orElse(null);
-            Judge judge = judgeRepo.findByName(dto.judgeName).orElse(null);
+            Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
 
             if (d.aspects != null && !d.aspects.isEmpty()) {

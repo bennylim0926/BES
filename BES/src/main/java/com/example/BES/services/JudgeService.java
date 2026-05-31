@@ -32,10 +32,11 @@ public class JudgeService {
     EventGenreRepo eventGenreRepo;
 
     public Judge addJudgeService(AddJudgeDto dto){
-        Judge j = new Judge();
-        j.setName(dto.judgeName);
-        Judge judge = judgeRepo.save(j);
-        return judge;
+        return judgeRepo.findFirstByName(dto.judgeName).orElseGet(() -> {
+            Judge j = new Judge();
+            j.setName(dto.judgeName);
+            return judgeRepo.save(j);
+        });
     }
 
     public List<GetJudgeDto> getAllJudges(){
@@ -100,9 +101,11 @@ public class JudgeService {
         if (event == null) return null;
         List<EventGenre> genres = eventGenreRepo.findByEvent(event);
         if (genres.isEmpty()) return null;
-        Judge j = new Judge();
-        j.setName(judgeName);
-        j = judgeRepo.save(j);
+        Judge j = judgeRepo.findFirstByName(judgeName).orElseGet(() -> {
+            Judge newJ = new Judge();
+            newJ.setName(judgeName);
+            return judgeRepo.save(newJ);
+        });
         EventGenre eg = genres.get(0);
         if (eg.getJudges() == null) eg.setJudges(new ArrayList<>());
         eg.getJudges().add(j);
@@ -138,9 +141,11 @@ public class JudgeService {
     @Transactional
     public List<GetJudgeDto> addJudgeToDivision(Long divisionId, String judgeName) {
         EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
-        Judge j = new Judge();
-        j.setName(judgeName);
-        j = judgeRepo.save(j);
+        Judge j = judgeRepo.findFirstByName(judgeName).orElseGet(() -> {
+            Judge newJ = new Judge();
+            newJ.setName(judgeName);
+            return judgeRepo.save(newJ);
+        });
         if (eg.getJudges() == null) eg.setJudges(new ArrayList<>());
         eg.getJudges().add(j);
         eventGenreRepo.save(eg);

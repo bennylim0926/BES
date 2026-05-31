@@ -8,5 +8,5 @@ import com.example.BES.models.Judge;
 
 @Repository
 public interface JudgeRepo extends JpaRepository<Judge,Long>{
-    Optional<Judge> findByName(String name);
+    Optional<Judge> findFirstByName(String name);
 } 

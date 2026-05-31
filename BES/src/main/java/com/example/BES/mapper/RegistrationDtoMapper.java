@@ -55,10 +55,12 @@ public class RegistrationDtoMapper {
         }
         dto.setMemberNames(memberNames);
 
-        // Entry type
+        // Entry type: explicit column takes precedence; otherwise infer from team name presence
         Integer entryTypeIdx = colIndexMap.get(SheetHeader.ENTRY_TYPE);
         if (entryTypeIdx != null && row.size() > entryTypeIdx && !row.get(entryTypeIdx).isBlank()) {
             dto.setEntryType(row.get(entryTypeIdx).trim().toLowerCase());
+        } else if (dto.getTeamName() != null && !dto.getTeamName().isBlank()) {
+            dto.setEntryType("team");
         }
 
         if (colIndexMap.containsKey(SheetHeader.PAYMENT_STATUS)) {

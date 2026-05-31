@@ -12,6 +12,7 @@ import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
+import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
@@ -27,6 +28,9 @@ public class EventGenreService {
     @Autowired
     GenreRepo genreRepo;
 
+    @Autowired
+    EventGenreParticpantRepo eventGenreParticipantRepo;
+
     public List<GetEventDivisionDto> getGenresByEventService(String eventName) {
         Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (e == null) return new ArrayList<>();
@@ -38,6 +42,8 @@ public class EventGenreService {
             dto.format = eg.getFormat();
             dto.sheetAliases = eg.getSheetAliases();
             dto.genreId = eg.getGenre() != null ? eg.getGenre().getGenreId() : null;
+            dto.soloAllowed = eg.isSoloAllowed();
+            dto.participantCount = eventGenreParticipantRepo.countByEventIdAndEventGenreId(e.getEventId(), eg.getId());
             dtos.add(dto);
         }
         return dtos;
@@ -60,6 +66,12 @@ public class EventGenreService {
     public void updateAliases(Long id, String aliases) {
         EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
         eg.setSheetAliases(aliases == null || aliases.isBlank() ? null : aliases.trim());
+        eventGenreRepo.save(eg);
+    }
+
+    public void updateSoloAllowed(Long id, boolean soloAllowed) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        eg.setSoloAllowed(soloAllowed);
         eventGenreRepo.save(eg);
     }
 

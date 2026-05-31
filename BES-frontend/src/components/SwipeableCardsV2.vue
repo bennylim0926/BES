@@ -107,9 +107,9 @@ onMounted(observeCards)
         <!-- Score card -->
         <div
           class="card-hover p-3 relative transition-all duration-200"
-          :class="[idx === currentIndex ? 'border-[color:var(--accent-muted)]' : 'border-white/5 opacity-40']"
+          :class="[idx === currentIndex ? (card.submitted ? 'border-emerald-500/50' : 'border-[color:var(--accent-muted)]') : 'border-white/5 opacity-40']"
           :style="idx === currentIndex
-            ? { boxShadow: '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
+            ? { boxShadow: card.submitted ? '0 0 0 1px rgba(16,185,129,0.4), 0 8px 32px rgba(0,0,0,0.7)' : '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
             : {}"
         >
           <div class="score-card-body">
@@ -121,6 +121,9 @@ onMounted(observeCards)
               <div class="text-center mb-2">
                 <span class="type-stat text-accent leading-none block" style="font-size: 2.8rem;">#{{ card.auditionNumber }}</span>
                 <div class="type-body text-content-primary text-xl leading-tight mt-0.5">{{ card.participantName }}</div>
+                <div v-if="card.submitted" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-emerald-400 normal-case" style="background:rgba(16,185,129,0.12);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);box-shadow:0 0 8px rgba(16,185,129,0.2)">
+                  <i class="pi pi-check text-[10px]"></i> Submitted
+                </div>
               </div>
 
               <!-- Score — grows to fill remaining space and centers -->
@@ -129,7 +132,7 @@ onMounted(observeCards)
                 <div
                   class="type-stat tabular-nums leading-none"
                   style="font-size: 3.5rem;"
-                  :class="card.score === 0 ? 'text-white/20' : 'text-accent'"
+                  :class="card.submitted ? 'text-emerald-400' : card.score === 0 ? 'text-white/20' : 'text-accent'"
                 >{{ card.score === 0 ? '—' : card.score }}</div>
               </div>
 
@@ -326,7 +329,8 @@ onMounted(observeCards)
 
       <button
         @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent para-chip type-label text-surface-900 transition-all duration-150 active:scale-[0.98]"
+        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 para-chip type-label text-white transition-all duration-150 active:scale-[0.98]"
+        style="background:rgb(16,185,129);box-shadow:0 0 16px rgba(16,185,129,0.5)"
       ><i class="pi pi-send text-xs"></i> Submit All</button>
 
       <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">

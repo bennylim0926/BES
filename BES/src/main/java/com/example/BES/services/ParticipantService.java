@@ -14,13 +14,15 @@ public class ParticipantService {
     ParticipantRepo repo;
 
     public Participant addParticpantService(AddParticipantDto dto){
-        Participant participant = new Participant();
-        participant.setParticipantName(dto.getParticipantName());
-        return repo.save(participant);
+        return repo.findFirstByParticipantName(dto.getParticipantName()).orElseGet(() -> {
+            Participant participant = new Participant();
+            participant.setParticipantName(dto.getParticipantName());
+            return repo.save(participant);
+        });
     }
 
     public Participant addWalkInService(AddWalkInDto dto){
-        Participant participant = repo.findByParticipantName(dto.name).orElse(new Participant());
+        Participant participant = repo.findFirstByParticipantName(dto.name).orElse(new Participant());
         if(participant.getParticipantName() == null){;
             participant.setParticipantName(dto.name);
             participant = repo.save(participant);

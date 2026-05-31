@@ -109,7 +109,7 @@ class AuditionFeedbackServiceTest {
         EventGenreParticipant egp = mock(EventGenreParticipant.class);
         when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Ghost")).thenReturn(Optional.empty());
+        when(judgeRepo.findFirstByName("Ghost")).thenReturn(Optional.empty());
 
         service.submitFeedback(dto);
 
@@ -130,7 +130,7 @@ class AuditionFeedbackServiceTest {
         Judge judge = new Judge(); judge.setName("Mike");
         when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Mike")).thenReturn(Optional.of(judge));
+        when(judgeRepo.findFirstByName("Mike")).thenReturn(Optional.of(judge));
         when(feedbackRepo.findByEventGenreParticipantAndJudge(egp, judge))
             .thenReturn(Optional.empty());
 

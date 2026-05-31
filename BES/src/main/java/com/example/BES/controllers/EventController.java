@@ -764,6 +764,22 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Update Division Solo Allowed", description = "Sets whether solo entries are allowed for a division")
+    @PatchMapping("/{eventName}/divisions/{id}/solo-allowed")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateDivisionSoloAllowed(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, Object> body) {
+        try {
+            boolean soloAllowed = Boolean.TRUE.equals(body.get("soloAllowed"));
+            eventGenreService.updateSoloAllowed(id, soloAllowed);
+            return ResponseEntity.ok(gson.toJson("Solo allowed updated"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Delete Division", description = "Deletes a division from an event")
     @DeleteMapping("/{eventName}/divisions/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")

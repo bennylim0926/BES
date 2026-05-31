@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria } from '@/utils/api';
+import { getEventJudges, getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
@@ -24,6 +24,7 @@ const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
 const participants = ref([])
 const judgingMode = ref("SOLO")
+const eventDivisions = ref([]) // { eventGenreId, name } for current event — used to map division name → ID
 const isAdmin = ref(false)
 
 const modalTitle = ref("")
@@ -54,7 +55,7 @@ const dynamicRole = async () => {
 
 const hasJudge = computed(() => participants.value.some(item => item.judgeName !== null))
 
-const noJudgesConfigured = computed(() => selectedEvent.value && allJudges.value.length <= 1)
+const noJudgesConfigured = computed(() => selectedEvent.value && selectedGenre.value && allJudges.value.length <= 1)
 
 const hasTeamAndSoloMix = computed(() => {
   const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
@@ -141,20 +142,37 @@ watch(selectedEvent, async (newVal, oldVal) => {
       selectedGenre.value = ""
     }
     participants.value = []
-    const [res, modeRes, judgeRes] = await Promise.all([
+    const [res, modeRes, divRes] = await Promise.all([
       getRegisteredParticipantsByEvent(newVal),
       getJudgingMode(newVal),
-      getEventJudges(newVal)
+      getGenresByEvent(newVal)
     ])
-    const judgeNames = judgeRes.map(item => item.judgeName)
-    allJudges.value = ["", ...judgeNames]
-    if (!judgeNames.includes(currentJudge.value)) {
+    eventDivisions.value = divRes ?? []
+    // Now that divisions are loaded, reload judges for the selected genre (fixes race on page load)
+    if (selectedGenre.value) {
+      const div = (divRes ?? []).find(d => d.name.toLowerCase() === selectedGenre.value.toLowerCase())
+      if (div) {
+        const judges = await getJudgesByDivision(newVal, div.eventGenreId)
+        const judgeNames = judges.map(j => j.judgeName)
+        allJudges.value = ["", ...judgeNames]
+        const saved = localStorage.getItem("currentJudge")
+        if (saved && judgeNames.includes(saved)) {
+          currentJudge.value = saved
+        } else {
+          currentJudge.value = ""
+          localStorage.removeItem("currentJudge")
+        }
+      } else {
+        allJudges.value = [""]
+        currentJudge.value = ""
+        localStorage.removeItem("currentJudge")
+      }
+    } else {
+      allJudges.value = [""]
       currentJudge.value = ""
       localStorage.removeItem("currentJudge")
     }
-    if (!judgeNames.includes(filteredJudge.value)) {
-      filteredJudge.value = ""
-    }
+    filteredJudge.value = ""
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
@@ -175,9 +193,32 @@ watch(selectedEvent, async (newVal, oldVal) => {
   }
 }, { immediate: true });
 
-watch(selectedGenre, (newVal) => {
+watch(selectedGenre, async (newVal) => {
   if (newVal) localStorage.setItem("selectedGenre", newVal)
   selectedEntryType.value = 'Teams'
+  if (!newVal || !selectedEvent.value) return
+  if (eventDivisions.value.length === 0) {
+    // Divisions not loaded yet (race on page load) — selectedEvent watcher will reload judges once they arrive
+    return
+  }
+  const division = eventDivisions.value.find(d => d.name.toLowerCase() === newVal.toLowerCase())
+  if (division) {
+    const judges = await getJudgesByDivision(selectedEvent.value, division.eventGenreId)
+    const judgeNames = judges.map(j => j.judgeName)
+    allJudges.value = ["", ...judgeNames]
+    if (!judgeNames.includes(currentJudge.value)) {
+      currentJudge.value = ""
+      localStorage.removeItem("currentJudge")
+    }
+    if (!judgeNames.includes(filteredJudge.value)) {
+      filteredJudge.value = ""
+    }
+  } else {
+    allJudges.value = [""]
+    currentJudge.value = ""
+    filteredJudge.value = ""
+    localStorage.removeItem("currentJudge")
+  }
 }, { immediate: true });
 watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
 watch(currentJudge, (newVal) => { if (newVal) localStorage.setItem("currentJudge", newVal); }, { immediate: true });
@@ -203,9 +244,21 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
     }
     return { participantName: obj.participantName, score: parseFloat(obj.score) }
   })
+  if (p.length === 0) {
+    openModal("No Participants", "No participants found for this judge/genre combination. Select a judge filter to view your assigned participants.", "warning")
+    return
+  }
   const res = await submitParticipantScore(eventName, genreName, judgeName, p)
   if (res?.ok) {
+    participants.value = participants.value.map(obj =>
+      participantList.some(pl => pl.auditionNumber === obj.auditionNumber && pl.genreName === obj.genreName)
+        ? { ...obj, submitted: true }
+        : obj
+    )
     openModal("Scores Submitted", "All scores have been saved successfully.", "success")
+  } else {
+    const errText = res ? await res.text().catch(() => "") : "Network error"
+    openModal("Submit Failed", `Could not save scores (${res?.status ?? "no response"}). ${errText}`, "warning")
   }
 }
 
@@ -216,7 +269,7 @@ const resetScore = () => {
     if (obj.criteriaScores) {
       Object.keys(obj.criteriaScores).forEach(k => { cs[k] = 0 })
     }
-    return { ...obj, score: 0, criteriaScores: cs }
+    return { ...obj, score: 0, criteriaScores: cs, submitted: false }
   })
 }
 
@@ -357,9 +410,10 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
-  const [judgeRes, groupRes] = await Promise.all([getEventJudges(selectedEvent.value), getFeedbackGroups()])
-  allJudges.value = ["", ...judgeRes.map(item => item.judgeName)]
+  const [groupRes, divRes] = await Promise.all([getFeedbackGroups(), getGenresByEvent(selectedEvent.value)])
   tagGroups.value = groupRes ?? []
+  eventDivisions.value = divRes ?? []
+  // Judge list will be populated by the selectedGenre watch (already runs with { immediate: true })
 
   // On page refresh, judge/genre/event are restored from localStorage so the watch
   // on [currentJudge, selectedGenre] never fires. Load feedback once participants arrive.
@@ -567,10 +621,10 @@ onMounted(async () => {
     >
       <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(245,158,11,0.8)"></div>
       <span class="type-label text-amber-300/90">
-        No judges configured for <span class="text-amber-200">{{ selectedEvent }}</span>.
+        No judges configured for <span class="text-amber-200">{{ selectedGenre }}</span>.
       </span>
       <RouterLink
-        :to="`/events/${selectedEvent}`"
+        :to="`/events/${encodeURIComponent(selectedEvent)}`"
         class="ml-auto flex-shrink-0 type-label text-accent underline underline-offset-2 transition-colors"
       >
         Add judges →

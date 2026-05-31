@@ -53,6 +53,9 @@ public class EventGenre {
     @Column(name = "sheet_aliases")
     private String sheetAliases;
 
+    @Column(name = "solo_allowed", nullable = false)
+    private boolean soloAllowed = true;
+
     @ToString.Exclude
     @OneToMany(mappedBy = "eventGenre")
     private List<EventGenreParticipant> participants;

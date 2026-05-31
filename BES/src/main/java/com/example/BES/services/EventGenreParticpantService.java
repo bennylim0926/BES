@@ -74,7 +74,7 @@ public class EventGenreParticpantService {
             String judgeName, String entryMode, String teamName, List<String> teamMembers) {
 
         EventGenre eg = eventGenreRepo.findByEventAndName(ep.getEvent(), genre).orElse(null);
-        Judge j = judgeRepo.findByName(judgeName).orElse(null);
+        Judge j = judgeRepo.findFirstByName(judgeName).orElse(null);
         EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), eg.getId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) {
@@ -245,16 +245,16 @@ public class EventGenreParticpantService {
                 dto.judgeName = j.getName();
             }
             String fmt = res.getFormat();
-            if (fmt != null && !fmt.equalsIgnoreCase("1v1")) {
+            if (isTeamFormat(fmt)) {
                 List<EventGenreParticipantMember> egpMembers = res.getMembers();
                 if (egpMembers != null && !egpMembers.isEmpty()) {
                     List<String> memberList = new ArrayList<>();
-                    String leaderName = res.getDisplayName() != null ? res.getDisplayName() : res.getParticipant().getParticipantName();
-                    memberList.add(leaderName);
+                    memberList.add(res.getParticipant().getParticipantName());
                     egpMembers.stream().map(EventGenreParticipantMember::getMemberName).forEach(memberList::add);
                     dto.memberNames = memberList;
                 } else {
-                    dto.memberNames = memberNamesMap.get(pid);
+                    List<String> fallback = memberNamesMap.get(pid);
+                    if (fallback != null && fallback.size() > 1) dto.memberNames = fallback;
                 }
             }
             dto.format = fmt;
@@ -337,7 +337,7 @@ public class EventGenreParticpantService {
         for(ParticipantJudgeDto d : dto.updatedList){
             EventGenreParticipant egp = repo.findByEventGenreParticipant(d.eventName, d.genreName, d.participantName).orElse(null);
             if(egp != null){
-                Judge j = judgeRepo.findByName(d.judgeName).orElse(null);
+                Judge j = judgeRepo.findFirstByName(d.judgeName).orElse(null);
                 egp.setJudge(j);
                 repo.save(egp);
                 messagingTemplate.convertAndSend("/topic/judge-update/",
@@ -351,7 +351,7 @@ public class EventGenreParticpantService {
     }
 
     private boolean isTeamFormat(String fmt) {
-        return fmt != null && !fmt.equalsIgnoreCase("1v1");
+        return fmt != null && fmt.matches("(?i)\\d+v\\d+") && !fmt.equalsIgnoreCase("1v1");
     }
 
     int parseFormatSize(String format) {

@@ -1192,6 +1192,17 @@ export const updateDivisionAliases = async (eventName, divisionId, aliases) => {
   } catch (e) { console.log(e) }
 }
 
+export const updateDivisionSoloAllowed = async (eventName, divisionId, soloAllowed) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/solo-allowed`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ soloAllowed })
+    })
+  } catch (e) { console.log(e) }
+}
+
 export const deleteDivision = async (eventName, divisionId) => {
   try {
     return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}`, {

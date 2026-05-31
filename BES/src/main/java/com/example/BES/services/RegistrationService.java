@@ -68,25 +68,39 @@ public class RegistrationService {
         if (event == null) throw new NullPointerException("event is null");
 
         List<AddParticipantDto> importable = sheetService.getAllImportableParticipants(dto);
+        List<EventGenre> allDivisions = eventGenreRepo.findByEvent(event);
+
+        List<String> divisionsWithoutFormat = allDivisions.stream()
+            .filter(eg -> eg.getFormat() == null || eg.getFormat().isBlank())
+            .map(EventGenre::getName)
+            .collect(Collectors.toList());
+        if (!divisionsWithoutFormat.isEmpty()) {
+            ImportResultDto blocked = new ImportResultDto();
+            blocked.errors.add(new ImportResultDto.SkippedRow(0, "—",
+                "Import blocked: set a format for these divisions first: " + String.join(", ", divisionsWithoutFormat)));
+            return blocked;
+        }
+
         ImportResultDto result = new ImportResultDto();
         int rowNumber = 2;
 
         for (AddParticipantDto participant : importable) {
             String participantName = participant.getParticipantName();
             try {
-                boolean hasTeamFormatGenre = hasTeamFormatGenre(participant.getGenres(), event);
+                boolean hasTeamFormatGenre = hasTeamFormatGenre(participant.getGenres(), allDivisions);
 
                 if (hasTeamFormatGenre) {
                     String entryType = participant.getEntryType();
-                    if (entryType == null || entryType.isBlank()) {
+                    boolean soloBlocked = isSoloBlockedForAnyGenre(participant.getGenres(), allDivisions);
+                    if ((entryType == null || entryType.isBlank()) && soloBlocked) {
                         result.errors.add(new ImportResultDto.SkippedRow(rowNumber, participantName,
-                            "ENTRY_TYPE missing for team-format genre"));
+                            "Solo entry not allowed for this division — ENTRY_TYPE required"));
                         result.skipped++;
                         rowNumber++;
                         continue;
                     }
                     if ("team".equals(entryType)) {
-                        String format = getTeamFormat(participant.getGenres(), event);
+                        String format = getTeamFormat(participant.getGenres(), allDivisions);
                         validateTeamEntry(format, participant.getTeamName(), participant.getMemberNames());
                     }
                 }
@@ -95,29 +109,28 @@ public class RegistrationService {
                 EventParticipant ep = eventParticipantRepo
                     .findByEventAndParticipant(event, toAddParticipant).orElse(null);
 
-                if (ep != null) {
-                    rowNumber++;
-                    continue;
+                boolean isNew = ep == null;
+                if (isNew) {
+                    ep = new EventParticipant();
+                    ep.setParticipant(toAddParticipant);
+                    ep.setEvent(event);
+                    ep.setStageName(participant.getStageName());
+                    ep.setDisplayName(resolveDisplayName(participant));
+                    ep.setResidency(participant.getResidency());
+                    ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
+                    ep.setPaymentVerified(!event.isPaymentRequired());
+                    ep.setScreenshotUrl(participant.getScreenshotUrl());
+                    ep.setReferenceCode(ReferenceCodeUtil.generate());
+                    eventParticipantRepo.save(ep);
                 }
-
-                ep = new EventParticipant();
-                ep.setParticipant(toAddParticipant);
-                ep.setEvent(event);
-                ep.setStageName(participant.getStageName());
-                ep.setDisplayName(resolveDisplayName(participant));
-                ep.setResidency(participant.getResidency());
-                ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
-                ep.setPaymentVerified(!event.isPaymentRequired());
-                ep.setScreenshotUrl(participant.getScreenshotUrl());
-                ep.setReferenceCode(ReferenceCodeUtil.generate());
-                eventParticipantRepo.save(ep);
 
                 if (participant.getGenres() != null) {
                     for (String genreName : participant.getGenres()) {
-                        EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+                        EventGenre eg = findMatchingDivision(allDivisions, genreName);
                         if (eg == null) continue;
                         EventGenreParticipantId id = new EventGenreParticipantId(
                             event.getEventId(), eg.getId(), toAddParticipant.getParticipantId());
+                        if (eventGenreParticipantRepo.existsById(id)) continue;
                         EventGenreParticipant egp = new EventGenreParticipant();
                         egp.setId(id);
                         egp.setEvent(event);
@@ -141,14 +154,15 @@ public class RegistrationService {
 
                         if (isTeamEntry && participant.getMemberNames() != null) {
                             for (String memberName : participant.getMemberNames()) {
-                                if (memberName != null && !memberName.isBlank()) {
+                                if (memberName != null && !memberName.isBlank()
+                                        && !egpMemberRepo.existsByEventGenreParticipantAndMemberName(savedEgp, memberName)) {
                                     egpMemberRepo.save(new EventGenreParticipantMember(savedEgp, memberName));
                                 }
                             }
                         }
                     }
                 }
-                result.imported++;
+                if (isNew) result.imported++; else result.existing++;
 
             } catch (IllegalArgumentException e) {
                 result.errors.add(new ImportResultDto.SkippedRow(rowNumber, participantName, e.getMessage()));
@@ -230,7 +244,10 @@ public class RegistrationService {
     }
 
     private boolean isTeamFormat(String format) {
-        return format != null && !format.equalsIgnoreCase("1v1");
+        if (format == null) return false;
+        // Only XvX formats where X > 1 are team formats (e.g. 2v2, 3v3)
+        // "7 to smoke", "solo", "1v1" are individual formats
+        return format.matches("(?i)\\d+v\\d+") && !format.equalsIgnoreCase("1v1");
     }
 
     private String orElse(String preferred, String fallback) {
@@ -244,22 +261,57 @@ public class RegistrationService {
         return dto.getParticipantName();
     }
 
-    private boolean hasTeamFormatGenre(List<String> genres, Event event) {
+    private boolean isSoloBlockedForAnyGenre(List<String> genres, List<EventGenre> divisions) {
         if (genres == null) return false;
         for (String genreName : genres) {
-            EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+            EventGenre eg = findMatchingDivision(divisions, genreName);
+            if (eg != null && isTeamFormat(eg.getFormat()) && !eg.isSoloAllowed()) return true;
+        }
+        return false;
+    }
+
+    private boolean hasTeamFormatGenre(List<String> genres, List<EventGenre> divisions) {
+        if (genres == null) return false;
+        for (String genreName : genres) {
+            EventGenre eg = findMatchingDivision(divisions, genreName);
             if (eg != null && isTeamFormat(eg.getFormat())) return true;
         }
         return false;
     }
 
-    private String getTeamFormat(List<String> genres, Event event) {
+    private String getTeamFormat(List<String> genres, List<EventGenre> divisions) {
         if (genres == null) return null;
         for (String genreName : genres) {
-            EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+            EventGenre eg = findMatchingDivision(divisions, genreName);
             if (eg != null && isTeamFormat(eg.getFormat())) return eg.getFormat();
         }
         return null;
+    }
+
+    private EventGenre findMatchingDivision(List<EventGenre> divisions, String sheetCategory) {
+        if (sheetCategory == null) return null;
+        String categoryLower = sheetCategory.toLowerCase().trim();
+        EventGenre bestMatch = null;
+        int bestMatchLength = -1;
+        for (EventGenre eg : divisions) {
+            List<String> names = new ArrayList<>();
+            names.add(eg.getName().toLowerCase().trim());
+            if (eg.getSheetAliases() != null && !eg.getSheetAliases().isBlank()) {
+                for (String alias : eg.getSheetAliases().split(",")) {
+                    String a = alias.trim().toLowerCase();
+                    if (!a.isEmpty()) names.add(a);
+                }
+            }
+            for (String name : names) {
+                if (categoryLower.contains(name) || name.contains(categoryLower)) {
+                    if (name.length() > bestMatchLength) {
+                        bestMatch = eg;
+                        bestMatchLength = name.length();
+                    }
+                }
+            }
+        }
+        return bestMatch;
     }
 
     private void validateTeamEntry(String format, String teamName, List<String> memberNames) {

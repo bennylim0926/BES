@@ -5,6 +5,7 @@ import java.util.List;
 
 public class ImportResultDto {
     public int imported;
+    public int existing;
     public int skipped;
     public List<SkippedRow> errors = new ArrayList<>();
 

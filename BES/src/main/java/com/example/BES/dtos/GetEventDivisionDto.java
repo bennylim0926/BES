@@ -6,4 +6,6 @@ public class GetEventDivisionDto {
     public String format;
     public String sheetAliases;
     public Long genreId;
+    public boolean soloAllowed = true;
+    public long participantCount;
 }

@@ -126,7 +126,7 @@ class ScoreServiceTest {
 
         when(eventGenreParticpantRepo.findByEventGenreParticipant("Fest", "Popping", "Alice"))
                 .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Ray")).thenReturn(Optional.of(judge));
+        when(judgeRepo.findFirstByName("Ray")).thenReturn(Optional.of(judge));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ParticipantScoreDto pScore = new ParticipantScoreDto();
@@ -163,7 +163,7 @@ class ScoreServiceTest {
 
         when(eventGenreParticpantRepo.findByEventGenreParticipant("Jam", "Breaking", "Bob"))
                 .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Maya")).thenReturn(Optional.of(judge));
+        when(judgeRepo.findFirstByName("Maya")).thenReturn(Optional.of(judge));
 
         // Both aspects have no existing score row → create new
         when(repo.findByEventGenreParticipantAndJudgeAndAspect(egp, judge, "Musicality"))
@@ -213,7 +213,7 @@ class ScoreServiceTest {
 
         when(eventGenreParticpantRepo.findByEventGenreParticipant("Jam", "Waacking", "Carol"))
                 .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Nina")).thenReturn(Optional.of(judge));
+        when(judgeRepo.findFirstByName("Nina")).thenReturn(Optional.of(judge));
 
         Score existing = new Score();
         existing.setAspect("Style");
@@ -253,7 +253,7 @@ class ScoreServiceTest {
     void updateScore_skipsWhenEgpNotFound() {
         when(eventGenreParticpantRepo.findByEventGenreParticipant("X", "Y", "Dave"))
                 .thenReturn(Optional.empty());
-        when(judgeRepo.findByName("Tom")).thenReturn(Optional.of(new Judge()));
+        when(judgeRepo.findFirstByName("Tom")).thenReturn(Optional.of(new Judge()));
 
         ParticipantScoreDto pScore = new ParticipantScoreDto();
         pScore.participantName = "Dave";
@@ -277,7 +277,7 @@ class ScoreServiceTest {
         EventGenreParticipant egp = mock(EventGenreParticipant.class);
         when(eventGenreParticpantRepo.findByEventGenreParticipant("X", "Y", "Eve"))
                 .thenReturn(Optional.of(egp));
-        when(judgeRepo.findByName("Ghost")).thenReturn(Optional.empty());
+        when(judgeRepo.findFirstByName("Ghost")).thenReturn(Optional.empty());
 
         ParticipantScoreDto pScore = new ParticipantScoreDto();
         pScore.participantName = "Eve";

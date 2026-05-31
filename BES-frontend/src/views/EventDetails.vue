@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, deleteDivision, getSheetCategories } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -16,6 +16,7 @@ const activeFolderID = ref(null)
 const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("success")
+const modalErrors = ref([])
 const genreOptions = ref(null)
 const eventGenres = ref([])
 const tableExist = ref(true)
@@ -55,6 +56,7 @@ const showModal = ref(false)
 const reloadOnClose = ref(false)
 const handleAccept = () => {
   showModal.value = false
+  modalErrors.value = []
   if (reloadOnClose.value) window.location.reload()
 }
 
@@ -77,10 +79,11 @@ const adjustParticipantIds = ref({ participantId: null, eventId: null })
 const adjustLoading = ref(false)
 
 
-const openModal = (title, message, variant = 'success') => {
+const openModal = (title, message, variant = 'success', errors = []) => {
   modalTitle.value = title
   modalMessage.value = message
   modalVariant.value = variant
+  modalErrors.value = errors
   showModal.value = true
 }
 
@@ -319,19 +322,24 @@ const refreshParticipant = async () => {
   loading.value = true
   const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
   if (createEventResponse.ok) {
-    verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
-    verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
-    unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+    await Promise.all([
+      getVerifiedParticipantsByEvent(eventName.value).then(r => { verifiedFormParticipants.value = r }),
+      getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
+      getUnverifiedParticipantsDB(props.eventName).then(r => { unverifiedParticipants.value = r }),
+      getGenresByEvent(props.eventName).then(r => { eventGenres.value = r }),
+      fetchCheckinList(),
+    ])
     selectedUnverified.value = new Set()
     createEventResponse.json().then(result => {
       const r = typeof result === 'string' ? JSON.parse(result) : result
       const imported = r?.imported ?? r?.IMPORTED ?? 0
+      const existing = r?.existing ?? 0
       const skipped = r?.skipped ?? r?.SKIPPED ?? 0
       const errors = r?.errors ?? r?.ERRORS ?? []
-      let msg = `${imported} participant${imported !== 1 ? 's' : ''} imported`
+      let msg = `${imported} new participant${imported !== 1 ? 's' : ''} added`
+      if (existing > 0) msg += `, ${existing} already existed`
       if (skipped > 0) msg += `, ${skipped} skipped`
-      if (errors.length > 0) msg += `\n\nErrors:\n${errors.join('\n')}`
-      openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success')
+      openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success', errors)
     })
   } else if (createEventResponse.status == 404) {
     createEventResponse.json().then(result => {
@@ -476,9 +484,26 @@ const removeAlias = async (div, alias) => {
   div.sheetAliases = joined
 }
 
+const toggleSoloAllowed = async (div) => {
+  const newVal = !div.soloAllowed
+  await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
+  div.soloAllowed = newVal
+}
+
 const addDivisionToGroup = async (genreId, genreLabel) => {
-  const resp = await addDivision(props.eventName, genreLabel, null, genreId === 'custom' ? null : genreId)
-  if (resp && resp.ok) eventGenres.value = await getGenresByEvent(props.eventName)
+  const existingNames = eventGenres.value.map(d => d.name.toLowerCase())
+  let name = genreLabel
+  let i = 2
+  while (existingNames.includes(name.toLowerCase())) {
+    name = `${genreLabel} ${i++}`
+  }
+  const resp = await addDivision(props.eventName, name, null, genreId === 'custom' ? null : genreId)
+  if (resp && resp.ok) {
+    eventGenres.value = await getGenresByEvent(props.eventName)
+  } else if (resp) {
+    const err = await resp.text().catch(() => 'Unknown error')
+    console.error('Add division failed:', resp.status, err)
+  }
 }
 
 const removeDivisionFromSection = async (divId) => {
@@ -958,9 +983,13 @@ onUnmounted(() => {
         <div v-for="div in group.divisions" :key="div.eventGenreId">
           <div
             class="para-chip p-3 flex flex-col gap-2"
-            :class="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) > 0
-              ? 'border-l-[3px] border-l-emerald-500'
-              : ''"
+            :class="sheetCategories.length > 0
+              ? (matchCounts[div.eventGenreId] || 0) > 0
+                ? (div.participantCount >= (matchCounts[div.eventGenreId] || 0)
+                  ? 'border-l-[3px] border-l-emerald-500'
+                  : 'border-l-[3px] border-l-amber-500')
+                : 'border-l-[3px] border-l-amber-500'
+              : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
           >
             <div class="flex items-center gap-2">
               <!-- Division name (click to rename) -->
@@ -982,20 +1011,29 @@ onUnmounted(() => {
                 />
               </template>
 
-              <!-- Match count badge -->
-              <div
-                v-if="sheetCategories.length > 0"
-                class="flex items-center gap-1 shrink-0"
-                :class="(matchCounts[div.eventGenreId] || 0) > 0 ? 'text-emerald-400' : 'text-content-muted'"
-              >
-                <span
-                  class="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                  :class="(matchCounts[div.eventGenreId] || 0) > 0
-                    ? 'bg-emerald-400'
-                    : 'bg-content-muted'"
-                  :style="(matchCounts[div.eventGenreId] || 0) > 0 ? 'box-shadow: 0 0 6px rgba(52,211,153,0.6)' : ''"
-                ></span>
-                <span class="type-label text-xs">{{ matchCounts[div.eventGenreId] || 0 }}</span>
+              <!-- Match count badge: green = imported, amber = not yet imported -->
+              <div class="flex items-center gap-2 shrink-0">
+                <!-- Green: already in DB -->
+                <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+                  <span class="type-label text-xs">{{ div.participantCount }}</span>
+                </div>
+                <!-- Amber: matched on sheet but not yet imported -->
+                <div
+                  v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0"
+                  class="flex items-center gap-1 text-amber-400"
+                >
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label text-xs">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
+                </div>
+                <!-- Amber with 0 when sheet connected but no matches at all -->
+                <div
+                  v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0"
+                  class="flex items-center gap-1 text-amber-400"
+                >
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label text-xs">0</span>
+                </div>
               </div>
 
               <!-- Format dropdown -->
@@ -1016,6 +1054,15 @@ onUnmounted(() => {
                 class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors"
                 title="Sheet aliases"
               ><i class="pi pi-tags text-xs"></i></button>
+
+              <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
+              <button
+                v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
+                @click="toggleSoloAllowed(div)"
+                :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
+                class="para-chip-sm px-2 py-1 type-label transition-colors"
+                :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
+              >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
 
               <!-- Remove -->
               <button
@@ -1142,37 +1189,8 @@ onUnmounted(() => {
           <div class="h-px bg-surface-700/40"></div>
         </template>
 
-        <!-- Format + Scoring Criteria -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-          <!-- Battle Format -->
-          <div class="flex flex-col gap-2 p-3 para-chip">
-            <p class="type-label text-content-muted">Battle Format</p>
-            <template v-if="editingFormatFor !== g.name">
-              <div class="flex items-center justify-between">
-                <span class="type-body" :class="g.format ? 'text-accent' : 'text-content-muted'">
-                  {{ g.format || 'No format' }}
-                </span>
-                <button
-                  @click="startEditFormat(g)"
-                  class="para-chip-sm px-2.5 py-1 type-label"
-                ><i class="pi pi-pencil" style="font-size:0.65rem"></i> Edit</button>
-              </div>
-            </template>
-            <template v-else>
-              <div class="flex items-center gap-2">
-                <select
-                  v-model="editingFormatValue"
-                  class="flex-1 text-xs px-2.5 py-1.5 rounded-lg bg-surface-700 border border-primary-500/50 text-content-primary focus:outline-none focus:ring-1 focus:ring-primary-500/40"
-                >
-                  <option value="">No format</option>
-                  <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
-                </select>
-                <button @click="saveFormat(g.name)" class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold">Save</button>
-                <button @click="editingFormatFor = null" class="text-xs px-2 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 transition-all">Cancel</button>
-              </div>
-            </template>
-          </div>
+        <!-- Scoring Criteria -->
+        <div class="grid grid-cols-1 gap-3">
 
           <!-- Scoring Criteria -->
           <div class="flex flex-col gap-2 p-3 para-chip">
@@ -1289,9 +1307,22 @@ onUnmounted(() => {
             >
               <div class="flex-1 min-w-0">
                 <p class="type-body text-content-secondary truncate">{{ p.label }}</p>
-                <div class="flex flex-wrap gap-1 mt-0.5">
-                  <span v-for="g in p.genres" :key="g.genreName" class="badge-neutral capitalize">
-                    {{ g.genreName }}<span v-if="g.auditionNumber !== null" style="color:var(--accent-color);margin-left:0.25rem">#{{ g.auditionNumber }}</span>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <!-- No divisions assigned -->
+                  <span v-if="p.genres.length === 0" class="inline-flex items-center gap-1 badge-neutral">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.7)"></span>
+                    <span class="type-label text-amber-400/80">No division assigned</span>
+                  </span>
+                  <!-- Per-division status: green = linked to division -->
+                  <span v-for="g in p.genres" :key="g.genreName"
+                    class="inline-flex items-center gap-1 badge-neutral capitalize"
+                  >
+                    <span
+                      class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+                      style="box-shadow:0 0 5px rgba(52,211,153,0.7)"
+                    ></span>
+                    {{ g.genreName }}
+                    <span v-if="g.auditionNumber !== null" class="text-accent">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
               </div>
@@ -1402,6 +1433,16 @@ onUnmounted(() => {
     @close="handleAccept"
   >
     <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+    <div v-if="modalErrors.length > 0" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
+      <div
+        v-for="(e, i) in modalErrors.slice(0, 5)"
+        :key="i"
+        class="type-label text-xs text-amber-400/80 bg-amber-400/5 border-l-2 border-amber-400/40 px-2 py-1 normal-case"
+      >Row {{ e.row }}: <span class="text-content-secondary">{{ e.name }}</span> — {{ e.reason }}</div>
+      <div v-if="modalErrors.length > 5" class="type-label text-xs text-content-muted normal-case px-2">
+        ... and {{ modalErrors.length - 5 }} more skipped
+      </div>
+    </div>
   </ActionDoneModal>
 
   <LoadingOverlay v-if="onStartLoading">Loading event data…</LoadingOverlay>
