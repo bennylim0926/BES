@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, addJudges, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getEventJudges, addEventJudge, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, deleteDivision, getSheetCategories } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -43,14 +43,14 @@ const props = defineProps({
 
 const eventName = ref(props.eventName.split(" ").join("%20"));
 
-const createTable = reactive({ genres: [], genreFormats: {} })
-
-watch(() => [...createTable.genres], (newGenres) => {
-  Object.keys(createTable.genreFormats).forEach(g => {
-    if (!newGenres.includes(g)) delete createTable.genreFormats[g]
-  })
-})
+const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
+const sheetCategories = ref([])
+const divAliasExpanded = ref(null)
+const divAliasInput = ref('')
+const divRenameActive = ref(null)
+const divRenameInput = ref('')
+const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
 
 const showModal = ref(false)
 const handleAccept = () => { showModal.value = false }
@@ -278,14 +278,15 @@ const completeBreakdown = computed(() => {
 
 const onSubmit = async () => {
   if (loading.value) return
-  if (createTable.genres.length == 0) {
-    openModal("Missing Genres", "Please select at least one genre/category.", "warning")
+  if (selectedInitGenres.value.length == 0) {
+    openModal("Missing Genres", "Please add at least one genre.", "warning")
     return
   }
   loading.value = true
   await addJudges(inputs.value)
   await insertEventInTable(props.eventName, paymentRequired.value)
-  const resp = await linkGenreToEvent(props.eventName, createTable.genres, createTable.genreFormats)
+  const divisions = selectedInitGenres.value.map(g => ({ name: g.genreName, format: null, genreId: g.id }))
+  const resp = await linkGenreToEvent(props.eventName, divisions)
   if (!resp) { loading.value = false; return }
   resp.json().then(async result => {
     loading.value = false
@@ -300,6 +301,14 @@ const onSubmit = async () => {
     }
     if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
   })
+}
+
+const toggleInitGenre = (g, checked) => {
+  if (checked) {
+    selectedInitGenres.value.push(g)
+  } else {
+    selectedInitGenres.value = selectedInitGenres.value.filter(s => s.id !== g.id)
+  }
 }
 
 const refreshParticipant = async () => {
@@ -372,6 +381,103 @@ const loadCriteriaForAllGenres = async (genres) => {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
+// ── Divisions (post-init) ────────────────────────────────────────────────────
+const divisionsByGenre = computed(() => {
+  const groups = {}
+  for (const div of eventGenres.value) {
+    const key = div.genreId ?? 'custom'
+    if (!groups[key]) {
+      let label = 'Custom'
+      if (div.genreId != null && genreOptions.value) {
+        const found = genreOptions.value.find(g => g.id === div.genreId)
+        if (found) label = found.genreName
+      }
+      groups[key] = { genreId: key, label, divisions: [] }
+    }
+    groups[key].divisions.push(div)
+  }
+  return Object.values(groups)
+})
+
+const matchCounts = computed(() => {
+  const counts = {}
+  const cats = sheetCategories.value.map(s => s.toLowerCase())
+  for (const div of eventGenres.value) {
+    const names = [div.name.toLowerCase()]
+    if (div.sheetAliases) {
+      names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
+    }
+    let count = 0
+    for (const cat of cats) {
+      if (names.some(n => cat.includes(n))) count++
+    }
+    counts[div.eventGenreId] = count
+  }
+  return counts
+})
+
+const unmatchedSheetValues = computed(() => {
+  if (!sheetCategories.value.length) return []
+  const matched = new Set()
+  for (const div of eventGenres.value) {
+    const names = [div.name.toLowerCase()]
+    if (div.sheetAliases) {
+      names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
+    }
+    for (const cat of sheetCategories.value) {
+      if (names.some(n => cat.toLowerCase().includes(n))) matched.add(cat.toLowerCase())
+    }
+  }
+  const unique = [...new Set(sheetCategories.value.map(s => s.toLowerCase()))]
+  return unique.filter(v => !matched.has(v))
+})
+
+const loadSheetCategories = async () => {
+  if (fileId.value) {
+    sheetCategories.value = await getSheetCategories(fileId.value)
+  }
+}
+
+const saveDivisionName = async (div) => {
+  await renameDivision(props.eventName, div.eventGenreId, divRenameInput.value)
+  div.name = divRenameInput.value
+  divRenameActive.value = null
+}
+
+const saveDivisionFormat = async (div, format) => {
+  await updateEventGenreFormat(props.eventName, div.eventGenreId, format || null)
+  div.format = format || null
+}
+
+const addAlias = async (div) => {
+  if (!divAliasInput.value.trim()) return
+  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
+  existing.push(divAliasInput.value.trim())
+  const joined = existing.join(', ')
+  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
+  div.sheetAliases = joined
+  divAliasInput.value = ''
+}
+
+const removeAlias = async (div, alias) => {
+  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
+  const updated = existing.filter(a => a !== alias)
+  const joined = updated.join(', ')
+  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
+  div.sheetAliases = joined
+}
+
+const addDivisionToGroup = async (genreId, genreLabel) => {
+  await addDivision(props.eventName, '', null, genreId === 'custom' ? null : genreId)
+  eventGenres.value = await getGenresByEvent(props.eventName)
+}
+
+const removeDivisionFromSection = async (divId) => {
+  await deleteDivision(props.eventName, divId)
+  eventGenres.value = eventGenres.value.filter(d => d.eventGenreId !== divId)
+}
+// ───────────────────────────────────────────────────────────────────────────
+
 // ── Judges ──────────────────────────────────────────────────────────────────
 const eventJudges = ref([])
 const addJudgeInput = ref('')
@@ -390,7 +496,7 @@ const submitRemoveJudge = async (judgeId) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Genre format editing ────────────────────────────────────────────────────
-const formatOptions = ['1v1', '2v2', '3v3', '4v4', '5v5']
+const formatOptions = ['1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
 const editingFormatFor = ref(null)  // genre name currently being edited
 const editingFormatValue = ref('')
 
@@ -489,6 +595,7 @@ watch(
     if (fileId.value) {
       participantsNumBreakdown.value = await getResponseDetails(fileId.value)
       totalParticipants.value = await getSheetSize(fileId.value) ?? 0
+      await loadSheetCategories()
     }
   }
 )
@@ -751,31 +858,23 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
         <div
           v-for="g in genreOptions"
           :key="g.genreName"
           class="para-chip-sm p-3 transition-all duration-150"
-          :class="createTable.genres.includes(g.genreName) ? 'border-accent' : ''"
+          :class="selectedInitGenres.some(s => s.id === g.id) ? 'border-accent' : ''"
         >
           <label class="flex items-center gap-2.5 cursor-pointer">
             <input
               type="checkbox"
               :id="g.genreName"
-              :value="g.genreName"
-              v-model="createTable.genres"
+              :checked="selectedInitGenres.some(s => s.id === g.id)"
+              @change="toggleInitGenre(g, $event.target.checked)"
               class="w-4 h-4"
             />
             <span class="type-body capitalize">{{ g.genreName }}</span>
           </label>
-          <select
-            v-if="createTable.genres.includes(g.genreName)"
-            v-model="createTable.genreFormats[g.genreName]"
-            class="input-base text-xs mt-2"
-          >
-            <option value="">No format</option>
-            <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
-          </select>
         </div>
       </div>
 
@@ -806,6 +905,147 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+
+  <!-- Divisions (post-init) — grouped by parent genre -->
+  <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">
+    <div class="corner-bar-tl"></div>
+
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Divisions</span>
+      <div class="section-rule-line"></div>
+    </div>
+
+    <div class="space-y-4">
+      <div v-for="group in divisionsByGenre" :key="group.genreId" class="space-y-2">
+        <!-- Genre group header -->
+        <div class="flex items-center gap-2">
+          <span class="type-section-header text-content-secondary">{{ group.label }}</span>
+          <span class="badge-neutral type-label px-2 py-0.5 text-xs">{{ group.divisions.length }}</span>
+        </div>
+
+        <!-- Division rows -->
+        <div v-for="div in group.divisions" :key="div.eventGenreId">
+          <div
+            class="para-chip p-3 flex flex-col gap-2"
+            :class="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) > 0
+              ? 'border-l-[3px] border-l-emerald-500'
+              : ''"
+          >
+            <div class="flex items-center gap-2">
+              <!-- Division name (click to rename) -->
+              <template v-if="divRenameActive !== div.eventGenreId">
+                <button
+                  @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
+                  class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
+                >{{ div.name }}</button>
+              </template>
+              <template v-else>
+                <input
+                  v-model="divRenameInput"
+                  type="text"
+                  class="input-base flex-1 min-w-0"
+                  placeholder="Division name"
+                  @keyup.enter="saveDivisionName(div)"
+                  @keyup.escape="divRenameActive = null"
+                  @blur="saveDivisionName(div)"
+                />
+              </template>
+
+              <!-- Match count badge -->
+              <div
+                v-if="sheetCategories.length > 0"
+                class="flex items-center gap-1 shrink-0"
+                :class="(matchCounts[div.eventGenreId] || 0) > 0 ? 'text-emerald-400' : 'text-content-muted'"
+              >
+                <span
+                  class="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                  :class="(matchCounts[div.eventGenreId] || 0) > 0
+                    ? 'bg-emerald-400'
+                    : 'bg-content-muted'"
+                  :style="(matchCounts[div.eventGenreId] || 0) > 0 ? 'box-shadow: 0 0 6px rgba(52,211,153,0.6)' : ''"
+                ></span>
+                <span class="type-label text-xs">{{ matchCounts[div.eventGenreId] || 0 }}</span>
+              </div>
+
+              <!-- Format dropdown -->
+              <select
+                :value="div.format || ''"
+                @change="saveDivisionFormat(div, $event.target.value)"
+                class="shrink-0 text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
+              >
+                <option value="">No format</option>
+                <template v-for="opt in divFormatOptions" :key="opt">
+                  <option v-if="opt" :value="opt">{{ opt }}</option>
+                </template>
+              </select>
+
+              <!-- Alias toggle -->
+              <button
+                @click="divAliasExpanded = divAliasExpanded === div.eventGenreId ? null : div.eventGenreId"
+                class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors"
+                title="Sheet aliases"
+              ><i class="pi pi-tags text-xs"></i></button>
+
+              <!-- Remove -->
+              <button
+                @click="removeDivisionFromSection(div.eventGenreId)"
+                class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors"
+                title="Remove division"
+              ><i class="pi pi-times text-xs"></i></button>
+            </div>
+
+            <!-- Alias chips (always visible if exist) -->
+            <div v-if="div.sheetAliases && div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean).length" class="flex flex-wrap gap-1">
+              <span
+                v-for="alias in div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean)"
+                :key="alias"
+                class="type-label text-content-muted bg-surface-600/30 px-1.5 py-0.5 para-chip text-xs normal-case flex items-center gap-1"
+              >
+                {{ alias }}
+                <button @click="removeAlias(div, alias)" class="text-content-muted hover:text-red-400 leading-none"><i class="pi pi-times" style="font-size:0.5rem"></i></button>
+              </span>
+            </div>
+
+            <!-- Add alias input row -->
+            <div v-if="divAliasExpanded === div.eventGenreId" class="flex gap-1.5 items-center">
+              <input
+                v-model="divAliasInput"
+                type="text"
+                placeholder="Add alias…"
+                class="input-base flex-1 text-xs py-1"
+                @keyup.enter="addAlias(div)"
+              />
+              <button @click="addAlias(div)" class="para-chip-sm px-2 py-1 type-label text-accent"><i class="pi pi-plus text-xs"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add division to group -->
+        <button
+          @click="addDivisionToGroup(group.genreId, group.label)"
+          class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-accent transition-all"
+        >+ Add {{ group.label }} division</button>
+      </div>
+    </div>
+
+    <!-- Unmatched sheet values strip -->
+    <div
+      v-if="unmatchedSheetValues.length > 0"
+      class="mt-4 pt-3 border-t border-surface-600/30"
+    >
+      <div class="flex items-center gap-2 mb-2">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow: 0 0 6px rgba(251,191,36,0.6)"></span>
+        <span class="type-label text-amber-400 text-xs">Unmatched sheet values</span>
+      </div>
+      <div class="flex flex-wrap gap-1">
+        <span
+          v-for="val in unmatchedSheetValues"
+          :key="val"
+          class="type-label text-content-muted bg-amber-950/30 px-1.5 py-0.5 para-chip text-xs normal-case"
+        >{{ val }}</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Genre Configuration — unified per-genre tabs (participants, format, criteria, judges) -->
   <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">

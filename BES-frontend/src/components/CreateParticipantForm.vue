@@ -1,6 +1,6 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
-import { onMounted, ref, reactive, watch } from 'vue';
+import { onMounted, ref, reactive, watch, computed } from 'vue';
 import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
 
 const props = defineProps({
@@ -16,6 +16,7 @@ const name = ref("")
 const selectedJudge = ref("")
 const genreOptions = ref([])
 const allJudges = ref([])
+const adminGenreMap = ref({})
 const createTable = reactive({ genres: [] })
 const showError = ref(false)
 
@@ -63,6 +64,18 @@ watch(() => createTable.genres.slice(), (selected) => {
   }
 }, { deep: true })
 
+const groupedDivisions = computed(() => {
+  const groups = {}
+  for (const opt of genreOptions.value) {
+    const key = opt.genreId ?? 'custom'
+    if (!groups[key]) {
+      groups[key] = { genreId: key, label: opt.groupLabel || 'Custom', divisions: [] }
+    }
+    groups[key].divisions.push(opt)
+  }
+  return Object.values(groups)
+})
+
 const submitNewEntry = async () => {
   if (name.value.trim() === "") {
     showError.value = true
@@ -83,14 +96,20 @@ const submitNewEntry = async () => {
 
 watch(() => props.eventGenres, (newGenres) => {
   if (newGenres && newGenres.length > 0) {
-    genreOptions.value = newGenres.map(g => ({ genreName: g.name, format: g.format || null }))
+    genreOptions.value = newGenres.map(g => ({
+      genreName: g.name,
+      format: g.format || null,
+      genreId: g.genreId ?? null,
+      groupLabel: g.genreId ? (adminGenreMap.value[g.genreId] ?? 'Other') : 'Custom'
+    }))
   }
 }, { immediate: true })
 
 onMounted(async () => {
+  const genres = await fetchAllGenres()
+  adminGenreMap.value = Object.fromEntries((genres || []).map(g => [g.id, g.genreName]))
   if (!props.eventGenres || props.eventGenres.length === 0) {
-    const genres = await fetchAllGenres()
-    genreOptions.value = genres.map(g => ({ genreName: g.genreName, format: g.format || null }))
+    genreOptions.value = genres.map(g => ({ genreName: g.genreName, format: g.format || null, genreId: g.id, groupLabel: g.genreName }))
   }
   const res = await getAllJudges()
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)]
@@ -121,32 +140,37 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Genre checkboxes -->
+      <!-- Genre checkboxes -- grouped by parent genre -->
       <div>
         <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
           Genres
         </label>
-        <div class="grid grid-cols-2 gap-2">
-          <label
-            v-for="g in genreOptions"
-            :key="g.genreName"
-            class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
-            :class="createTable.genres.includes(g.genreName)
-              ? 'bg-primary-100 border-primary-400 text-primary-400'
-              : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
-          >
-            <input
-              type="checkbox"
-              :value="g.genreName"
-              v-model="createTable.genres"
-              class="w-4 h-4 rounded accent-primary-600"
-            />
-            <span class="text-sm font-medium">{{ g.genreName }}</span>
-            <span
-              v-if="g.format"
-              class="ml-auto text-xs font-source opacity-50"
-            >{{ g.format }}</span>
-          </label>
+        <div class="space-y-3">
+          <template v-for="group in groupedDivisions" :key="group.genreId">
+            <div class="type-label text-content-muted text-xs mb-1 mt-2 first:mt-0">{{ group.label }}</div>
+            <div class="grid grid-cols-2 gap-2">
+              <label
+                v-for="g in group.divisions"
+                :key="g.genreName"
+                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="createTable.genres.includes(g.genreName)
+                  ? 'bg-primary-100 border-primary-400 text-primary-400'
+                  : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
+              >
+                <input
+                  type="checkbox"
+                  :value="g.genreName"
+                  v-model="createTable.genres"
+                  class="w-4 h-4 rounded accent-primary-600"
+                />
+                <span class="text-sm font-medium">{{ g.genreName }}</span>
+                <span
+                  v-if="g.format"
+                  class="ml-auto text-xs font-source opacity-50"
+                >{{ g.format }}</span>
+              </label>
+            </div>
+          </template>
         </div>
       </div>
 

@@ -269,7 +269,7 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   }
 }
 
-export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
+export const linkGenreToEvent = async(eventName, divisions) =>{
   try{
     return await fetch(`${domain}/api/v1/event/genre`, {
       method: 'POST',
@@ -280,8 +280,7 @@ export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
       },
       body: JSON.stringify({
           eventName: eventName,
-          genreName: genres,
-          genreFormats: genreFormats
+          divisions: divisions
       })
   })
   }catch(e){
@@ -1153,4 +1152,56 @@ export const postAppConfig = async (accentColor) => {
     body: JSON.stringify({ accentColor })
   })
   return res.json()
+}
+
+export const addDivision = async (eventName, name, format, genreId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/divisions`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, format: format || null, genreId: genreId || null })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const renameDivision = async (eventName, divisionId, name) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}/name`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const updateDivisionAliases = async (eventName, divisionId, aliases) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}/aliases`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliases })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const deleteDivision = async (eventName, divisionId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/divisions/${divisionId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const getSheetCategories = async (fileId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/sheets/categories/${fileId}`, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+    return res.ok ? (await res.json()).values ?? [] : []
+  } catch (e) { console.log(e); return [] }
 }
