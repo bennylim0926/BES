@@ -53,7 +53,11 @@ const divRenameInput = ref('')
 const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
 
 const showModal = ref(false)
-const handleAccept = () => { showModal.value = false }
+const reloadOnClose = ref(false)
+const handleAccept = () => {
+  showModal.value = false
+  if (reloadOnClose.value) window.location.reload()
+}
 
 // Scoring criteria modal
 const showCriteriaModal = ref(false)
@@ -290,16 +294,18 @@ const onSubmit = async () => {
   if (!resp) { loading.value = false; return }
   resp.json().then(async result => {
     loading.value = false
-    getTitle(resp.status)
-    modalMessage.value = result
-    showModal.value = true
-    tableExist.value = true
-    if (!dbEventId.value) {
-      const dbEvents = await fetchAllEvents() ?? []
-      const dbEvent = dbEvents.find(e => e.name === props.eventName)
-      if (dbEvent) dbEventId.value = dbEvent.id
+    if (resp.ok) {
+      if (!dbEventId.value) {
+        const dbEvents = await fetchAllEvents() ?? []
+        const dbEvent = dbEvents.find(e => e.name === props.eventName)
+        if (dbEvent) dbEventId.value = dbEvent.id
+      }
+      if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
+      reloadOnClose.value = true
+      openModal('Event Initialised', 'Divisions created. Configure names, formats and aliases below.', 'success')
+    } else {
+      openModal('Error', typeof result === 'string' ? result : 'Failed to initialise event.', 'error')
     }
-    if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
   })
 }
 
@@ -320,9 +326,14 @@ const refreshParticipant = async () => {
     unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
     selectedUnverified.value = new Set()
     createEventResponse.json().then(result => {
-      getTitle(createEventResponse.status)
-      modalMessage.value = result
-      showModal.value = true
+      const r = typeof result === 'string' ? JSON.parse(result) : result
+      const imported = r?.imported ?? r?.IMPORTED ?? 0
+      const skipped = r?.skipped ?? r?.SKIPPED ?? 0
+      const errors = r?.errors ?? r?.ERRORS ?? []
+      let msg = `${imported} participant${imported !== 1 ? 's' : ''} imported`
+      if (skipped > 0) msg += `, ${skipped} skipped`
+      if (errors.length > 0) msg += `\n\nErrors:\n${errors.join('\n')}`
+      openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success')
     })
   } else if (createEventResponse.status == 404) {
     createEventResponse.json().then(result => {
