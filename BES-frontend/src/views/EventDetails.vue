@@ -477,8 +477,8 @@ const removeAlias = async (div, alias) => {
 }
 
 const addDivisionToGroup = async (genreId, genreLabel) => {
-  await addDivision(props.eventName, '', null, genreId === 'custom' ? null : genreId)
-  eventGenres.value = await getGenresByEvent(props.eventName)
+  const resp = await addDivision(props.eventName, genreLabel, null, genreId === 'custom' ? null : genreId)
+  if (resp && resp.ok) eventGenres.value = await getGenresByEvent(props.eventName)
 }
 
 const removeDivisionFromSection = async (divId) => {
