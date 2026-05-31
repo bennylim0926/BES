@@ -19,12 +19,14 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.AddDivisionDto;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
 import com.example.BES.dtos.AddScoringCriteriaDto;
@@ -684,6 +686,73 @@ public class EventController {
     public ResponseEntity<?> deletePickupCrew(@PathVariable Long crewId) {
         pickupCrewService.deleteCrew(crewId);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Division endpoints ────────────────────────────────────────────────────
+
+    @Operation(summary = "Add Division", description = "Creates a new division for an event")
+    @PostMapping("/{eventName}/divisions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> addDivision(
+            @PathVariable String eventName,
+            @Valid @RequestBody AddDivisionDto dto) {
+        AddGenreToEventDto genreDto = new AddGenreToEventDto();
+        genreDto.eventName = eventName;
+        AddGenreToEventDto.Division div = new AddGenreToEventDto.Division();
+        div.name = dto.name;
+        div.format = dto.format;
+        div.genreId = dto.genreId;
+        genreDto.divisions = List.of(div);
+        try {
+            eventGenreService.addGenreToEventService(genreDto);
+            return new ResponseEntity<>(gson.toJson("Division added"), HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Rename Division", description = "Renames a division")
+    @PatchMapping("/{eventName}/divisions/{id}/name")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> renameDivision(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.renameDivision(id, body.get("name"));
+            return ResponseEntity.ok(gson.toJson("Division renamed"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Update Division Aliases", description = "Updates sheet aliases for a division")
+    @PatchMapping("/{eventName}/divisions/{id}/aliases")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateDivisionAliases(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.updateAliases(id, body.get("aliases"));
+            return ResponseEntity.ok(gson.toJson("Aliases updated"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Delete Division", description = "Deletes a division from an event")
+    @DeleteMapping("/{eventName}/divisions/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteDivision(
+            @PathVariable String eventName,
+            @PathVariable Long id) {
+        try {
+            eventGenreService.deleteDivision(id);
+            return ResponseEntity.ok(gson.toJson("Division deleted"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     // ── Battle Guest endpoints ─────────────────────────────────────────────────

@@ -2,9 +2,12 @@ package com.example.BES.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -120,7 +123,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     public void testAssignGenreToEvent() throws Exception {
-        String json = objectMapper.writeValueAsString(Map.of("eventName", "Test Event", "genreName", List.of("Hip Hop")));
+        String json = objectMapper.writeValueAsString(Map.of("eventName", "Test Event", "divisions", List.of(Map.of("name", "Hip Hop"))));
 
         doNothing().when(eventGenreService).addGenreToEventService(any(AddGenreToEventDto.class));
 
@@ -243,5 +246,53 @@ public class EventControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"participantId\":1,\"eventId\":1}"))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testAddDivision() throws Exception {
+        String json = objectMapper.writeValueAsString(Map.of("name", "New Division", "format", "1v1", "genreId", 1));
+
+        doNothing().when(eventGenreService).addGenreToEventService(any(AddGenreToEventDto.class));
+
+        mockMvc.perform(post("/api/v1/event/TestEvent/divisions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$").value("Division added"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testRenameDivision() throws Exception {
+        doNothing().when(eventGenreService).renameDivision(anyLong(), anyString());
+
+        mockMvc.perform(patch("/api/v1/event/TestEvent/divisions/1/name")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"New Name\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").value("Division renamed"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testUpdateAliases() throws Exception {
+        doNothing().when(eventGenreService).updateAliases(anyLong(), anyString());
+
+        mockMvc.perform(patch("/api/v1/event/TestEvent/divisions/1/aliases")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"aliases\":\"hip-hop,popping\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").value("Aliases updated"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testDeleteDivision() throws Exception {
+        doNothing().when(eventGenreService).deleteDivision(anyLong());
+
+        mockMvc.perform(delete("/api/v1/event/TestEvent/divisions/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").value("Division deleted"));
     }
 }

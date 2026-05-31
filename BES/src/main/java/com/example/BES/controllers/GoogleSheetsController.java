@@ -3,6 +3,7 @@ import jakarta.validation.Valid;
 
 import java.io.IOException;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,17 @@ public class GoogleSheetsController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<Integer> getSheetSize(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getSheetSizeService(fileId));
+    }
+
+    @GetMapping("/categories/{fileId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<Map<String, List<String>>> getCategories(@PathVariable String fileId) {
+        try {
+            List<String> values = service.getAllCategoryValues(fileId);
+            return ResponseEntity.ok(Map.of("values", values));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("values", List.of()));
+        }
     }
 
     // When user create database, insert this as well

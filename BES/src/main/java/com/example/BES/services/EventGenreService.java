@@ -50,27 +50,39 @@ public class EventGenreService {
         eventGenreRepo.save(eg);
     }
 
+    public void renameDivision(Long id, String name) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        if (name == null || name.isBlank()) throw new RuntimeException("Division name must not be blank");
+        eg.setName(name.trim());
+        eventGenreRepo.save(eg);
+    }
+
+    public void updateAliases(Long id, String aliases) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        eg.setSheetAliases(aliases == null || aliases.isBlank() ? null : aliases.trim());
+        eventGenreRepo.save(eg);
+    }
+
+    public void deleteDivision(Long id) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        eventGenreRepo.deleteById(eg.getId());
+    }
+
     public void addGenreToEventService(AddGenreToEventDto dto){
         Event e = eventRepo.findByEventName(dto.eventName).orElse(null);
-        for(String genre : dto.genreName){
-            Genre g = genreRepo.findByGenreName(genre.toLowerCase()).orElse(null);
-            if(g == null){
-                throw new NullPointerException("genre does not exist");
+        for (AddGenreToEventDto.Division div : dto.divisions) {
+            if (eventGenreRepo.findByEventAndName(e, div.name).isPresent()) {
+                throw new DataIntegrityViolationException("This event already has a division named: " + div.name);
             }
-            EventGenre eventGenre = eventGenreRepo.findByEventAndName(e, genre).orElse(new EventGenre());
-            if(eventGenre.getEvent() != null){
-                throw new DataIntegrityViolationException("This event already has this genre");
-            }
+            EventGenre eventGenre = new EventGenre();
             eventGenre.setEvent(e);
-            eventGenre.setGenre(g);
-            eventGenre.setName(genre);
-            if (dto.genreFormats != null) {
-                String fmt = dto.genreFormats.get(genre);
-                eventGenre.setFormat(fmt == null || fmt.isBlank() ? null : fmt.trim());
+            eventGenre.setName(div.name.trim());
+            if (div.genreId != null) {
+                Genre g = genreRepo.findById(div.genreId).orElse(null);
+                eventGenre.setGenre(g);
             }
-            if (dto.genreAliases != null) {
-                String aliases = dto.genreAliases.get(genre);
-                eventGenre.setSheetAliases(aliases == null || aliases.isBlank() ? null : aliases.trim());
+            if (div.format != null && !div.format.isBlank()) {
+                eventGenre.setFormat(div.format.trim());
             }
             eventGenreRepo.save(eventGenre);
         }

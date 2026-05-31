@@ -9,7 +9,7 @@ ALTER TABLE event_genre ALTER COLUMN name SET NOT NULL;
 
 ALTER TABLE event_genre ADD COLUMN sheet_aliases TEXT;
 
-ALTER TABLE event_genre DROP CONSTRAINT event_genre_pkey;
+ALTER TABLE event_genre DROP CONSTRAINT event_genre_pkey CASCADE;
 ALTER TABLE event_genre ADD PRIMARY KEY (id);
 ALTER TABLE event_genre ALTER COLUMN genre_id DROP NOT NULL;
 ALTER TABLE event_genre ADD CONSTRAINT event_genre_event_name_unique UNIQUE (event_id, name);
@@ -65,7 +65,7 @@ UPDATE scoring_criteria sc
 -- event_genre_participant: rebuild PK and FK
 ALTER TABLE event_genre_participant
     DROP CONSTRAINT IF EXISTS event_genre_participant_event_id_genre_id_fkey;
-ALTER TABLE event_genre_participant DROP CONSTRAINT event_genre_participant_pkey;
+ALTER TABLE event_genre_participant DROP CONSTRAINT event_genre_participant_pkey CASCADE;
 ALTER TABLE event_genre_participant DROP COLUMN genre_id;
 ALTER TABLE event_genre_participant
     ADD CONSTRAINT egp_event_genre_id_fkey

@@ -130,6 +130,36 @@ public class GoogleSheetService {
         return importable;
     }
 
+    public List<String> getAllCategoryValues(String fileId) throws IOException {
+        List<Integer> categoryIndices = getCategoriesColumns(fileId);
+        if (categoryIndices.isEmpty()) return new ArrayList<>();
+
+        List<String> ranges = new ArrayList<>();
+        for (int index : categoryIndices) {
+            String colLetter = colIndexToLetter(index + 1);
+            ranges.add(colLetter + ":" + colLetter);
+        }
+
+        BatchGetValuesResponse response = sheetClient.batchGet(fileId, ranges);
+        List<ValueRange> valueRanges = response.getValueRanges();
+
+        List<String> values = new ArrayList<>();
+        for (ValueRange vr : valueRanges) {
+            List<List<Object>> rows = vr.getValues();
+            if (rows == null || rows.isEmpty()) continue;
+            for (int i = 1; i < rows.size(); i++) {
+                List<Object> cell = rows.get(i);
+                if (cell != null && !cell.isEmpty() && cell.get(0) != null) {
+                    String val = cell.get(0).toString().trim();
+                    if (!val.isBlank()) {
+                        values.add(val);
+                    }
+                }
+            }
+        }
+        return values;
+    }
+
     public Integer getSheetSizeService(String fileId) throws IOException {
         return sheetClient.getSheetSize(fileId) - 1;
     }
