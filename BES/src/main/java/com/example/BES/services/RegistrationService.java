@@ -22,7 +22,6 @@ import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
 import com.example.BES.models.EventGenreParticipantMember;
 import com.example.BES.models.EventParticipant;
-import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.respositories.EventGenreParticpantRepo;
@@ -115,17 +114,16 @@ public class RegistrationService {
 
                 if (participant.getGenres() != null) {
                     for (String genreName : participant.getGenres()) {
-                        Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-                        if (genre == null) continue;
+                        EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+                        if (eg == null) continue;
                         EventGenreParticipantId id = new EventGenreParticipantId(
-                            event.getEventId(), genre.getGenreId(), toAddParticipant.getParticipantId());
+                            event.getEventId(), eg.getId(), toAddParticipant.getParticipantId());
                         EventGenreParticipant egp = new EventGenreParticipant();
                         egp.setId(id);
                         egp.setEvent(event);
-                        egp.setGenre(genre);
+                        egp.setEventGenre(eg);
                         egp.setParticipant(toAddParticipant);
 
-                        EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
                         String effectiveFormat = eg != null ? eg.getFormat() : null;
                         boolean isTeamFormat = isTeamFormat(effectiveFormat);
                         boolean isTeamEntry = isTeamFormat && "team".equals(participant.getEntryType());
@@ -194,7 +192,7 @@ public class RegistrationService {
             List<EventGenreParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
             dto.genres = egps.stream()
-                .map(egp -> egp.getGenre().getGenreName())
+                .map(egp -> egp.getEventGenre().getName())
                 .collect(Collectors.toList());
             dto.screenshotUrl = ep.getScreenshotUrl();
             result.add(dto);
@@ -222,7 +220,7 @@ public class RegistrationService {
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
             dto.genres = egps.stream().map(egp -> {
                 GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
-                gs.genreName = egp.getGenre().getGenreName();
+                gs.genreName = egp.getEventGenre().getName();
                 gs.auditionNumber = egp.getAuditionNumber();
                 return gs;
             }).collect(Collectors.toList());
@@ -249,9 +247,7 @@ public class RegistrationService {
     private boolean hasTeamFormatGenre(List<String> genres, Event event) {
         if (genres == null) return false;
         for (String genreName : genres) {
-            Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-            if (genre == null) continue;
-            EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+            EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
             if (eg != null && isTeamFormat(eg.getFormat())) return true;
         }
         return false;
@@ -260,9 +256,7 @@ public class RegistrationService {
     private String getTeamFormat(List<String> genres, Event event) {
         if (genres == null) return null;
         for (String genreName : genres) {
-            Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-            if (genre == null) continue;
-            EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+            EventGenre eg = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
             if (eg != null && isTeamFormat(eg.getFormat())) return eg.getFormat();
         }
         return null;

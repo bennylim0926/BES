@@ -8,10 +8,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.GetGenreDto;
+import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreId;
 import com.example.BES.models.Genre;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
@@ -28,48 +27,50 @@ public class EventGenreService {
     @Autowired
     GenreRepo genreRepo;
 
-    public List<GetGenreDto> getGenresByEventService(String eventName) {
+    public List<GetEventDivisionDto> getGenresByEventService(String eventName) {
         Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (e == null) return new ArrayList<>();
-        List<GetGenreDto> dtos = new ArrayList<>();
+        List<GetEventDivisionDto> dtos = new ArrayList<>();
         for (EventGenre eg : eventGenreRepo.findByEvent(e)) {
-            GetGenreDto dto = new GetGenreDto();
-            dto.id = eg.getGenre().getGenreId();
-            dto.genreName = eg.getGenre().getGenreName();
+            GetEventDivisionDto dto = new GetEventDivisionDto();
+            dto.eventGenreId = eg.getId();
+            dto.name = eg.getName();
             dto.format = eg.getFormat();
+            dto.sheetAliases = eg.getSheetAliases();
+            dto.genreId = eg.getGenre() != null ? eg.getGenre().getGenreId() : null;
             dtos.add(dto);
         }
         return dtos;
     }
 
-    public void updateEventGenreFormat(String eventName, String genreName, String format) {
-        Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
-        Genre g = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-        if (e == null || g == null) throw new RuntimeException("Event or genre not found");
-        EventGenre eg = eventGenreRepo.findByEventAndGenre(e, g).orElse(null);
-        if (eg == null) throw new RuntimeException("Genre not linked to this event");
+    public void updateEventGenreFormat(Long eventGenreId, String format) {
+        EventGenre eg = eventGenreRepo.findById(eventGenreId).orElse(null);
+        if (eg == null) throw new RuntimeException("Event genre not found");
         eg.setFormat(format == null || format.isBlank() ? null : format.trim());
         eventGenreRepo.save(eg);
     }
 
     public void addGenreToEventService(AddGenreToEventDto dto){
         Event e = eventRepo.findByEventName(dto.eventName).orElse(null);
-        // Genre g = genreRepo.findByGenreName(dto.genreName.toLowerCase()).orElse(null);
-        for(String genre :dto.genreName){
+        for(String genre : dto.genreName){
             Genre g = genreRepo.findByGenreName(genre.toLowerCase()).orElse(null);
             if(g == null){
                 throw new NullPointerException("genre does not exist");
             }
-            EventGenre eventGenre = eventGenreRepo.findByEventAndGenre(e, g).orElse(new EventGenre());
-            if(eventGenre.getGenre() != null){
-                throw new DataIntegrityViolationException("This event alrd has this genre");
+            EventGenre eventGenre = eventGenreRepo.findByEventAndName(e, genre).orElse(new EventGenre());
+            if(eventGenre.getEvent() != null){
+                throw new DataIntegrityViolationException("This event already has this genre");
             }
             eventGenre.setEvent(e);
             eventGenre.setGenre(g);
-            eventGenre.setId(new EventGenreId(e.getEventId(), g.getGenreId()));
+            eventGenre.setName(genre);
             if (dto.genreFormats != null) {
                 String fmt = dto.genreFormats.get(genre);
                 eventGenre.setFormat(fmt == null || fmt.isBlank() ? null : fmt.trim());
+            }
+            if (dto.genreAliases != null) {
+                String aliases = dto.genreAliases.get(genre);
+                eventGenre.setSheetAliases(aliases == null || aliases.isBlank() ? null : aliases.trim());
             }
             eventGenreRepo.save(eventGenre);
         }

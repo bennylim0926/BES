@@ -61,13 +61,6 @@ public class RegistrationDtoMapper {
             dto.setEntryType(row.get(entryTypeIdx).trim().toLowerCase());
         }
 
-        if (colIndexMap.containsKey(SheetHeader.LOCAL_OVERSEAS)) {
-            int residencyIdx = colIndexMap.get(SheetHeader.LOCAL_OVERSEAS);
-            if (row.size() > residencyIdx) {
-                dto.setResidency(row.get(residencyIdx));
-            }
-        }
-
         if (colIndexMap.containsKey(SheetHeader.PAYMENT_STATUS)) {
             int paymentIdx = colIndexMap.get(SheetHeader.PAYMENT_STATUS);
             dto.setPaymentStatus(row.size() > paymentIdx && Boolean.parseBoolean(row.get(paymentIdx)));

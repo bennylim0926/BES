@@ -68,7 +68,7 @@ public class ResultsService {
             }
 
             genreResults.add(new GetResultsDto.GenreResult(
-                egp.getGenre().getGenreName(),
+                egp.getEventGenre().getName(),
                 egp.getFormat(),
                 egp.getAuditionNumber(),
                 scoreEntries,

@@ -26,8 +26,8 @@ public class EventGenreBattleGuest {
     private Event event;
 
     @ManyToOne
-    @JoinColumn(name = "genre_id", nullable = false)
-    private Genre genre;
+    @JoinColumn(name = "event_genre_id", nullable = false)
+    private EventGenre eventGenre;
 
     @Column(name = "guest_name", nullable = false)
     private String guestName;

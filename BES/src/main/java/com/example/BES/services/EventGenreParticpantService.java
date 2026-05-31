@@ -73,9 +73,9 @@ public class EventGenreParticpantService {
             Participant p, String genre, EventParticipant ep,
             String judgeName, String entryMode, String teamName, List<String> teamMembers) {
 
-        Genre g = genreRepo.findByGenreName(genre).orElse(null);
+        EventGenre eg = eventGenreRepo.findByEventAndName(ep.getEvent(), genre).orElse(null);
         Judge j = judgeRepo.findByName(judgeName).orElse(null);
-        EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
+        EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), eg.getId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) {
             egp = new EventGenreParticipant();
@@ -83,9 +83,8 @@ public class EventGenreParticpantService {
             egp.setJudge(j);
             egp.setEvent(ep.getEvent());
             egp.setParticipant(p);
-            egp.setGenre(g);
+            egp.setEventGenre(eg);
 
-            EventGenre eg = eventGenreRepo.findByEventAndGenre(ep.getEvent(), g).orElse(null);
             String genreFormat = eg != null ? eg.getFormat() : null;
             boolean isTeamFormat = isTeamFormat(genreFormat);
             boolean isTeamEntry = isTeamFormat && !"solo".equalsIgnoreCase(entryMode);
@@ -120,7 +119,7 @@ public class EventGenreParticpantService {
             AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
-            dto.genreId = entry.getGenre().getGenreId();
+            dto.eventGenreId = entry.getEventGenre().getId();
             int attempts = 0;
             while (true) {
                 try {
@@ -136,7 +135,7 @@ public class EventGenreParticpantService {
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void getAuditionNumViaQR(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
-        EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId,dto.genreId, dto.participantId);
+        EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId, dto.eventGenreId, dto.participantId);
 
         EventGenreParticipant participantInEventGenre = repo.findById(id).orElse(new EventGenreParticipant());
         Judge j = participantInEventGenre.getJudge();
@@ -145,24 +144,22 @@ public class EventGenreParticpantService {
             List<Integer> takenNumbers;
 
             String entryFormat = participantInEventGenre.getFormat();
-            // null and "1v1" are both solo entries — pool them together to prevent
-            // duplicate audition numbers when format diverges between registration paths
             boolean isSolo = entryFormat == null || "1v1".equalsIgnoreCase(entryFormat);
             if(j != null){
                 if (isSolo) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSoloAndJudge(dto.eventId, dto.eventGenreId, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSoloAndJudge(dto.eventId, dto.eventGenreId, j.getName());
                 } else {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormatAndJudge(dto.eventId, dto.eventGenreId, entryFormat, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormatAndJudge(dto.eventId, dto.eventGenreId, entryFormat, j.getName());
                 }
             }else{
                 if (isSolo) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSolo(dto.eventId, dto.genreId);
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSolo(dto.eventId, dto.genreId);
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSolo(dto.eventId, dto.eventGenreId);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSolo(dto.eventId, dto.eventGenreId);
                 } else {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormat(dto.eventId, dto.genreId, entryFormat);
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormat(dto.eventId, dto.genreId, entryFormat);
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormat(dto.eventId, dto.eventGenreId, entryFormat);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormat(dto.eventId, dto.eventGenreId, entryFormat);
                 }
             }
 
@@ -182,13 +179,13 @@ public class EventGenreParticpantService {
             String refCode = ep != null ? ep.getReferenceCode() : null;
             Map<String, Object> auditMsg = new java.util.HashMap<>();
             auditMsg.put("auditionNumber", auditionNumber);
-            auditMsg.put("genre", participantInEventGenre.getGenre().getGenreName());
+            auditMsg.put("genre", participantInEventGenre.getEventGenre().getName());
             auditMsg.put("name", participantInEventGenre.getDisplayName());
             auditMsg.put("judge", j != null ? j.getName() : "");
             auditMsg.put("eventName", participantInEventGenre.getEvent().getEventName());
             auditMsg.put("participantId", participantInEventGenre.getParticipant().getParticipantId());
             auditMsg.put("eventId", participantInEventGenre.getEvent().getEventId());
-            auditMsg.put("genreId", participantInEventGenre.getGenre().getGenreId());
+            auditMsg.put("genreId", participantInEventGenre.getEventGenre().getId());
             auditMsg.put("walkin", false);
             auditMsg.put("refCode", refCode != null ? refCode : "");
             auditMsg.put("format", participantInEventGenre.getFormat() != null ? participantInEventGenre.getFormat() : "");
@@ -197,7 +194,7 @@ public class EventGenreParticpantService {
             messagingTemplate.convertAndSend("/topic/error/",
                 Map.of(
                     "audition", participantInEventGenre.getAuditionNumber(),
-                    "genre", participantInEventGenre.getGenre().getGenreName(),
+                    "genre", participantInEventGenre.getEventGenre().getName(),
                     "name", participantInEventGenre.getDisplayName(),
                     "judge", j != null ? j.getName() : ""));
         }
@@ -206,21 +203,17 @@ public class EventGenreParticpantService {
     public List<GetEventGenreParticipantDto> getAllEventGenreParticipantByEventService(String eventName){
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
-        // Deduplicate by composite ID to avoid Hibernate row multiplication
-        // caused by the @OneToMany(scores) join producing one row per score entry.
         LinkedHashMap<com.example.BES.models.EventGenreParticipantId, EventGenreParticipant> seen = new LinkedHashMap<>();
         for (EventGenreParticipant egp : repo.findByEvent(event)) {
             seen.putIfAbsent(egp.getId(), egp);
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
 
-        // Build per-participant maps from EventParticipant records
         Map<Long, String> refCodeMap = new java.util.HashMap<>();
         Map<Long, java.util.List<String>> memberNamesMap = new java.util.HashMap<>();
         for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
             long pid = ep.getParticipant().getParticipantId();
             refCodeMap.put(pid, ep.getReferenceCode());
-            // Build full team roster: leader first, then additional members
             List<String> allMembers = new ArrayList<>();
             String leaderName = (ep.getStageName() != null && !ep.getStageName().isBlank())
                 ? ep.getStageName()
@@ -239,13 +232,13 @@ public class EventGenreParticpantService {
             GetEventGenreParticipantDto dto = new GetEventGenreParticipantDto();
             dto.eventName = res.getEvent().getEventName();
             dto.participantName = res.getDisplayName();
-            dto.genreName = res.getGenre().getGenreName();
+            dto.genreName = res.getEventGenre().getName();
             dto.auditionNumber = res.getAuditionNumber();
             dto.walkin = false;
             long pid = res.getParticipant().getParticipantId();
             dto.participantId = pid;
             dto.eventId = res.getEvent().getEventId();
-            dto.genreId = res.getGenre().getGenreId();
+            dto.eventGenreId = res.getEventGenre().getId();
             dto.referenceCode = refCodeMap.get(pid);
             Judge j = res.getJudge();
             if(j != null){
@@ -253,7 +246,6 @@ public class EventGenreParticpantService {
             }
             String fmt = res.getFormat();
             if (fmt != null && !fmt.equalsIgnoreCase("1v1")) {
-                // Prefer EGP-level team members (new data); fall back to EP-level (legacy)
                 List<EventGenreParticipantMember> egpMembers = res.getMembers();
                 if (egpMembers != null && !egpMembers.isEmpty()) {
                     List<String> memberList = new ArrayList<>();
@@ -271,11 +263,11 @@ public class EventGenreParticpantService {
         return dtos;
     }
 
-    public void removeParticipantFromGenre(long participantId, long eventId, long genreId) {
-        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genreId, participantId);
+    public void removeParticipantFromGenre(long participantId, long eventId, long eventGenreId) {
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, eventGenreId, participantId);
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) return;
-        String removedGenreName = egp.getGenre().getGenreName();
+        String removedGenreName = egp.getEventGenre().getName();
         String removedParticipantName = egp.getDisplayName();
         String removedEventName = egp.getEvent().getEventName();
         Judge removedJudge = egp.getJudge();
@@ -303,9 +295,9 @@ public class EventGenreParticpantService {
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void addGenreToExistingParticipant(long participantId, long eventId, String genreName) {
-        Genre genre = genreRepo.findByGenreName(genreName).orElse(null);
-        if (genre == null) throw new RuntimeException("Genre not found: " + genreName);
-        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genre.getGenreId(), participantId);
+        EventGenre eg = eventGenreRepo.findByEventAndName(eventRepo.findById(eventId).orElse(null), genreName).orElse(null);
+        if (eg == null) throw new RuntimeException("Event genre not found: " + genreName);
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, eg.getId(), participantId);
         if (repo.existsById(id)) return;
         Event event = eventRepo.findById(eventId).orElse(null);
         Participant participant = participantRepo.findById(participantId).orElse(null);
@@ -314,11 +306,10 @@ public class EventGenreParticpantService {
         EventGenreParticipant egp = new EventGenreParticipant();
         egp.setId(id);
         egp.setEvent(event);
-        egp.setGenre(genre);
+        egp.setEventGenre(eg);
         egp.setParticipant(participant);
         egp.setDisplayName(ep != null ? ep.getDisplayName() : participant.getParticipantName());
 
-        EventGenre eg = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
         String genreFormat = eg != null ? eg.getFormat() : null;
         boolean isTeamEntry = isTeamFormat(genreFormat)
             && ep != null

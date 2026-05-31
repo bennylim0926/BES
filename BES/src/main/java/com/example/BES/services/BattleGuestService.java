@@ -9,11 +9,11 @@ import org.springframework.stereotype.Service;
 import com.example.BES.dtos.AddBattleGuestDto;
 import com.example.BES.dtos.GetBattleGuestDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventGenreBattleGuest;
-import com.example.BES.models.Genre;
 import com.example.BES.respositories.EventGenreBattleGuestRepo;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 
 @Service
 public class BattleGuestService {
@@ -22,23 +22,23 @@ public class BattleGuestService {
     EventRepo eventRepo;
 
     @Autowired
-    GenreRepo genreRepo;
+    EventGenreRepo eventGenreRepo;
 
     @Autowired
     EventGenreBattleGuestRepo battleGuestRepo;
 
     public List<GetBattleGuestDto> getBattleGuests(String eventName, String genreName) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
-        Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-        if (event == null || genre == null) return List.of();
+        EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+        if (event == null || eventGenre == null) return List.of();
 
-        return battleGuestRepo.findByEventAndGenre(event, genre).stream()
+        return battleGuestRepo.findByEventAndEventGenre(event, eventGenre).stream()
             .map(g -> {
                 GetBattleGuestDto dto = new GetBattleGuestDto();
                 dto.id = g.getId();
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
-                dto.genreName = g.getGenre().getGenreName();
+                dto.genreName = g.getEventGenre().getName();
                 return dto;
             }).collect(Collectors.toList());
     }
@@ -53,19 +53,19 @@ public class BattleGuestService {
                 dto.id = g.getId();
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
-                dto.genreName = g.getGenre().getGenreName();
+                dto.genreName = g.getEventGenre().getName();
                 return dto;
             }).collect(Collectors.toList());
     }
 
     public GetBattleGuestDto addBattleGuest(String eventName, String genreName, AddBattleGuestDto dto) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
-        Genre genre = genreRepo.findByGenreName(genreName.toLowerCase()).orElse(null);
-        if (event == null || genre == null) throw new RuntimeException("Event or genre not found");
+        EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+        if (event == null || eventGenre == null) throw new RuntimeException("Event or genre not found");
 
         EventGenreBattleGuest guest = new EventGenreBattleGuest();
         guest.setEvent(event);
-        guest.setGenre(genre);
+        guest.setEventGenre(eventGenre);
         guest.setGuestName(dto.guestName);
         guest.setEntryRound(dto.entryRound);
         guest = battleGuestRepo.save(guest);
@@ -74,7 +74,7 @@ public class BattleGuestService {
         result.id = guest.getId();
         result.guestName = guest.getGuestName();
         result.entryRound = guest.getEntryRound();
-        result.genreName = genre.getGenreName();
+        result.genreName = eventGenre.getName();
         return result;
     }
 

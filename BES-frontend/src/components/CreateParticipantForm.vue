@@ -83,7 +83,7 @@ const submitNewEntry = async () => {
 
 watch(() => props.eventGenres, (newGenres) => {
   if (newGenres && newGenres.length > 0) {
-    genreOptions.value = newGenres.map(g => ({ genreName: g.genreName, format: g.format || null }))
+    genreOptions.value = newGenres.map(g => ({ genreName: g.name, format: g.format || null }))
   }
 }, { immediate: true })
 

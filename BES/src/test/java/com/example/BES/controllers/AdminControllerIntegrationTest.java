@@ -75,7 +75,7 @@ public class AdminControllerIntegrationTest {
     @Test
     @WithMockUser(username = "admin", roles = "ADMIN")
     public void testUpdateGenre_Success() throws Exception {
-        Genre updatedGenre = new Genre(1L, "Breakdance", null);
+        Genre updatedGenre = new Genre(1L, "Breakdance", null, null);
 
         when(genreService.updateGenreService(any(UpdateGenreDto.class))).thenReturn(updatedGenre);
 

@@ -11,7 +11,6 @@
 | Member 2…N | any label (e.g. `member 2`) | No — additional member names beyond the representative |
 | Entry Type | `entry type` | **Conditionally required** — see rules below |
 | Payment Status | `payment status` | No — defaults to **verified** if column is absent |
-| Local/Overseas | `local/overseas` | No |
 | Screenshot | `screenshot` | No |
 
 ---

@@ -147,9 +147,9 @@ public class EventControllerIntegrationTest {
         Event e = new Event();
         e.setEventId(1L);
         egp.setEvent(e);
-        Genre g = new Genre();
-        g.setGenreId(1L);
-        egp.setGenre(g);
+        EventGenre eventGenre = new EventGenre();
+        eventGenre.setId(1L);
+        egp.setEventGenre(eventGenre);
         egp.setParticipant(p);
 
         when(participantService.addWalkInService(any())).thenReturn(p);

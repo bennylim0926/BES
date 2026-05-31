@@ -38,7 +38,7 @@ public class ScoreService {
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
             dto.participantId = s.getEventGenreParticipant().getId().getParticipantId();
             dto.eventName = s.getEventGenreParticipant().getEvent().getEventName();
-            dto.genreName = s.getEventGenreParticipant().getGenre().getGenreName();
+            dto.genreName = s.getEventGenreParticipant().getEventGenre().getName();
             dto.judgeName = s.getJudge().getName();
             dto.participantName = s.getEventGenreParticipant().getDisplayName();
             dto.score = s.getValue();

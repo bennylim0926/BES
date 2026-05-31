@@ -73,8 +73,11 @@ public class PickupCrewService {
                 memberDto.participantId = m.getParticipant().getParticipantId();
 
                 // Display name from EGP (solo pickup entry for this genre)
+                EventGenre eventGenreForMembers = eventGenreRepo.findByEventAndName(event, genreName).orElse(null);
+                Long egId = eventGenreForMembers != null ? eventGenreForMembers.getId() : null;
+                if (egId == null) continue;
                 EventGenreParticipantId egpId = new EventGenreParticipantId(
-                    event.getEventId(), genre.getGenreId(), m.getParticipant().getParticipantId());
+                    event.getEventId(), egId, m.getParticipant().getParticipantId());
                 EventGenreParticipant egp = egpRepo.findById(egpId).orElse(null);
                 memberDto.displayName = egp != null ? egp.getDisplayName()
                     : m.getParticipant().getParticipantName();
@@ -112,7 +115,7 @@ public class PickupCrewService {
         if (event == null || genre == null) throw new RuntimeException("Event or genre not found");
 
         // Validate crew size matches genre format
-        EventGenre eventGenre = eventGenreRepo.findByEventAndGenre(event, genre).orElse(null);
+        EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, dto.genreName).orElse(null);
         if (eventGenre != null && eventGenre.getFormat() != null) {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d+)v\\d+$", java.util.regex.Pattern.CASE_INSENSITIVE)
                 .matcher(eventGenre.getFormat());
@@ -126,8 +129,11 @@ public class PickupCrewService {
 
         // Validate all members are solo pickup entries (format=null) and not already in a crew
         for (Long participantId : dto.memberParticipantIds) {
+            EventGenre eventGenreForMember = eventGenreRepo.findByEventAndName(event, dto.genreName).orElse(null);
+            Long egMemberId = eventGenreForMember != null ? eventGenreForMember.getId() : null;
+            if (egMemberId == null) throw new RuntimeException("Event genre not found");
             EventGenreParticipantId egpId = new EventGenreParticipantId(
-                event.getEventId(), genre.getGenreId(), participantId);
+                event.getEventId(), egMemberId, participantId);
             EventGenreParticipant egp = egpRepo.findById(egpId).orElse(null);
             if (egp == null) throw new RuntimeException("Participant " + participantId + " is not registered in this genre");
             if (egp.getFormat() != null) throw new RuntimeException("Participant " + participantId + " is a pre-formed team entry, not a solo pickup");
@@ -161,8 +167,10 @@ public class PickupCrewService {
         for (PickupCrewMember m : crew.getMembers()) {
             GetPickupCrewDto.MemberDto memberDto = new GetPickupCrewDto.MemberDto();
             memberDto.participantId = m.getParticipant().getParticipantId();
+            EventGenre eventGenreForDto = eventGenreRepo.findByEventAndName(event, dto.genreName).orElse(null);
+            Long egDtoId = eventGenreForDto != null ? eventGenreForDto.getId() : null;
             EventGenreParticipantId egpId = new EventGenreParticipantId(
-                event.getEventId(), genre.getGenreId(), m.getParticipant().getParticipantId());
+                event.getEventId(), egDtoId, m.getParticipant().getParticipantId());
             EventGenreParticipant egp = egpRepo.findById(egpId).orElse(null);
             memberDto.displayName = egp != null ? egp.getDisplayName() : m.getParticipant().getParticipantName();
             result.members.add(memberDto);

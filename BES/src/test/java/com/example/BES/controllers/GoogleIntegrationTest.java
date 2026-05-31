@@ -23,7 +23,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.BES.dtos.GoogleDriveFileDto;
 import com.example.BES.dtos.GoogleDriveFolderDto;
-import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.services.GoogleDriveFileService;
 import com.example.BES.services.GoogleDriveFolderService;
 import com.example.BES.services.GoogleSheetService;
@@ -82,11 +81,9 @@ public class GoogleIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     public void testGetParticipantsBreakdown() throws Exception {
-        GoogleSheetFileDto sheetDto = new GoogleSheetFileDto();
-        sheetDto.setOpen(20);
-        sheetDto.setPopping(15);
+        Map<String, Integer> breakdown = Map.of("open", 20, "popping", 15);
 
-        when(googleSheetService.getParticipantsBreakDown(anyString())).thenReturn(sheetDto);
+        when(googleSheetService.getParticipantsBreakDown(anyString())).thenReturn(breakdown);
 
         mockMvc.perform(get("/api/v1/sheets/participants/breakdown/sheet123"))
                 .andExpect(status().isOk())

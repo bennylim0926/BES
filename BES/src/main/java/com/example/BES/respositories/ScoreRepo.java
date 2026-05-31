@@ -39,7 +39,7 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     """
     DELETE
     FROM Score s
-    WHERE s.eventGenreParticipant.genre.id = :genreId 
+    WHERE s.eventGenreParticipant.eventGenre.id = :eventGenreId
     AND
     s.eventGenreParticipant.event.id = :eventId
     """)

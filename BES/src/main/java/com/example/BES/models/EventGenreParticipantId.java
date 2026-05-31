@@ -13,6 +13,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class EventGenreParticipantId implements Serializable {
     private Long eventId;
-    private Long genreId;
+    private Long eventGenreId;
     private Long participantId;
 }

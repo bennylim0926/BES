@@ -8,6 +8,7 @@ import com.example.BES.dtos.admin.DeleteScoreByEventDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventGenreParticipantId;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
@@ -48,8 +49,8 @@ class ScoreServiceTest {
         EventGenreParticipantId egpId = new EventGenreParticipantId(1L, 2L, 3L);
         Event event = new Event();
         event.setEventName("Spring Battle");
-        Genre genre = new Genre();
-        genre.setGenreName("Breaking");
+        EventGenre eventGenre = new EventGenre();
+        eventGenre.setName("Breaking");
         Judge judge = new Judge();
         judge.setName("Jay");
 
@@ -57,7 +58,7 @@ class ScoreServiceTest {
         when(validScore.getEventGenreParticipant()).thenReturn(egp);
         when(egp.getId()).thenReturn(egpId);
         when(egp.getEvent()).thenReturn(event);
-        when(egp.getGenre()).thenReturn(genre);
+        when(egp.getEventGenre()).thenReturn(eventGenre);
         when(egp.getDisplayName()).thenReturn("B-Boy Spark");
         when(egp.getFormat()).thenReturn("solo");
         when(validScore.getValue()).thenReturn(8.5);
@@ -90,8 +91,8 @@ class ScoreServiceTest {
         EventGenreParticipantId egpId = new EventGenreParticipantId(1L, 2L, 4L);
         Event event = new Event();
         event.setEventName("Fest");
-        Genre genre = new Genre();
-        genre.setGenreName("Locking");
+        EventGenre eventGenre = new EventGenre();
+        eventGenre.setName("Locking");
         Judge judge = new Judge();
         judge.setName("Sam");
 
@@ -99,7 +100,7 @@ class ScoreServiceTest {
         when(s.getEventGenreParticipant()).thenReturn(egp);
         when(egp.getId()).thenReturn(egpId);
         when(egp.getEvent()).thenReturn(event);
-        when(egp.getGenre()).thenReturn(genre);
+        when(egp.getEventGenre()).thenReturn(eventGenre);
         when(egp.getDisplayName()).thenReturn("Locker A");
         when(egp.getFormat()).thenReturn("duo");
         when(s.getValue()).thenReturn(7.0);

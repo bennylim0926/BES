@@ -32,6 +32,7 @@ class EventGenreParticpantServiceTest {
     @Mock EventGenreParticpantRepo repo;
     @Mock EventRepo eventRepo;
     @Mock GenreRepo genreRepo;
+    @Mock Event event;
     @Mock ParticipantRepo participantRepo;
     @Mock SimpMessagingTemplate messagingTemplate;
     @Mock JudgeRepo judgeRepo;
@@ -62,10 +63,11 @@ class EventGenreParticpantServiceTest {
 
     @Test
     void addGenreToExistingParticipant_throwsWhenGenreNotFound() {
-        when(genreRepo.findByGenreName("ghost")).thenReturn(Optional.empty());
+        when(eventRepo.findById(1L)).thenReturn(Optional.of(event));
+        when(eventGenreRepo.findByEventAndName(event, "ghost")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addGenreToExistingParticipant(1L, 1L, "ghost"))
             .isInstanceOf(RuntimeException.class)
-            .hasMessageContaining("Genre not found");
+            .hasMessageContaining("Event genre not found");
     }
 }

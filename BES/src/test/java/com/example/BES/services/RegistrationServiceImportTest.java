@@ -27,13 +27,11 @@ class RegistrationServiceImportTest {
     @Mock EventParticipantRepo eventParticipantRepo;
     @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
     @Mock EventParticipantTeamMemberRepo teamMemberRepo;
-    @Mock GenreRepo genreRepo;
     @Mock EventGenreRepo eventGenreRepo;
     @Mock EventGenreParticipantMemberRepo egpMemberRepo;
     @Mock GoogleSheetService sheetService;
 
     private Event mockEvent;
-    private Genre mockGenre;
     private EventGenre mockEventGenre;
 
     @BeforeEach
@@ -43,16 +41,11 @@ class RegistrationServiceImportTest {
         mockEvent.setEventName("TestEvent");
         mockEvent.setPaymentRequired(false);
 
-        mockGenre = new Genre();
-        mockGenre.setGenreId(10L);
-        mockGenre.setGenreName("popping");
-
         mockEventGenre = new EventGenre();
         mockEventGenre.setFormat("2v2");
 
         when(eventRepo.findByEventName("TestEvent")).thenReturn(Optional.of(mockEvent));
-        when(genreRepo.findByGenreName("popping")).thenReturn(Optional.of(mockGenre));
-        when(eventGenreRepo.findByEventAndGenre(any(), any())).thenReturn(Optional.of(mockEventGenre));
+        when(eventGenreRepo.findByEventAndName(any(), any())).thenReturn(Optional.of(mockEventGenre));
     }
 
     @Test

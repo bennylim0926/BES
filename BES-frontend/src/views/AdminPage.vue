@@ -1,12 +1,31 @@
 <script setup>
 import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { fetchAllEvents, fetchAllGenres, getAppConfig, postAppConfig } from '@/utils/api';
 import UpdateFieldForm from '@/components/UpdateFieldForm.vue';
 
 const addGenreInput = ref('');
+const expandedAliasId = ref(null);
+const aliasInputs = reactive({});
+
+const toggleAliasEdit = (id, currentAliases) => {
+  if (expandedAliasId.value === id) {
+    expandedAliasId.value = null;
+    return;
+  }
+  aliasInputs[id] = (currentAliases || []).join(', ');
+  expandedAliasId.value = id;
+};
+
+const saveAliases = async (id) => {
+  const aliasString = aliasInputs[id] ?? '';
+  await updateGenre(id, null, aliasString);
+  const parsed = aliasString.split(',').map(s => s.trim()).filter(Boolean);
+  genres.value = genres.value.map(g => g.id === id ? { ...g, aliases: parsed } : g);
+  expandedAliasId.value = null;
+};
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -198,25 +217,60 @@ onMounted(async () => {
           <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Genre</button>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           <div
             v-for="g in genres"
             :key="g.id"
-            class="card-hover p-3 relative flex items-center justify-between"
+            class="card-hover p-3 relative flex flex-col gap-1.5"
           >
             <div class="corner-bar-tl"></div>
-            <button
-              @click="selectId(g.id, 'genre')"
-              class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
-            >
-              {{ g.genreName }}
-            </button>
-            <button
-              @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
-              class="ml-2 flex-shrink-0 w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-            >
-              <i class="pi pi-times text-xs"></i>
-            </button>
+            <!-- Name row -->
+            <div class="flex items-center justify-between">
+              <button
+                @click="selectId(g.id, 'genre')"
+                class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
+              >
+                {{ g.genreName }}
+              </button>
+              <div class="flex gap-0.5 ml-1 flex-shrink-0">
+                <button
+                  @click="toggleAliasEdit(g.id, g.aliases)"
+                  class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-accent transition-all"
+                  title="Edit sheet aliases"
+                >
+                  <i class="pi pi-tags text-xs"></i>
+                </button>
+                <button
+                  @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
+                  class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                >
+                  <i class="pi pi-times text-xs"></i>
+                </button>
+              </div>
+            </div>
+            <!-- Alias chips (collapsed) -->
+            <div v-if="expandedAliasId !== g.id && g.aliases && g.aliases.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="a in g.aliases"
+                :key="a"
+                class="type-label text-content-muted bg-surface-600/30 px-1.5 py-0.5 para-chip text-xs normal-case"
+              >{{ a }}</span>
+            </div>
+            <!-- Alias editor (expanded) -->
+            <div v-if="expandedAliasId === g.id" class="flex flex-col gap-1.5 pt-1 border-t border-surface-600/40">
+              <label class="type-label text-content-muted text-xs">Sheet aliases (comma-separated)</label>
+              <input
+                v-model="aliasInputs[g.id]"
+                type="text"
+                placeholder="e.g. break, bboy, bgirl"
+                class="input-base text-xs py-1.5"
+                @keyup.enter="saveAliases(g.id)"
+              />
+              <div class="flex gap-1.5">
+                <button @click="saveAliases(g.id)" class="para-chip-sm type-label px-3 py-1 bg-accent text-surface-900 text-xs">Save</button>
+                <button @click="expandedAliasId = null" class="para-chip-sm type-label px-3 py-1 bg-surface-600/40 text-content-muted text-xs">Cancel</button>
+              </div>
+            </div>
           </div>
           <div v-if="genres.length === 0" class="col-span-full type-label text-content-muted py-4">
             No genres added yet

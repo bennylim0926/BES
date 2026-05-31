@@ -19,7 +19,9 @@ import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.GenreRepo;
+import com.example.BES.models.EventGenre;
 
 @Service
 public class EventParticpantService {
@@ -31,6 +33,9 @@ public class EventParticpantService {
 
     @Autowired
     GenreRepo genreRepo;
+
+    @Autowired
+    EventGenreRepo eventGenreRepo;
 
     @Autowired
     EventParticipantDtoMapper eventParticipantDtoMapper;
@@ -47,7 +52,10 @@ public class EventParticpantService {
         List<EventGenreParticipantId> ids = new ArrayList<>();
         for(String g: dto.getGenres()){
             Genre genre = genreRepo.findByGenreName(g.toLowerCase()).orElse(null);
-            EventGenreParticipantId id = new EventGenreParticipantId(event.getEventId(), genre.getGenreId(), participant.getParticipantId());
+            if (genre == null) continue;
+            EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, g).orElse(null);
+            if (eventGenre == null) continue;
+            EventGenreParticipantId id = new EventGenreParticipantId(event.getEventId(), eventGenre.getId(), participant.getParticipantId());
             ids.add(id);
         }
         Map<EventParticipant,List<EventGenreParticipantId>> res = new HashMap<>();

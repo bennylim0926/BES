@@ -2,9 +2,9 @@ package com.example.BES.services;
 
 import com.example.BES.dtos.GetResultsDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
-import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.AuditionFeedbackRepository;
 import com.example.BES.respositories.EventGenreParticpantRepo;
@@ -66,10 +66,10 @@ class ResultsServiceTest {
         ep.setParticipant(p);
         ep.setDisplayName("Player1");
 
-        Genre g = new Genre();
-        g.setGenreName("breaking");
+        EventGenre eventGenre = new EventGenre();
+        eventGenre.setName("breaking");
         EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        when(egp.getGenre()).thenReturn(g);
+        when(egp.getEventGenre()).thenReturn(eventGenre);
         when(egp.getFormat()).thenReturn("1v1");
         when(egp.getAuditionNumber()).thenReturn(1);
 

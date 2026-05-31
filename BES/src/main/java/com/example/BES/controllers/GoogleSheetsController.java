@@ -3,6 +3,8 @@ import jakarta.validation.Valid;
 
 import java.io.IOException;
 
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
@@ -16,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.BES.dtos.GoogleSheetFileDto;
 import com.example.BES.dtos.PaymentColumnRequestDto;
 import com.example.BES.services.GoogleSheetService;
 
@@ -32,7 +33,7 @@ public class GoogleSheetsController {
     // Get a breakdown by genre/categories of selected sheet
     @GetMapping("/participants/breakdown/{fileId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<GoogleSheetFileDto> getSheetInformationById(@PathVariable String fileId) throws IOException{
+    public ResponseEntity<Map<String, Integer>> getSheetInformationById(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getParticipantsBreakDown(fileId));
     }
 

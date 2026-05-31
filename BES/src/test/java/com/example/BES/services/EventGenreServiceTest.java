@@ -1,7 +1,7 @@
 package com.example.BES.services;
 
 import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.GetGenreDto;
+import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
@@ -55,14 +55,15 @@ class EventGenreServiceTest {
         Genre g = genre(1L, "breaking");
         EventGenre eg = new EventGenre();
         eg.setGenre(g);
+        eg.setName("breaking");
         eg.setFormat("1v1");
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
         when(eventGenreRepo.findByEvent(e)).thenReturn(List.of(eg));
 
-        List<GetGenreDto> result = service.getGenresByEventService("Fest");
+        List<GetEventDivisionDto> result = service.getGenresByEventService("Fest");
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).genreName).isEqualTo("breaking");
+        assertThat(result.get(0).name).isEqualTo("breaking");
         assertThat(result.get(0).format).isEqualTo("1v1");
     }
 
@@ -87,35 +88,30 @@ class EventGenreServiceTest {
         dto.eventName = "Fest";
         dto.genreName = List.of("breaking");
         EventGenre existing = new EventGenre();
-        existing.setGenre(g); // non-null genre signals duplicate
+        existing.setEvent(e); // non-null event signals duplicate
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
         when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.of(g));
-        when(eventGenreRepo.findByEventAndGenre(e, g)).thenReturn(Optional.of(existing));
+        when(eventGenreRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.addGenreToEventService(dto))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void updateFormat_throwsWhenEventOrGenreNotFound() {
-        when(eventRepo.findByEventNameIgnoreCase("Missing")).thenReturn(Optional.empty());
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.empty());
+    void updateFormat_throwsWhenEventGenreNotFound() {
+        when(eventGenreRepo.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateEventGenreFormat("Missing", "breaking", "1v1"))
+        assertThatThrownBy(() -> service.updateEventGenreFormat(999L, "1v1"))
             .isInstanceOf(RuntimeException.class);
     }
 
     @Test
     void updateFormat_savesFormat() {
-        Event e = event("Fest");
-        Genre g = genre(1L, "breaking");
         EventGenre eg = new EventGenre();
-        eg.setGenre(g);
-        when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.of(g));
-        when(eventGenreRepo.findByEventAndGenre(e, g)).thenReturn(Optional.of(eg));
+        eg.setFormat("1v1");
+        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
 
-        service.updateEventGenreFormat("Fest", "breaking", "2v2");
+        service.updateEventGenreFormat(1L, "2v2");
 
         assertThat(eg.getFormat()).isEqualTo("2v2");
         verify(eventGenreRepo).save(eg);

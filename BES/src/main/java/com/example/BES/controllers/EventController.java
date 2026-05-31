@@ -41,6 +41,7 @@ import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetEventGenreParticipantDto;
+import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
@@ -206,21 +207,21 @@ public class EventController {
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
 
-    @Operation(summary = "Get Genres by Event", description = "Returns genres linked to a specific event")
+    @Operation(summary = "Get Genres by Event", description = "Returns divisions linked to a specific event")
     @GetMapping("/{eventName}/genres")
-    public ResponseEntity<List<GetGenreDto>> getGenresByEvent(@PathVariable String eventName) {
+    public ResponseEntity<List<GetEventDivisionDto>> getGenresByEvent(@PathVariable String eventName) {
         return new ResponseEntity<>(eventGenreService.getGenresByEventService(eventName), HttpStatus.OK);
     }
 
     @Operation(summary = "Update Event Genre Format", description = "Sets the battle format for a genre in a specific event (e.g. '2v2')")
-    @PostMapping("/{eventName}/genres/{genreName}/format")
+    @PostMapping("/{eventName}/genres/{eventGenreId}/format")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> updateEventGenreFormat(
             @PathVariable String eventName,
-            @PathVariable String genreName,
+            @PathVariable Long eventGenreId,
             @Valid @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateEventGenreFormat(eventName, genreName, body.get("format"));
+            eventGenreService.updateEventGenreFormat(eventGenreId, body.get("format"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -419,14 +420,14 @@ public class EventController {
      * @deprecated Use /register-participant/{participantId}/{eventId} (single QR) instead
      */
     @Operation(summary = "Register Participant with Genre (Deprecated)", description = "Registers a participant and generates an audition number via QR scan for a specific genre. Deprecated: use the 2-param endpoint instead.")
-    @GetMapping("/register-participant/{participantId}/{eventId}/{genreId}")
+    @GetMapping("/register-participant/{participantId}/{eventId}/{eventGenreId}")
     public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId,
-            @PathVariable Long eventId, @PathVariable Long genreId) throws IOException {
+            @PathVariable Long eventId, @PathVariable Long eventGenreId) throws IOException {
         try {
             AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
-            dto.genreId = genreId;
+            dto.eventGenreId = eventGenreId;
             eventGenreParticipantService.getAuditionNumViaQR(dto);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
         } catch (Exception e) {
@@ -507,14 +508,14 @@ public class EventController {
     }
 
     @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
-    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{genreId}")
+    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{eventGenreId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<Void> removeParticipantGenre(
             @PathVariable Long participantId,
             @PathVariable Long eventId,
-            @PathVariable Long genreId) {
+            @PathVariable Long eventGenreId) {
         try {
-            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, genreId);
+            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, eventGenreId);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);

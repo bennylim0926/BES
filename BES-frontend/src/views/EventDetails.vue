@@ -343,14 +343,14 @@ const closeAdjustModal = () => {
 const toggleAdjustGenre = async (genre) => {
   if (adjustParticipantLocked.value || adjustLoading.value) return
   adjustLoading.value = true
-  const isEnrolled = adjustParticipantGenres.value.some(p => p.genreName === genre.genreName)
+  const isEnrolled = adjustParticipantGenres.value.some(p => p.genreName === genre.name)
   if (isEnrolled) {
-    const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.genreName)
-    await removeParticipantGenre(egp.participantId, egp.eventId, egp.genreId)
+    const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.name)
+    await removeParticipantGenre(egp.participantId, egp.eventId, egp.eventGenreId)
   } else {
     const { participantId, eventId } = adjustParticipantIds.value
     if (participantId && eventId) {
-      await addGenreToParticipant(participantId, eventId, genre.genreName)
+      await addGenreToParticipant(participantId, eventId, genre.name)
     }
   }
   await Promise.all([
@@ -366,7 +366,7 @@ const criteriaByGenre = ref({}) // genreName → array of { id, name, weight }
 const loadCriteriaForAllGenres = async (genres) => {
   const map = {}
   await Promise.all(genres.map(async (g) => {
-    map[g.genreName] = await getScoringCriteria(props.eventName, g.genreName) ?? []
+    map[g.name] = await getScoringCriteria(props.eventName, g.name) ?? []
   }))
   criteriaByGenre.value = map
 }
@@ -391,16 +391,18 @@ const submitRemoveJudge = async (judgeId) => {
 
 // ── Genre format editing ────────────────────────────────────────────────────
 const formatOptions = ['1v1', '2v2', '3v3', '4v4', '5v5']
-const editingFormatFor = ref(null)  // genreName currently being edited
+const editingFormatFor = ref(null)  // genre name currently being edited
 const editingFormatValue = ref('')
 
 const startEditFormat = (genre) => {
-  editingFormatFor.value = genre.genreName
+  editingFormatFor.value = genre.name
   editingFormatValue.value = genre.format || ''
 }
 
 const saveFormat = async (genreName) => {
-  await updateEventGenreFormat(props.eventName, genreName, editingFormatValue.value || null)
+  const eg = eventGenres.value.find(g => g.name === genreName)
+  if (!eg) return
+  await updateEventGenreFormat(props.eventName, eg.eventGenreId, editingFormatValue.value || null)
   eventGenres.value = await getGenresByEvent(props.eventName)
   editingFormatFor.value = null
 }
@@ -511,7 +513,7 @@ onMounted(async () => {
   }
   genreOptions.value = await fetchAllGenres()
   eventGenres.value = await getGenresByEvent(props.eventName)
-  if (eventGenres.value.length > 0) activeGenreTab.value = eventGenres.value[0].genreName
+  if (eventGenres.value.length > 0) activeGenreTab.value = eventGenres.value[0].name
   await loadCriteriaForAllGenres(eventGenres.value)
   eventJudges.value = await getEventJudges(props.eventName)
   if (tableExist.value) {
@@ -818,44 +820,44 @@ onUnmounted(() => {
     <div class="flex flex-wrap gap-2 mb-4">
       <button
         v-for="g in eventGenres"
-        :key="g.genreName"
-        @click="activeGenreTab = g.genreName"
+        :key="g.name"
+        @click="activeGenreTab = g.name"
         class="para-chip-sm px-4 py-2 type-label transition-all duration-150"
-        :class="activeGenreTab === g.genreName
+        :class="activeGenreTab === g.name
           ? 'text-accent border-accent'
           : 'text-content-muted hover:text-content-primary'"
       >
-        {{ g.genreName }}
+        {{ g.name }}
         <span
-          v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName))"
+          v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))"
           class="ml-1.5 text-xs font-normal opacity-60"
-        >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).total }}</span>
+        >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
       </button>
     </div>
 
     <!-- Tab content for each genre -->
-    <template v-for="g in eventGenres" :key="g.genreName + '-content'">
-      <div v-if="activeGenreTab === g.genreName" class="p-5 space-y-4">
+    <template v-for="g in eventGenres" :key="g.name + '-content'">
+      <div v-if="activeGenreTab === g.name" class="p-5 space-y-4">
 
         <!-- Participant counts (only when data available) -->
-        <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName))">
+        <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).total }}</span>
+            <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
             <span class="badge-success">
-              Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).registered }}
+              Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }}
             </span>
             <span
-              v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered > 0"
+              v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
               class="badge-danger"
-            >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.genreName)).unregistered }}</span>
+            >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }}</span>
           </div>
 
           <!-- Unregistered list -->
-          <div v-if="getUnregistered(normalizeGenreName(g.genreName)).unregistered.length > 0">
+          <div v-if="getUnregistered(normalizeGenreName(g.name)).unregistered.length > 0">
             <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1.5">Unregistered Participants</p>
             <div class="flex flex-wrap gap-2">
               <span
-                v-for="p in getUnregistered(normalizeGenreName(g.genreName)).unregistered"
+                v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
                 :key="p.participantName"
                 class="badge-danger font-source"
               >{{ p.participantName }}</span>
@@ -875,7 +877,7 @@ onUnmounted(() => {
           <!-- Battle Format -->
           <div class="flex flex-col gap-2 p-3 para-chip">
             <p class="type-label text-content-muted">Battle Format</p>
-            <template v-if="editingFormatFor !== g.genreName">
+            <template v-if="editingFormatFor !== g.name">
               <div class="flex items-center justify-between">
                 <span class="type-body" :class="g.format ? 'text-accent' : 'text-content-muted'">
                   {{ g.format || 'No format' }}
@@ -895,7 +897,7 @@ onUnmounted(() => {
                   <option value="">No format</option>
                   <option v-for="opt in formatOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
-                <button @click="saveFormat(g.genreName)" class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold">Save</button>
+                <button @click="saveFormat(g.name)" class="text-xs px-2.5 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-all font-semibold">Save</button>
                 <button @click="editingFormatFor = null" class="text-xs px-2 py-1 rounded-lg border border-surface-600/50 text-content-muted hover:border-surface-500 transition-all">Cancel</button>
               </div>
             </template>
@@ -910,10 +912,10 @@ onUnmounted(() => {
                 class="para-chip-sm px-2.5 py-1 type-label"
               ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
             </div>
-            <template v-if="criteriaByGenre[g.genreName]?.length">
+            <template v-if="criteriaByGenre[g.name]?.length">
               <div class="flex flex-wrap gap-1.5">
                 <span
-                  v-for="c in criteriaByGenre[g.genreName]"
+                  v-for="c in criteriaByGenre[g.name]"
                   :key="c.id"
                   class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
                 >
@@ -1241,21 +1243,21 @@ onUnmounted(() => {
               <div class="grid grid-cols-2 gap-2">
                 <button
                   v-for="g in eventGenres"
-                  :key="g.genreName"
+                  :key="g.name"
                   @click="toggleAdjustGenre(g)"
                   :disabled="adjustParticipantLocked || adjustLoading"
                   class="para-chip p-3 flex items-center gap-2 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                  :class="adjustParticipantGenres.some(p => p.genreName === g.genreName)
+                  :class="adjustParticipantGenres.some(p => p.genreName === g.name)
                     ? 'text-accent border-[color:var(--accent-color)]'
                     : 'text-content-secondary'"
                 >
                   <i
                     class="pi text-xs shrink-0"
-                    :class="adjustParticipantGenres.some(p => p.genreName === g.genreName)
+                    :class="adjustParticipantGenres.some(p => p.genreName === g.name)
                       ? 'pi-check-circle text-accent'
                       : 'pi-circle text-content-muted'"
                   ></i>
-                  <span class="type-body flex-1 truncate">{{ g.genreName }}</span>
+                  <span class="type-body flex-1 truncate">{{ g.name }}</span>
                   <span v-if="g.format" class="type-label text-content-muted shrink-0">{{ g.format }}</span>
                 </button>
               </div>
@@ -1276,7 +1278,7 @@ onUnmounted(() => {
   <ScoringCriteriaModal
     v-model="showCriteriaModal"
     :eventName="props.eventName"
-    :genres="eventGenres.map(g => g.genreName)"
+    :genres="eventGenres.map(g => g.name)"
     @update:modelValue="(v) => { if (!v) loadCriteriaForAllGenres(eventGenres) }"
   />
 </template>

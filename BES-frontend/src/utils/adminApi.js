@@ -72,7 +72,7 @@ export const deleteJudge = async(id)=>{
     }
 }
 
-export const updateGenre = async(id, newName)=>{
+export const updateGenre = async(id, newName, aliases)=>{
     try{
         await fetch(`${domain}/api/v1/admin/update-genre`,{
             method: 'POST',
@@ -83,7 +83,8 @@ export const updateGenre = async(id, newName)=>{
             },
             body: JSON.stringify({
                 id: id,
-                newName: newName
+                newName: newName,
+                aliases: aliases ?? null
             })
         })
     }catch(_err){

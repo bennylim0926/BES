@@ -11,10 +11,10 @@ import com.example.BES.dtos.AddScoringCriteriaDto;
 import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.Genre;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.ScoringCriteria;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ScoringCriteriaRepo;
 
 @Service
@@ -27,12 +27,8 @@ public class ScoringCriteriaService {
     EventRepo eventRepo;
 
     @Autowired
-    GenreRepo genreRepo;
+    EventGenreRepo eventGenreRepo;
 
-    /**
-     * Returns criteria for an event + genre combination.
-     * Genre-specific criteria take priority; falls back to event-level if none found.
-     */
     public List<GetScoringCriteriaDto> getCriteria(String eventName, String genreName) {
         List<ScoringCriteria> criteria;
         if (genreName != null && !genreName.isBlank()) {
@@ -46,9 +42,6 @@ public class ScoringCriteriaService {
         return criteria.stream().map(this::toDto).toList();
     }
 
-    /**
-     * Returns criteria without fallback — only what is explicitly set for that genre (or event-level if no genre).
-     */
     public List<GetScoringCriteriaDto> getStrictCriteria(String eventName, String genreName) {
         List<ScoringCriteria> criteria;
         if (genreName != null && !genreName.isBlank()) {
@@ -65,9 +58,9 @@ public class ScoringCriteriaService {
         ScoringCriteria sc = new ScoringCriteria();
         sc.setEvent(event);
         if (dto.genreName != null && !dto.genreName.isBlank()) {
-            Genre genre = genreRepo.findByGenreName(dto.genreName)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Genre not found"));
-            sc.setGenre(genre);
+            EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, dto.genreName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event genre not found"));
+            sc.setEventGenre(eventGenre);
         }
         sc.setName(dto.name);
         sc.setWeight(dto.weight);
@@ -87,7 +80,6 @@ public class ScoringCriteriaService {
         repo.deleteById(id);
     }
 
-    /** Deletes all criteria for the given genre (or event-level if genreName is null/blank). */
     public void deleteAllCriteria(String eventName, String genreName) {
         List<ScoringCriteria> criteria;
         if (genreName != null && !genreName.isBlank()) {
@@ -104,7 +96,7 @@ public class ScoringCriteriaService {
         dto.name = sc.getName();
         dto.weight = sc.getWeight();
         dto.displayOrder = sc.getDisplayOrder();
-        dto.genreName = sc.getGenre() != null ? sc.getGenre().getGenreName() : null;
+        dto.genreName = sc.getEventGenre() != null ? sc.getEventGenre().getName() : null;
         return dto;
     }
 }

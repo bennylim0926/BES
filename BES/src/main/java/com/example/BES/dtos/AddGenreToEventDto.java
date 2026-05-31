@@ -11,5 +11,6 @@ public class AddGenreToEventDto {
     public String eventName;
     @NotEmpty
     public List<@NotBlank @Size(max = 255) String> genreName;
-    public Map<String, String> genreFormats; // genreName → format (e.g. "2v2")
+    public Map<String, String> genreFormats; // genreName -> format (e.g. "2v2")
+    public Map<String, String> genreAliases; // genreName -> comma-separated sheet aliases
 }

@@ -1043,9 +1043,9 @@ export const deletePickupCrew = async (crewId) => {
   }
 }
 
-export const updateEventGenreFormat = async (eventName, genreName, format) => {
+export const updateEventGenreFormat = async (eventName, eventGenreId, format) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${encodeURIComponent(genreName)}/format`, {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${eventGenreId}/format`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
