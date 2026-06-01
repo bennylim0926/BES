@@ -1,6 +1,4 @@
 <script setup>
-import ActionDoneModal from '@/views/ActionDoneModal.vue';
-
 const props = defineProps({
   cards: { type: Array, required: true },
   show:  { type: Boolean, default: false },
@@ -34,30 +32,60 @@ const moveTo = (index) => {
 </script>
 
 <template>
-  <ActionDoneModal
-    :show="props.show"
-    :title="props.title"
-    variant="info"
-    @accept="$emit('close')"
-    @close="$emit('close')"
+  <Transition
+    enter-active-class="transition duration-200 ease-out"
+    enter-from-class="opacity-0"
+    enter-to-class="opacity-100"
+    leave-active-class="transition duration-150 ease-in"
+    leave-from-class="opacity-100"
+    leave-to-class="opacity-0"
   >
-    <div class="grid grid-cols-2 gap-2 mt-1">
-      <button
-        v-for="(card, idx) in props.cards"
-        :key="idx"
-        @click="moveTo(idx)"
-        class="para-chip-sm p-2 type-label text-content-muted hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-left"
+    <div
+      v-if="props.show"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')"></div>
+
+      <div
+        class="card-hover relative flex flex-col mx-4 w-full"
+        style="max-width: 520px; max-height: 80vh;"
       >
-        <div class="flex items-center gap-2 w-full">
-          <span class="type-body text-content-primary truncate flex-1">#{{ card.auditionNumber }} · {{ card.participantName }}</span>
-          <span
-            class="type-stat text-[16px] flex-shrink-0"
-            :class="card.score === 0 ? 'text-content-muted' : 'text-accent'"
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 pt-6 pb-3 flex-shrink-0">
+          <p class="type-page-title">{{ props.title }}</p>
+          <button
+            @click="$emit('close')"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors"
           >
-            {{ card.score === 0 ? '—' : card.score }}
-          </span>
+            <i class="pi pi-times text-xs"></i>
+          </button>
         </div>
-      </button>
+
+        <!-- Scrollable grid -->
+        <div class="overflow-y-auto flex-1 px-6 pb-6" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent;">
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              v-for="(card, idx) in props.cards"
+              :key="idx"
+              @click="moveTo(idx)"
+              class="para-chip-sm p-2 type-label text-content-muted hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-left"
+            >
+              <div class="flex items-center gap-2 w-full">
+                <span class="type-body text-content-primary truncate flex-1">#{{ card.auditionNumber }} · {{ card.participantName }}</span>
+                <span
+                  class="type-stat text-[16px] flex-shrink-0"
+                  :class="card.score === 0 ? 'text-content-muted' : 'text-accent'"
+                >
+                  {{ card.score === 0 ? '—' : card.score }}
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-  </ActionDoneModal>
+  </Transition>
 </template>

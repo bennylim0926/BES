@@ -79,15 +79,19 @@ public class BattleService {
     public void setBattlerPairService(SetBattlerPairDto dto){
         getCurrentPair().leftBattler.setName(dto.getLeftBattler());
         getCurrentPair().leftBattler.setScore(0);
+        getCurrentPair().leftBattler.setMembers(dto.getLeftMembers());
         getCurrentPair().rightBattler.setName(dto.getRightBattler());
         getCurrentPair().rightBattler.setScore(0);
+        getCurrentPair().rightBattler.setMembers(dto.getRightMembers());
         currentIsFinal = dto.isFinal();
         messagingTemplate.convertAndSend("/topic/battle/battle-pair",
             Map.of(
                 "left", currentPair.getLeftBattler().getName(),
                 "leftScore", currentPair.getLeftBattler().getScore(),
+                "leftMembers", currentPair.getLeftBattler().getMembers(),
                 "right", currentPair.getRightBattler().getName(),
                 "rightScore", currentPair.getRightBattler().getScore(),
+                "rightMembers", currentPair.getRightBattler().getMembers(),
                 "isFinal", currentIsFinal
             ));
         // Auto-transition to LOCKED when a new pair is set
@@ -310,22 +314,17 @@ public class BattleService {
     public static class Battler {
         private String name;
         private Integer score;
+        private List<String> members = new ArrayList<>();
         Battler(){
             name = "";
             score = 0;
         }
-        public String getName() {
-            return name;
-        }
-        public void setName(String name) {
-            this.name = name;
-        }
-        public Integer getScore() {
-            return score;
-        }
-        public void setScore(Integer score) {
-            this.score = score;
-        }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public Integer getScore() { return score; }
+        public void setScore(Integer score) { this.score = score; }
+        public List<String> getMembers() { return members; }
+        public void setMembers(List<String> members) { this.members = members != null ? members : new ArrayList<>(); }
     }
     public class BattlePair {
         

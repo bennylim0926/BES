@@ -6,7 +6,8 @@ const currentSelected = defineModel()
 const props = defineProps({
   options:  { type: Array,  required: true,  default: () => [] },
   labelId:  { type: String, required: true,  default: '' },
-  placeholder: { type: String, default: 'Select an option' }
+  placeholder: { type: String, default: 'Select an option' },
+  openUp: { type: Boolean, default: false },
 })
 
 if (!currentSelected.value && props.options.length > 0) {
@@ -25,12 +26,12 @@ if (!currentSelected.value && props.options.length > 0) {
 
         <!-- Trigger Button -->
         <ListboxButton
-          class="w-full flex items-center justify-between para-chip type-label transition-all duration-200"
+          class="w-full flex items-center justify-between gap-2 px-3 py-2 para-chip type-label transition-all duration-200"
           :class="[
             currentSelected ? 'text-accent' : 'text-content-muted'
           ]"
         >
-          <span class="truncate">{{ currentSelected || placeholder }}</span>
+          <span class="break-all leading-tight">{{ currentSelected || placeholder }}</span>
           <i
             class="pi pi-chevron-down flex-shrink-0 text-content-muted text-xs
                    transition-transform duration-200"
@@ -48,7 +49,7 @@ if (!currentSelected.value && props.options.length > 0) {
           leave-to-class="opacity-0 -translate-y-2"
         >
           <ListboxOptions
-            class="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto card-hover py-1 focus:outline-none"
+            :class="['absolute z-50 max-h-60 w-full overflow-auto card-hover py-1 focus:outline-none', openUp ? 'bottom-full mb-1.5' : 'mt-1.5']"
           >
             <ListboxOption
               v-for="option in props.options"

@@ -7,7 +7,7 @@ const props = defineProps({
   criteria:     { type: Array,  default: () => [] },
 });
 
-const emit = defineEmits(['update:cards', 'open-feedback', 'remove-tag', 'submit', 'reset', 'jump']);
+const emit = defineEmits(['update:cards', 'open-feedback', 'remove-tag', 'submit', 'reset', 'jump', 'score-change']);
 
 const scrollRef    = ref(null)
 const currentIndex = ref(0)
@@ -30,6 +30,12 @@ function setCriteriaScore(card, criterionName, value) {
   if (!card.criteriaScores) card.criteriaScores = {}
   card.criteriaScores[criterionName] = value
   card.score = computeAggregate(card)
+  emit('score-change', card)
+}
+
+function setSingleScore(card, value) {
+  card.score = value
+  emit('score-change', card)
 }
 
 function computeAggregate(card) {
@@ -107,9 +113,9 @@ onMounted(observeCards)
         <!-- Score card -->
         <div
           class="card-hover p-3 relative transition-all duration-200"
-          :class="[idx === currentIndex ? (card.submitted ? 'border-emerald-500/50' : 'border-[color:var(--accent-muted)]') : 'border-white/5 opacity-40']"
+          :class="[idx === currentIndex ? (card.submitted ? 'border-emerald-500/50' : card.saving ? 'border-accent/40' : 'border-[color:var(--accent-muted)]') : 'border-white/5 opacity-40']"
           :style="idx === currentIndex
-            ? { boxShadow: card.submitted ? '0 0 0 1px rgba(16,185,129,0.4), 0 8px 32px rgba(0,0,0,0.7)' : '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
+            ? { boxShadow: card.submitted ? '0 0 0 1px rgba(16,185,129,0.4), 0 8px 32px rgba(0,0,0,0.7)' : card.saving ? '0 0 0 1px var(--accent-muted), 0 0 24px var(--accent-subtle), 0 8px 32px rgba(0,0,0,0.7)' : '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
             : {}"
         >
           <div class="score-card-body">
@@ -117,12 +123,27 @@ onMounted(observeCards)
             <!-- ── Info column (left in landscape) ── -->
             <div class="score-card-info">
 
-              <!-- Participant header -->
-              <div class="text-center mb-2">
-                <span class="type-stat text-accent leading-none block" style="font-size: 2.8rem;">#{{ card.auditionNumber }}</span>
-                <div class="type-body text-content-primary text-xl leading-tight mt-0.5">{{ card.participantName }}</div>
-                <div v-if="card.submitted" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-emerald-400 normal-case" style="background:rgba(16,185,129,0.12);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);box-shadow:0 0 8px rgba(16,185,129,0.2)">
-                  <i class="pi pi-check text-[10px]"></i> Submitted
+              <!-- Participant header — compact horizontal for inactive (peeking) cards, centered for active -->
+              <div :class="idx === currentIndex ? 'text-center mb-2' : 'mb-2'">
+                <!-- Active card: stacked centered layout -->
+                <template v-if="idx === currentIndex">
+                  <span class="type-stat text-accent leading-none block" style="font-size: 2rem;">#{{ card.auditionNumber }}</span>
+                  <div class="type-body text-content-primary leading-tight mt-1" style="font-size:1.9rem">{{ card.participantName }}</div>
+                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case mt-1 leading-snug" style="font-size:16px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
+                </template>
+                <!-- Inactive card: compact left-aligned so peek shows readable info -->
+                <template v-else>
+                  <div class="flex items-baseline gap-2">
+                    <span class="type-stat text-accent leading-none flex-shrink-0" style="font-size:1.4rem">#{{ card.auditionNumber }}</span>
+                    <span class="type-body text-content-primary truncate" style="font-size:1rem">{{ card.participantName }}</span>
+                  </div>
+                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case mt-0.5 truncate" style="font-size:13px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
+                </template>
+                <div v-if="card.saving" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-accent/60 normal-case" style="background:rgba(255,255,255,0.05);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
+                  <i class="pi pi-spin pi-spinner text-[10px]"></i> Saving…
+                </div>
+                <div v-else-if="card.submitted" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-emerald-400 normal-case" style="background:rgba(16,185,129,0.12);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);box-shadow:0 0 8px rgba(16,185,129,0.2)">
+                  <i class="pi pi-check-circle text-[10px]"></i> Saved
                 </div>
               </div>
 
@@ -289,7 +310,7 @@ onMounted(observeCards)
               <template v-else>
                 <button
                   
-                  @click="card.score = 10"
+                  @click="setSingleScore(card, 10)"
                   class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
                   style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
                 >10 — Full Score</button>
@@ -299,8 +320,8 @@ onMounted(observeCards)
                     <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9" :key="'w'+value"
-                        
-                        @click="card.score = Number(value)"
+
+                        @click="setSingleScore(card, Number(value))"
                         class="py-4 text-sm font-bold transition-all duration-100 active:scale-95 disabled:opacity-20"
                         :class="Math.floor(card.score) === value && card.score === value ? 'text-black' : 'text-white/55 hover:text-white'"
                         :style="Math.floor(card.score) === value && card.score === value
@@ -315,7 +336,7 @@ onMounted(observeCards)
                       <button
                         v-for="value in 9" :key="'d'+value"
                         
-                        @click="card.score = updateDecimal(card.score, value)"
+                        @click="setSingleScore(card, updateDecimal(card.score, value))"
                         class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95 disabled:opacity-20"
                         :class="(card.score * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
                         :style="(card.score * 10 % 10).toFixed(0) == value
@@ -357,13 +378,7 @@ onMounted(observeCards)
         class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-search text-xs"></i> Go To</button>
 
-      <button
-        @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 para-chip type-label text-white transition-all duration-150 active:scale-[0.98]"
-        style="background:rgb(16,185,129);box-shadow:0 0 16px rgba(16,185,129,0.5)"
-      ><i class="pi pi-send text-xs"></i> Submit All</button>
-
-      <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">
+      <div v-if="hasCriteria && aggregateDisplay !== null" class="ml-auto text-xs font-bold text-amber-400/40 shrink-0 font-source tabular-nums">
         AVG {{ aggregateDisplay }}
       </div>
     </div>

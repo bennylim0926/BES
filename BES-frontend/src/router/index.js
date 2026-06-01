@@ -17,6 +17,7 @@ import EventSelector from "@/views/EventSelector.vue";
 import Results from "@/views/Results.vue";
 import ResultsQR from "@/views/ResultsQR.vue";
 import CrewFormation from "@/views/CrewFormation.vue";
+import AuditionAdjust from "@/views/AuditionAdjust.vue";
 import BracketVisualization from "@/views/BracketVisualization.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
@@ -129,6 +130,12 @@ const routes = [
         path: '/battle/bracket',
         name: 'BracketVisualization',
         component: BracketVisualization
+    },
+    {
+        path: '/event/audition-adjust',
+        name: 'Audition Adjust',
+        component: AuditionAdjust,
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     }
 ]
 

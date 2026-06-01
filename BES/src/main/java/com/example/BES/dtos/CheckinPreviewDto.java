@@ -2,16 +2,15 @@ package com.example.BES.dtos;
 
 import java.util.List;
 
-public class GetCheckinListDto {
+public class CheckinPreviewDto {
     public Long participantId;
-    public Long eventId;
-    public String label;
+    public String name;
+    public String refCode;
     public List<String> memberNames;
-    public List<GenreStatus> genres;
+    public List<GenreEntry> genres;
 
-    public static class GenreStatus {
+    public static class GenreEntry {
         public String genreName;
-        public Long eventGenreId;
         public Integer auditionNumber;
     }
 }

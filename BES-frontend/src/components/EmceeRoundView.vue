@@ -106,9 +106,12 @@ const swipeHint = computed(() => {
               <div v-if="slot._placeholder" class="text-xs text-amber-400/40 italic">
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
-              <div v-else class="flex items-center gap-2 flex-wrap">
-                <span class="type-stat text-[22px]" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
-                <span class="type-body" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
+              <div v-else class="flex items-start gap-2 flex-wrap">
+                <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
+                <div class="min-w-0">
+                  <span class="type-body block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
+                  <span v-if="slot.memberNames?.length" class="type-label text-content-muted normal-case block" style="font-size:15px;letter-spacing:0.04em">{{ slot.memberNames.join(' · ') }}</span>
+                </div>
                 <span v-if="mode === 'PAIR' && sIdx === 0" class="text-white/20 text-xs">&amp;</span>
               </div>
             </template>
@@ -170,6 +173,7 @@ const swipeHint = computed(() => {
                     <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
                     <span class="type-body text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
                   </div>
+                  <div v-if="slot.memberNames?.length" class="type-label text-content-muted normal-case mt-0.5 pl-1" style="font-size:15px;letter-spacing:0.04em">{{ slot.memberNames.join(' · ') }}</div>
                   <div v-if="slot.judgeName" class="text-xs text-white/25 mt-0.5 pl-1">{{ slot.judgeName }}</div>
                 </div>
               </template>

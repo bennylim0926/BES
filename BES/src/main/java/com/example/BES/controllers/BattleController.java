@@ -96,9 +96,11 @@ public class BattleController {
         }
         return ResponseEntity.ok(Map.of(
             "left", currentPair.getLeftBattler().getName(),
+            "leftScore", currentPair.getLeftBattler().getScore(),
+            "leftMembers", currentPair.getLeftBattler().getMembers(),
             "right", currentPair.getRightBattler().getName(),
             "rightScore", currentPair.getRightBattler().getScore(),
-            "leftScore", currentPair.getLeftBattler().getScore(),
+            "rightMembers", currentPair.getRightBattler().getMembers(),
             "isFinal", battleService.isCurrentFinal()
         ));
     }

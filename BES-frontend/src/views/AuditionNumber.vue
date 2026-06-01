@@ -1,190 +1,338 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue"
-import ActionDoneModal from './ActionDoneModal.vue';
-import { createClient, deactivateClient, subscribeToChannel } from "@/utils/websocket";
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import ActionDoneModal from './ActionDoneModal.vue'
+import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 
-const loading = ref(false)
-const fakeNumber = ref(null)
-let intervalId = null
-let client = ref(null)
+// ── State ──────────────────────────────────────────────────────────────────
+const currentPerson = ref(null)
+// { name, refCode, memberNames: [], genres: [{ genreName, auditionNumber, rolling }] }
 
-const assignments = ref([])
-const currentAssignment = ref(null)
-const queue = ref([])
-const isAnimating = ref(false)
-
-const modalTitle = ref("")
-const modalMessage = ref("")
-const showModal = ref(false)
-
+const history = ref([])
 const revealingRef = ref(null)
 
-const groupedHistory = computed(() => {
-  const order = []
-  const map = new Map()
-  for (const a of assignments.value) {
-    if (map.has(a.name)) {
-      const idx = order.indexOf(a.name)
-      order.splice(idx, 1)
-    } else {
-      map.set(a.name, { refCode: a.refCode || '', genres: new Map() })
-    }
-    order.push(a.name)
-    map.get(a.name).genres.set(a.genre, a)
-  }
-  return order.reverse().map(name => ({
-    name,
-    refCode: map.get(name).refCode,
-    entries: [...map.get(name).genres.values()]
-  }))
-})
+// Per-division slot animation
+const fakeNums = ref({})        // { [genreName]: number }
+const rollingIntervals = {}     // { [genreName]: intervalId }
 
-const openModal = (title, message) => {
-  modalTitle.value = title
-  modalMessage.value = message
-  showModal.value = true
+// Sequential animation queue — processes one division at a time
+const auditionQueue = []
+let queueRunning = false
+
+const modalTitle = ref('')
+const modalMessage = ref('')
+const showModal = ref(false)
+
+const wsClients = []
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const flushCurrentToHistory = () => {
+  if (currentPerson.value) {
+    // Capture any numbers still pending in the queue so history is accurate
+    const pendingNums = {}
+    auditionQueue.forEach(m => { if (isSamePerson(currentPerson.value, m)) pendingNums[m.genre] = m.auditionNumber })
+    const genres = currentPerson.value.genres.map(g => ({
+      ...g,
+      auditionNumber: g.auditionNumber ?? pendingNums[g.genreName] ?? null
+    }))
+    history.value.unshift({ ...currentPerson.value, genres })
+  }
 }
 
-const clearHistory = () => { assignments.value = [] }
+function startRolling(genreName) {
+  clearInterval(rollingIntervals[genreName])
+  rollingIntervals[genreName] = setInterval(() => {
+    fakeNums.value = { ...fakeNums.value, [genreName]: Math.floor(Math.random() * 99) + 1 }
+  }, 80)
+}
 
-function startSlotAnimation(finalNumber, onDone) {
-  loading.value = true
-  clearInterval(intervalId)
-  intervalId = setInterval(() => {
-    fakeNumber.value = Math.floor(Math.random() * 50) + 1
-  }, 100)
+function stopRolling(genreName) {
+  clearInterval(rollingIntervals[genreName])
+  delete rollingIntervals[genreName]
+  const next = { ...fakeNums.value }
+  delete next[genreName]
+  fakeNums.value = next
+}
+
+function processNextInQueue() {
+  if (auditionQueue.length === 0) {
+    queueRunning = false
+    return
+  }
+  queueRunning = true
+  const msg = auditionQueue.shift()
+  animateAuditionNumber(msg)
+}
+
+function animateAuditionNumber(msg) {
+  // If person moved to history before animation ran, update history and skip animation
+  if (!isSamePerson(currentPerson.value, msg)) {
+    const historyEntry = history.value.find(h => h.name === msg.name)
+    if (historyEntry) {
+      const hGenre = historyEntry.genres.find(g => g.genreName === msg.genre)
+      if (hGenre) hGenre.auditionNumber = msg.auditionNumber
+    }
+    processNextInQueue()
+    return
+  }
+
+  // Update refCode once we have it
+  if (msg.refCode && !currentPerson.value.refCode) {
+    currentPerson.value.refCode = msg.refCode
+  }
+
+  // Find or create the genre entry (auditionNumber stays null until animation reveals it)
+  let genre = currentPerson.value.genres.find(g => g.genreName === msg.genre)
+  if (!genre) {
+    genre = { genreName: msg.genre, auditionNumber: null, rolling: false }
+    currentPerson.value.genres.push(genre)
+  }
+
+  // Slot animation — reveal the number only when animation finishes (no spoiler)
+  genre.rolling = true
+  startRolling(msg.genre)
   setTimeout(() => {
-    clearInterval(intervalId)
-    fakeNumber.value = null
-    loading.value = false
-    onDone()
+    stopRolling(msg.genre)
+    const g = currentPerson.value?.genres.find(g => g.genreName === msg.genre)
+    if (g) {
+      g.rolling = false
+      g.auditionNumber = msg.auditionNumber
+    }
+    processNextInQueue()
   }, 2000)
 }
 
-const processQueue = () => {
-  if (queue.value.length === 0) { isAnimating.value = false; return }
-  isAnimating.value = true
-  const next = queue.value.shift()
-  currentAssignment.value = next
-  startSlotAnimation(next.auditionNumber, () => {
-    assignments.value.push(next)
-    currentAssignment.value = null
-    processQueue()
-  })
+// ── WS Handlers ─────────────────────────────────────────────────────────────
+const isSamePerson = (a, b) =>
+  a && b && (a.participantId != null && b.participantId != null
+    ? a.participantId === b.participantId
+    : a.name === b.name)
+
+const onPreview = (msg) => {
+  if (isSamePerson(currentPerson.value, msg)) {
+    // Same person — merge any new genres without overwriting existing
+    if (msg.refCode && !currentPerson.value.refCode) currentPerson.value.refCode = msg.refCode
+    const existing = new Set(currentPerson.value.genres.map(g => g.genreName))
+    for (const g of (msg.genres ?? [])) {
+      if (!existing.has(g.genreName)) {
+        currentPerson.value.genres.push({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false })
+      }
+    }
+  } else {
+    // Different person — discard pending animations and flush current to history
+    if (currentPerson.value) {
+      auditionQueue.length = 0
+      flushCurrentToHistory()
+    }
+    currentPerson.value = {
+      participantId: msg.participantId ?? null,
+      name: msg.name,
+      refCode: msg.refCode ?? null,
+      memberNames: msg.memberNames ?? [],
+      genres: (msg.genres ?? []).map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false }))
+    }
+  }
 }
 
 const onReceiveAuditionNumber = (msg) => {
-  queue.value.push(msg)
-  if (!isAnimating.value) processQueue()
+  if (isSamePerson(currentPerson.value, msg)) {
+    // Ensure genre row exists (pending state) — number revealed only after animation
+    if (!currentPerson.value.genres.find(g => g.genreName === msg.genre)) {
+      currentPerson.value.genres.push({ genreName: msg.genre, auditionNumber: null, rolling: false })
+    }
+    if (msg.refCode && !currentPerson.value.refCode) currentPerson.value.refCode = msg.refCode
+    auditionQueue.push(msg)
+    if (!queueRunning) processNextInQueue()
+  } else {
+    // Late message — update history directly, no animation
+    const historyEntry = history.value.find(h => h.name === msg.name)
+    if (historyEntry) {
+      const hGenre = historyEntry.genres.find(g => g.genreName === msg.genre)
+      if (hGenre) hGenre.auditionNumber = msg.auditionNumber
+    } else {
+      auditionQueue.push(msg)
+      if (!queueRunning) processNextInQueue()
+    }
+  }
 }
 
 const onRepeatAudition = (msg) => {
-  const judgeLabel = msg.judge === "" ? "" : `\nJudge: ${msg.judge}`
-  openModal(`Hey ${msg.name}!`, `Your audition number is ${msg.genre} #${msg.audition}${judgeLabel}`)
+  const judgeLabel = msg.judge ? ` · Judge: ${msg.judge}` : ''
+  modalTitle.value = `Hey ${msg.name}!`
+  modalMessage.value = `Your audition number is ${msg.genre} #${msg.audition}${judgeLabel}`
+  showModal.value = true
 }
 
+const clearHistory = () => { history.value = [] }
+
 onMounted(() => {
-  subscribeToChannel(createClient(), "/topic/audition/", (msg) => onReceiveAuditionNumber(msg))
-  subscribeToChannel(createClient(), "/topic/error/", (msg) => onRepeatAudition(msg))
+  const c1 = createClient(); wsClients.push(c1)
+  subscribeToChannel(c1, '/topic/checkin-preview/', onPreview)
+  const c2 = createClient(); wsClients.push(c2)
+  subscribeToChannel(c2, '/topic/audition/', onReceiveAuditionNumber)
+  const c3 = createClient(); wsClients.push(c3)
+  subscribeToChannel(c3, '/topic/error/', onRepeatAudition)
 })
 
 onBeforeUnmount(() => {
-  if (intervalId) clearInterval(intervalId)
-  deactivateClient(client.value)
+  Object.values(rollingIntervals).forEach(clearInterval)
+  wsClients.forEach(c => deactivateClient(c))
 })
 </script>
 
 <template>
-  <div class="w-full max-w-2xl mx-auto px-4 py-8 flex flex-col items-center">
+  <div class="page-container">
+    <div class="color-bleed"></div>
 
-    <!-- Animation area -->
-    <div class="w-full flex flex-col items-center justify-center min-h-[200px] text-center">
-
-      <!-- Slot rolling -->
-      <div v-if="loading" class="space-y-3">
-        <p class="label-caps font-semibold text-content-muted uppercase">Drawing audition number</p>
-        <div class="text-6xl font-heading font-extrabold tabular-nums animate-slot-roll shimmer-text">
-          {{ fakeNumber ?? '—' }}
-        </div>
-        <div class="w-24 h-1 mx-auto rounded-full overflow-hidden bg-surface-700">
-          <div class="h-full shimmer-bar" style="background: linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.6) 50%, transparent 100%); background-size: 200% 100%; animation: shimmerMove 1.2s ease-in-out infinite;"></div>
-        </div>
-      </div>
-
-      <!-- Revealed -->
-      <div v-else-if="currentAssignment" class="space-y-1">
-        <p class="label-caps font-semibold text-content-muted uppercase">Good Luck</p>
-        <p class="font-heading font-extrabold text-2xl text-content-primary">{{ currentAssignment.name }}</p>
-        <div class="flex items-baseline justify-center gap-2 mt-1">
-          <span class="text-sm font-semibold text-content-muted capitalize">{{ currentAssignment.genre }}</span>
-          <span class="text-4xl font-heading font-extrabold text-primary-400">#{{ currentAssignment.auditionNumber }}</span>
-        </div>
-        <p v-if="currentAssignment.judge" class="text-sm font-medium text-content-muted mt-1">Judge: {{ currentAssignment.judge }}</p>
-      </div>
-
-      <!-- Idle -->
-      <div v-else-if="assignments.length === 0" class="scan-zone">
-        <div class="scan-zone-inner flex flex-col items-center gap-3"
-             style="background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(34,211,238,0.04) 0%, transparent 100%);">
-          <p class="label-caps font-semibold text-content-muted uppercase animate-scan-pulse">Waiting for check-in…</p>
-          <div class="text-6xl font-heading font-extrabold tabular-nums text-surface-600/50">—</div>
-        </div>
-      </div>
-
+    <!-- ── Current Participant ─────────────────────────────────────────── -->
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Current Participant</span>
+      <div class="section-rule-line"></div>
     </div>
 
-    <!-- History -->
-    <div v-if="groupedHistory.length > 0" class="mt-6 w-full">
-      <div class="flex items-center justify-between mb-2">
-        <p class="label-caps font-semibold text-content-muted uppercase">History</p>
-        <button @click="clearHistory" class="text-xs font-medium text-content-muted hover:text-red-400 transition-colors">Clear</button>
+    <!-- Idle state -->
+    <div v-if="!currentPerson" class="flex flex-col items-center justify-center py-16 text-center">
+      <div class="para-chip-sm w-16 h-16 flex items-center justify-center mb-4">
+        <i class="pi pi-qrcode text-content-muted text-2xl"></i>
+      </div>
+      <p class="type-body text-content-secondary">Waiting for check-in…</p>
+      <p class="type-label text-content-muted mt-1">Check in a participant on the Event Details page</p>
+    </div>
+
+    <!-- Active participant card -->
+    <div v-else class="card-hover p-5 relative mb-6">
+      <div class="corner-bar-tl"></div>
+      <div class="corner-bar-bl"></div>
+
+      <!-- Name row -->
+      <div class="flex items-start justify-between gap-4 mb-1">
+        <div class="flex-1 min-w-0">
+          <p class="type-label text-content-muted mb-1">Good Luck</p>
+          <p class="type-page-title text-content-primary leading-tight" style="font-size:clamp(1.4rem,4vw,2.2rem)">
+            {{ currentPerson.name }}
+          </p>
+        </div>
+        <!-- Ref code chip (hold to reveal) -->
+        <div
+          v-if="currentPerson.refCode"
+          class="flex-shrink-0 para-chip-sm px-3 py-2 cursor-pointer select-none flex flex-col items-end gap-0.5"
+          @mousedown="revealingRef = 'current'" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
+          @touchstart="revealingRef = 'current'" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
+        >
+          <span class="type-label text-content-muted">Ref Code</span>
+          <span v-if="revealingRef === 'current'" class="font-source tracking-widest text-accent" style="font-size:1rem;letter-spacing:0.2em">
+            {{ currentPerson.refCode }}
+          </span>
+          <span v-else class="type-label text-content-muted/40">Hold to reveal</span>
+        </div>
+        <div v-else-if="currentPerson.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5">
+          <i class="pi pi-spin pi-spinner text-content-muted text-xs"></i>
+          <span class="type-label text-content-muted">Assigning…</span>
+        </div>
       </div>
 
-      <div class="divide-y divide-surface-600/30">
+      <!-- Team members -->
+      <div v-if="currentPerson.memberNames?.length" class="flex items-center gap-1.5 type-label text-content-muted mb-3">
+        <i class="pi pi-users" style="font-size:0.65rem"></i>
+        <span>{{ currentPerson.memberNames.join(' · ') }}</span>
+      </div>
+
+      <!-- Divisions -->
+      <div class="section-rule my-3">
+        <span class="section-rule-label">Divisions</span>
+        <div class="section-rule-line"></div>
+      </div>
+
+      <div class="space-y-2">
         <div
-          v-for="(group, i) in groupedHistory"
-          :key="group.name"
-          :class="i === 0
-            ? 'flex items-center gap-4 py-3 bg-primary-100/30 rounded-xl px-3 -mx-3 mb-1'
-            : 'flex items-center gap-3 py-2 opacity-60'"
+          v-for="g in currentPerson.genres"
+          :key="g.genreName"
+          class="flex items-center gap-3 para-chip-sm px-3 py-2.5"
+          :style="g.auditionNumber !== null ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
         >
+          <!-- Status dot -->
           <span
-            :class="i === 0
-              ? 'font-heading font-extrabold text-base text-content-primary w-32 shrink-0 truncate'
-              : 'text-sm font-semibold text-content-secondary w-28 shrink-0 truncate'"
-          >{{ group.name }}</span>
-          <div class="flex flex-wrap gap-1.5 min-w-0">
+            class="inline-block w-2 h-2 rounded-full flex-shrink-0"
+            :style="g.auditionNumber !== null
+              ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
+              : g.rolling
+                ? 'background:rgba(245,158,11,0.7);box-shadow:0 0 6px rgba(245,158,11,0.5)'
+                : 'background:rgba(255,255,255,0.15)'"
+          ></span>
+
+          <!-- Division name -->
+          <span class="type-body text-content-primary flex-1">{{ g.genreName }}</span>
+
+          <!-- Number area -->
+          <div class="flex items-baseline gap-1 tabular-nums min-w-[5rem] justify-end">
+            <!-- Rolling -->
+            <template v-if="g.rolling">
+              <span class="type-label text-amber-400/60 text-xs">Drawing</span>
+              <span class="type-stat text-amber-400" style="font-size:1.6rem">
+                {{ fakeNums[g.genreName] ?? '—' }}
+              </span>
+            </template>
+            <!-- Revealed -->
+            <template v-else-if="g.auditionNumber !== null">
+              <span class="type-label text-accent/60 text-xs">#</span>
+              <span class="type-stat text-accent" style="font-size:1.6rem">{{ g.auditionNumber }}</span>
+            </template>
+            <!-- Pending -->
+            <template v-else>
+              <span class="type-stat text-content-muted/20" style="font-size:1.6rem">—</span>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── History ──────────────────────────────────────────────────────── -->
+    <template v-if="history.length > 0">
+      <div class="section-rule mb-3">
+        <span class="section-rule-label">History</span>
+        <div class="section-rule-line"></div>
+        <button @click="clearHistory" class="para-chip-sm px-2 py-0.5 type-label text-content-muted hover:text-content-primary transition-colors ml-3 flex-shrink-0">
+          Clear
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <div
+          v-for="(person, i) in history"
+          :key="person.name + i"
+          class="para-chip-sm px-3 py-2.5 flex items-center gap-3 flex-wrap"
+          :class="i === 0 ? 'border-white/15' : 'opacity-50'"
+        >
+          <!-- Name -->
+          <span class="type-body text-content-primary shrink-0 min-w-[6rem]">{{ person.name }}</span>
+
+          <!-- Division chips -->
+          <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">
             <span
-              v-for="a in group.entries"
-              :key="a.genre"
-              :class="i === 0
-                ? 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-700 border border-primary-500/30 text-sm shadow-sm'
-                : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-primary-500/20 text-xs'"
+              v-for="g in person.genres"
+              :key="g.genreName"
+              class="inline-flex items-center gap-1 badge-neutral capitalize"
             >
-              <span class="text-content-muted capitalize">{{ a.genre }}</span>
-              <span :class="i === 0 ? 'font-heading font-extrabold text-primary-400 text-base' : 'font-heading font-extrabold text-primary-400'">#{{ a.auditionNumber }}</span>
+              <span class="text-content-muted">{{ g.genreName }}</span>
+              <span class="text-accent">#{{ g.auditionNumber }}</span>
             </span>
           </div>
+
+          <!-- Ref code (press and hold to reveal) -->
           <span
-            v-if="group.refCode"
-            class="relative ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-surface-700 border border-surface-500 text-content-secondary cursor-pointer select-none touch-none hover:border-primary-500/50 hover:text-primary-400 transition-colors"
-            @mousedown="revealingRef = group.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
-            @touchstart.prevent="revealingRef = group.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
+            v-if="person.refCode"
+            class="relative ml-auto shrink-0 inline-flex items-center gap-1.5 para-chip-sm px-2.5 py-1 type-label cursor-pointer select-none transition-colors"
+            :class="revealingRef === person.name + i ? 'text-accent' : 'text-content-muted hover:text-accent'"
+            @click="revealingRef = revealingRef === person.name + i ? null : person.name + i"
           >
-            <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
-            <span class="text-content-muted">Ref code</span>
-            <span
-              v-if="revealingRef === group.name"
-              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-500 shadow-xl whitespace-nowrap z-50 pointer-events-none"
-            >
-              <span class="font-source tracking-widest text-primary-400 text-base font-bold">{{ group.refCode }}</span>
-              <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
-            </span>
+            <i class="pi pi-eye" style="font-size:0.6rem"></i>
+            <template v-if="revealingRef === person.name + i">
+              <span class="font-source tracking-widest" style="font-size:0.75rem;letter-spacing:0.2em">{{ person.refCode }}</span>
+            </template>
+            <template v-else>Ref</template>
           </span>
         </div>
       </div>
-    </div>
-
+    </template>
   </div>
 
   <ActionDoneModal
@@ -194,6 +342,6 @@ onBeforeUnmount(() => {
     @accept="() => { showModal = false }"
     @close="() => { showModal = false }"
   >
-    <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
+    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
   </ActionDoneModal>
 </template>

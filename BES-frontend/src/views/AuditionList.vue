@@ -1,9 +1,9 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
-import { ref, computed, onMounted, onUnmounted, watch, toRaw } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
@@ -57,6 +57,11 @@ const hasJudge = computed(() => participants.value.some(item => item.judgeName !
 
 const noJudgesConfigured = computed(() => selectedEvent.value && selectedGenre.value && allJudges.value.length <= 1)
 
+const availableJudges = computed(() => allJudges.value.filter(j => j !== ''))
+
+const pendingJudge = ref(null)
+const showJudgeConfirm = ref(false)
+
 const hasTeamAndSoloMix = computed(() => {
   const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
   const hasTeam = gp.some(p => p.format && p.format !== '1v1')
@@ -84,7 +89,21 @@ const confirmReset = (title, message) => {
   modalMessage.value = message
   modalVariant.value = 'warning'
   showModal.value = true
-  dynamicCallBack.value = () => { showModal.value = false; resetScore(); }
+  dynamicCallBack.value = async () => { showModal.value = false; await resetScore(); }
+}
+
+const switchGenre = (g) => {
+  if (g === selectedGenre.value) return
+  const hasUnsaved = filteredParticipantsForJudge.value.some(p => p.score > 0 && !p.submitted)
+  if (hasUnsaved) {
+    modalTitle.value = `Switch to ${g}?`
+    modalMessage.value = `You have unsaved scores for ${selectedGenre.value}. They're cached and won't be lost, but submit them first to be safe.`
+    modalVariant.value = 'warning'
+    showModal.value = true
+    dynamicCallBack.value = () => { showModal.value = false; selectedGenre.value = g }
+  } else {
+    selectedGenre.value = g
+  }
 }
 
 const confirmSubmit = async (title, message) => {
@@ -120,12 +139,39 @@ const filteredParticipantsForJudge = computed({
   }
 })
 
-watch(filteredParticipantsForJudge, (newVal) => {
-  const update = newVal.find(c => c.score !== 0)
-  if (update) {
-    localStorage.setItem("currentScore", JSON.stringify({ event: selectedEvent.value, scores: toRaw(newVal) }))
+// Load saved scores from DB and apply to participants.
+// aspect == "" → single score mode; aspect != "" → criteria mode (one row per criterion).
+const loadScoresFromDb = async (event, genre, judge) => {
+  if (!event || !genre || !judge) return
+  const allScores = await getParticipantScore(event)
+  if (!allScores || !Array.isArray(allScores)) return
+
+  const relevant = allScores.filter(s => s.judgeName === judge && s.genreName === genre)
+  if (relevant.length === 0) return
+
+  const byParticipant = {}
+  for (const s of relevant) {
+    if (!byParticipant[s.participantName]) byParticipant[s.participantName] = { score: 0, criteriaScores: {} }
+    if (s.aspect && s.aspect !== '') {
+      byParticipant[s.participantName].criteriaScores[s.aspect] = s.score
+    } else {
+      byParticipant[s.participantName].score = s.score
+    }
   }
-}, { deep: true });
+
+  participants.value = participants.value.map(p => {
+    if (p.genreName !== genre) return p
+    const saved = byParticipant[p.participantName]
+    if (!saved) return p
+    const hasCriteria = Object.keys(saved.criteriaScores).length > 0
+    return {
+      ...p,
+      score: hasCriteria ? p.score : saved.score,
+      criteriaScores: hasCriteria ? { ...(p.criteriaScores ?? {}), ...saved.criteriaScores } : p.criteriaScores,
+      submitted: true
+    }
+  })
+}
 
 const filteredParticipantsForEmceeView = computed(() => {
   const base = filteredJudge.value === ""
@@ -176,20 +222,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
-    try {
-      const stored = localStorage.getItem("currentScore")
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        const cached = parsed.event === newVal ? parsed.scores : null
-        if (cached) {
-          participants.value = participants.value.map(p => {
-            const found = cached.find(c => c.participantName === p.participantName &&
-              c.genreName === p.genreName && c.judgeName === p.judgeName)
-            return found ? { ...p, score: found.score, absent: found.absent, criteriaScores: found.criteriaScores ?? p.criteriaScores } : p
-          })
-        }
-      }
-    } catch { /* ignore malformed cache */ }
+    await loadScoresFromDb(newVal, selectedGenre.value, currentJudge.value)
   }
 }, { immediate: true });
 
@@ -213,6 +246,7 @@ watch(selectedGenre, async (newVal) => {
     if (!judgeNames.includes(filteredJudge.value)) {
       filteredJudge.value = ""
     }
+    await loadScoresFromDb(selectedEvent.value, newVal, currentJudge.value)
   } else {
     allJudges.value = [""]
     currentJudge.value = ""
@@ -221,7 +255,12 @@ watch(selectedGenre, async (newVal) => {
   }
 }, { immediate: true });
 watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
-watch(currentJudge, (newVal) => { if (newVal) localStorage.setItem("currentJudge", newVal); }, { immediate: true });
+watch(currentJudge, async (newVal) => {
+  if (newVal) {
+    localStorage.setItem("currentJudge", newVal)
+    await loadScoresFromDb(selectedEvent.value, selectedGenre.value, newVal)
+  }
+}, { immediate: true });
 
 const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName);
@@ -262,8 +301,7 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
   }
 }
 
-const resetScore = () => {
-  localStorage.removeItem("currentScore")
+const resetScore = async () => {
   participants.value = participants.value.map(obj => {
     const cs = {}
     if (obj.criteriaScores) {
@@ -271,6 +309,9 @@ const resetScore = () => {
     }
     return { ...obj, score: 0, criteriaScores: cs, submitted: false }
   })
+  if (currentJudge.value && selectedEvent.value && selectedGenre.value) {
+    await resetJudgeScores(selectedEvent.value, selectedGenre.value, currentJudge.value)
+  }
 }
 
 // ── Scoring criteria ─────────────────────────────────────────────────────────
@@ -289,12 +330,50 @@ const loadCriteria = async () => {
 }
 
 watch([selectedEvent, selectedGenre], loadCriteria, { immediate: true })
+
+// ── Auto-save on score change ─────────────────────────────────────────────────
+const autoSaveTimers = {}
+const clearSaving = (auditionNumber, genreName, submitted = false) => {
+  participants.value = participants.value.map(p =>
+    p.auditionNumber === auditionNumber && p.genreName === genreName
+      ? { ...p, saving: false, submitted }
+      : p
+  )
+}
+const autoSave = (card) => {
+  const { auditionNumber, genreName, participantName } = card
+  participants.value = participants.value.map(p =>
+    p.auditionNumber === auditionNumber && p.genreName === genreName
+      ? { ...p, saving: true, submitted: false }
+      : p
+  )
+  clearTimeout(autoSaveTimers[auditionNumber])
+  autoSaveTimers[auditionNumber] = setTimeout(async () => {
+    if (!currentJudge.value || !selectedEvent.value || !selectedGenre.value) {
+      clearSaving(auditionNumber, genreName)
+      return
+    }
+    const fresh = participants.value.find(p => p.auditionNumber === auditionNumber && p.genreName === genreName)
+    if (!fresh) { clearSaving(auditionNumber, genreName); return }
+    const hasCrit = criteria.value.length > 0
+    const payload = hasCrit && fresh.criteriaScores
+      ? { participantName, score: null, aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(fresh.criteriaScores[c.name] ?? 0) })) }
+      : { participantName, score: parseFloat(fresh.score) }
+    try {
+      const res = await submitParticipantScore(selectedEvent.value, selectedGenre.value, currentJudge.value, [payload])
+      clearSaving(auditionNumber, genreName, !!res?.ok)
+    } catch {
+      clearSaving(auditionNumber, genreName)
+    }
+  }, 600)
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Feedback state ──────────────────────────────────────────────────────────
 const tagGroups = ref([])
 const feedbackGiven = ref(new Map())  // auditionNumber → { tagIds, note, tagLabels: [{id, label}] }
 const feedbackPopout = ref({ visible: false, participant: null, existing: null })
+const feedbackSaving = ref(false)
 
 const resolveTagLabels = (tagIds) => {
   const labels = []
@@ -329,6 +408,27 @@ const saveFeedback = async ({ tagIds, note }) => {
   }
   feedbackGiven.value = newMap
   feedbackPopout.value.visible = false
+}
+
+const autoSaveFeedback = async ({ tagIds, note }) => {
+  const card = feedbackPopout.value.participant
+  if (!card || !currentJudge.value || !selectedEvent.value || !selectedGenre.value) return
+  feedbackSaving.value = true
+  try {
+    await submitAuditionFeedback(
+      selectedEvent.value, selectedGenre.value, currentJudge.value,
+      card.auditionNumber, tagIds, note
+    )
+    const newMap = new Map(feedbackGiven.value)
+    if (tagIds.length || note) {
+      newMap.set(card.auditionNumber, { tagIds, note: note ?? null, tagLabels: resolveTagLabels(tagIds) })
+    } else {
+      newMap.delete(card.auditionNumber)
+    }
+    feedbackGiven.value = newMap
+  } finally {
+    feedbackSaving.value = false
+  }
 }
 
 const removeTag = async ({ auditionNumber, tagId }) => {
@@ -561,7 +661,7 @@ onMounted(async () => {
             <button
               v-for="g in uniqueGenres"
               :key="g"
-              @click="selectedGenre = g"
+              @click="switchGenre(g)"
               class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
               :class="selectedGenre === g
                 ? 'text-accent border-[color:var(--accent-muted)]'
@@ -603,10 +703,10 @@ onMounted(async () => {
 
           <!-- Judge filter + identity dropdowns pushed to the right -->
           <div class="ml-auto flex items-center gap-3">
-            <div v-if="hasJudge" class="w-40">
+            <div v-if="hasJudge" class="w-48">
               <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
             </div>
-            <div v-if="selectedRole === 'Judge'" class="w-44">
+            <div v-if="selectedRole === 'Judge'" class="min-w-[12rem] max-w-[16rem]">
               <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
             </div>
           </div>
@@ -644,8 +744,46 @@ onMounted(async () => {
       />
     </template>
 
+    <!-- Judge: no identity selected -->
+    <div
+      v-else-if="selectedRole === 'Judge' && !currentJudge"
+      class="flex flex-col items-center justify-center py-16 text-center gap-6 px-4"
+    >
+      <div>
+        <p class="type-page-title text-content-primary mb-1" style="font-size:1.4rem">Who are you?</p>
+        <p class="type-label text-content-muted">Select your name to start scoring</p>
+      </div>
+
+      <!-- No judges configured -->
+      <div v-if="availableJudges.length === 0" class="flex flex-col items-center gap-3">
+        <div
+          class="px-5 py-4 flex items-center gap-3"
+          style="border-left:3px solid rgba(245,158,11,0.8);background:rgba(245,158,11,0.07);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)"
+        >
+          <span class="inline-block w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.8)"></span>
+          <span class="type-label text-amber-300/80">No judges configured for this division.</span>
+        </div>
+        <RouterLink
+          :to="`/events/${encodeURIComponent(selectedEvent)}`"
+          class="type-label text-accent underline underline-offset-2"
+        >Add judges →</RouterLink>
+      </div>
+
+      <!-- Judge buttons -->
+      <div v-else class="flex flex-col gap-2 w-full" style="max-width:320px">
+        <button
+          v-for="judge in availableJudges"
+          :key="judge"
+          @click="pendingJudge = judge; showJudgeConfirm = true"
+          class="w-full para-chip px-4 py-3.5 type-body text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-center"
+        >
+          {{ judge }}
+        </button>
+      </div>
+    </div>
+
     <!-- Judge view: swipeable score cards -->
-    <template v-else-if="selectedRole === 'Judge' && filteredParticipantsForJudge.length > 0">
+    <template v-else-if="selectedRole === 'Judge' && currentJudge && filteredParticipantsForJudge.length > 0">
       <MiniScoreMenu
         :cards="filteredParticipantsForJudge"
         :show="showMiniMenu"
@@ -659,6 +797,7 @@ onMounted(async () => {
         :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
+        @score-change="autoSave"
         @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
         @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
         @jump="showMiniMenu = true"
@@ -670,6 +809,7 @@ onMounted(async () => {
         :criteria="criteria"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
+        @score-change="autoSave"
         @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
         @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
         @jump="showMiniMenu = true"
@@ -678,7 +818,7 @@ onMounted(async () => {
 
     <!-- Empty state -->
     <div
-      v-else-if="selectedRole && selectedGenre && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
+      v-else-if="selectedRole && selectedGenre && currentJudge && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
       class="flex flex-col items-center justify-center h-full text-center"
     >
       <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
@@ -718,7 +858,22 @@ onMounted(async () => {
     :participant="feedbackPopout.participant"
     :tagGroups="tagGroups"
     :existingFeedback="feedbackPopout.existing"
+    :saving="feedbackSaving"
     @close="feedbackPopout.visible = false"
     @save="saveFeedback"
+    @change="autoSaveFeedback"
   />
+
+  <!-- Judge identity confirmation -->
+  <ActionDoneModal
+    :show="showJudgeConfirm"
+    title="Confirm Identity"
+    variant="info"
+    @accept="() => { currentJudge = pendingJudge; showJudgeConfirm = false; pendingJudge = null }"
+    @close="() => { showJudgeConfirm = false; pendingJudge = null }"
+  >
+    <p class="type-body text-content-secondary">
+      You are judging as <span class="text-accent">{{ pendingJudge }}</span>?
+    </p>
+  </ActionDoneModal>
 </template>

@@ -248,6 +248,11 @@ onUnmounted(() => {
                     class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
                     Battle
                   </button>
+                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+                    @click="goToSection('Audition Adjust')"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
+                    Adjust Numbers
+                  </button>
                 </div>
                 <div class="border-t border-[rgba(255,255,255,0.07)] py-1">
                   <button @click="changeEvent"
@@ -348,6 +353,10 @@ onUnmounted(() => {
             <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToSection('Battle Control')"
               class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
               Battle
+            </button>
+            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToSection('Audition Adjust')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
+              Adjust Numbers
             </button>
             <button @click="changeEvent"
               class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors">

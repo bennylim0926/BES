@@ -90,4 +90,9 @@ public class ScoreService {
     public Integer deleteScoreByEventService(DeleteScoreByEventDto dto) {
         return repo.deleteByEventId(dto.getEvent_id());
     }
+
+    @Transactional
+    public void resetScoresByJudge(String eventName, String genreName, String judgeName) {
+        repo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+    }
 }

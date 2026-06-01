@@ -18,8 +18,10 @@ const imageRight = ref(null)
 const clients = []
 let unmounted = false
 const subscribedTopics = new Set()
-const rightName  = ref('')
-const leftName   = ref('')
+const rightName    = ref('')
+const leftName     = ref('')
+const leftMembers  = ref([])
+const rightMembers = ref([])
 const leftScore  = ref(0)
 const rightScore = ref(0)
 const currentWinner = ref(-2)
@@ -93,6 +95,8 @@ const updateBattlePair = async (msg) => {
         judges: battleJudges.value.judges.map(j => ({ ...j, vote: -3 }))
       }
     }
+    leftMembers.value  = msg.leftMembers  ?? []
+    rightMembers.value = msg.rightMembers ?? []
     return
   }
 
@@ -138,11 +142,13 @@ const updateBattlePair = async (msg) => {
   votesVisible.value     = false
   winnerTagVisible.value = false
 
-  leftName.value   = msg.left
-  rightName.value  = msg.right
-  leftScore.value  = msg.leftScore  ?? 0
-  rightScore.value = msg.rightScore ?? 0
-  isFinal.value    = !!msg.isFinal
+  leftName.value    = msg.left
+  rightName.value   = msg.right
+  leftMembers.value  = msg.leftMembers  ?? []
+  rightMembers.value = msg.rightMembers ?? []
+  leftScore.value   = msg.leftScore  ?? 0
+  rightScore.value  = msg.rightScore ?? 0
+  isFinal.value     = !!msg.isFinal
   imageLeft.value  = await getImage(`${msg.left}.png`)
   imageRight.value = await getImage(`${msg.right}.png`)
 
@@ -432,6 +438,7 @@ onUnmounted(() => {
             <div class="name-overlay">
               <span v-if="winnerTagVisible && leftWin" class="winner-label winner-label-left" aria-hidden="true">{{ isFinal ? 'WINNER' : 'TAKES IT' }}</span>
               <span class="name-text name-text-left">{{ leftName || '???' }}</span>
+              <span v-if="leftMembers.length" class="member-list member-list-left" aria-hidden="true">{{ leftMembers.join(' · ') }}</span>
             </div>
           </div>
         </template>
@@ -441,6 +448,7 @@ onUnmounted(() => {
           <div class="name-center-wrap">
             <span v-if="winnerTagVisible && leftWin" class="winner-label winner-label-left" aria-hidden="true">{{ isFinal ? 'WINNER' : 'TAKES IT' }}</span>
             <span class="name-giant name-giant-left">{{ leftName || '???' }}</span>
+            <span v-if="leftMembers.length" class="member-list member-list-left" aria-hidden="true">{{ leftMembers.join(' · ') }}</span>
           </div>
         </template>
 
@@ -478,6 +486,7 @@ onUnmounted(() => {
             <div class="name-overlay name-overlay-right">
               <span v-if="winnerTagVisible && rightWin" class="winner-label winner-label-right" aria-hidden="true">{{ isFinal ? 'WINNER' : 'TAKES IT' }}</span>
               <span class="name-text name-text-right">{{ rightName || '???' }}</span>
+              <span v-if="rightMembers.length" class="member-list member-list-right" aria-hidden="true">{{ rightMembers.join(' · ') }}</span>
             </div>
           </div>
         </template>
@@ -487,6 +496,7 @@ onUnmounted(() => {
           <div class="name-center-wrap">
             <span v-if="winnerTagVisible && rightWin" class="winner-label winner-label-right" aria-hidden="true">{{ isFinal ? 'WINNER' : 'TAKES IT' }}</span>
             <span class="name-giant name-giant-right">{{ rightName || '???' }}</span>
+            <span v-if="rightMembers.length" class="member-list member-list-right" aria-hidden="true">{{ rightMembers.join(' · ') }}</span>
           </div>
         </template>
 
@@ -913,6 +923,23 @@ body.transparent-page #app {
   text-shadow: -4px 4px 0 var(--right-color),
                0 0 50px color-mix(in srgb, var(--right-color) 50%, transparent);
 }
+
+/* Member list — compact row under battler name */
+.member-list {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(14px, 1.6vw, 26px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.2;
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-list-left  { text-align: left; }
+.member-list-right { text-align: right; }
 
 /* Score badges */
 .score-badge {

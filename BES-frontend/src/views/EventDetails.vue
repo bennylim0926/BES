@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -61,6 +61,36 @@ const handleAccept = () => {
   if (reloadOnClose.value) window.location.reload()
 }
 
+// Confirm dialog
+const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null, confirmLabel: 'Confirm', destructive: true })
+const askConfirm = (title, message, onConfirm, { confirmLabel = 'Confirm', destructive = true } = {}) => {
+  confirmDialog.value = { show: true, title, message, onConfirm, confirmLabel, destructive }
+}
+const confirmYes = () => {
+  confirmDialog.value.onConfirm?.()
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, confirmLabel: 'Confirm', destructive: true }
+}
+const confirmNo = () => {
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, confirmLabel: 'Confirm', destructive: true }
+}
+const askRemoveDivision = (div) => askConfirm(
+  'Remove Division?',
+  `"${div.name}" will be permanently deleted. Participants already enrolled will block this action — remove them first.`,
+  () => removeDivisionFromSection(div.eventGenreId)
+)
+const askRemoveJudge = (g, j) => askConfirm(
+  'Remove Judge?',
+  `Remove ${j.judgeName} from ${g.name}?`,
+  () => submitRemoveJudge(g.eventGenreId, j.judgeId)
+)
+const askToggleSolo = (div) => askConfirm(
+  div.soloAllowed ? 'Block Solo Entries?' : 'Allow Solo Entries?',
+  div.soloAllowed
+    ? `Participants registering for "${div.name}" will no longer be able to select Solo (pickup crew).`
+    : `Solo entries will be permitted for "${div.name}".`,
+  () => toggleSoloAllowed(div)
+)
+
 // Scoring criteria modal
 const showCriteriaModal = ref(false)
 
@@ -69,6 +99,7 @@ const showWalkInForm = ref(false)
 const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
 const activeTab = ref('setup') // 'setup' | 'event-day'
 const activeGenreTab = ref(null)
+const poolTab = ref(null) // active division tab in number pool
 let refreshInterval = null
 let wsClient = null
 
@@ -78,6 +109,24 @@ const adjustSearch = ref('')
 const adjustParticipant = ref(null)
 const adjustParticipantIds = ref({ participantId: null, eventId: null })
 const adjustLoading = ref(false)
+
+// Team form for adding a team-format genre
+const genreAddForm = reactive({
+  show: false,
+  genre: null,
+  entryMode: 'team',
+  teamName: '',
+  members: []   // array of strings, length = additionalMemberCount
+})
+
+function isTeamFormatLocal(fmt) {
+  return !!fmt && /^\d+v\d+$/i.test(fmt) && fmt.toLowerCase() !== '1v1'
+}
+function additionalMemberCount(fmt) {
+  if (!fmt) return 0
+  const m = fmt.match(/^(\d+)v\d+$/i)
+  return m ? parseInt(m[1]) - 1 : 0
+}
 
 
 const openModal = (title, message, variant = 'success', errors = []) => {
@@ -142,6 +191,22 @@ const totalNotShownUp = computed(() => {
 })
 
 
+const divisionAuditionStats = computed(() => {
+  const map = {}
+  for (const p of checkinList.value) {
+    for (const g of p.genres) {
+      if (!map[g.genreName]) map[g.genreName] = { total: 0, drawn: [] }
+      map[g.genreName].total++
+      if (g.auditionNumber !== null) map[g.genreName].drawn.push(g.auditionNumber)
+    }
+  }
+  return Object.entries(map).map(([name, data]) => {
+    const drawnSet = new Set(data.drawn)
+    const remaining = Array.from({ length: data.total }, (_, i) => i + 1).filter(n => !drawnSet.has(n))
+    return { name, total: data.total, drawn: data.drawn.sort((a, b) => a - b), remaining }
+  }).sort((a, b) => a.name.localeCompare(b.name))
+})
+
 const registeredList = computed(() => {
   const grouped = {}
   verifiedDbParticipants.value.forEach(p => {
@@ -194,41 +259,31 @@ const filteredRegisteredList = computed(() => {
   return list
 })
 
-// Participants with no audition numbers in any genre — eligible for genre changes
-const eligibleParticipants = computed(() => {
-  const locked = new Set(
-    verifiedDbParticipants.value
-      .filter(p => p.auditionNumber !== null)
-      .map(p => p.participantName)
-  )
-  const names = new Set(
-    verifiedDbParticipants.value
-      .filter(p => !locked.has(p.participantName))
-      .map(p => p.participantName)
-  )
-  return [...names].sort()
-})
+// Eligible participants — deduplicated by participantId using checkinList so
+// a person with both solo and team entries only appears once.
+const eligibleParticipants = computed(() =>
+  checkinList.value
+    .filter(p => p.genres.length > 0 && p.genres.some(g => g.auditionNumber === null))
+    .map(p => ({ label: p.label, participantId: p.participantId, eventId: p.eventId }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+)
 
 const adjustSearchResults = computed(() => {
   const q = adjustSearch.value.trim().toLowerCase()
   if (!q) return eligibleParticipants.value
-  return eligibleParticipants.value.filter(n => n.toLowerCase().includes(q))
+  return eligibleParticipants.value.filter(p => p.label.toLowerCase().includes(q))
 })
 
+// Filter all EGP rows for the currently selected participant by participantId (not display name)
 const adjustParticipantGenres = computed(() =>
-  verifiedDbParticipants.value.filter(p => p.participantName === adjustParticipant.value)
+  adjustParticipantIds.value.participantId
+    ? verifiedDbParticipants.value.filter(p => p.participantId === adjustParticipantIds.value.participantId)
+    : []
 )
 
 const adjustParticipantLocked = computed(() =>
   adjustParticipantGenres.value.some(p => p.auditionNumber !== null)
 )
-
-// Persist IDs whenever the selected participant has EGP rows (survives after all genres removed)
-watch(adjustParticipantGenres, (genres) => {
-  if (genres.length > 0) {
-    adjustParticipantIds.value = { participantId: genres[0].participantId, eventId: genres[0].eventId }
-  }
-})
 
 // Clear selected participant when search input is cleared
 watch(adjustSearch, (val) => {
@@ -357,23 +412,88 @@ const closeAdjustModal = () => {
   adjustParticipantIds.value = { participantId: null, eventId: null }
 }
 
-const toggleAdjustGenre = async (genre) => {
+const toggleAdjustGenre = (genre) => {
   if (adjustParticipantLocked.value || adjustLoading.value) return
-  adjustLoading.value = true
   const isEnrolled = adjustParticipantGenres.value.some(p => p.genreName === genre.name)
   if (isEnrolled) {
-    const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.name)
-    await removeParticipantGenre(egp.participantId, egp.eventId, egp.eventGenreId)
-  } else {
-    const { participantId, eventId } = adjustParticipantIds.value
-    if (participantId && eventId) {
-      await addGenreToParticipant(participantId, eventId, genre.name)
+    // Guard: prevent removing the last division
+    if (adjustParticipantGenres.value.length <= 1) {
+      askConfirm(
+        'Cannot Remove',
+        `"${adjustParticipant.value}" must be in at least one division. Add another division first before removing this one.`,
+        () => {},
+        { confirmLabel: 'OK', destructive: false }
+      )
+      return
     }
+    askConfirm(
+      'Remove Division',
+      `Remove "${adjustParticipant.value}" from ${genre.name}? This cannot be undone.`,
+      () => doGenreChange(genre, 'remove'),
+      { confirmLabel: 'Remove', destructive: true }
+    )
+  } else {
+    // Team format — show the team details form
+    if (isTeamFormatLocal(genre.format)) {
+      const count = additionalMemberCount(genre.format)
+      genreAddForm.show = true
+      genreAddForm.genre = genre
+      genreAddForm.entryMode = 'team'
+      genreAddForm.teamName = ''
+      genreAddForm.members = Array(count).fill('')
+      return
+    }
+    // Non-team — simple confirm
+    const fmtLabel = genre.format ? ` · ${genre.format}` : ''
+    askConfirm(
+      'Add Division',
+      `Add "${adjustParticipant.value}" to ${genre.name}${fmtLabel}?`,
+      () => doGenreChange(genre, 'add'),
+      { confirmLabel: 'Add', destructive: false }
+    )
   }
-  await Promise.all([
-    getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
-    fetchCheckinList()
-  ])
+}
+
+const submitGenreAddForm = () => {
+  const { genre, entryMode, teamName, members } = genreAddForm
+  genreAddForm.show = false
+  doGenreChange(genre, 'add', { entryMode, teamName, teamMembers: members.filter(m => m.trim()) })
+}
+
+const doGenreChange = async (genre, action, teamOpts = {}) => {
+  adjustLoading.value = true
+  try {
+    if (action === 'remove') {
+      const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.name)
+      if (egp) {
+        const res = await removeParticipantGenre(egp.participantId, egp.eventId, egp.eventGenreId)
+        if (res && !res.ok) throw new Error(`Remove failed: ${res.status}`)
+      }
+    } else {
+      const { participantId, eventId } = adjustParticipantIds.value
+      if (!participantId || !eventId) {
+        const listed = checkinList.value.find(p => p.label === adjustParticipant.value)
+        if (listed) adjustParticipantIds.value = { participantId: listed.participantId, eventId: listed.eventId }
+      }
+      const { participantId: pid, eventId: eid } = adjustParticipantIds.value
+      if (pid && eid) {
+        const res = await addGenreToParticipant(pid, eid, genre.name, teamOpts.entryMode, teamOpts.teamName, teamOpts.teamMembers)
+        if (res && !res.ok) throw new Error(`Add failed: ${res.status}`)
+      } else {
+        throw new Error('Could not resolve participant ID')
+      }
+    }
+    await Promise.all([
+      getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
+      fetchCheckinList()
+    ])
+    const verb = action === 'add' ? 'added to' : 'removed from'
+    openModal(`Division ${action === 'add' ? 'Added' : 'Removed'}`,
+      `"${adjustParticipant.value}" has been ${verb} ${genre.name}.`, 'success')
+  } catch (e) {
+    console.error(e)
+    askConfirm('Update Failed', `Could not update division: ${e.message}`, () => {}, { confirmLabel: 'OK', destructive: false })
+  }
   adjustLoading.value = false
 }
 
@@ -498,7 +618,11 @@ const addDivisionToGroup = async (genreId, genreLabel) => {
 }
 
 const removeDivisionFromSection = async (divId) => {
-  await deleteDivision(props.eventName, divId)
+  const res = await deleteDivision(props.eventName, divId)
+  if (res && !res.ok) {
+    openModal('Cannot Delete Division', 'This division still has participants enrolled. Remove all participants from the division before deleting it.', 'error')
+    return
+  }
   eventGenres.value = eventGenres.value.filter(d => d.eventGenreId !== divId)
 }
 // ───────────────────────────────────────────────────────────────────────────
@@ -621,6 +745,103 @@ const checkIn = async (p) => {
     console.error(e)
   }
   checkingInId.value = null
+}
+
+const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', refCode: null })
+// phase: 'confirm' → 'generating' → 'done'
+
+// Dialog slot machine animation state
+const dialogFakeNums = ref({})
+const dialogRollingIntervals = {}
+const dialogNumberQueue = []
+let dialogQueueRunning = false
+
+function processNextDialogNumber() {
+  if (dialogNumberQueue.length === 0) {
+    dialogQueueRunning = false
+    checkinConfirm.value.phase = 'done'
+    return
+  }
+  dialogQueueRunning = true
+  const { genre, auditionNumber } = dialogNumberQueue.shift()
+  const g = checkinConfirm.value.participant?.genres.find(x => x.genreName === genre)
+  if (!g) { processNextDialogNumber(); return }
+
+  g.rolling = true
+  clearInterval(dialogRollingIntervals[genre])
+  dialogRollingIntervals[genre] = setInterval(() => {
+    dialogFakeNums.value = { ...dialogFakeNums.value, [genre]: Math.floor(Math.random() * 99) + 1 }
+  }, 80)
+
+  setTimeout(() => {
+    clearInterval(dialogRollingIntervals[genre])
+    delete dialogRollingIntervals[genre]
+    const next = { ...dialogFakeNums.value }
+    delete next[genre]
+    dialogFakeNums.value = next
+    g.rolling = false
+    g.auditionNumber = auditionNumber
+    processNextDialogNumber()
+  }, 2000)
+}
+
+const askCheckIn = (p) => {
+  checkinConfirm.value = {
+    show: true,
+    participant: { ...p, genres: p.genres.map(g => ({ ...g, rolling: false })) },
+    phase: 'confirm',
+    refCode: null
+  }
+  // Broadcast preview to AuditionNumber display (fire-and-forget)
+  sendCheckinPreview(eventName.value, {
+    participantId: p.participantId,
+    name: p.label,
+    memberNames: p.memberNames ?? [],
+    genres: p.genres.map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null }))
+  })
+}
+
+const confirmCheckIn = async () => {
+  const p = checkinConfirm.value.participant
+  if (!p) return
+
+  // Reset genre display state
+  p.genres.forEach(g => { g.auditionNumber = null; g.rolling = false })
+
+  // Reset animation queue
+  dialogNumberQueue.length = 0
+  Object.values(dialogRollingIntervals).forEach(clearInterval)
+  for (const k in dialogRollingIntervals) delete dialogRollingIntervals[k]
+  dialogFakeNums.value = {}
+  dialogQueueRunning = false
+
+  checkinConfirm.value.phase = 'generating'
+  checkinConfirm.value.refCode = null
+
+  // checkIn awaits both the HTTP assignment AND fetchCheckinList + refreshFromDb,
+  // so when it resolves we have fresh numbers in checkinList.value and verifiedDbParticipants.value
+  await checkIn(p)
+
+  // Get ref code from fresh verifiedDbParticipants data
+  const refEntry = verifiedDbParticipants.value.find(ep => ep.participantId === p.participantId)
+  checkinConfirm.value.refCode = refEntry?.referenceCode || null
+
+  // Queue animations from the now-fresh checkinList data (no WS dependency)
+  const freshParticipant = checkinList.value.find(ep => ep.participantId === p.participantId)
+  if (freshParticipant) {
+    for (const ug of freshParticipant.genres) {
+      if (ug.auditionNumber != null) {
+        dialogNumberQueue.push({ genre: ug.genreName, auditionNumber: ug.auditionNumber })
+      }
+    }
+  }
+
+  if (dialogNumberQueue.length === 0) {
+    checkinConfirm.value.phase = 'done'
+    return
+  }
+
+  processNextDialogNumber()
 }
 
 watch(
@@ -1038,7 +1259,7 @@ onUnmounted(() => {
               <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
               <button
                 v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
-                @click="toggleSoloAllowed(div)"
+                @click="askToggleSolo(div)"
                 :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
                 class="para-chip-sm px-2 py-1 type-label transition-colors"
                 :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
@@ -1046,7 +1267,7 @@ onUnmounted(() => {
 
               <!-- Remove -->
               <button
-                @click="removeDivisionFromSection(div.eventGenreId)"
+                @click="askRemoveDivision(div)"
                 class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors"
                 title="Remove division"
               ><i class="pi pi-times text-xs"></i></button>
@@ -1211,7 +1432,7 @@ onUnmounted(() => {
               <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
               <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
               <button
-                @click="submitRemoveJudge(g.eventGenreId, j.judgeId)"
+                @click="askRemoveJudge(g, j)"
                 class="type-label text-content-muted hover:text-content-primary transition-colors"
                 title="Remove"
               ><i class="pi pi-times text-xs"></i></button>
@@ -1259,6 +1480,73 @@ onUnmounted(() => {
         <div class="type-label text-content-muted mt-1">Verified but no audition number yet</div>
       </div>
     </div>
+
+    <!-- Audition Number Pool ── tabbed per division -->
+    <template v-if="divisionAuditionStats.length > 0">
+      <div class="section-rule mb-3">
+        <span class="section-rule-label">Audition Number Pool</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <div class="card-hover p-4 relative mb-6">
+        <div class="corner-bar-tl"></div>
+
+        <!-- Division tabs -->
+        <div class="flex gap-1.5 mb-4 flex-wrap">
+          <button
+            v-for="div in divisionAuditionStats"
+            :key="div.name"
+            @click="poolTab = div.name"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 flex items-center gap-2"
+            :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+          >
+            {{ div.name }}
+            <span class="tabular-nums" :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name ? 'text-accent/70' : 'text-content-muted/50'">
+              {{ div.drawn.length }}/{{ div.total }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Active division panel -->
+        <template v-for="div in divisionAuditionStats" :key="div.name">
+          <div v-if="(poolTab ?? divisionAuditionStats[0]?.name) === div.name">
+            <!-- Stats row -->
+            <div class="flex items-center gap-4 mb-3 flex-wrap">
+              <span class="flex items-center gap-1.5 type-label">
+                <span class="inline-block w-2 h-2 rounded-full" style="background:var(--accent-color);box-shadow:0 0 6px var(--accent-muted)"></span>
+                <span class="text-accent">{{ div.drawn.length }} drawn</span>
+              </span>
+              <span class="flex items-center gap-1.5 type-label text-content-muted">
+                <span class="inline-block w-2 h-2 rounded-full bg-white/15"></span>
+                {{ div.remaining.length }} remaining
+              </span>
+              <!-- Progress bar -->
+              <div class="flex-1 min-w-[6rem] h-1 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-500"
+                  style="background:var(--accent-color)"
+                  :style="{ width: div.total > 0 ? (div.drawn.length / div.total * 100) + '%' : '0%' }"
+                ></div>
+              </div>
+            </div>
+
+            <!-- Number grid: accent = drawn, dim = remaining -->
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="n in div.total"
+                :key="n"
+                class="inline-flex items-center justify-center type-label tabular-nums"
+                style="width:2.1rem;height:1.7rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                :style="div.drawn.includes(n)
+                  ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
+                  : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.2)'"
+              >{{ n }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
 
     <!-- Side by side: Check-In + Registered -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1336,7 +1624,7 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="flex items-center gap-2 mt-2 justify-end">
-                <button v-if="!isCheckedIn(p)" @click="checkIn(p)" :disabled="checkingInId === p.participantId"
+                <button v-if="!isCheckedIn(p)" @click="askCheckIn(p)" :disabled="checkingInId === p.participantId"
                   class="bg-accent para-chip-sm px-3 py-1.5 type-label disabled:opacity-50"
                 >
                   <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
@@ -1398,19 +1686,14 @@ onUnmounted(() => {
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="type-body text-content-secondary">{{ p.name }}</span>
                 <span v-if="p.walkin" class="badge-neutral">walk-in</span>
-                <span v-if="p.walkin && p.referenceCode"
-                  class="relative shrink-0 inline-flex items-center gap-1 px-2 py-0.5 badge-neutral cursor-pointer select-none touch-none"
+                <span v-if="p.referenceCode"
+                  class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 badge-neutral cursor-pointer select-none touch-none"
                   @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
                   @touchstart.prevent="revealingRef = p.name" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
                 >
                   <i class="pi pi-eye text-content-muted" style="font-size:0.65rem"></i>
-                  <span class="text-content-muted">Ref code</span>
-                  <span v-if="revealingRef === p.name"
-                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2.5 para-chip shadow-xl whitespace-nowrap z-50 pointer-events-none"
-                  >
-                    <span class="font-source tracking-widest text-accent text-base font-bold">{{ p.referenceCode }}</span>
-                    <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-500"></span>
-                  </span>
+                  <span v-if="revealingRef === p.name" class="font-source tracking-widest text-accent" style="font-size:0.72rem;letter-spacing:0.15em">{{ p.referenceCode }}</span>
+                  <span v-else class="text-content-muted">Ref code</span>
                 </span>
               </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
@@ -1528,12 +1811,12 @@ onUnmounted(() => {
               <!-- Participant list — always visible, filtered by search -->
               <div v-if="adjustSearchResults.length > 0 && adjustSearch !== adjustParticipant" class="flex flex-wrap gap-1.5">
                 <button
-                  v-for="name in adjustSearchResults"
-                  :key="name"
-                  @click="adjustParticipant = name; adjustSearch = name"
+                  v-for="p in adjustSearchResults"
+                  :key="p.participantId"
+                  @click="adjustParticipant = p.label; adjustSearch = p.label; adjustParticipantIds = { participantId: p.participantId, eventId: p.eventId }"
                   class="para-chip-sm px-3 py-1.5 type-label transition-all"
-                  :class="adjustParticipant === name ? 'text-accent border-[color:var(--accent-color)]' : 'text-content-secondary hover:text-accent'"
-                >{{ name }}</button>
+                  :class="adjustParticipantIds.participantId === p.participantId ? 'text-accent border-[color:var(--accent-color)]' : 'text-content-secondary hover:text-accent'"
+                >{{ p.label }}</button>
               </div>
               <p v-else-if="adjustSearchResults.length === 0 && eligibleParticipants.length === 0" class="type-label text-content-muted px-1">
                 No eligible participants — all have audition numbers
@@ -1561,27 +1844,43 @@ onUnmounted(() => {
                 <span class="type-label text-amber-400">Auditions started — genre changes locked</span>
               </div>
 
-              <!-- Genre checklist -->
-              <div class="grid grid-cols-2 gap-2">
-                <button
+              <!-- Genre rows -->
+              <div class="space-y-2">
+                <div
                   v-for="g in eventGenres"
                   :key="g.name"
-                  @click="toggleAdjustGenre(g)"
-                  :disabled="adjustParticipantLocked || adjustLoading"
-                  class="para-chip p-3 flex items-center gap-2 text-left transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="para-chip flex items-center gap-3 px-3 py-2.5 transition-all duration-150"
                   :class="adjustParticipantGenres.some(p => p.genreName === g.name)
-                    ? 'text-accent border-[color:var(--accent-color)]'
-                    : 'text-content-secondary'"
+                    ? 'border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
+                    : 'border-surface-600/40'"
                 >
-                  <i
-                    class="pi text-xs shrink-0"
+                  <!-- Status indicator -->
+                  <span
+                    class="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                    :style="adjustParticipantGenres.some(p => p.genreName === g.name)
+                      ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
+                      : 'background:rgba(255,255,255,0.15)'"
+                  ></span>
+
+                  <!-- Name + format -->
+                  <div class="flex-1 min-w-0">
+                    <p class="type-body text-content-primary truncate">{{ g.name }}</p>
+                    <p v-if="g.format" class="type-label text-content-muted mt-0.5">{{ g.format }}</p>
+                  </div>
+
+                  <!-- Action button -->
+                  <button
+                    v-if="!adjustParticipantLocked"
+                    @click="toggleAdjustGenre(g)"
+                    :disabled="adjustLoading"
+                    class="para-chip-sm px-3 py-1 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     :class="adjustParticipantGenres.some(p => p.genreName === g.name)
-                      ? 'pi-check-circle text-accent'
-                      : 'pi-circle text-content-muted'"
-                  ></i>
-                  <span class="type-body flex-1 truncate">{{ g.name }}</span>
-                  <span v-if="g.format" class="type-label text-content-muted shrink-0">{{ g.format }}</span>
-                </button>
+                      ? 'text-red-400 border-red-500/40 hover:bg-red-500/10'
+                      : 'text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)]'"
+                  >
+                    {{ adjustParticipantGenres.some(p => p.genreName === g.name) ? 'Remove' : 'Add' }}
+                  </button>
+                </div>
               </div>
 
               <p v-if="eventGenres.length === 0" class="type-label text-content-muted text-center py-4">
@@ -1596,6 +1895,121 @@ onUnmounted(() => {
     </Transition>
   </Teleport>
 
+  <!-- Genre Add Team Form -->
+  <Teleport to="body">
+    <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
+                leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+      <div v-if="genreAddForm.show" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="genreAddForm.show = false" />
+        <div class="card-hover relative w-full sm:max-w-sm flex flex-col" style="max-height:85vh">
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
+            <div>
+              <p class="type-body text-content-primary">Add Division</p>
+              <p class="type-label text-content-muted mt-0.5">{{ genreAddForm.genre?.name }} · {{ genreAddForm.genre?.format }}</p>
+            </div>
+            <button @click="genreAddForm.show = false" class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+            <!-- Solo/Team toggle -->
+            <div v-if="genreAddForm.genre?.soloAllowed !== false">
+              <label class="type-label text-content-muted mb-2 block">Entry Type</label>
+              <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm">
+                <button type="button" @click="genreAddForm.entryMode = 'team'"
+                  class="flex-1 px-4 py-2 type-label transition-all"
+                  :class="genreAddForm.entryMode === 'team' ? 'bg-[var(--accent-subtle)] text-accent border-r border-surface-600/60' : 'bg-surface-800 text-content-secondary hover:bg-surface-700 border-r border-surface-600/60'">
+                  Team
+                </button>
+                <button type="button" @click="genreAddForm.entryMode = 'solo'"
+                  class="flex-1 px-4 py-2 type-label transition-all"
+                  :class="genreAddForm.entryMode === 'solo' ? 'bg-[var(--accent-subtle)] text-accent' : 'bg-surface-800 text-content-secondary hover:bg-surface-700'">
+                  Solo
+                </button>
+              </div>
+            </div>
+            <p v-else class="type-label text-amber-400/80">Solo entries not allowed — team entry only.</p>
+
+            <!-- Team details -->
+            <template v-if="genreAddForm.entryMode === 'team'">
+              <div>
+                <label class="type-label text-content-muted mb-1.5 block">Team Name</label>
+                <input v-model="genreAddForm.teamName" type="text" placeholder="Enter team name…" class="input-base" />
+              </div>
+              <div v-if="genreAddForm.members.length > 0">
+                <label class="type-label text-content-muted mb-1.5 block">Team Members</label>
+                <p class="type-label text-content-muted/60 mb-2 normal-case" style="font-size:0.65rem">{{ adjustParticipant }} is Member 1. Enter the other {{ genreAddForm.members.length }}.</p>
+                <div class="space-y-2">
+                  <input v-for="(_, i) in genreAddForm.members" :key="i"
+                    v-model="genreAddForm.members[i]"
+                    type="text" :placeholder="`Member ${i + 2} stage name…`" class="input-base" />
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex gap-2 justify-end px-4 py-3 border-t border-surface-600/30 shrink-0">
+            <button @click="genreAddForm.show = false" class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary transition-colors">
+              Cancel
+            </button>
+            <button @click="submitGenreAddForm"
+              :disabled="genreAddForm.entryMode === 'team' && !genreAddForm.teamName.trim()"
+              class="para-chip-sm px-4 py-2 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              Add to Division
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Confirm Dialog -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="confirmDialog.show" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="confirmNo" />
+        <div class="card-hover relative w-full max-w-sm p-5 flex flex-col gap-4">
+          <div class="corner-bar-tl"></div>
+          <div class="flex items-start gap-3">
+            <i class="pi pi-exclamation-triangle text-amber-400 text-sm shrink-0 mt-0.5"></i>
+            <div>
+              <p class="type-body text-content-primary mb-1">{{ confirmDialog.title }}</p>
+              <p class="type-label text-content-muted normal-case">{{ confirmDialog.message }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button @click="confirmNo" class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary transition-colors">
+              Cancel
+            </button>
+            <button
+              @click="confirmYes"
+              class="para-chip-sm px-4 py-2 type-label transition-all"
+              :class="confirmDialog.destructive
+                ? 'text-red-400 border-red-500/40 hover:bg-red-500/10'
+                : 'text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)]'"
+            >
+              {{ confirmDialog.confirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- Scoring Criteria Modal -->
   <ScoringCriteriaModal
     v-model="showCriteriaModal"
@@ -1603,4 +2017,133 @@ onUnmounted(() => {
     :genres="eventGenres.map(g => g.name)"
     @update:modelValue="(v) => { if (!v) loadCriteriaForAllGenres(eventGenres) }"
   />
+
+  <!-- Check-In Confirmation Dialog -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="checkinConfirm.show" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          @click="checkinConfirm.phase !== 'generating' && (checkinConfirm.show = false)" />
+        <div class="card-hover p-5 relative w-full max-w-md" style="clip-path:none">
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
+
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-4">
+            <p class="type-body text-content-secondary">
+              {{ checkinConfirm.phase === 'confirm' ? 'Confirm Check-In' : checkinConfirm.phase === 'generating' ? 'Generating…' : 'Check-In Complete' }}
+            </p>
+            <button v-if="checkinConfirm.phase !== 'generating'" @click="checkinConfirm.show = false"
+              class="p-1 text-content-muted hover:text-content-primary transition-colors">
+              <i class="pi pi-times text-sm" />
+            </button>
+          </div>
+
+          <!-- Participant name -->
+          <div class="mb-4">
+            <p class="type-label text-content-muted mb-0.5">Good Luck</p>
+            <p class="type-stat text-accent" style="font-size:1.5rem;line-height:1.2">{{ checkinConfirm.participant?.label }}</p>
+            <div v-if="checkinConfirm.participant?.memberNames?.length" class="flex items-center gap-1.5 type-label text-content-muted mt-1.5">
+              <i class="pi pi-users" style="font-size:0.65rem"></i>
+              <span>{{ checkinConfirm.participant.memberNames.join(' · ') }}</span>
+            </div>
+          </div>
+
+          <!-- Divisions -->
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Divisions</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <div class="space-y-2 mb-5">
+            <div v-if="!checkinConfirm.participant?.genres?.length" class="type-label text-amber-400/80">
+              No divisions assigned
+            </div>
+            <div v-for="g in checkinConfirm.participant?.genres" :key="g.genreName"
+              class="flex items-center gap-3 para-chip-sm px-3 py-2"
+              :style="g.auditionNumber !== null
+                ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
+            >
+              <!-- Status dot -->
+              <span class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
+                :style="g.auditionNumber !== null
+                  ? 'background:var(--accent-color);box-shadow:0 0 6px var(--accent-muted)'
+                  : g.rolling
+                    ? 'background:rgba(245,158,11,0.7);box-shadow:0 0 6px rgba(245,158,11,0.5)'
+                    : 'background:rgba(255,255,255,0.15)'">
+              </span>
+              <span class="type-body text-content-primary flex-1">{{ g.genreName }}</span>
+              <!-- Number area -->
+              <div class="flex items-baseline gap-1 tabular-nums min-w-[4rem] justify-end">
+                <template v-if="g.rolling">
+                  <span class="type-label text-amber-400/60 text-xs">Drawing</span>
+                  <span class="type-stat text-amber-400" style="font-size:1.4rem">
+                    {{ dialogFakeNums[g.genreName] ?? '—' }}
+                  </span>
+                </template>
+                <template v-else-if="g.auditionNumber !== null">
+                  <span class="type-label text-accent/60 text-xs">#</span>
+                  <span class="type-stat text-accent" style="font-size:1.4rem">{{ g.auditionNumber }}</span>
+                </template>
+                <template v-else-if="checkinConfirm.phase === 'generating'">
+                  <span class="type-stat text-content-muted/20" style="font-size:1.4rem">—</span>
+                </template>
+                <template v-else>
+                  <span class="type-label text-content-muted/40">Pending #</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ref code (done state only) -->
+          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode" class="mb-5">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Ref Code</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="para-chip-sm px-4 py-3 flex items-center justify-center">
+              <span class="font-source tracking-widest text-accent" style="font-size:1.1rem;letter-spacing:0.25em">
+                {{ checkinConfirm.refCode }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-3">
+            <!-- Confirm phase -->
+            <template v-if="checkinConfirm.phase === 'confirm'">
+              <button @click="checkinConfirm.show = false"
+                class="flex-1 py-2 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all">
+                Cancel
+              </button>
+              <button @click="confirmCheckIn"
+                class="flex-1 py-2 para-chip type-label text-white transition-all"
+                style="background:rgba(255,255,255,0.12);box-shadow:0 0 12px var(--accent-subtle)"
+              >
+                <i class="pi pi-check mr-1.5 text-xs"></i> Confirm
+              </button>
+            </template>
+            <!-- Generating phase -->
+            <div v-else-if="checkinConfirm.phase === 'generating'"
+              class="flex-1 py-2 flex items-center justify-center gap-2 type-label text-content-muted">
+              <i class="pi pi-spin pi-spinner text-xs"></i> Generating…
+            </div>
+            <!-- Done phase -->
+            <button v-else @click="checkinConfirm.show = false"
+              class="flex-1 py-2 para-chip type-label text-white transition-all"
+              style="background:rgba(255,255,255,0.12);box-shadow:0 0 12px var(--accent-subtle)"
+            >
+              <i class="pi pi-check mr-1.5 text-xs"></i> Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>

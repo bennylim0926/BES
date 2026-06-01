@@ -4,7 +4,6 @@ import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseR
 import DynamicTable from '@/components/DynamicTable.vue';
 import { getActiveEvent } from '@/utils/auth';
 import { useAuthStore } from '@/utils/auth';
-import UpdateScoreForm from '@/components/UpdateScoreForm.vue';
 
 const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
@@ -14,8 +13,6 @@ const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
 const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
-const selectedParticipant = ref("")
-const showSubmitScore = ref(false)
 
 // Auth
 const authStore = useAuthStore()
@@ -74,17 +71,6 @@ const resetTieBreaker = () => {
   tieBreakerConfirmed.value = false
   localStorage.removeItem(tbKey.value)
   localStorage.removeItem(tbResolvedKey.value)
-}
-
-const editScore = (name) => {
-  selectedParticipant.value = name
-  showSubmitScore.value = !showSubmitScore.value
-}
-
-const onScoreUpdated = async () => {
-  showSubmitScore.value = false
-  const res = await getParticipantScore(selectedEvent.value)
-  participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
 }
 
 const uniqueGenres = computed(() => {
@@ -369,7 +355,7 @@ function transformForScore(data) {
     return {
       columns: [
         { key: 'id', label: 'Rank', type: 'text', readonly: true },
-        { key: 'participantName', label: 'Participant', type: 'link' },
+        { key: 'participantName', label: 'Participant', type: 'text' },
         { key: 'totalScore', label: 'Total Score', type: 'text', readonly: true },
         ...judges.map(j => ({ key: j, label: j, type: 'text', readonly: true }))
       ],
@@ -390,7 +376,7 @@ function transformForScore(data) {
         byJudge[judge] = {
           columns: [
             { key: 'id', label: 'Rank', type: 'text', readonly: true },
-            { key: 'participantName', label: 'Participant', type: 'link' },
+            { key: 'participantName', label: 'Participant', type: 'text' },
             { key: 'score', label: 'Score (avg)', type: 'text', readonly: true },
           ],
           rows: Object.entries(participantMap).map(([name, aspects]) => ({
@@ -408,7 +394,7 @@ function transformForScore(data) {
           byJudge[d.judgeName] = {
             columns: [
               { key: 'id', label: 'Rank', type: 'text', readonly: true },
-              { key: 'participantName', label: 'Participant', type: 'link' },
+              { key: 'participantName', label: 'Participant', type: 'text' },
               { key: 'score', label: 'Score', type: 'text', readonly: true },
             ],
             rows: []
@@ -727,10 +713,7 @@ function transformForScore(data) {
                     <span class="text-content-secondary">{{ row.id }}</span>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap">
-                    <button
-                      @click="editScore(row.participantName)"
-                      class="text-accent hover:text-accent/80 font-medium hover:underline focus:outline-none"
-                    >{{ row.participantName }}</button>
+                    <span class="type-body text-content-primary">{{ row.participantName }}</span>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap">
                     <span class="text-content-secondary">{{ row.totalScore }}</span>
@@ -816,7 +799,6 @@ function transformForScore(data) {
         </template>
         <template v-else>
           <DynamicTable
-            @onClick="editScore"
             v-model:tableValue="finalRows"
             :tableConfig="topNResult.columns"
           />
@@ -853,7 +835,6 @@ function transformForScore(data) {
             <div class="section-rule-line"></div>
           </div>
           <DynamicTable
-            @onClick="editScore"
             v-model:tableValue="group.rows"
             :tableConfig="group.columns"
           />
@@ -872,16 +853,6 @@ function transformForScore(data) {
 
   </div>
   </div>
-
-  <UpdateScoreForm
-    :event="selectedEvent"
-    :show="showSubmitScore"
-    title="Update Score"
-    :genre="selectedGenre"
-    :name="selectedParticipant"
-    @updateScore="onScoreUpdated"
-    @close="showSubmitScore = false"
-  />
 
   <!-- Feedback Panel Modal -->
   <Teleport to="body">

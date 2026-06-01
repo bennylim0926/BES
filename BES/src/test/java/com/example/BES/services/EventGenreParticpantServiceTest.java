@@ -66,7 +66,7 @@ class EventGenreParticpantServiceTest {
         when(eventRepo.findById(1L)).thenReturn(Optional.of(event));
         when(eventGenreRepo.findByEventAndName(event, "ghost")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.addGenreToExistingParticipant(1L, 1L, "ghost"))
+        assertThatThrownBy(() -> service.addGenreToExistingParticipant(1L, 1L, "ghost", null, null, null))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("Event genre not found");
     }

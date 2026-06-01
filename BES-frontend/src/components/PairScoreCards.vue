@@ -7,7 +7,7 @@ const props = defineProps({
   criteria:     { type: Array,  default: () => [] },
 });
 
-const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'reset', 'jump']);
+const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'reset', 'jump', 'score-change']);
 
 const scrollRef    = ref(null)
 const currentIndex = ref(0)
@@ -31,6 +31,12 @@ function setCriteriaScore(card, criterionName, value) {
   if (!card.criteriaScores) card.criteriaScores = {}
   card.criteriaScores[criterionName] = value
   card.score = computeAggregate(card)
+  emit('score-change', card)
+}
+
+function setSingleScore(card, value) {
+  card.score = value
+  emit('score-change', card)
 }
 
 function computeAggregate(card) {
@@ -183,12 +189,16 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                     class="type-body text-[22px] leading-tight truncate"
                     :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-content-primary' : 'text-content-muted'"
                   >{{ card.participantName }}</div>
+                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case truncate" style="font-size:11px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
                   <div
                     v-if="card.score > 0"
                     class="text-[18px] font-source tabular-nums mt-0.5"
                     :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-amber-400/60' : 'text-white/20'"
                   >{{ card.score }}</div>
                 </div>
+                <!-- Save state indicator -->
+                <i v-if="card.saving" class="pi pi-spin pi-spinner text-accent/50 text-[11px] flex-shrink-0"></i>
+                <i v-else-if="card.submitted" class="pi pi-check-circle text-emerald-400 text-[11px] flex-shrink-0"></i>
                 <!-- Green dot: feedback given -->
                 <span v-if="feedbackData?.get(card.auditionNumber)" class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
               </button>
@@ -362,7 +372,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <!-- Single-score mode -->
                 <template v-else>
                   <button
-                    @click="activeCard.score = 10"
+                    @click="setSingleScore(activeCard, 10)"
                     class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
                     style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
                   >10 — Full Score</button>
@@ -372,7 +382,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                       <div class="grid grid-cols-3 gap-1">
                         <button
                           v-for="value in 9" :key="'w'+value"
-                          @click="activeCard.score = Number(value)"
+                          @click="setSingleScore(activeCard, Number(value))"
                           class="py-4 text-sm font-bold transition-all duration-100 active:scale-95"
                           :class="Math.floor(activeCard.score) === value && activeCard.score === value ? 'text-black' : 'text-white/55 hover:text-white'"
                           :style="Math.floor(activeCard.score) === value && activeCard.score === value
@@ -386,7 +396,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                       <div class="grid grid-cols-3 gap-1">
                         <button
                           v-for="value in 9" :key="'d'+value"
-                          @click="activeCard.score = updateDecimal(activeCard.score, value)"
+                          @click="setSingleScore(activeCard, updateDecimal(activeCard.score, value))"
                           class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95"
                           :class="(activeCard.score * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
                           :style="(activeCard.score * 10 % 10).toFixed(0) == value
@@ -426,13 +436,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
         class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
       ><i class="pi pi-search text-xs"></i> Go To</button>
 
-      <button
-        @click="emit('submit')"
-        class="flex-1 flex items-center justify-center gap-1.5 py-2.5 para-chip type-label text-white transition-all duration-150 active:scale-[0.98]"
-        style="background:rgb(16,185,129);box-shadow:0 0 16px rgba(16,185,129,0.5)"
-      ><i class="pi pi-send text-xs"></i> Submit All</button>
-
-      <div v-if="hasCriteria && aggregateDisplay !== null" class="text-xs font-bold text-amber-400/40 ml-1 shrink-0 font-source tabular-nums">
+      <div v-if="hasCriteria && aggregateDisplay !== null" class="ml-auto text-xs font-bold text-amber-400/40 shrink-0 font-source tabular-nums">
         AVG {{ aggregateDisplay }}
       </div>
     </div>

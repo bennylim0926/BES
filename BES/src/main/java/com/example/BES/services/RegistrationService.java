@@ -254,6 +254,7 @@ public class RegistrationService {
             dto.genres = egps.stream().map(egp -> {
                 GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
                 gs.genreName = egp.getEventGenre().getName();
+                gs.eventGenreId = egp.getEventGenre().getId();
                 gs.auditionNumber = egp.getAuditionNumber();
                 return gs;
             }).collect(Collectors.toList());

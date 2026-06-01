@@ -39,6 +39,7 @@ public class BattleGuestService {
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
                 dto.genreName = g.getEventGenre().getName();
+                dto.memberNames = g.getMemberNames();
                 return dto;
             }).collect(Collectors.toList());
     }
@@ -54,6 +55,7 @@ public class BattleGuestService {
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
                 dto.genreName = g.getEventGenre().getName();
+                dto.memberNames = g.getMemberNames();
                 return dto;
             }).collect(Collectors.toList());
     }
@@ -68,6 +70,7 @@ public class BattleGuestService {
         guest.setEventGenre(eventGenre);
         guest.setGuestName(dto.guestName);
         guest.setEntryRound(dto.entryRound);
+        guest.setMemberNames(dto.memberNames);
         guest = battleGuestRepo.save(guest);
 
         GetBattleGuestDto result = new GetBattleGuestDto();
@@ -75,6 +78,7 @@ public class BattleGuestService {
         result.guestName = guest.getGuestName();
         result.entryRound = guest.getEntryRound();
         result.genreName = eventGenre.getName();
+        result.memberNames = guest.getMemberNames();
         return result;
     }
 

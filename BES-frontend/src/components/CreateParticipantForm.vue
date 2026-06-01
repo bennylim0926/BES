@@ -19,6 +19,9 @@ const allJudges = ref([])
 const adminGenreMap = ref({})
 const createTable = reactive({ genres: [] })
 const showError = ref(false)
+const showNoDivisionError = ref(false)
+const showSuccess = ref(false)
+const showSubmitError = ref(false)
 
 const entryModes = reactive({})
 const teamNames = reactive({})
@@ -33,6 +36,11 @@ function isTeamFormat(genreName) {
   const fmt = selectedFormat(genreName)
   if (!fmt) return false
   return /^\d+v\d+$/i.test(fmt) && fmt.toLowerCase() !== '1v1'
+}
+
+function isSoloAllowed(genreName) {
+  const option = genreOptions.value.find(o => o.genreName === genreName)
+  return option ? option.soloAllowed !== false : true
 }
 
 function additionalMembersCountForGenre(genreName) {
@@ -52,6 +60,7 @@ watch(() => createTable.genres.slice(), (selected) => {
   for (const genreName of selected) {
     if (isTeamFormat(genreName)) {
       if (!(genreName in entryModes)) entryModes[genreName] = 'team'
+      else if (!isSoloAllowed(genreName) && entryModes[genreName] === 'solo') entryModes[genreName] = 'team'
       if (!(genreName in teamNames)) teamNames[genreName] = ''
       if (!(genreName in teamMemberNames)) teamMemberNames[genreName] = []
     }
@@ -82,17 +91,32 @@ const submitNewEntry = async () => {
     showError.value = true
     return
   }
+  if (createTable.genres.length === 0) {
+    showNoDivisionError.value = true
+    return
+  }
+  let failed = false
   for (const g of createTable.genres) {
     const mode = entryModes[g] || 'team'
     const members = mode === 'solo' ? [] : (teamMemberNames[g] || []).filter(m => m.trim() !== "")
     const tName = mode === 'solo' ? '' : (teamNames[g] || '')
-    await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
+    try {
+      const res = await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
+      if (!res || !res.ok) failed = true
+    } catch {
+      failed = true
+    }
   }
   name.value = ""
   createTable.genres = []
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
   emit("createNewEntry")
+  if (failed) {
+    showSubmitError.value = true
+  } else {
+    showSuccess.value = true
+  }
 }
 
 watch(() => props.eventGenres, (newGenres) => {
@@ -101,7 +125,8 @@ watch(() => props.eventGenres, (newGenres) => {
       genreName: g.name,
       format: g.format || null,
       genreId: g.genreId ?? null,
-      groupLabel: g.genreId ? (adminGenreMap.value[g.genreId] ?? 'Other') : 'Custom'
+      groupLabel: g.genreId ? (adminGenreMap.value[g.genreId] ?? 'Other') : 'Custom',
+      soloAllowed: g.soloAllowed !== false,
     }))
   }
 }, { immediate: true })
@@ -123,6 +148,7 @@ onMounted(async () => {
     :title="props.title"
     variant="info"
     acceptLabel="Add Participant"
+    :scrollable="true"
     @accept="submitNewEntry"
     @close="$emit('close')"
   >
@@ -194,6 +220,7 @@ onMounted(async () => {
               Team entry
             </button>
             <button
+              v-if="isSoloAllowed(g)"
               type="button"
               @click="entryModes[g] = 'solo'"
               class="flex-1 px-4 py-2 border-l border-surface-600/60 transition-all"
@@ -206,6 +233,9 @@ onMounted(async () => {
           </div>
           <p v-if="entryModes[g] === 'solo'" class="text-xs text-content-muted mt-1.5 mb-2">
             Auditions individually. Can be grouped into a crew after auditions.
+          </p>
+          <p v-if="!isSoloAllowed(g)" class="text-xs text-amber-400/80 mt-1.5 mb-2">
+            Solo entries not allowed for this division — team entry only.
           </p>
 
           <!-- Team name + members for this genre -->
@@ -254,6 +284,37 @@ onMounted(async () => {
     @accept="showError = false"
     @close="showError = false"
   >
-    <p class="text-surface-600">Please enter a stage name before submitting.</p>
+    <p class="type-body text-content-secondary">Please enter a stage name before submitting.</p>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showNoDivisionError"
+    title="No Division Selected"
+    variant="error"
+    @accept="showNoDivisionError = false"
+    @close="showNoDivisionError = false"
+  >
+    <p class="type-body text-content-secondary">Please select at least one division before adding the participant.</p>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showSuccess"
+    title="Participant Added"
+    variant="info"
+    acceptLabel="Done"
+    @accept="() => { showSuccess = false; $emit('close') }"
+    @close="() => { showSuccess = false; $emit('close') }"
+  >
+    <p class="type-body text-content-secondary">The participant has been added successfully.</p>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showSubmitError"
+    title="Submission Failed"
+    variant="error"
+    @accept="showSubmitError = false"
+    @close="showSubmitError = false"
+  >
+    <p class="type-body text-content-secondary">One or more divisions could not be registered. Please check the details and try again.</p>
   </ActionDoneModal>
 </template>
