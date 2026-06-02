@@ -1186,14 +1186,23 @@ watch(uniqueGenres, (genres) => {
 
 // When all judges vote in the final, capture the winner immediately — before the
 // organiser clicks Reveal. This persists the state across genre switches and refreshes.
+// When showFinalReveal goes false due to a revote that results in a tie, clear any
+// previously saved champion so stale data doesn't linger.
 watch(showFinalReveal, (newVal) => {
-  if (!newVal || !selectedGenre.value) return
-  const winner = tentativeWinner.value === 0
-    ? currentBattlePair.value?.[0]
-    : currentBattlePair.value?.[1]
-  if (!winner) return
-  genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
-  localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winner)
+  if (!selectedGenre.value) return
+  if (newVal) {
+    const winner = tentativeWinner.value === 0
+      ? currentBattlePair.value?.[0]
+      : currentBattlePair.value?.[1]
+    if (!winner) return
+    genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
+    localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winner)
+  } else if (isFinalInProgress.value && allJudgesVoted.value && tentativeWinner.value === -1) {
+    // All judges voted but it's a tie — remove any pending champion
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    genreChampions.value = rest
+    localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
+  }
 })
 
 watch(selectedGenre, async (newVal, oldVal) => {
