@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +64,7 @@ import com.example.BES.dtos.CreatePickupCrewDto;
 import com.example.BES.dtos.GetPickupCrewDto;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.BattleGuestService;
+import com.example.BES.services.CheckinPreviewService;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.PickupCrewService;
 import com.example.BES.services.ScoringCriteriaService;
@@ -138,6 +140,9 @@ public class EventController {
 
     @Autowired
     BattleGuestService battleGuestService;
+
+    @Autowired
+    CheckinPreviewService checkinPreviewService;
 
     @Autowired
     SimpMessagingTemplate messagingTemplate;
@@ -426,6 +431,13 @@ public class EventController {
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
+    @Operation(summary = "Get Active Check-In Previews", description = "Returns the set of participant IDs currently being previewed (check-in dialog open) for an event")
+    @GetMapping("/{eventName}/checkin-preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<Set<Long>> getCheckinPreviews(@PathVariable String eventName) {
+        return ResponseEntity.ok(checkinPreviewService.getActivePreviews(eventName));
+    }
+
     @Operation(summary = "Send Check-In Preview", description = "Broadcasts participant details to AuditionNumber display before generating numbers")
     @PostMapping("/{eventName}/checkin-preview")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
@@ -433,6 +445,11 @@ public class EventController {
             @PathVariable String eventName,
             @RequestBody CheckinPreviewDto dto) {
         try {
+            if (Boolean.TRUE.equals(dto.cancelled)) {
+                checkinPreviewService.clearPreview(eventName, dto.participantId);
+            } else {
+                checkinPreviewService.setPreview(eventName, dto.participantId);
+            }
             messagingTemplate.convertAndSend("/topic/checkin-preview/", dto);
             return new ResponseEntity<>("ok", HttpStatus.OK);
         } catch (Exception e) {
@@ -448,6 +465,8 @@ public class EventController {
             @PathVariable Long eventId) {
         try {
             eventGenreParticipantService.getAllAuditionNumsViaQR(participantId, eventId);
+            String eventName = eventService.getEventNameById(eventId);
+            checkinPreviewService.clearPreview(eventName, participantId);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
         } catch (IllegalStateException e) {
             if ("already_checked_in".equals(e.getMessage())) {

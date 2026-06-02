@@ -2,7 +2,7 @@
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
 import { setActiveEvent } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -937,6 +937,11 @@ onMounted(async () => {
       if (msg.eventName !== props.eventName) return
       fetchCheckinList()
     })
+    // Hydrate previewingIds from server state so late-joining/refreshed clients see current previews
+    const existingPreviews = await getCheckinPreviews(props.eventName)
+    for (const id of existingPreviews) {
+      previewingIds[id] = true
+    }
   }
 })
 
