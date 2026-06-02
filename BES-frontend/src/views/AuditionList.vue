@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, verifyEventAccessCode } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
@@ -33,6 +33,10 @@ const modalVariant = ref("info")
 const showModal = ref(false)
 const showMiniMenu = ref(false)
 const dynamicCallBack = ref(() => {})
+
+const resetConfirmCode = ref("")
+const resetCodeError = ref("")
+const resetCodeChecking = ref(false)
 
 const dynamicRole = async () => {
   const res = await whoami()
@@ -85,11 +89,35 @@ const openModal = (title, message, variant = 'info') => {
 }
 
 const confirmReset = (title, message) => {
+  resetConfirmCode.value = ""
+  resetCodeError.value = ""
+  resetCodeChecking.value = false
   modalTitle.value = title
   modalMessage.value = message
   modalVariant.value = 'warning'
   showModal.value = true
-  dynamicCallBack.value = async () => { showModal.value = false; await resetScore(); }
+  dynamicCallBack.value = async () => {
+    if (!resetConfirmCode.value.trim()) {
+      resetCodeError.value = "Enter the event access code to confirm."
+      return
+    }
+    resetCodeChecking.value = true
+    resetCodeError.value = ""
+    const activeEvent = getActiveEvent()
+    if (!activeEvent) {
+      resetCodeError.value = "No active event found."
+      resetCodeChecking.value = false
+      return
+    }
+    const result = await verifyEventAccessCode(activeEvent.id, resetConfirmCode.value.trim())
+    resetCodeChecking.value = false
+    if (result?.valid) {
+      showModal.value = false
+      await resetScore()
+    } else {
+      resetCodeError.value = "Incorrect access code."
+    }
+  }
 }
 
 const switchGenre = (g) => {
@@ -867,6 +895,21 @@ onMounted(async () => {
     @close="() => { showModal = false }"
   >
     <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+    <template v-if="modalVariant === 'warning'">
+      <div class="mt-4">
+        <input
+          v-model="resetConfirmCode"
+          type="text"
+          placeholder="Enter access code"
+          class="w-full px-3 py-2 type-body bg-surface-800 border border-surface-600 text-content-primary outline-none transition-colors"
+          style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
+          :disabled="resetCodeChecking"
+          @keyup.enter="dynamicCallBack()"
+        />
+        <p v-if="resetCodeChecking" class="type-label text-accent mt-2">Verifying…</p>
+        <p v-if="resetCodeError" class="type-label text-red-400 mt-2">{{ resetCodeError }}</p>
+      </div>
+    </template>
   </ActionDoneModal>
 
   <FeedbackPopout

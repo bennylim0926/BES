@@ -1145,6 +1145,14 @@ export const sendCheckinPreview = async (eventName, previewData) => {
   }
 }
 
+export const getCheckinPreviews = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${eventName}/checkin-preview`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return []
+  } catch { return [] }
+}
+
 export const getBattleGuests = async (eventName) => {
   try {
     return await fetch(`${domain}/api/v1/event/battle-guests/${encodeURIComponent(eventName)}`, {
