@@ -34,6 +34,8 @@ const checkinList = ref([])
 const loadingCheckinList = ref(false)
 const checkingInId = ref(null)
 const confirming = ref(false)
+// participantId → true when any operator has that participant's dialog open
+const previewingIds = reactive({})
 const checkinSearch = ref('')
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
@@ -916,9 +918,19 @@ onMounted(async () => {
         const genre = participant.genres.find(g => g.genreName === msg.genre)
         if (genre) genre.auditionNumber = msg.auditionNumber
       }
+      // Participant is now checked in — no longer in preview
+      if (msg.participantId) delete previewingIds[msg.participantId]
       if (!refreshPending) {
         refreshPending = true
         refreshFromDb().finally(() => { refreshPending = false })
+      }
+    })
+    subscribeToChannel(wsClient, '/topic/checkin-preview/', (msg) => {
+      if (!msg.participantId) return
+      if (msg.cancelled) {
+        delete previewingIds[msg.participantId]
+      } else {
+        previewingIds[msg.participantId] = true
       }
     })
     subscribeToChannel(wsClient, '/topic/walkin/', (msg) => {
@@ -1641,11 +1653,12 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="flex items-center gap-2 mt-2 justify-end">
-                <button v-if="!isCheckedIn(p)" @click="askCheckIn(p)" :disabled="checkingInId === p.participantId"
+                <button v-if="!isCheckedIn(p)" @click="askCheckIn(p)"
+                  :disabled="checkingInId === p.participantId || !!previewingIds[p.participantId]"
                   class="bg-accent para-chip-sm px-3 py-1.5 type-label disabled:opacity-50"
                 >
-                  <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : 'pi-check'"></i>
-                  {{ checkingInId === p.participantId ? '…' : 'Check In' }}
+                  <i class="pi text-xs" :class="checkingInId === p.participantId ? 'pi-spinner pi-spin' : previewingIds[p.participantId] ? 'pi-clock' : 'pi-check'"></i>
+                  {{ checkingInId === p.participantId ? '…' : previewingIds[p.participantId] ? 'In Preview' : 'Check In' }}
                 </button>
                 <i v-else class="pi pi-check-circle text-emerald-400 text-sm"></i>
               </div>
