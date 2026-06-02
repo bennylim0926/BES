@@ -329,7 +329,22 @@ onMounted(async () => {
   subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => { if (!isSmoke.value) updateScore(msg) })
   subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => { if (!isSmoke.value) updateBattleJudge(msg) })
 
-  // Always subscribe to /topic/battle/state — detects format/genre switches in real-time
+  // /topic/battle/bracket — fires when operator changes bracket format or size in BattleControl.
+  // Use topSize to determine smoke mode (7 = smoke, anything else = standard).
+  const cBracket = createClient(); clients.push(cBracket)
+  subscribeToChannel(cBracket, '/topic/battle/bracket', async (msg) => {
+    if (!msg) return
+    const wasSmoke = isSmoke.value
+    if (msg.topSize !== undefined) isSmoke.value = String(msg.topSize) === '7'
+    // On format switch standard → smoke: Chart handles its own subscriptions.
+    // On format switch smoke → standard: fetch current pair from backend to show something.
+    if (wasSmoke && !isSmoke.value) {
+      const state = await getBattleState()
+      if (state?.currentPair?.left) await updateBattlePair(state.currentPair)
+    }
+  })
+
+  // Always subscribe to /topic/battle/state — detects genre switches in real-time
   const cState = createClient(); clients.push(cState)
   subscribeToChannel(cState, '/topic/battle/state', async (msg) => {
     if (!msg) return

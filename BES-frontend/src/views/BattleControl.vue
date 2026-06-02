@@ -1080,30 +1080,27 @@ const startRevote = async () => {
 }
 
 const revealChampionForGenre = async () => {
-  if (showFinalReveal.value) {
-    // Capture winner name before broadcasting (tentativeWinner computed from live votes)
+  // Case 1: live voting round — score not yet submitted, use tentative winner from votes
+  if (showFinalReveal.value && !currentGenreChampion.value) {
     const winnerName = tentativeWinner.value === 0
       ? currentBattlePair.value?.[0]
       : currentBattlePair.value?.[1]
-    // Directly broadcast the score — bypasses submitGetScore's early-return guard
     const res = await setBattleScore(true)
-    if (res?.status === 409) {
-      // Defensive: shouldn't happen since tentativeWinner !== -1
-      finalTieBlocked.value = true
-      return
-    }
+    if (res?.status === 409) { finalTieBlocked.value = true; return }
     const data = await res.json()
     currentWinner.value = Number(data.winner)
     if (data.winner === 0 || data.winner === 1) {
       setWinner(currentTop.value, currentRound.value, data.winner)
-      await revealChampion(selectedGenre.value, winnerName)
       genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winnerName }
+      localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winnerName)
+      await revealChampion(selectedGenre.value, winnerName)
       revealActive.value = true
     }
     return
   }
-  if (!currentGenreChampion.value && !genreChampions.value[selectedGenre.value]) return
-  const champion = genreChampions.value[selectedGenre.value] ?? currentGenreChampion.value
+  // Case 2: score already in bracket (winner in rounds data) OR tracked in genreChampions
+  const champion = currentGenreChampion.value ?? genreChampions.value[selectedGenre.value]
+  if (!champion) return
   await revealChampion(selectedGenre.value, champion)
   revealActive.value = true
 }
@@ -1164,17 +1161,56 @@ watch(selectedEvent, async (newVal) => {
 }, { immediate: true })
 
 const genreTopSizeKey = (genre) => `battleTopSize_${selectedEvent.value}_${genre}`
+const genreChampionLocalKey = (genre) => `battleChampion_${selectedEvent.value}_${genre}`
+
+// Load pending champions from localStorage for all genres as they become known
+watch(uniqueGenres, (genres) => {
+  if (!selectedEvent.value || !genres?.length) return
+  const locals = {}
+  for (const g of genres) {
+    const p = localStorage.getItem(genreChampionLocalKey(g))
+    if (p) locals[g] = p
+  }
+  // Merge: backend confirmed data (already in genreChampions) takes precedence
+  genreChampions.value = { ...locals, ...genreChampions.value }
+}, { immediate: true })
+
+// When all judges vote in the final, capture the winner immediately — before the
+// organiser clicks Reveal. This persists the state across genre switches and refreshes.
+watch(showFinalReveal, (newVal) => {
+  if (!newVal || !selectedGenre.value) return
+  const winner = tentativeWinner.value === 0
+    ? currentBattlePair.value?.[0]
+    : currentBattlePair.value?.[1]
+  if (!winner) return
+  genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
+  localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winner)
+})
 
 watch(selectedGenre, async (newVal, oldVal) => {
   // Dismiss before resetting revealActive — the check must happen while it's still true
   if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
+    // If all judges voted in the final but organiser hasn't clicked Reveal yet,
+    // save the winner before switching away so the button reappears on return.
+    if (oldVal && showFinalReveal.value) {
+      const winner = tentativeWinner.value === 0
+        ? currentBattlePair.value?.[0]
+        : currentBattlePair.value?.[1]
+      if (winner) {
+        genreChampions.value = { ...genreChampions.value, [oldVal]: winner }
+        localStorage.setItem(genreChampionLocalKey(oldVal), winner)
+      }
+    }
+
     // Persist outgoing genre's topSize before switching
     if (oldVal) localStorage.setItem(genreTopSizeKey(oldVal), String(topSize.value))
 
     // Restore per-genre topSize — smoke auto-detection takes priority, otherwise
-    // use the saved size for this genre or fall back to 16.
+    // use the saved size for this genre.  When no saved size exists, default to 16
+    // for a genre switch (don't inherit the outgoing genre's size), but keep the
+    // global localStorage value on first/immediate load so a refresh is stable.
     const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
     if (genreNeedsSmoke) {
       if (Number(topSize.value) !== 7) {
@@ -1183,11 +1219,17 @@ watch(selectedGenre, async (newVal, oldVal) => {
       }
     } else {
       const savedSize = localStorage.getItem(genreTopSizeKey(newVal))
-      const restoredSize = savedSize ? Number(savedSize) : (Number(topSize.value) === 7 ? 16 : Number(topSize.value))
+      const restoredSize = savedSize ? Number(savedSize) : (oldVal ? 16 : Number(topSize.value))
       if (restoredSize !== Number(topSize.value)) {
         topSize.value = restoredSize
         localStorage.setItem('topSize', String(restoredSize))
       }
+    }
+
+    // Restore pending champion for incoming genre from localStorage
+    if (newVal && !genreChampions.value[newVal]) {
+      const pending = localStorage.getItem(genreChampionLocalKey(newVal))
+      if (pending) genreChampions.value = { ...genreChampions.value, [newVal]: pending }
     }
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
@@ -1211,14 +1253,48 @@ watch(selectedGenre, async (newVal, oldVal) => {
   }
 }, { immediate: true })
 
-watch(topSize, async (newVal) => {
-  if (newVal) {
-    localStorage.setItem("topSize", newVal)
-    const storedRounds = localStorage.getItem(`Top${newVal}${selectedGenre.value}Rounds`)
-    rounds.value = JSON.parse(storedRounds) || initRounds()
+const sizeStateKey = (size) => `battleSizeState_${selectedEvent.value}_${selectedGenre.value}_${size}`
+
+watch(topSize, async (newVal, oldVal) => {
+  if (!newVal) return
+  // Save last-selected pair for outgoing size so we can restore it on return
+  if (oldVal && currentBattle.value.length > 0) {
+    localStorage.setItem(sizeStateKey(oldVal), JSON.stringify({
+      battle: toRaw(currentBattle.value),
+      top: currentTop.value,
+      round: currentRound.value,
+    }))
+  }
+  localStorage.setItem("topSize", newVal)
+  const storedRounds = localStorage.getItem(`Top${newVal}${selectedGenre.value}Rounds`)
+  rounds.value = JSON.parse(storedRounds) || initRounds()
+  currentWinner.value = -2
+  broadcastBracket()
+
+  // Restore last pair for this size; if none, show the first filled pair in the bracket
+  const savedSizeState = localStorage.getItem(sizeStateKey(newVal))
+  if (savedSizeState) {
+    const { battle, top, round } = JSON.parse(savedSizeState)
+    currentBattle.value = battle ?? []
+    currentTop.value = top ?? ''
+    currentRound.value = round ?? 0
+  } else {
     currentBattle.value = []
-    currentWinner.value = -2
-    broadcastBracket()
+    currentTop.value = ''
+    currentRound.value = 0
+    // Broadcast first filled pair so the overlay immediately reflects the new format
+    if (!isSmoke.value) {
+      const topKey = `Top${newVal}`
+      const pairList = rounds.value[topKey] ?? []
+      const firstFilledIdx = pairList.findIndex(m => Array.isArray(m) && m[0] && m[1])
+      if (firstFilledIdx >= 0) {
+        const [left, right] = pairList[firstFilledIdx]
+        currentBattle.value = [firstFilledIdx, pairList]
+        currentTop.value = topKey
+        currentRound.value = firstFilledIdx
+        await setBattlePair(left, right, false, getMembersFor(left), getMembersFor(right))
+      }
+    }
   }
 }, { immediate: true })
 
@@ -1290,7 +1366,11 @@ onMounted(async () => {
   if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
   if (selectedEvent.value) {
     const champions = await getBattleChampions(selectedEvent.value)
-    if (champions && typeof champions === 'object') genreChampions.value = champions
+    // Merge: localStorage pending (already loaded by watch(uniqueGenres)) +
+    // backend confirmed. Backend wins on conflict (official record).
+    if (champions && typeof champions === 'object') {
+      genreChampions.value = { ...genreChampions.value, ...champions }
+    }
   }
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
@@ -2087,19 +2167,9 @@ onUnmounted(() => {
           Open Voting
         </button>
 
-        <!-- VOTING: final + all judges voted + clear winner → one-click Reveal Champion -->
+        <!-- VOTING: non-final, not all voted, or tie → Get Score / Rematch -->
         <button
-          v-if="showFinalReveal"
-          @click="revealChampionForGenre"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
-        >
-          <i class="pi pi-star text-xs"></i>
-          Reveal Champion
-        </button>
-
-        <!-- VOTING: all other cases (non-final, not all voted, or tie) -->
-        <button
-          v-else-if="battlePhase === 'VOTING'"
+          v-if="battlePhase === 'VOTING' && !showFinalReveal"
           @click="submitGetScore"
           class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
@@ -2125,9 +2195,10 @@ onUnmounted(() => {
           </button>
         </template>
 
-        <!-- Champion Reveal -->
+        <!-- Champion Reveal — shows as soon as judges vote (genreChampions tracks this),
+             persists across genre switches and refreshes regardless of live phase state -->
         <button
-          v-if="currentGenreChampion && !revealActive"
+          v-if="(genreChampions[selectedGenre] || showFinalReveal) && !revealActive"
           @click="revealChampionForGenre"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
