@@ -348,4 +348,47 @@ public class BattleControllerIntegrationTest {
                         .content(body))
                 .andExpect(status().is4xxClientError());
     }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testSetAndGetActiveGenre() throws Exception {
+        String json = objectMapper.writeValueAsString(
+            Map.of("eventName", "TestEvent", "genreName", "Breaking Top 16")
+        );
+        mockMvc.perform(post("/api/v1/battle/active-genre")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Active genre set"));
+
+        mockMvc.perform(get("/api/v1/battle/active-genre"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventName").value("TestEvent"))
+                .andExpect(jsonPath("$.genreName").value("Breaking Top 16"));
+    }
+
+    @Test
+    @WithMockUser
+    public void testGetBattleStateEmptyWhenNoActiveGenre() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/state"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    public void testGetBattleStateAfterSettingActiveGenre() throws Exception {
+        String json = objectMapper.writeValueAsString(
+            Map.of("eventName", "EventA", "genreName", "Popping")
+        );
+        mockMvc.perform(post("/api/v1/battle/active-genre")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/battle/state"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventName").value("EventA"))
+                .andExpect(jsonPath("$.genreName").value("Popping"))
+                .andExpect(jsonPath("$.battlePhase").exists());
+    }
 }

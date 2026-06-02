@@ -33,6 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.DeleteImageDto;
+import com.example.BES.dtos.battle.SetActiveGenreDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetBattlePhaseDto;
@@ -331,5 +332,25 @@ public class BattleController {
     public ResponseEntity<?> setOverlayConfig(@Valid @RequestBody SetOverlayConfigDto dto) {
         battleService.setOverlayConfigService(dto);
         return ResponseEntity.ok(battleService.getOverlayConfig());
+    }
+
+    @PostMapping("/active-genre")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setActiveGenre(@Valid @RequestBody SetActiveGenreDto dto) {
+        battleService.switchActiveGenreService(dto);
+        return ResponseEntity.ok(Map.of("message", "Active genre set"));
+    }
+
+    @GetMapping("/active-genre")
+    public ResponseEntity<?> getActiveGenre() {
+        return ResponseEntity.ok(Map.of(
+            "eventName", battleService.getActiveEventName() != null ? battleService.getActiveEventName() : "",
+            "genreName", battleService.getActiveGenreName() != null ? battleService.getActiveGenreName() : ""
+        ));
+    }
+
+    @GetMapping("/state")
+    public ResponseEntity<?> getBattleState() {
+        return ResponseEntity.ok(battleService.getBattleStateService());
     }
 }

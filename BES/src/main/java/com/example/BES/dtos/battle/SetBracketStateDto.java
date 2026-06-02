@@ -3,6 +3,7 @@ package com.example.BES.dtos.battle;
 public class SetBracketStateDto {
     private String topSize;
     private Object rounds;
+    private Integer currentRoundIndex;
 
     public String getTopSize() {
         return topSize;
@@ -15,5 +16,11 @@ public class SetBracketStateDto {
     }
     public void setRounds(Object rounds) {
         this.rounds = rounds;
+    }
+    public Integer getCurrentRoundIndex() {
+        return currentRoundIndex;
+    }
+    public void setCurrentRoundIndex(Integer currentRoundIndex) {
+        this.currentRoundIndex = currentRoundIndex;
     }
 }
