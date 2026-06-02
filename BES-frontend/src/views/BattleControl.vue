@@ -1519,7 +1519,7 @@ onUnmounted(() => {
               : 'text-content-muted hover:text-content-primary'"
           >
             {{ g }}
-            <i v-if="genreChampions[g] || (g === selectedGenre && showFinalReveal)" class="pi pi-star-fill text-[9px] text-amber-400" :title="genreChampions[g] ? `Champion: ${genreChampions[g]}` : 'Judges voted — ready to reveal'"></i>
+            <i v-if="g === selectedGenre && showFinalReveal" class="pi pi-star-fill text-[9px] text-amber-400" title="Judges voted — ready to reveal champion"></i>
           </button>
         </div>
         <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
