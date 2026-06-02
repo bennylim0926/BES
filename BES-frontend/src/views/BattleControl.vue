@@ -1709,10 +1709,7 @@ onUnmounted(() => {
               <div
                 v-for="(match, mIdx) in rounds[`Top${size}`]"
                 :key="mIdx"
-                class="card-hover p-3 relative flex items-stretch min-h-[44px] transition-all duration-200"
-                :style="currentTop === `Top${size}` && mIdx === currentRound && battlePhase !== 'IDLE'
-                  ? 'border-color:var(--accent-color);box-shadow:0 0 0 1px var(--accent-color),0 0 16px var(--accent-muted);'
-                  : ''"
+                class="card-hover p-3 relative flex items-stretch min-h-[44px]"
               >
                 <div class="corner-bar-tl"></div>
                 <!-- Slot 0 — left -->
