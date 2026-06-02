@@ -2206,10 +2206,11 @@ onUnmounted(() => {
           </button>
         </template>
 
-        <!-- Champion Reveal — shows as soon as judges vote (genreChampions tracks this),
-             persists across genre switches and refreshes regardless of live phase state -->
+        <!-- Champion Reveal — only for the final (Top2). Shows immediately when judges
+             vote (showFinalReveal), and persists when returning to the genre after the
+             final is done (genreChampions set + no non-final round active). -->
         <button
-          v-if="(genreChampions[selectedGenre] || showFinalReveal) && !revealActive"
+          v-if="(showFinalReveal || (genreChampions[selectedGenre] && (isFinalInProgress || currentBattle.length === 0))) && !revealActive"
           @click="revealChampionForGenre"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
