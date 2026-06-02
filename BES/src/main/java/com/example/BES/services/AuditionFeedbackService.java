@@ -123,6 +123,10 @@ public class AuditionFeedbackService {
         return result;
     }
 
+    public void resetFeedbackByJudge(String eventName, String genreName, String judgeName) {
+        feedbackRepo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+    }
+
     public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,
                                                String judgeName, Integer auditionNumber) {
         EventGenreParticipant egp = egpRepo.findByEventNameAndGenreNameAndAuditionNumber(

@@ -528,6 +528,20 @@ public class EventController {
         }
     }
 
+    @DeleteMapping("/feedback/reset")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
+    public ResponseEntity<?> resetFeedbackByJudge(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String judgeName) {
+        try {
+            feedbackService.resetFeedbackByJudge(eventName, genreName, judgeName);
+            return ResponseEntity.ok(Map.of("message", "Feedback reset"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Get Email Template", description = "Returns the email template for the given event")
     @GetMapping("/{eventName}/email-template")
     public ResponseEntity<?> getEmailTemplate(@PathVariable String eventName) {

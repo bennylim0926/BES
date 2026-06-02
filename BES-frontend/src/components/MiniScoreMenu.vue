@@ -66,15 +66,21 @@ const moveTo = (index) => {
 
         <!-- Scrollable grid -->
         <div class="overflow-y-auto flex-1 px-6 pb-6" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent;">
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               v-for="(card, idx) in props.cards"
               :key="idx"
               @click="moveTo(idx)"
-              class="para-chip-sm p-2 type-label text-content-muted hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-left"
+              class="para-chip-sm p-2.5 type-label text-content-muted hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-left w-full min-w-0"
             >
-              <div class="flex items-center gap-2 w-full">
-                <span class="type-body text-content-primary truncate flex-1">#{{ card.auditionNumber }} · {{ card.participantName }}</span>
+              <div class="flex items-center gap-2 w-full min-w-0">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-baseline gap-1.5 truncate">
+                    <span class="type-stat leading-none flex-shrink-0 text-accent" style="font-size: 1.4rem">#{{ card.auditionNumber }}</span>
+                    <span class="type-body text-content-primary truncate" style="font-size: 1.1rem">{{ card.participantName }}</span>
+                  </div>
+                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case truncate mt-0.5" style="font-size: 13px; letter-spacing: 0.04em">{{ card.memberNames.join(' · ') }}</div>
+                </div>
                 <span
                   class="type-stat text-[16px] flex-shrink-0"
                   :class="card.score === 0 ? 'text-content-muted' : 'text-accent'"

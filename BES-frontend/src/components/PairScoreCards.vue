@@ -133,7 +133,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     <div
       ref="scrollRef"
       v-if="pairs.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4 items-center h-full"
+      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4 items-start h-full"
       style="scrollbar-width: none; overflow-y: hidden;"
     >
       <div
@@ -161,48 +161,63 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
             <span v-if="pairIdx === pairs.length - 1" class="badge-neutral type-label">Last</span>
           </div>
 
-          <!-- ── Participant selector tabs ── -->
+          <!-- ── Participant selector: detail area + audition buttons ── -->
           <div class="flex gap-2 mb-3">
-            <template v-for="(card, slotIdx) in pair" :key="slotIdx">
-              <!-- Placeholder tab -->
-              <div
-                v-if="card._placeholder"
-                class="flex-1 flex items-center justify-center px-3 py-2 para-chip-sm border-dashed border-amber-500/20"
-              >
-                <span class="text-xs text-amber-400/40 italic">#{{ card.auditionNumber }} Empty</span>
-              </div>
-              <!-- Real participant tab -->
-              <button
-                v-else
-                @click="activeParticipantNum = card.auditionNumber"
-                class="flex-1 flex items-center gap-2 px-3 py-2 para-chip-sm transition-all duration-150 active:scale-98 text-left"
-                :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
-                  ? 'text-accent border-[color:var(--accent-muted)]'
-                  : 'text-content-muted opacity-60'"
-              >
-                <span
-                  class="type-stat text-[22px] flex-shrink-0"
-                  :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-accent' : 'text-content-muted'"
-                >#{{ card.auditionNumber }}</span>
+            <!-- Full detail container for active participant -->
+            <div
+              class="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 para-chip-sm transition-all duration-200"
+              :class="isActivePair(pairIdx) ? 'border-[color:var(--accent-muted)]' : 'opacity-40'"
+            >
+              <template v-if="activeCard && isActivePair(pairIdx)">
+                <span class="type-stat flex-shrink-0 leading-none text-accent" style="font-size: 2rem">#{{ activeCard.auditionNumber }}</span>
                 <div class="flex-1 min-w-0">
-                  <div
-                    class="type-body text-[22px] leading-tight truncate"
-                    :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-content-primary' : 'text-content-muted'"
-                  >{{ card.participantName }}</div>
-                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case truncate" style="font-size:11px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
-                  <div
-                    v-if="card.score > 0"
-                    class="text-[18px] font-source tabular-nums mt-0.5"
-                    :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-amber-400/60' : 'text-white/20'"
-                  >{{ card.score }}</div>
+                  <div class="type-body text-content-primary leading-tight" style="font-size: 1.9rem; overflow-wrap: break-word">{{ activeCard.participantName }}</div>
+                  <div v-if="activeCard.memberNames?.length" class="type-label text-content-muted normal-case truncate mt-0.5" style="font-size: 16px; letter-spacing: 0.04em">{{ activeCard.memberNames.join(' · ') }}</div>
+                  <div v-if="activeCard.saving" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-accent/60 normal-case" style="background:rgba(255,255,255,0.05);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
+                    <i class="pi pi-spin pi-spinner text-[10px]"></i> Saving…
+                  </div>
+                  <div v-else-if="activeCard.submitted" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-emerald-400 normal-case" style="background:rgba(16,185,129,0.12);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);box-shadow:0 0 8px rgba(16,185,129,0.2)">
+                    <i class="pi pi-check-circle text-[10px]"></i> Saved
+                  </div>
                 </div>
-                <!-- Save state indicator -->
-                <i v-if="card.saving" class="pi pi-spin pi-spinner text-accent/50 text-[11px] flex-shrink-0"></i>
-                <i v-else-if="card.submitted" class="pi pi-check-circle text-emerald-400 text-[11px] flex-shrink-0"></i>
-                <!-- Green dot: feedback given -->
-                <span v-if="feedbackData?.get(card.auditionNumber)" class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                <!-- Score inline -->
+                <div class="text-right flex-shrink-0">
+                  <div class="type-label text-content-muted mb-0.5">{{ hasCriteria ? 'AVG' : 'SCORE' }}</div>
+                  <div
+                    class="type-stat tabular-nums leading-none"
+                    style="font-size: 2.8rem"
+                    :class="activeCard.submitted ? 'text-emerald-400' : activeCard.score === 0 ? 'text-content-muted' : 'text-accent'"
+                  >{{ activeCard.score === 0 ? '—' : activeCard.score }}</div>
+                </div>
+                <span v-if="feedbackData?.get(activeCard.auditionNumber)" class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 self-start mt-1"></span>
+              </template>
+              <template v-else>
+                <span class="type-label text-content-muted italic">Select a participant</span>
+              </template>
+            </div>
+
+            <!-- Audition number selector buttons (stacked vertically) -->
+            <div class="flex flex-col gap-1 flex-shrink-0">
+              <button
+                v-for="(card, slotIdx) in pair"
+                :key="slotIdx"
+                @click="activeParticipantNum = card.auditionNumber"
+                :disabled="card._placeholder"
+                class="flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 para-chip-sm transition-all duration-150 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed min-w-0"
+                :class="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
+                  ? ''
+                  : 'text-content-muted hover:text-content-primary'"
+                :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
+                  ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
+                  : 'font-size: 1.6rem'"
+              >
+                <span class="type-stat leading-none" style="font-size: 1.6rem; color: inherit">#{{ card.auditionNumber }}</span>
+                <!-- Save state dot -->
+                <span v-if="!card._placeholder && card.submitted" class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(52,211,153,0.5)"></span>
+                <i v-else-if="!card._placeholder && card.saving" class="pi pi-spin pi-spinner flex-shrink-0" style="font-size: 10px; color: var(--accent-color); opacity: 0.6"></i>
+                <span v-else class="w-1.5 h-1.5 flex-shrink-0"></span>
               </button>
-            </template>
+            </div>
           </div>
 
           <!-- ── Active participant's score + keypad ── -->
@@ -213,86 +228,91 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
               <!-- Info column -->
               <div class="pair-card-info">
 
-                <!-- Score — grows to fill space and centers -->
-                <div class="pair-card-score-area">
-                  <div class="type-label text-content-muted mb-0.5">
-                    {{ hasCriteria ? 'AVG' : 'SCORE' }}
-                  </div>
-                  <div
-                    class="type-stat"
-                    :class="activeCard.score === 0 ? 'text-content-muted' : 'text-accent'"
-                  >{{ activeCard.score === 0 ? '—' : activeCard.score }}</div>
-                </div>
-
-                <!-- Feedback button -->
-                <div class="flex justify-center mb-2">
-                  <button
-                    @click.stop="emit('open-feedback', activeCard)"
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
-                    :class="feedbackData?.get(activeCard.auditionNumber)
-                      ? 'text-green-400 border-green-500/35'
-                      : 'text-content-muted hover:text-content-primary'"
-                  >
-                    <i class="pi pi-comment text-xs" />
-                    {{ feedbackData?.get(activeCard.auditionNumber) ? 'Edit' : 'Feedback' }}
-                    <span v-if="feedbackData?.get(activeCard.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
-                  </button>
-                </div>
-
-                <!-- Feedback preview -->
-                <div
-                  v-if="feedbackData?.get(activeCard.auditionNumber)"
-                  class="mb-2 p-2 border border-white/15 bg-white/[0.08]"
-                  style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                >
-                  <div v-if="feedbackData.get(activeCard.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
-                    <span
-                      v-for="tag in feedbackData.get(activeCard.auditionNumber).tagLabels"
-                      :key="tag.id"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
-                      style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-                    >
-                      {{ tag.label }}
-                      <button @click.stop="emit('remove-tag', { auditionNumber: activeCard.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
-                        <i class="pi pi-times text-[9px]" />
-                      </button>
-                    </span>
-                  </div>
-                  <div v-if="feedbackData.get(activeCard.auditionNumber).note" class="text-xs text-white/65 line-clamp-2">
-                    {{ feedbackData.get(activeCard.auditionNumber).note }}
-                  </div>
-                </div>
-
-                <!-- Criteria scores summary — clickable, active row highlighted -->
-                <template v-if="hasCriteria">
-                  <div class="h-px mb-2 bg-white/5"></div>
-                  <div class="flex flex-col gap-1.5">
+                <!-- Scrollable: feedback + criteria -->
+                <div class="pair-card-info-scroll">
+                  <!-- Feedback button -->
+                  <div class="flex justify-center mb-2">
                     <button
-                      v-for="criterion in criteria"
-                      :key="criterion.id"
-                      @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
-                      class="flex items-center justify-between px-3 py-2 para-chip w-full text-left transition-all duration-150 active:scale-[0.99]"
-                      :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'border-accent'
-                        : criteriaScore(activeCard, criterion.name) > 0 ? 'border-accent/25' : 'border-white/[0.07]'"
-                      :style="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'background: rgba(255,255,255,0.08); border-left: 3px solid var(--accent-color); box-shadow: 0 0 10px var(--accent-subtle)'
-                        : 'background: rgba(255,255,255,0.03)'"
+                      @click.stop="emit('open-feedback', activeCard)"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
+                      :class="feedbackData?.get(activeCard.auditionNumber)
+                        ? 'text-green-400 border-green-500/35'
+                        : 'text-content-muted hover:text-content-primary'"
                     >
-                      <div class="flex items-center gap-1.5">
-                        <span class="type-body"
-                          :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-content-primary' : 'text-content-muted'"
-                        >{{ criterion.name }}</span>
-                        <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
-                      </div>
-                      <span
-                        class="font-source tabular-nums font-bold leading-none"
-                        style="font-size: 1.6rem"
-                        :class="criteriaScore(activeCard, criterion.name) > 0 ? 'text-accent' : 'text-white/15'"
-                      >{{ criteriaScore(activeCard, criterion.name) > 0 ? criteriaScore(activeCard, criterion.name) : '—' }}</span>
+                      <i class="pi pi-comment text-xs" />
+                      {{ feedbackData?.get(activeCard.auditionNumber) ? 'Edit' : 'Feedback' }}
+                      <span v-if="feedbackData?.get(activeCard.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
                     </button>
                   </div>
-                </template>
+
+                  <!-- Feedback preview: compact on mobile, full on tablet+ -->
+                  <template v-if="feedbackData?.get(activeCard.auditionNumber)">
+                    <!-- Mobile: compact summary -->
+                    <div
+                      class="md:hidden mb-2 px-3 py-2 border border-green-500/25 bg-emerald-500/[0.06]"
+                      style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-tags text-xs text-emerald-400/70 flex-shrink-0"></i>
+                        <span class="type-body text-content-primary" style="font-size: 13px">
+                          {{ feedbackData.get(activeCard.auditionNumber).tagLabels?.length || 0 }} tag{{ feedbackData.get(activeCard.auditionNumber).tagLabels?.length !== 1 ? 's' : '' }}
+                          <template v-if="feedbackData.get(activeCard.auditionNumber).note"> · note added</template>
+                        </span>
+                      </div>
+                    </div>
+                    <!-- Tablet+: full tag chips + note -->
+                    <div
+                      class="hidden md:block mb-2 p-2 border border-green-500/25 bg-emerald-500/[0.06]"
+                      style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >
+                      <div v-if="feedbackData.get(activeCard.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
+                        <span
+                          v-for="tag in feedbackData.get(activeCard.auditionNumber).tagLabels"
+                          :key="tag.id"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
+                          style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+                        >
+                          {{ tag.label }}
+                          <button @click.stop="emit('remove-tag', { auditionNumber: activeCard.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
+                            <i class="pi pi-times text-[9px]" />
+                          </button>
+                        </span>
+                      </div>
+                      <div v-if="feedbackData.get(activeCard.auditionNumber).note" class="text-xs text-white/65">{{ feedbackData.get(activeCard.auditionNumber).note }}</div>
+                    </div>
+                  </template>
+
+                  <!-- Criteria scores summary — clickable, active row highlighted -->
+                  <template v-if="hasCriteria">
+                    <div class="h-px mb-2 bg-white/5"></div>
+                    <div class="flex flex-col gap-1.5">
+                      <button
+                        v-for="criterion in criteria"
+                        :key="criterion.id"
+                        @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
+                        class="flex items-center justify-between px-3 py-2 para-chip w-full text-left transition-all duration-150 active:scale-[0.99]"
+                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                          ? 'border-accent'
+                          : criteriaScore(activeCard, criterion.name) > 0 ? 'border-accent/25' : 'border-white/[0.07]'"
+                        :style="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                          ? 'background: rgba(255,255,255,0.08); border-left: 3px solid var(--accent-color); box-shadow: 0 0 10px var(--accent-subtle)'
+                          : 'background: rgba(255,255,255,0.03)'"
+                      >
+                        <div class="flex items-center gap-1.5">
+                          <span class="type-body"
+                            :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-content-primary' : 'text-content-muted'"
+                          >{{ criterion.name }}</span>
+                          <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
+                        </div>
+                        <span
+                          class="font-source tabular-nums font-bold leading-none"
+                          style="font-size: 1.6rem"
+                          :class="criteriaScore(activeCard, criterion.name) > 0 ? 'text-accent' : 'text-white/15'"
+                        >{{ criteriaScore(activeCard, criterion.name) > 0 ? criteriaScore(activeCard, criterion.name) : '—' }}</span>
+                      </button>
+                    </div>
+                  </template>
+                </div><!-- /pair-card-info-scroll -->
               </div><!-- /pair-card-info -->
 
               <!-- Keypad column -->
@@ -445,6 +465,22 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 </template>
 
 <style scoped>
+/* ── Info column: content scrollable below header ───────────────── */
+.pair-card-info {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  min-height: 0;
+}
+.pair-card-info-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
 /* ── Landscape: info left, keypad right ─────────────────────────────── */
 @media (orientation: landscape) {
   .pair-card-body {
@@ -452,19 +488,6 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;
     align-items: stretch;
-  }
-  .pair-card-info {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
-  .pair-card-score-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
   }
 }
 </style>

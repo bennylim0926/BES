@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
@@ -302,7 +302,9 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
 }
 
 const resetScore = async () => {
+  // Only reset scores for the currently selected genre
   participants.value = participants.value.map(obj => {
+    if (obj.genreName !== selectedGenre.value) return obj
     const cs = {}
     if (obj.criteriaScores) {
       Object.keys(obj.criteriaScores).forEach(k => { cs[k] = 0 })
@@ -310,7 +312,21 @@ const resetScore = async () => {
     return { ...obj, score: 0, criteriaScores: cs, submitted: false }
   })
   if (currentJudge.value && selectedEvent.value && selectedGenre.value) {
-    await resetJudgeScores(selectedEvent.value, selectedGenre.value, currentJudge.value)
+    await Promise.all([
+      resetJudgeScores(selectedEvent.value, selectedGenre.value, currentJudge.value),
+      resetJudgeFeedback(selectedEvent.value, selectedGenre.value, currentJudge.value),
+    ])
+    // Clear in-memory feedback for the current genre
+    const genreAuditionNums = new Set(
+      participants.value
+        .filter(p => p.genreName === selectedGenre.value)
+        .map(p => p.auditionNumber)
+    )
+    const newMap = new Map(feedbackGiven.value)
+    for (const key of newMap.keys()) {
+      if (genreAuditionNums.has(key)) newMap.delete(key)
+    }
+    feedbackGiven.value = newMap
   }
 }
 

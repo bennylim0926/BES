@@ -383,6 +383,16 @@ export const resetJudgeScores = async (eventName, genreName, judgeName) => {
   } catch (e) { console.log(e) }
 }
 
+export const resetJudgeFeedback = async (eventName, genreName, judgeName) => {
+  const params = new URLSearchParams({ eventName, genreName, judgeName })
+  try {
+    return await fetch(`${domain}/api/v1/event/feedback/reset?${params}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.log(e) }
+}
+
 export const getBattleJudges = async() =>{
   try{
     const res = await fetch(`${domain}/api/v1/battle/judges`,{
