@@ -11,6 +11,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Entity
 @Data
 @AllArgsConstructor
@@ -26,12 +31,29 @@ public class EventGenreBattleGuest {
     private Event event;
 
     @ManyToOne
-    @JoinColumn(name = "genre_id", nullable = false)
-    private Genre genre;
+    @JoinColumn(name = "event_genre_id", nullable = false)
+    private EventGenre eventGenre;
 
     @Column(name = "guest_name", nullable = false)
     private String guestName;
 
     @Column(name = "entry_round", nullable = false)
     private String entryRound;
+
+    @Column(name = "member_names", columnDefinition = "TEXT")
+    private String memberNamesRaw;
+
+    public List<String> getMemberNames() {
+        if (memberNamesRaw == null || memberNamesRaw.isBlank()) return Collections.emptyList();
+        return Arrays.stream(memberNamesRaw.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toList());
+    }
+
+    public void setMemberNames(List<String> members) {
+        this.memberNamesRaw = (members == null || members.isEmpty())
+            ? null
+            : members.stream().filter(s -> s != null && !s.isBlank()).collect(Collectors.joining(","));
+    }
 }

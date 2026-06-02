@@ -3,11 +3,24 @@ package com.example.BES.models;
 import java.util.List;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapsId;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,23 +32,39 @@ import lombok.ToString;
 @AllArgsConstructor
 @NoArgsConstructor
 public class EventGenre {
-    @EmbeddedId
-    private EventGenreId id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne
-    @MapsId("eventId")
-    @JoinColumn(name = "event_id")
+    @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
     @ManyToOne
-    @MapsId("genreId")
-    @JoinColumn(name = "genre_id")
+    @JoinColumn(name = "genre_id", nullable = true)
     private Genre genre;
+
+    @Column(name = "name", nullable = false)
+    private String name;
 
     @Column(name = "format")
     private String format;
 
+    @Column(name = "sheet_aliases")
+    private String sheetAliases;
+
+    @Column(name = "solo_allowed", nullable = false)
+    private boolean soloAllowed = true;
+
     @ToString.Exclude
     @OneToMany(mappedBy = "eventGenre")
     private List<EventGenreParticipant> participants;
+
+    @ManyToMany
+    @JoinTable(
+        name = "event_genre_judge",
+        joinColumns = @JoinColumn(name = "event_genre_id"),
+        inverseJoinColumns = @JoinColumn(name = "judge_id")
+    )
+    private List<Judge> judges = new ArrayList<>();
 }

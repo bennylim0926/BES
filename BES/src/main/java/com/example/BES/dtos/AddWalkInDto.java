@@ -16,4 +16,6 @@ public class AddWalkInDto {
     public List<@NotBlank @Size(max = 255) String> teamMembers;
     @Size(max = 255)
     public String teamName;
+    // "team" | "solo" — null treated as "team" for backwards compatibility
+    public String entryMode;
 }

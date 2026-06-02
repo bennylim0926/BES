@@ -33,6 +33,8 @@ import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.GenreRepo;
+import com.example.BES.models.EventGenreParticipantMember;
+import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
 
@@ -64,29 +66,53 @@ public class EventGenreParticpantService {
     @Autowired
     EventGenreRepo eventGenreRepo;
 
-    public EventGenreParticipant addWalkInToEventGenreParticipant(Participant p, String genre, EventParticipant ep, String judge){
-        
-        Genre g = genreRepo.findByGenreName(genre).orElse(null);
-        Judge j = judgeRepo.findByName(judge).orElse(null);
-        EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), g.getGenreId(), p.getParticipantId());
+    @Autowired
+    EventGenreParticipantMemberRepo egpMemberRepo;
+
+    public EventGenreParticipant addWalkInToEventGenreParticipant(
+            Participant p, String genre, EventParticipant ep,
+            String judgeName, String entryMode, String teamName, List<String> teamMembers) {
+
+        EventGenre eg = eventGenreRepo.findByEventAndName(ep.getEvent(), genre).orElse(null);
+        if (eg == null) throw new IllegalArgumentException("Division not found: " + genre);
+        if ("solo".equalsIgnoreCase(entryMode) && !eg.isSoloAllowed())
+            throw new IllegalArgumentException("Solo entries are not allowed for this division: " + genre);
+        Judge j = judgeRepo.findFirstByName(judgeName).orElse(null);
+        EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), eg.getId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
-        if(egp == null){
+        if (egp == null) {
             egp = new EventGenreParticipant();
             egp.setId(id);
             egp.setJudge(j);
             egp.setEvent(ep.getEvent());
             egp.setParticipant(p);
-            egp.setGenre(g);
-            egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
-            EventGenre eg = eventGenreRepo.findByEventAndGenre(ep.getEvent(), g).orElse(null);
-            if (eg != null) {
-                String genreFormat = eg.getFormat();
-                boolean isTeamEntry = (ep.getTeamName() != null && !ep.getTeamName().isBlank())
-                    || (ep.getTeamMembers() != null && !ep.getTeamMembers().isEmpty());
-                egp.setFormat(isTeamFormat(genreFormat) && !isTeamEntry ? null : genreFormat);
+            egp.setEventGenre(eg);
+
+            String genreFormat = eg != null ? eg.getFormat() : null;
+            boolean isTeamFormat = isTeamFormat(genreFormat);
+            boolean isTeamEntry = isTeamFormat && !"solo".equalsIgnoreCase(entryMode);
+
+            if (isTeamEntry) {
+                validateTeamEntry(genreFormat, teamName, teamMembers);
+                egp.setFormat(genreFormat);
+                egp.setTeamName(teamName);
+                egp.setDisplayName(teamName);
+            } else {
+                egp.setFormat(isTeamFormat ? null : genreFormat);
+                egp.setDisplayName(ep.getDisplayName() != null ? ep.getDisplayName() : p.getParticipantName());
             }
         }
-        return repo.save(egp);
+        EventGenreParticipant saved = repo.save(egp);
+
+        if (!"solo".equalsIgnoreCase(entryMode) && isTeamFormat(saved.getFormat())
+                && teamMembers != null) {
+            for (String memberName : teamMembers) {
+                if (memberName != null && !memberName.isBlank()) {
+                    egpMemberRepo.save(new EventGenreParticipantMember(saved, memberName));
+                }
+            }
+        }
+        return saved;
     }
 
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
@@ -96,7 +122,7 @@ public class EventGenreParticpantService {
             AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
-            dto.genreId = entry.getGenre().getGenreId();
+            dto.eventGenreId = entry.getEventGenre().getId();
             int attempts = 0;
             while (true) {
                 try {
@@ -112,7 +138,7 @@ public class EventGenreParticpantService {
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void getAuditionNumViaQR(AddParticipantToEventGenreDto dto){
         Integer auditionNumber = 0;
-        EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId,dto.genreId, dto.participantId);
+        EventGenreParticipantId id = new EventGenreParticipantId(dto.eventId, dto.eventGenreId, dto.participantId);
 
         EventGenreParticipant participantInEventGenre = repo.findById(id).orElse(new EventGenreParticipant());
         Judge j = participantInEventGenre.getJudge();
@@ -121,24 +147,22 @@ public class EventGenreParticpantService {
             List<Integer> takenNumbers;
 
             String entryFormat = participantInEventGenre.getFormat();
-            // null and "1v1" are both solo entries — pool them together to prevent
-            // duplicate audition numbers when format diverges between registration paths
             boolean isSolo = entryFormat == null || "1v1".equalsIgnoreCase(entryFormat);
             if(j != null){
                 if (isSolo) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSoloAndJudge(dto.eventId, dto.genreId, j.getName());
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSoloAndJudge(dto.eventId, dto.eventGenreId, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSoloAndJudge(dto.eventId, dto.eventGenreId, j.getName());
                 } else {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormatAndJudge(dto.eventId, dto.genreId, entryFormat, j.getName());
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormatAndJudge(dto.eventId, dto.eventGenreId, entryFormat, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormatAndJudge(dto.eventId, dto.eventGenreId, entryFormat, j.getName());
                 }
             }else{
                 if (isSolo) {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndSolo(dto.eventId, dto.genreId);
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndSolo(dto.eventId, dto.genreId);
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSolo(dto.eventId, dto.eventGenreId);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSolo(dto.eventId, dto.eventGenreId);
                 } else {
-                    totalInGenre = (int) repo.countByEventIdAndGenreIdAndFormat(dto.eventId, dto.genreId, entryFormat);
-                    takenNumbers = repo.findAuditionNumberByEventAndGenreAndFormat(dto.eventId, dto.genreId, entryFormat);
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormat(dto.eventId, dto.eventGenreId, entryFormat);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormat(dto.eventId, dto.eventGenreId, entryFormat);
                 }
             }
 
@@ -146,11 +170,29 @@ public class EventGenreParticpantService {
                     .boxed()
                     .collect(Collectors.toCollection(ArrayList::new));
             pool.removeAll(takenNumbers);
-            Collections.shuffle(pool, SECURE_RANDOM);
+            List<Integer> participantOtherNumbers = repo.findAuditionNumbersForParticipantInOtherGenres(
+                dto.eventId, dto.participantId, dto.eventGenreId);
             if (pool.isEmpty()) {
                 throw new RuntimeException("No available audition numbers for this genre");
             }
-            auditionNumber = pool.get(0);
+            // Prefer a number not already used by this participant in another division.
+            // Falls back to the full available pool if all remaining numbers are taken elsewhere.
+            List<Integer> workingPool = new ArrayList<>(pool);
+            if (!participantOtherNumbers.isEmpty()) {
+                List<Integer> crossExcluded = new ArrayList<>(pool);
+                crossExcluded.removeAll(participantOtherNumbers);
+                if (!crossExcluded.isEmpty()) workingPool = crossExcluded;
+            }
+            Collections.shuffle(workingPool, SECURE_RANDOM);
+            // Best-effort: prefer a number at least 2 away from participant's other-division numbers.
+            if (!participantOtherNumbers.isEmpty()) {
+                List<Integer> preferred = workingPool.stream()
+                    .filter(n -> participantOtherNumbers.stream().allMatch(other -> Math.abs(n - other) > 1))
+                    .collect(Collectors.toList());
+                auditionNumber = preferred.isEmpty() ? workingPool.get(0) : preferred.get(0);
+            } else {
+                auditionNumber = workingPool.get(0);
+            }
             participantInEventGenre.setAuditionNumber(auditionNumber);
             repo.save(participantInEventGenre);
             EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(
@@ -158,13 +200,13 @@ public class EventGenreParticpantService {
             String refCode = ep != null ? ep.getReferenceCode() : null;
             Map<String, Object> auditMsg = new java.util.HashMap<>();
             auditMsg.put("auditionNumber", auditionNumber);
-            auditMsg.put("genre", participantInEventGenre.getGenre().getGenreName());
+            auditMsg.put("genre", participantInEventGenre.getEventGenre().getName());
             auditMsg.put("name", participantInEventGenre.getDisplayName());
             auditMsg.put("judge", j != null ? j.getName() : "");
             auditMsg.put("eventName", participantInEventGenre.getEvent().getEventName());
             auditMsg.put("participantId", participantInEventGenre.getParticipant().getParticipantId());
             auditMsg.put("eventId", participantInEventGenre.getEvent().getEventId());
-            auditMsg.put("genreId", participantInEventGenre.getGenre().getGenreId());
+            auditMsg.put("genreId", participantInEventGenre.getEventGenre().getId());
             auditMsg.put("walkin", false);
             auditMsg.put("refCode", refCode != null ? refCode : "");
             auditMsg.put("format", participantInEventGenre.getFormat() != null ? participantInEventGenre.getFormat() : "");
@@ -173,7 +215,7 @@ public class EventGenreParticpantService {
             messagingTemplate.convertAndSend("/topic/error/",
                 Map.of(
                     "audition", participantInEventGenre.getAuditionNumber(),
-                    "genre", participantInEventGenre.getGenre().getGenreName(),
+                    "genre", participantInEventGenre.getEventGenre().getName(),
                     "name", participantInEventGenre.getDisplayName(),
                     "judge", j != null ? j.getName() : ""));
         }
@@ -182,21 +224,17 @@ public class EventGenreParticpantService {
     public List<GetEventGenreParticipantDto> getAllEventGenreParticipantByEventService(String eventName){
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
-        // Deduplicate by composite ID to avoid Hibernate row multiplication
-        // caused by the @OneToMany(scores) join producing one row per score entry.
         LinkedHashMap<com.example.BES.models.EventGenreParticipantId, EventGenreParticipant> seen = new LinkedHashMap<>();
         for (EventGenreParticipant egp : repo.findByEvent(event)) {
             seen.putIfAbsent(egp.getId(), egp);
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());
 
-        // Build per-participant maps from EventParticipant records
         Map<Long, String> refCodeMap = new java.util.HashMap<>();
         Map<Long, java.util.List<String>> memberNamesMap = new java.util.HashMap<>();
         for (EventParticipant ep : eventParticipantRepo.findByEvent(event)) {
             long pid = ep.getParticipant().getParticipantId();
             refCodeMap.put(pid, ep.getReferenceCode());
-            // Build full team roster: leader first, then additional members
             List<String> allMembers = new ArrayList<>();
             String leaderName = (ep.getStageName() != null && !ep.getStageName().isBlank())
                 ? ep.getStageName()
@@ -215,22 +253,30 @@ public class EventGenreParticpantService {
             GetEventGenreParticipantDto dto = new GetEventGenreParticipantDto();
             dto.eventName = res.getEvent().getEventName();
             dto.participantName = res.getDisplayName();
-            dto.genreName = res.getGenre().getGenreName();
+            dto.genreName = res.getEventGenre().getName();
             dto.auditionNumber = res.getAuditionNumber();
             dto.walkin = false;
             long pid = res.getParticipant().getParticipantId();
             dto.participantId = pid;
             dto.eventId = res.getEvent().getEventId();
-            dto.genreId = res.getGenre().getGenreId();
+            dto.eventGenreId = res.getEventGenre().getId();
             dto.referenceCode = refCodeMap.get(pid);
             Judge j = res.getJudge();
             if(j != null){
                 dto.judgeName = j.getName();
             }
-            // Only expose member names for team-format EGPs (format != "1v1")
             String fmt = res.getFormat();
-            if (fmt != null && !fmt.equalsIgnoreCase("1v1")) {
-                dto.memberNames = memberNamesMap.get(pid);
+            if (isTeamFormat(fmt)) {
+                List<EventGenreParticipantMember> egpMembers = res.getMembers();
+                if (egpMembers != null && !egpMembers.isEmpty()) {
+                    List<String> memberList = new ArrayList<>();
+                    memberList.add(res.getParticipant().getParticipantName());
+                    egpMembers.stream().map(EventGenreParticipantMember::getMemberName).forEach(memberList::add);
+                    dto.memberNames = memberList;
+                } else {
+                    List<String> fallback = memberNamesMap.get(pid);
+                    if (fallback != null && fallback.size() > 1) dto.memberNames = fallback;
+                }
             }
             dto.format = fmt;
             dtos.add(dto);
@@ -238,11 +284,11 @@ public class EventGenreParticpantService {
         return dtos;
     }
 
-    public void removeParticipantFromGenre(long participantId, long eventId, long genreId) {
-        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genreId, participantId);
+    public void removeParticipantFromGenre(long participantId, long eventId, long eventGenreId) {
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, eventGenreId, participantId);
         EventGenreParticipant egp = repo.findById(id).orElse(null);
         if (egp == null) return;
-        String removedGenreName = egp.getGenre().getGenreName();
+        String removedGenreName = egp.getEventGenre().getName();
         String removedParticipantName = egp.getDisplayName();
         String removedEventName = egp.getEvent().getEventName();
         Judge removedJudge = egp.getJudge();
@@ -269,10 +315,13 @@ public class EventGenreParticpantService {
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
-    public void addGenreToExistingParticipant(long participantId, long eventId, String genreName) {
-        Genre genre = genreRepo.findByGenreName(genreName).orElse(null);
-        if (genre == null) throw new RuntimeException("Genre not found: " + genreName);
-        EventGenreParticipantId id = new EventGenreParticipantId(eventId, genre.getGenreId(), participantId);
+    public void addGenreToExistingParticipant(long participantId, long eventId, String genreName,
+            String entryMode, String teamName, List<String> teamMembers) {
+        EventGenre eg = eventGenreRepo.findByEventAndName(eventRepo.findById(eventId).orElse(null), genreName).orElse(null);
+        if (eg == null) throw new RuntimeException("Event genre not found: " + genreName);
+        if ("solo".equalsIgnoreCase(entryMode) && !eg.isSoloAllowed())
+            throw new IllegalArgumentException("Solo entries are not allowed for this division: " + genreName);
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, eg.getId(), participantId);
         if (repo.existsById(id)) return;
         Event event = eventRepo.findById(eventId).orElse(null);
         Participant participant = participantRepo.findById(participantId).orElse(null);
@@ -281,10 +330,48 @@ public class EventGenreParticpantService {
         EventGenreParticipant egp = new EventGenreParticipant();
         egp.setId(id);
         egp.setEvent(event);
-        egp.setGenre(genre);
+        egp.setEventGenre(eg);
         egp.setParticipant(participant);
         egp.setDisplayName(ep != null ? ep.getDisplayName() : participant.getParticipantName());
+
+        String genreFormat = eg != null ? eg.getFormat() : null;
+        boolean soloMode = "solo".equalsIgnoreCase(entryMode);
+        boolean hasProvidedTeamName = teamName != null && !teamName.isBlank();
+
+        boolean isTeamEntry;
+        String effectiveTeamName;
+        if (soloMode) {
+            isTeamEntry = false;
+            effectiveTeamName = null;
+        } else if (hasProvidedTeamName) {
+            isTeamEntry = isTeamFormat(genreFormat);
+            effectiveTeamName = teamName;
+        } else {
+            // Fall back to existing EP team info
+            isTeamEntry = isTeamFormat(genreFormat)
+                && ep != null
+                && ((ep.getTeamName() != null && !ep.getTeamName().isBlank())
+                    || (ep.getTeamMembers() != null && !ep.getTeamMembers().isEmpty()));
+            effectiveTeamName = (isTeamEntry && ep != null) ? ep.getTeamName() : null;
+        }
+
+        egp.setFormat(isTeamEntry ? genreFormat : (isTeamFormat(genreFormat) ? null : genreFormat));
+        if (isTeamEntry && effectiveTeamName != null) {
+            egp.setDisplayName(effectiveTeamName);
+            egp.setTeamName(effectiveTeamName);
+        }
+
         repo.save(egp);
+
+        // Save provided team members as EGP members
+        if (isTeamEntry && teamMembers != null) {
+            for (String member : teamMembers) {
+                if (member != null && !member.isBlank()) {
+                    egpMemberRepo.save(new EventGenreParticipantMember(egp, member.trim()));
+                }
+            }
+        }
+
         if (ep != null) {
             String current = ep.getGenre();
             if (current == null || current.isBlank()) {
@@ -294,18 +381,171 @@ public class EventGenreParticpantService {
             }
             eventParticipantRepo.save(ep);
         }
-        AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
-        dto.participantId = participantId;
-        dto.eventId = eventId;
-        dto.genreId = genre.getGenreId();
-        getAuditionNumViaQR(dto);
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void assignAuditionNumber(Long eventId, Long participantId, Long eventGenreId, Integer auditionNumber) {
+        EventGenreParticipantId id = new EventGenreParticipantId(eventId, eventGenreId, participantId);
+        EventGenreParticipant egp = repo.findById(id).orElseThrow(() ->
+            new RuntimeException("Participant not enrolled in this division"));
+        if (egp.getAuditionNumber() != null) {
+            throw new RuntimeException("Participant already has #" + egp.getAuditionNumber() + " in this division — release first");
+        }
+
+        String entryFormat = egp.getFormat();
+        boolean isSolo = entryFormat == null || "1v1".equalsIgnoreCase(entryFormat);
+        Judge j = egp.getJudge();
+
+        int totalInGenre;
+        List<Integer> takenNumbers;
+        if (j != null) {
+            if (isSolo) {
+                totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSoloAndJudge(eventId, eventGenreId, j.getName());
+                takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSoloAndJudge(eventId, eventGenreId, j.getName());
+            } else {
+                totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormatAndJudge(eventId, eventGenreId, entryFormat, j.getName());
+                takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormatAndJudge(eventId, eventGenreId, entryFormat, j.getName());
+            }
+        } else {
+            if (isSolo) {
+                totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSolo(eventId, eventGenreId);
+                takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSolo(eventId, eventGenreId);
+            } else {
+                totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormat(eventId, eventGenreId, entryFormat);
+                takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormat(eventId, eventGenreId, entryFormat);
+            }
+        }
+
+        if (auditionNumber < 1 || auditionNumber > totalInGenre) {
+            throw new RuntimeException("Number " + auditionNumber + " is out of range (1–" + totalInGenre + ")");
+        }
+        if (takenNumbers.contains(auditionNumber)) {
+            throw new RuntimeException("Number " + auditionNumber + " is already taken");
+        }
+
+        egp.setAuditionNumber(auditionNumber);
+        repo.save(egp);
+
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(egp.getEvent(), egp.getParticipant()).orElse(null);
+        String refCode = ep != null ? ep.getReferenceCode() : null;
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("auditionNumber", auditionNumber);
+        msg.put("genre", egp.getEventGenre().getName());
+        msg.put("name", egp.getDisplayName());
+        msg.put("judge", j != null ? j.getName() : "");
+        msg.put("eventName", egp.getEvent().getEventName());
+        msg.put("participantId", egp.getParticipant().getParticipantId());
+        msg.put("eventId", egp.getEvent().getEventId());
+        msg.put("genreId", egp.getEventGenre().getId());
+        msg.put("walkin", false);
+        msg.put("refCode", refCode != null ? refCode : "");
+        messagingTemplate.convertAndSend("/topic/audition/", msg);
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void assignAuditionNumbersBatch(Long eventId, Long participantId, List<Map<String, Object>> assignments) {
+        List<EventGenreParticipant> toSave = new ArrayList<>();
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        for (Map<String, Object> a : assignments) {
+            Long eventGenreId = ((Number) a.get("eventGenreId")).longValue();
+            Integer auditionNumber = ((Number) a.get("auditionNumber")).intValue();
+
+            EventGenreParticipantId id = new EventGenreParticipantId(eventId, eventGenreId, participantId);
+            EventGenreParticipant egp = repo.findById(id).orElseThrow(() ->
+                new RuntimeException("Participant not enrolled in division " + eventGenreId));
+            if (egp.getAuditionNumber() != null) {
+                throw new RuntimeException("Participant already has #" + egp.getAuditionNumber() + " in " + egp.getEventGenre().getName() + " — release first");
+            }
+
+            String entryFormat = egp.getFormat();
+            boolean isSolo = entryFormat == null || "1v1".equalsIgnoreCase(entryFormat);
+            Judge j = egp.getJudge();
+
+            int totalInGenre;
+            List<Integer> takenNumbers;
+            if (j != null) {
+                if (isSolo) {
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSoloAndJudge(eventId, eventGenreId, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSoloAndJudge(eventId, eventGenreId, j.getName());
+                } else {
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormatAndJudge(eventId, eventGenreId, entryFormat, j.getName());
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormatAndJudge(eventId, eventGenreId, entryFormat, j.getName());
+                }
+            } else {
+                if (isSolo) {
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndSolo(eventId, eventGenreId);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndSolo(eventId, eventGenreId);
+                } else {
+                    totalInGenre = (int) repo.countByEventIdAndEventGenreIdAndFormat(eventId, eventGenreId, entryFormat);
+                    takenNumbers = repo.findAuditionNumberByEventAndEventGenreAndFormat(eventId, eventGenreId, entryFormat);
+                }
+            }
+
+            if (auditionNumber < 1 || auditionNumber > totalInGenre) {
+                throw new RuntimeException("Number " + auditionNumber + " is out of range (1–" + totalInGenre + ") in " + egp.getEventGenre().getName());
+            }
+            if (takenNumbers.contains(auditionNumber)) {
+                throw new RuntimeException("Number " + auditionNumber + " is already taken in " + egp.getEventGenre().getName());
+            }
+
+            egp.setAuditionNumber(auditionNumber);
+            toSave.add(egp);
+
+            EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(egp.getEvent(), egp.getParticipant()).orElse(null);
+            String refCode = ep != null ? ep.getReferenceCode() : null;
+            Map<String, Object> msg = new java.util.HashMap<>();
+            msg.put("auditionNumber", auditionNumber);
+            msg.put("genre", egp.getEventGenre().getName());
+            msg.put("name", egp.getDisplayName());
+            msg.put("judge", j != null ? j.getName() : "");
+            msg.put("eventName", egp.getEvent().getEventName());
+            msg.put("participantId", egp.getParticipant().getParticipantId());
+            msg.put("eventId", egp.getEvent().getEventId());
+            msg.put("genreId", egp.getEventGenre().getId());
+            msg.put("walkin", false);
+            msg.put("refCode", refCode != null ? refCode : "");
+            messages.add(msg);
+        }
+
+        // All validations passed — save atomically then notify
+        repo.saveAll(toSave);
+        for (Map<String, Object> msg : messages) {
+            messagingTemplate.convertAndSend("/topic/audition/", msg);
+        }
+    }
+
+    @Transactional
+    public void swapAuditionNumbers(Long eventId, Long eventGenreId, Long participantId1, Long participantId2) {
+        EventGenreParticipantId id1 = new EventGenreParticipantId(eventId, eventGenreId, participantId1);
+        EventGenreParticipantId id2 = new EventGenreParticipantId(eventId, eventGenreId, participantId2);
+        EventGenreParticipant egp1 = repo.findById(id1).orElseThrow(() -> new RuntimeException("Participant 1 not found in this division"));
+        EventGenreParticipant egp2 = repo.findById(id2).orElseThrow(() -> new RuntimeException("Participant 2 not found in this division"));
+        if (egp1.getAuditionNumber() == null || egp2.getAuditionNumber() == null) {
+            throw new RuntimeException("Both participants must have audition numbers to swap");
+        }
+        Integer tmp = egp1.getAuditionNumber();
+        egp1.setAuditionNumber(egp2.getAuditionNumber());
+        egp2.setAuditionNumber(tmp);
+        repo.save(egp1);
+        repo.save(egp2);
+    }
+
+    @Transactional
+    public void releaseAuditionNumbers(Long eventId, Long participantId) {
+        List<EventGenreParticipant> entries = repo.findByEventIdAndParticipantId(eventId, participantId);
+        if (entries.isEmpty()) throw new RuntimeException("Participant not found in this event");
+        for (EventGenreParticipant egp : entries) {
+            egp.setAuditionNumber(null);
+        }
+        repo.saveAll(entries);
     }
 
     public void updateParticipantsJudgeService(UpdateParticipantJudgeDto dto){
         for(ParticipantJudgeDto d : dto.updatedList){
             EventGenreParticipant egp = repo.findByEventGenreParticipant(d.eventName, d.genreName, d.participantName).orElse(null);
             if(egp != null){
-                Judge j = judgeRepo.findByName(d.judgeName).orElse(null);
+                Judge j = judgeRepo.findFirstByName(d.judgeName).orElse(null);
                 egp.setJudge(j);
                 repo.save(egp);
                 messagingTemplate.convertAndSend("/topic/judge-update/",
@@ -319,7 +559,24 @@ public class EventGenreParticpantService {
     }
 
     private boolean isTeamFormat(String fmt) {
-        return fmt != null && !fmt.equalsIgnoreCase("1v1");
+        return fmt != null && fmt.matches("(?i)\\d+v\\d+") && !fmt.equalsIgnoreCase("1v1");
+    }
+
+    int parseFormatSize(String format) {
+        if (format == null) return 0;
+        String[] parts = format.split("v");
+        try { return Integer.parseInt(parts[0]); } catch (NumberFormatException e) { return 0; }
+    }
+
+    void validateTeamEntry(String format, String teamName, List<String> memberNames) {
+        int required = parseFormatSize(format) - 1;
+        if (teamName == null || teamName.isBlank())
+            throw new IllegalArgumentException("Team name is required for team entry");
+        long nonBlank = memberNames == null ? 0L
+            : memberNames.stream().filter(m -> m != null && !m.isBlank()).count();
+        if (nonBlank != required)
+            throw new IllegalArgumentException(
+                "Expected " + required + " additional member(s) for " + format + ", got " + nonBlank);
     }
 
 }

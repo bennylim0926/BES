@@ -23,4 +23,6 @@ public class AddParticipantDto {
     public String teamName;
     public List<String> memberNames;
     public Map<String, String> genreFormats;
+    // "team" | "solo" — from sheet ENTRY_TYPE column
+    public String entryType;
 }

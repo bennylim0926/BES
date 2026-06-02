@@ -19,12 +19,14 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.AddDivisionDto;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
 import com.example.BES.dtos.AddScoringCriteriaDto;
@@ -41,6 +43,7 @@ import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetEventGenreParticipantDto;
+import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
@@ -73,10 +76,12 @@ import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
 import com.example.BES.dtos.GetAuditionFeedbackDto;
+import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
 import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
+import com.example.BES.dtos.CheckinPreviewDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
@@ -205,21 +210,21 @@ public class EventController {
         return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
     }
 
-    @Operation(summary = "Get Genres by Event", description = "Returns genres linked to a specific event")
+    @Operation(summary = "Get Genres by Event", description = "Returns divisions linked to a specific event")
     @GetMapping("/{eventName}/genres")
-    public ResponseEntity<List<GetGenreDto>> getGenresByEvent(@PathVariable String eventName) {
+    public ResponseEntity<List<GetEventDivisionDto>> getGenresByEvent(@PathVariable String eventName) {
         return new ResponseEntity<>(eventGenreService.getGenresByEventService(eventName), HttpStatus.OK);
     }
 
     @Operation(summary = "Update Event Genre Format", description = "Sets the battle format for a genre in a specific event (e.g. '2v2')")
-    @PostMapping("/{eventName}/genres/{genreName}/format")
+    @PostMapping("/{eventName}/genres/{eventGenreId}/format")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> updateEventGenreFormat(
             @PathVariable String eventName,
-            @PathVariable String genreName,
+            @PathVariable Long eventGenreId,
             @Valid @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateEventGenreFormat(eventName, genreName, body.get("format"));
+            eventGenreService.updateEventGenreFormat(eventGenreId, body.get("format"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -287,30 +292,57 @@ public class EventController {
         return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
     }
 
+    // ── Per-division judge endpoints ─────────────────────────────────────
+
+    @Operation(summary = "Get Judges by Division", description = "Returns judges assigned to a specific division")
+    @GetMapping("/{eventName}/divisions/{divisionId}/judges")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE', 'EMCEE')")
+    public ResponseEntity<List<GetJudgeDto>> getJudgesByDivision(@PathVariable String eventName, @PathVariable Long divisionId) {
+        return ResponseEntity.ok(judgeService.getJudgesByDivision(divisionId));
+    }
+
+    @Operation(summary = "Add Judge to Division", description = "Creates a new judge and links them to a division")
+    @PostMapping("/{eventName}/divisions/{divisionId}/judge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> addJudgeToDivision(@PathVariable String eventName, @PathVariable Long divisionId, @Valid @RequestBody AddJudgeDto dto) {
+        return ResponseEntity.ok(judgeService.addJudgeToDivision(divisionId, dto.judgeName));
+    }
+
+    @Operation(summary = "Remove Judge from Division", description = "Removes a judge from a division")
+    @DeleteMapping("/{eventName}/divisions/{divisionId}/judge/{judgeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> removeJudgeFromDivision(@PathVariable String eventName, @PathVariable Long divisionId, @PathVariable Long judgeId) {
+        return ResponseEntity.ok(judgeService.removeJudgeFromDivision(divisionId, judgeId));
+    }
+
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<String> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName, dto.genre, dto.teamMembers, dto.teamName);
-            eventGenreParticipantService.addWalkInToEventGenreParticipant(p, dto.genre, ep, dto.judgeName);
+            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
+            eventGenreParticipantService.addWalkInToEventGenreParticipant(
+                p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
             Map<String, Object> walkinMsg = new java.util.HashMap<>();
             walkinMsg.put("eventName", dto.eventName);
             messagingTemplate.convertAndSend("/topic/walkin/", walkinMsg);
             return new ResponseEntity<>(gson.toJson("Added walkin"), HttpStatus.CREATED);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
-            return new ResponseEntity<>(gson.toJson("error"), HttpStatus.BAD_REQUEST);
+            log.error("Error adding walk-in", e);
+            return new ResponseEntity<>(gson.toJson("Error adding participant"), HttpStatus.BAD_REQUEST);
         }
     }
 
     @Operation(summary = "Add List of Participants", description = "Adds participants to an event, typically read from a Google Sheet")
     @PostMapping("/participants/")
-    public ResponseEntity<String> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
+    public ResponseEntity<?> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
             throws IOException, MessagingException, WriterException {
         try {
-            registerService.addParticipantToEvent(dto);
-            return new ResponseEntity<>(gson.toJson("Participants list updated!"), HttpStatus.CREATED);
+            ImportResultDto result = registerService.addParticipantToEvent(dto);
+            return new ResponseEntity<>(result, HttpStatus.OK);
         } catch (NullPointerException e) {
             log.error("NPE in addParticipantsToSystem", e);
             return new ResponseEntity<>(
@@ -394,6 +426,21 @@ public class EventController {
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
+    @Operation(summary = "Send Check-In Preview", description = "Broadcasts participant details to AuditionNumber display before generating numbers")
+    @PostMapping("/{eventName}/checkin-preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> sendCheckinPreview(
+            @PathVariable String eventName,
+            @RequestBody CheckinPreviewDto dto) {
+        try {
+            messagingTemplate.convertAndSend("/topic/checkin-preview/", dto);
+            return new ResponseEntity<>("ok", HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error sending checkin preview for event: {}", eventName, e);
+            return new ResponseEntity<>("error", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @Operation(summary = "Register Participant All Genres", description = "Scans one QR and assigns audition numbers for all genres the participant is enrolled in")
     @GetMapping("/register-participant/{participantId}/{eventId}")
     public ResponseEntity<String> registerParticipantAllGenres(
@@ -414,14 +461,14 @@ public class EventController {
      * @deprecated Use /register-participant/{participantId}/{eventId} (single QR) instead
      */
     @Operation(summary = "Register Participant with Genre (Deprecated)", description = "Registers a participant and generates an audition number via QR scan for a specific genre. Deprecated: use the 2-param endpoint instead.")
-    @GetMapping("/register-participant/{participantId}/{eventId}/{genreId}")
+    @GetMapping("/register-participant/{participantId}/{eventId}/{eventGenreId}")
     public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId,
-            @PathVariable Long eventId, @PathVariable Long genreId) throws IOException {
+            @PathVariable Long eventId, @PathVariable Long eventGenreId) throws IOException {
         try {
             AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
-            dto.genreId = genreId;
+            dto.eventGenreId = eventGenreId;
             eventGenreParticipantService.getAuditionNumViaQR(dto);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
         } catch (Exception e) {
@@ -467,6 +514,34 @@ public class EventController {
         }
     }
 
+    @DeleteMapping("/scores/reset")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
+    public ResponseEntity<?> resetScoresByJudge(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String judgeName) {
+        try {
+            scoreService.resetScoresByJudge(eventName, genreName, judgeName);
+            return ResponseEntity.ok(Map.of("message", "Scores reset"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/feedback/reset")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
+    public ResponseEntity<?> resetFeedbackByJudge(
+            @RequestParam String eventName,
+            @RequestParam String genreName,
+            @RequestParam String judgeName) {
+        try {
+            feedbackService.resetFeedbackByJudge(eventName, genreName, judgeName);
+            return ResponseEntity.ok(Map.of("message", "Feedback reset"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Get Email Template", description = "Returns the email template for the given event")
     @GetMapping("/{eventName}/email-template")
     public ResponseEntity<?> getEmailTemplate(@PathVariable String eventName) {
@@ -502,14 +577,14 @@ public class EventController {
     }
 
     @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
-    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{genreId}")
+    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{eventGenreId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<Void> removeParticipantGenre(
             @PathVariable Long participantId,
             @PathVariable Long eventId,
-            @PathVariable Long genreId) {
+            @PathVariable Long eventGenreId) {
         try {
-            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, genreId);
+            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, eventGenreId);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -521,7 +596,7 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<String> addGenreToParticipant(@Valid @RequestBody UpdateParticipantGenreDto dto) {
         try {
-            eventGenreParticipantService.addGenreToExistingParticipant(dto.participantId, dto.eventId, dto.genreName);
+            eventGenreParticipantService.addGenreToExistingParticipant(dto.participantId, dto.eventId, dto.genreName, dto.entryMode, dto.teamName, dto.teamMembers);
             return new ResponseEntity<>(gson.toJson("Genre added"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
@@ -680,6 +755,89 @@ public class EventController {
         return ResponseEntity.noContent().build();
     }
 
+    // ── Division endpoints ────────────────────────────────────────────────────
+
+    @Operation(summary = "Add Division", description = "Creates a new division for an event")
+    @PostMapping("/{eventName}/divisions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> addDivision(
+            @PathVariable String eventName,
+            @Valid @RequestBody AddDivisionDto dto) {
+        AddGenreToEventDto genreDto = new AddGenreToEventDto();
+        genreDto.eventName = eventName;
+        AddGenreToEventDto.Division div = new AddGenreToEventDto.Division();
+        div.name = dto.name;
+        div.format = dto.format;
+        div.genreId = dto.genreId;
+        genreDto.divisions = List.of(div);
+        try {
+            eventGenreService.addGenreToEventService(genreDto);
+            return new ResponseEntity<>(gson.toJson("Division added"), HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Rename Division", description = "Renames a division")
+    @PatchMapping("/{eventName}/divisions/{id}/name")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> renameDivision(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.renameDivision(id, body.get("name"));
+            return ResponseEntity.ok(gson.toJson("Division renamed"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Update Division Aliases", description = "Updates sheet aliases for a division")
+    @PatchMapping("/{eventName}/divisions/{id}/aliases")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateDivisionAliases(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.updateAliases(id, body.get("aliases"));
+            return ResponseEntity.ok(gson.toJson("Aliases updated"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Update Division Solo Allowed", description = "Sets whether solo entries are allowed for a division")
+    @PatchMapping("/{eventName}/divisions/{id}/solo-allowed")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateDivisionSoloAllowed(
+            @PathVariable String eventName,
+            @PathVariable Long id,
+            @Valid @RequestBody Map<String, Object> body) {
+        try {
+            boolean soloAllowed = Boolean.TRUE.equals(body.get("soloAllowed"));
+            eventGenreService.updateSoloAllowed(id, soloAllowed);
+            return ResponseEntity.ok(gson.toJson("Solo allowed updated"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Delete Division", description = "Deletes a division from an event")
+    @DeleteMapping("/{eventName}/divisions/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteDivision(
+            @PathVariable String eventName,
+            @PathVariable Long id) {
+        try {
+            eventGenreService.deleteDivision(id);
+            return ResponseEntity.ok(gson.toJson("Division deleted"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ── Battle Guest endpoints ─────────────────────────────────────────────────
 
     @Operation(summary = "Get Battle Guests", description = "Returns all battle guests for a given event and genre")
@@ -718,5 +876,65 @@ public class EventController {
     public ResponseEntity<?> removeBattleGuest(@PathVariable Long guestId) {
         battleGuestService.removeBattleGuest(guestId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Assign Audition Number Manually", description = "Assigns a specific available number to a participant who has none in that division")
+    @PostMapping("/adjust/assign")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> assignAuditionNumber(@RequestBody Map<String, Object> body) {
+        try {
+            Long eventId = ((Number) body.get("eventId")).longValue();
+            Long participantId = ((Number) body.get("participantId")).longValue();
+            Long eventGenreId = ((Number) body.get("eventGenreId")).longValue();
+            Integer auditionNumber = ((Number) body.get("auditionNumber")).intValue();
+            eventGenreParticipantService.assignAuditionNumber(eventId, participantId, eventGenreId, auditionNumber);
+            return ResponseEntity.ok(Map.of("message", "Audition number assigned"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/adjust/assign-batch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> assignAuditionNumbersBatch(@RequestBody Map<String, Object> body) {
+        try {
+            Long eventId = ((Number) body.get("eventId")).longValue();
+            Long participantId = ((Number) body.get("participantId")).longValue();
+            List<Map<String, Object>> assignments = (List<Map<String, Object>>) body.get("assignments");
+            eventGenreParticipantService.assignAuditionNumbersBatch(eventId, participantId, assignments);
+            return ResponseEntity.ok(Map.of("message", "All audition numbers assigned"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Swap Audition Numbers", description = "Swaps audition numbers between two participants in the same division")
+    @PostMapping("/adjust/swap")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> swapAuditionNumbers(@RequestBody Map<String, Object> body) {
+        try {
+            Long eventId = ((Number) body.get("eventId")).longValue();
+            Long eventGenreId = ((Number) body.get("eventGenreId")).longValue();
+            Long participantId1 = ((Number) body.get("participantId1")).longValue();
+            Long participantId2 = ((Number) body.get("participantId2")).longValue();
+            eventGenreParticipantService.swapAuditionNumbers(eventId, eventGenreId, participantId1, participantId2);
+            return ResponseEntity.ok(Map.of("message", "Audition numbers swapped"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Release All Audition Numbers", description = "Clears all audition numbers for a participant across all their divisions in this event")
+    @PostMapping("/adjust/release")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> releaseAuditionNumbers(@RequestBody Map<String, Object> body) {
+        try {
+            Long eventId = ((Number) body.get("eventId")).longValue();
+            Long participantId = ((Number) body.get("participantId")).longValue();
+            eventGenreParticipantService.releaseAuditionNumbers(eventId, participantId);
+            return ResponseEntity.ok(Map.of("message", "Audition numbers released"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

@@ -39,7 +39,7 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     """
     DELETE
     FROM Score s
-    WHERE s.eventGenreParticipant.genre.id = :genreId 
+    WHERE s.eventGenreParticipant.eventGenre.id = :eventGenreId
     AND
     s.eventGenreParticipant.event.id = :eventId
     """)
@@ -47,12 +47,26 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
 
     @Modifying
     @Transactional
-    @Query(value = 
+    @Query(value =
     """
     DELETE
     FROM Score s
-    WHERE  
+    WHERE
     s.eventGenreParticipant.event.id = :eventId
     """)
     int deleteByEventId(@Param("eventId") Long eventId);
+
+    @Modifying
+    @Transactional
+    @Query("""
+        DELETE FROM Score s
+        WHERE s.eventGenreParticipant.event.eventName = :eventName
+        AND s.eventGenreParticipant.eventGenre.name = :genreName
+        AND s.judge.name = :judgeName
+    """)
+    int deleteByEventNameAndGenreNameAndJudgeName(
+        @Param("eventName") String eventName,
+        @Param("genreName") String genreName,
+        @Param("judgeName") String judgeName
+    );
 }

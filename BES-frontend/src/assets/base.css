@@ -877,6 +877,15 @@ html.theme-transition *::after {
   background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
 }
 
+[data-theme="light"] .input-base {
+  color: rgba(0, 0, 0, 0.87);
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .input-base::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
 [data-theme="light"] .type-display    { color: #0d0d0d; text-shadow: 2px 2px 0 rgba(0,0,0,0.08); }
 [data-theme="light"] .type-page-title { color: #1a1a1a; text-shadow: 1px 1px 0 rgba(0,0,0,0.06); }
 [data-theme="light"] .type-section    { color: rgba(0,0,0,0.55); }

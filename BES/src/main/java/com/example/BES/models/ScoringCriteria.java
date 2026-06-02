@@ -28,8 +28,8 @@ public class ScoringCriteria {
     private Event event;
 
     @ManyToOne
-    @JoinColumn(name = "genre_id")
-    private Genre genre;  // null = event-level default (applies to all genres)
+    @JoinColumn(name = "event_genre_id")
+    private EventGenre eventGenre;  // null = event-level default (applies to all divisions)
 
     private String name;
 

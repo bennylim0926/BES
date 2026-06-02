@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -13,6 +13,9 @@ const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
 
 const battleJudges = ref([])
+const memberLookup = ref({}) // participantName → all member names (including rep)
+const getMembersFor = (name) => memberLookup.value[name] ?? []
+const isGuestSlot = (name) => !!name && guestsForCurrentGenre.value.some(g => g.guestName === name)
 const currentBattle = ref([])
 const currentWinner = ref(-2)
 const currentRound = ref(0)
@@ -42,10 +45,12 @@ const crewSortMode = ref('leader')  // 'leader' | 'avg'
 const battleGuests = ref([])
 const newGuestName = ref('')
 const newGuestEntryRound = ref('')
+const newGuestMembers = ref('') // comma-separated member names
 const addingGuest = ref(false)
 
 const dragSource = ref(null)  // { roundKey, matchIdx, slotIdx }
 const dragOverKey = ref(null) // `${roundKey}-${matchIdx}-${slotIdx}`
+const poolDragName = ref(null) // name being dragged from the seeding pool
 
 const uploadedFiles = ref([])
 
@@ -128,7 +133,7 @@ const initiateBattlePair = async (top, pairList) => {
   revealActive.value = false
   await resetJudgeVote()
   if (isSmoke.value) {
-    await setBattlePair(rounds.value[0].name, rounds.value[1].name)
+    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name))
     await updateSmokePair()  // must await so smoke list is posted before overlay reloads
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
@@ -144,7 +149,7 @@ const initiateBattlePair = async (top, pairList) => {
   currentBattle.value = [0, pairList]
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-  await setBattlePair(left, right, top === 'Top2')
+  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right))
   await setBattlePhase('LOCKED')
   battlePhase.value = 'LOCKED'
   currentRound.value = 0
@@ -158,7 +163,7 @@ const prevPair = async () => {
     currentBattle.value = [currentBattle.value[0] - 1, currentBattle.value[1]]
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-    await setBattlePair(left, right, currentTop.value === 'Top2')
+    await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right))
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
     currentWinner.value = -2
@@ -172,7 +177,7 @@ const nextPair = async () => {
   await resetJudgeVote()
   if (isSmoke.value) {
     await update7toSmokeMatch(currentWinner.value)  // handles queue reorder + updateSmokePair + currentWinner reset
-    await setBattlePair(rounds.value[0].name, rounds.value[1].name)
+    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name))
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
     currentWinner.value = -2
@@ -181,7 +186,7 @@ const nextPair = async () => {
       currentBattle.value = [currentBattle.value[0] + 1, currentBattle.value[1]]
       const left = currentBattle?.value[1][currentBattle?.value[0]][0]
       const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-      await setBattlePair(left, right, currentTop.value === 'Top2')
+      await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right))
       await setBattlePhase('LOCKED')
       battlePhase.value = 'LOCKED'
       currentWinner.value = -2
@@ -234,6 +239,19 @@ const sortedPickupCrews = computed(() =>
 // True only when BOTH pre-formed teams AND pickup crews exist — Split bracket is only relevant then
 const isMixedBracket = computed(() => preFormedTeams.value.length > 0 && pickupCrews.value.length > 0)
 
+// True only when the genre has participants that BATTLE AS TEAMS (have member names in lookup).
+// Individuals with a non-empty format field (e.g. smoke-style with crew affiliation) are excluded.
+const isTeamGenre = computed(() => {
+  if (isSmoke.value) return false
+  return preFormedTeams.value.some(t => (memberLookup.value[t.name]?.length ?? 0) > 0)
+})
+
+// True when the selected genre's name indicates a 7-to-smoke format
+const isGenreSmoke = computed(() => {
+  const g = selectedGenre.value?.toLowerCase() ?? ''
+  return g.includes('7 to smoke') || g.includes('7tosmoke')
+})
+
 const guestsForCurrentGenre = computed(() =>
   battleGuests.value.filter(g => g.genreName === selectedGenre.value)
 )
@@ -259,6 +277,40 @@ const bracketPool = computed(() => {
   // Include battle guests not already in pool so they appear in bracket slot dropdowns
   const guestNames = guestsForCurrentGenre.value.map(g => g.guestName).filter(n => !pool.includes(n))
   return [...pool, ...guestNames]
+})
+
+const participantsInFirstRound = computed(() => {
+  if (isSmoke.value) {
+    // Smoke rounds are a flat array of { name, score }
+    return new Set(Array.isArray(rounds.value) ? rounds.value.filter(r => r?.name).map(r => r.name) : [])
+  }
+  const key = `Top${bracketSize.value}`
+  if (!rounds.value[key]) return new Set()
+  const placed = new Set()
+  for (const match of rounds.value[key]) {
+    if (match[0]) placed.add(match[0])
+    if (match[1]) placed.add(match[1])
+  }
+  return placed
+})
+
+const poolParticipants = computed(() => {
+  const guestSet = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  const slots = bracketSize.value - guestSet.size
+  if (slots <= 0) return []
+  const eligible = bracketPool.value.filter(n => !guestSet.has(n)).slice(0, slots)
+  const placed = participantsInFirstRound.value
+  return eligible
+    .filter(n => !placed.has(n))
+    .map(name => {
+      const p = participants.value.find(x => x.participantName === name)
+      if (p) return { name, score: p.score ?? 0 }
+      const t = preFormedTeams.value.find(x => x.name === name)
+      if (t) return { name, score: t.avgScore ?? 0 }
+      const c = sortedPickupCrews.value.find(x => x.crewName === name)
+      return { name, score: c ? (crewSortMode.value === 'leader' ? c.leaderScore : c.avgScore) ?? 0 : 0 }
+    })
+    .sort((a, b) => b.score - a.score)
 })
 
 // Bracket seeding
@@ -293,23 +345,27 @@ const fillHalf = (pool, size) => [
 ]
 
 const autoFillSeeds = () => {
+  const guestSet = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  const freeSlots = bracketSize.value - guestSet.size  // only fill slots not taken by guests
   if (isMixedBracket.value) {
-    const half = Math.floor(bracketSize.value / 2)
-    const preformed = preFormedTeams.value.map(t => t.name)
-    const pickup = sortedPickupCrews.value.map(c => c.crewName)
+    const half = Math.floor(freeSlots / 2)
+    const preformed = preFormedTeams.value.map(t => t.name).filter(n => !guestSet.has(n))
+    const pickup = sortedPickupCrews.value.map(c => c.crewName).filter(n => !guestSet.has(n))
     const orderedPre = rankAsc.value ? [...preformed].reverse() : preformed
     const orderedPick = rankAsc.value ? [...pickup].reverse() : pickup
     seeds.value = [...fillHalf(orderedPre, half), ...fillHalf(orderedPick, half)]
   } else {
-    const pool = bracketPool.value.slice(0, bracketSize.value)
+    const pool = bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)
     const ordered = rankAsc.value ? [...pool].reverse() : pool
-    seeds.value = [...ordered, ...Array(Math.max(0, bracketSize.value - ordered.length)).fill(null)]
+    seeds.value = [...ordered, ...Array(Math.max(0, freeSlots - ordered.length)).fill(null)]
   }
   activeSeedIdx.value = null
   applyToFirstRound()
 }
 
 const highVsLowFill = () => {
+  const guestSet = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  const freeSlots = bracketSize.value - guestSet.size
   const hvl = (pool, size) => {
     const n = pool.length
     const result = Array(size).fill(null)
@@ -320,27 +376,29 @@ const highVsLowFill = () => {
     return result
   }
   if (isMixedBracket.value) {
-    const half = Math.floor(bracketSize.value / 2)
+    const half = Math.floor(freeSlots / 2)
     seeds.value = [
-      ...hvl(preFormedTeams.value.map(t => t.name), half),
-      ...hvl(sortedPickupCrews.value.map(c => c.crewName), half),
+      ...hvl(preFormedTeams.value.map(t => t.name).filter(n => !guestSet.has(n)), half),
+      ...hvl(sortedPickupCrews.value.map(c => c.crewName).filter(n => !guestSet.has(n)), half),
     ]
   } else {
-    seeds.value = hvl(bracketPool.value.slice(0, bracketSize.value), bracketSize.value)
+    seeds.value = hvl(bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots), freeSlots)
   }
   activeSeedIdx.value = null
   applyToFirstRound()
 }
 
 const randomFill = () => {
+  const guestSet = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  const freeSlots = bracketSize.value - guestSet.size
   if (isMixedBracket.value) {
-    const half = Math.floor(bracketSize.value / 2)
-    const preformed = [...preFormedTeams.value.map(t => t.name)].sort(() => Math.random() - 0.5)
-    const pickup = [...sortedPickupCrews.value.map(c => c.crewName)].sort(() => Math.random() - 0.5)
+    const half = Math.floor(freeSlots / 2)
+    const preformed = [...preFormedTeams.value.map(t => t.name).filter(n => !guestSet.has(n))].sort(() => Math.random() - 0.5)
+    const pickup = [...sortedPickupCrews.value.map(c => c.crewName).filter(n => !guestSet.has(n))].sort(() => Math.random() - 0.5)
     seeds.value = [...fillHalf(preformed, half), ...fillHalf(pickup, half)]
   } else {
-    const pool = [...bracketPool.value.slice(0, bracketSize.value)].sort(() => Math.random() - 0.5)
-    seeds.value = [...pool, ...Array(Math.max(0, bracketSize.value - pool.length)).fill(null)]
+    const pool = [...bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)].sort(() => Math.random() - 0.5)
+    seeds.value = [...pool, ...Array(Math.max(0, freeSlots - pool.length)).fill(null)]
   }
   activeSeedIdx.value = null
   applyToFirstRound()
@@ -361,18 +419,64 @@ const splitBracketFill = () => {
   applyToFirstRound()
 }
 const placeGuestsInBracket = () => {
-  if (isSmoke.value) return
   const guests = guestsForCurrentGenre.value
   if (guests.length === 0) return
+  const guestNames = new Set(guests.map(g => g.guestName))
+
+  // ── Smoke: flat array ─────────────────────────────
+  if (isSmoke.value) {
+    if (!Array.isArray(rounds.value) || rounds.value.length === 0) {
+      rounds.value = sevenToSmokeRound()
+    }
+    for (const guest of guests) {
+      const alreadyPlaced = rounds.value.some(r => r?.name === guest.guestName)
+      if (alreadyPlaced) continue
+      const emptySlot = rounds.value.find(r => !r?.name)
+      if (emptySlot) { emptySlot.name = guest.guestName; continue }
+      // Displace lowest-scored non-guest
+      let lowestScore = Infinity; let lowestSlot = null
+      for (const slot of rounds.value) {
+        if (!slot?.name || guestNames.has(slot.name)) continue
+        const score = participants.value.find(p => p.participantName === slot.name)?.score ?? 0
+        if (score < lowestScore) { lowestScore = score; lowestSlot = slot }
+      }
+      if (lowestSlot) lowestSlot.name = guest.guestName
+    }
+    localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    broadcastBracket()
+    return
+  }
+
+  // ── Standard bracket ──────────────────────────────
   for (const guest of guests) {
     const roundKey = guest.entryRound
     if (!rounds.value[roundKey]) continue
     const alreadyPlaced = rounds.value[roundKey].some(m => m[0] === guest.guestName || m[1] === guest.guestName)
     if (alreadyPlaced) continue
+    // Try to find an empty slot first
+    let placed = false
     for (const match of rounds.value[roundKey]) {
-      if (match[0] === null) { match[0] = guest.guestName; break }
-      if (match[1] === null) { match[1] = guest.guestName; break }
+      if (match[0] === null) { match[0] = guest.guestName; placed = true; break }
+      if (match[1] === null) { match[1] = guest.guestName; placed = true; break }
     }
+    if (placed) continue
+    // Bracket is full — displace the lowest-scored non-guest participant in this round
+    let lowestScore = Infinity
+    let lowestMatch = null
+    let lowestSlot = null
+    for (const match of rounds.value[roundKey]) {
+      for (let s = 0; s < 2; s++) {
+        const name = match[s]
+        if (!name || guestNames.has(name)) continue
+        const score = participants.value.find(p => p.participantName === name)?.score ?? 0
+        if (score < lowestScore) {
+          lowestScore = score
+          lowestMatch = match
+          lowestSlot = s
+        }
+      }
+    }
+    if (lowestMatch !== null) lowestMatch[lowestSlot] = guest.guestName
   }
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
@@ -380,31 +484,29 @@ const placeGuestsInBracket = () => {
 
 const applyToFirstRound = () => {
   if (isSmoke.value) {
-    rounds.value = seeds.value.map((name, i) => ({
-      name: name ?? rounds.value[i]?.name ?? null,
-      score: rounds.value[i]?.score ?? 0,
-    }))
+    const guestNames = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+    const filteredSeeds = seeds.value.filter(n => n === null || !guestNames.has(n))
+    let si = 0
+    rounds.value = rounds.value.map((r, _i) => {
+      if (r?.name && guestNames.has(r.name)) return r // pinned guest
+      return { name: filteredSeeds[si++] ?? null, score: r?.score ?? 0 }
+    })
     broadcastBracket()
     return
   }
   const key = `Top${bracketSize.value}`
   if (!rounds.value[key]) return
+  const guestNames = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  // Collect non-guest slots in order; fill them from seeds (guests stay pinned)
+  const freeSlots = []
   for (let i = 0; i < bracketSize.value / 2; i++) {
-    rounds.value[key][i][0] = seeds.value[i * 2] ?? null
-    rounds.value[key][i][1] = seeds.value[i * 2 + 1] ?? null
+    if (!guestNames.has(rounds.value[key][i][0])) freeSlots.push([i, 0])
+    if (!guestNames.has(rounds.value[key][i][1])) freeSlots.push([i, 1])
   }
-  // Re-apply guest placements after seeding — guests override auto-fill for their slots
-  for (const guest of guestsForCurrentGenre.value) {
-    const roundKey = guest.entryRound
-    if (!rounds.value[roundKey]) continue
-    const alreadyPlaced = rounds.value[roundKey].some(m => m[0] === guest.guestName || m[1] === guest.guestName)
-    if (!alreadyPlaced) {
-      for (const match of rounds.value[roundKey]) {
-        if (match[0] === null) { match[0] = guest.guestName; break }
-        if (match[1] === null) { match[1] = guest.guestName; break }
-      }
-    }
-  }
+  const filteredSeeds = seeds.value.filter(n => n === null || !guestNames.has(n))
+  freeSlots.forEach(([mi, si], idx) => {
+    rounds.value[key][mi][si] = filteredSeeds[idx] ?? null
+  })
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
 }
@@ -450,7 +552,7 @@ const onDragStart = (roundKey, matchIdx, slotIdx, event) => {
 }
 
 const onDragOver = (roundKey, matchIdx, slotIdx) => {
-  if (!dragSource.value) return
+  if (!dragSource.value && !poolDragName.value) return
   dragOverKey.value = `${roundKey}-${matchIdx}-${slotIdx}`
 }
 
@@ -460,6 +562,19 @@ const onDragEnd = () => {
 }
 
 const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
+  // Pool → bracket drop
+  if (poolDragName.value) {
+    const name = poolDragName.value
+    poolDragName.value = null
+    dragOverKey.value = null
+    const guestNames = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+    if (guestNames.has(rounds.value[tgtRound][tgtMatch][tgtSlot])) return // never overwrite a pinned guest
+    rounds.value[tgtRound][tgtMatch][tgtSlot] = name
+    rounds.value[tgtRound][tgtMatch][2] = null
+    localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    broadcastBracket()
+    return
+  }
   if (!dragSource.value) return
   const { roundKey: srcRound, matchIdx: srcMatch, slotIdx: srcSlot } = dragSource.value
   dragSource.value = null
@@ -474,6 +589,93 @@ const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
   rounds.value[srcRound][srcMatch][2] = null
   if (srcRound !== tgtRound || srcMatch !== tgtMatch) rounds.value[tgtRound][tgtMatch][2] = null
 
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
+const onPoolDragStart = (name, event) => {
+  poolDragName.value = name
+  const ghost = document.createElement('div')
+  ghost.textContent = name
+  Object.assign(ghost.style, {
+    position: 'fixed',
+    top: '-9999px',
+    left: '-9999px',
+    padding: '5px 14px',
+    background: '#1a1a1a',
+    border: '1.5px solid rgba(255,255,255,0.25)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#f0f0f0',
+    boxShadow: '0 10px 28px rgba(0,0,0,0.7)',
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+  })
+  document.body.appendChild(ghost)
+  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+  requestAnimationFrame(() => document.body.removeChild(ghost))
+}
+
+const onPoolDragEnd = () => {
+  poolDragName.value = null
+  dragOverKey.value = null
+}
+
+const onSmokeDragStart = (idx, event) => {
+  const name = rounds.value[idx]?.name
+  if (!name) return
+  dragSource.value = { smokeIdx: idx }
+  const ghost = document.createElement('div')
+  ghost.textContent = name
+  Object.assign(ghost.style, {
+    position: 'fixed', top: '-9999px', left: '-9999px',
+    padding: '5px 14px', background: '#1a1a1a',
+    border: '1.5px solid rgba(248,113,113,0.65)', borderRadius: '8px',
+    fontSize: '12px', fontWeight: '600', color: '#f0f0f0',
+    boxShadow: '0 10px 28px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', pointerEvents: 'none',
+  })
+  document.body.appendChild(ghost)
+  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+  requestAnimationFrame(() => document.body.removeChild(ghost))
+}
+
+const onSmokeDragOver = (idx) => {
+  if (!dragSource.value && !poolDragName.value) return
+  dragOverKey.value = `smoke-${idx}`
+}
+
+const onSmokeDrop = (tgtIdx) => {
+  const guestNames = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
+  const tgtName = rounds.value[tgtIdx]?.name
+  // Pool → smoke slot
+  if (poolDragName.value) {
+    const name = poolDragName.value
+    poolDragName.value = null
+    dragOverKey.value = null
+    if (guestNames.has(tgtName)) return // never overwrite a pinned guest
+    if (rounds.value[tgtIdx]) rounds.value[tgtIdx] = { ...rounds.value[tgtIdx], name }
+    localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    broadcastBracket()
+    return
+  }
+  // Smoke slot → smoke slot swap
+  if (dragSource.value?.smokeIdx === undefined) return
+  const srcIdx = dragSource.value.smokeIdx
+  dragSource.value = null
+  dragOverKey.value = null
+  if (srcIdx === tgtIdx) return
+  if (guestNames.has(tgtName)) return // don't overwrite pinned guest
+  const srcName = rounds.value[srcIdx]?.name
+  if (rounds.value[srcIdx]) rounds.value[srcIdx] = { ...rounds.value[srcIdx], name: tgtName ?? null }
+  if (rounds.value[tgtIdx]) rounds.value[tgtIdx] = { ...rounds.value[tgtIdx], name: srcName ?? null }
+  localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+  broadcastBracket()
+}
+
+const clearSmokeSlot = (idx) => {
+  if (!rounds.value[idx]) return
+  rounds.value[idx] = { ...rounds.value[idx], name: null }
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
 }
@@ -610,7 +812,7 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
   // Re-broadcast so the overlay updates to this genre's current pair without needing "Start Round"
   const pair = currentBattlePair.value
   if (pair?.[0] && pair?.[1]) {
-    await setBattlePair(pair[0], pair[1], top === 'Top2')
+    await setBattlePair(pair[0], pair[1], top === 'Top2', getMembersFor(pair[0]), getMembersFor(pair[1]))
     battlePhase.value = 'LOCKED'
     // Restore VOTING phase so "Reveal Champion" is available immediately if judges already voted
     if (phase === 'VOTING') {
@@ -687,14 +889,21 @@ const fetchBattleGuests = async () => {
 }
 
 const submitAddBattleGuest = async () => {
-  if (!newGuestName.value.trim() || !newGuestEntryRound.value || !selectedGenre.value) return
+  if (!newGuestName.value.trim() || (!isSmoke.value && !newGuestEntryRound.value) || !selectedGenre.value) return
   addingGuest.value = true
-  const res = await addBattleGuest(selectedEvent.value, selectedGenre.value, newGuestName.value.trim(), newGuestEntryRound.value)
+  const memberNames = newGuestMembers.value.split(',').map(s => s.trim()).filter(Boolean)
+  const entryRound = isSmoke.value ? `Top${topSize.value}` : newGuestEntryRound.value
+  const res = await addBattleGuest(selectedEvent.value, selectedGenre.value, newGuestName.value.trim(), entryRound, memberNames)
   if (res?.ok) {
     const guest = await res.json()
     battleGuests.value.push(guest)
+    // Add guest members to memberLookup so getMembersFor works immediately
+    if (guest.memberNames?.length) {
+      memberLookup.value = { ...memberLookup.value, [guest.guestName]: guest.memberNames }
+    }
     newGuestName.value = ''
     newGuestEntryRound.value = ''
+    newGuestMembers.value = ''
     placeGuestsInBracket()
   }
   addingGuest.value = false
@@ -703,13 +912,18 @@ const submitAddBattleGuest = async () => {
 const submitRemoveBattleGuest = async (guest) => {
   await removeBattleGuest(guest.id)
   battleGuests.value = battleGuests.value.filter(g => g.id !== guest.id)
-  // Remove guest name from bracket slots
-  for (const roundKey of Object.keys(rounds.value)) {
-    if (!Array.isArray(rounds.value[roundKey])) continue
-    for (const match of rounds.value[roundKey]) {
-      if (!Array.isArray(match)) continue
-      if (match[0] === guest.guestName) match[0] = null
-      if (match[1] === guest.guestName) match[1] = null
+  if (isSmoke.value && Array.isArray(rounds.value)) {
+    for (const slot of rounds.value) {
+      if (slot?.name === guest.guestName) slot.name = null
+    }
+  } else {
+    for (const roundKey of Object.keys(rounds.value)) {
+      if (!Array.isArray(rounds.value[roundKey])) continue
+      for (const match of rounds.value[roundKey]) {
+        if (!Array.isArray(match)) continue
+        if (match[0] === guest.guestName) match[0] = null
+        if (match[1] === guest.guestName) match[1] = null
+      }
     }
   }
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
@@ -737,7 +951,7 @@ const submitGetScore = async () => {
     await resetJudgeVote()
     // Re-broadcast same pair so the overlay hides the judge panel and resets battler animations
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value)
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight))
     return
   }
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
@@ -749,7 +963,7 @@ const submitGetScore = async () => {
     finalTieBlocked.value = true
     // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value)
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight))
     return
   }
   const data = await res.json()
@@ -807,6 +1021,7 @@ const confirmResetBracket = async () => {
   showResetConfirm.value = false
   localStorage.removeItem(`Top${topSize.value}${selectedGenre.value}Rounds`)
   rounds.value = initRounds()
+  placeGuestsInBracket()
   broadcastBracket()
   await setBattlePhase('IDLE')
   battlePhase.value = 'IDLE'
@@ -820,11 +1035,27 @@ const confirmResetBracket = async () => {
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal)
-    const res = await getParticipantScore(newVal)
-    participants.value = res.sort((a, b) => b.score - a.score)
+    const [scoreRes, participantRes] = await Promise.all([
+      getParticipantScore(newVal),
+      getRegisteredParticipantsByEvent(newVal)
+    ])
+    participants.value = (scoreRes ?? []).sort((a, b) => b.score - a.score)
+    const lookup = {}
+    for (const p of (participantRes ?? [])) {
+      if (p.memberNames && p.memberNames.length > 0) {
+        lookup[p.participantName] = p.memberNames
+      }
+    }
+    // Also load guest members (requires fetchBattleGuests first)
+    const guestRes = await getBattleGuests(newVal)
+    const guests = guestRes?.ok ? await guestRes.json() : []
+    battleGuests.value = guests
+    for (const g of guests) {
+      if (g.memberNames?.length) lookup[g.guestName] = g.memberNames
+    }
+    memberLookup.value = lookup
     pickupCrews.value = []
     await fetchAllJudges(newVal)
-    await fetchBattleGuests()
   }
 }, { immediate: true })
 
@@ -833,6 +1064,15 @@ watch(selectedGenre, async (newVal, oldVal) => {
   if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
+    // Auto-detect format from genre name — smoke genres always use topSize=7, others reset to 16
+    const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
+    if (genreNeedsSmoke && Number(topSize.value) !== 7) {
+      topSize.value = 7
+      localStorage.setItem('topSize', '7')
+    } else if (!genreNeedsSmoke && Number(topSize.value) === 7) {
+      topSize.value = 16
+      localStorage.setItem('topSize', '16')
+    }
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
     rounds.value = JSON.parse(storedRounds) || initRounds()
@@ -1028,20 +1268,21 @@ onUnmounted(() => {
               : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
-        <span class="text-surface-600 select-none">|</span>
-
-        <!-- Format toggle -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="s in sizes"
-            :key="s"
-            @click="topSize = s"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="topSize === s
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ s === 7 ? '7 to Smoke' : `Top ${s}` }}</button>
-        </div>
+        <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
+        <template v-if="!isGenreSmoke">
+          <span class="text-surface-600 select-none">|</span>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="s in sizes.filter(s => s !== 7)"
+              :key="s"
+              @click="topSize = s"
+              class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
+              :class="topSize === s
+                ? 'text-accent border-[color:var(--accent-muted)]'
+                : 'text-content-muted hover:text-content-primary'"
+            >Top {{ s }}</button>
+          </div>
+        </template>
       </div>
 
       <!-- Judge management -->
@@ -1186,8 +1427,10 @@ onUnmounted(() => {
           </button>
           <button
             @click="highVsLowFill"
-            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-primary transition-all"
-            title="Pair highest with lowest (1st vs last, 2nd vs 2nd-last...)"
+            :disabled="guestsForCurrentGenre.length > 0"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 transition-all"
+            :class="guestsForCurrentGenre.length > 0 ? 'opacity-30 cursor-not-allowed text-content-muted' : 'text-content-muted hover:text-content-primary'"
+            :title="guestsForCurrentGenre.length > 0 ? 'Disabled: bracket has pinned guests' : 'Pair highest with lowest (1st vs last, 2nd vs 2nd-last...)'"
           >
             <i class="pi pi-arrows-v text-xs"></i>
             High ↔ Low
@@ -1217,52 +1460,107 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div v-if="!isSmoke" class="flex flex-wrap items-start gap-3 mt-3 mb-5">
+      <div class="flex flex-wrap items-start gap-3 mt-3 mb-5">
         <!-- Guest slots -->
         <div class="flex flex-wrap gap-2 flex-1 min-w-0">
           <span
             v-for="g in guestsForCurrentGenre"
             :key="g.id"
-            class="card-hover p-2 relative inline-flex items-center gap-1.5 px-2.5"
+            class="card-hover relative inline-flex items-stretch gap-0 pr-0 overflow-hidden"
+            style="padding: 0"
           >
             <div class="corner-bar-tl"></div>
-            <i class="pi pi-star text-accent" style="font-size:0.6rem"></i>
-            <span class="type-body text-content-primary">{{ g.guestName }}</span>
-            <span class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+            <!-- info block -->
+            <div class="flex items-start gap-1.5 px-3 py-2">
+              <i class="pi pi-star text-accent flex-shrink-0 mt-0.5" style="font-size:0.6rem"></i>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="type-body text-content-primary">{{ g.guestName }}</span>
+                  <span v-if="!isSmoke" class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+                </div>
+                <div
+                  v-if="g.memberNames?.length"
+                  class="type-label text-content-muted normal-case mt-0.5"
+                  style="font-size:11px;letter-spacing:0.04em;opacity:0.7"
+                >{{ g.memberNames.join(' · ') }}</div>
+              </div>
+            </div>
+            <!-- remove button — visually separated strip -->
             <button
               @click="submitRemoveBattleGuest(g)"
-              class="flex items-center justify-center hover:text-red-400 transition-colors ml-0.5"
+              class="flex items-center justify-center px-2.5 flex-shrink-0 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Remove guest"
             >
-              <i class="pi pi-times text-xs"></i>
+              <i class="pi pi-times" style="font-size:11px"></i>
             </button>
           </span>
           <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
 
         <!-- Add guest form pushed to the right -->
-        <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+        <div class="ml-auto flex flex-col gap-2 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <input
+              v-model="newGuestName"
+              type="text"
+              :placeholder="isTeamGenre && !isSmoke ? 'Team name' : 'Guest name'"
+              class="input-base w-64"
+              @keyup.enter="submitAddBattleGuest"
+            />
+            <select
+              v-if="!isSmoke"
+              v-model="newGuestEntryRound"
+              class="input-base w-24"
+            >
+              <option value="" disabled>Round</option>
+              <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
+            </select>
+            <button
+              @click="submitAddBattleGuest"
+              :disabled="addingGuest || !newGuestName.trim() || (!isSmoke && !newGuestEntryRound)"
+              class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <i class="pi pi-plus text-xs"></i>
+              Add
+            </button>
+          </div>
           <input
-            v-model="newGuestName"
+            v-if="isTeamGenre && !isSmoke"
+            v-model="newGuestMembers"
             type="text"
-            placeholder="Guest name"
-            class="input-base w-36"
+            placeholder="Member names (e.g. Alice, Bob)"
+            class="input-base w-full"
             @keyup.enter="submitAddBattleGuest"
           />
-          <select
-            v-model="newGuestEntryRound"
-            class="input-base w-24"
+        </div>
+      </div>
+
+      <!-- ── Seeding Pool ──────────────────────────────── -->
+      <div class="mb-5">
+        <div class="section-rule">
+          <span class="section-rule-label">Seeding Pool</span>
+          <span v-if="guestsForCurrentGenre.length" class="type-label text-content-muted ml-2">
+            · {{ guestsForCurrentGenre.length }} guest slot{{ guestsForCurrentGenre.length > 1 ? 's' : '' }} reserved · {{ bracketSize - guestsForCurrentGenre.length }} {{ isSmoke ? 'queue slots' : 'seed slots' }} shown
+          </span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5 mt-3 min-h-[28px]">
+          <span v-if="!poolParticipants.length" class="type-label text-content-muted">
+            {{ isSmoke ? `All ${bracketSize - guestsForCurrentGenre.length} queue slots filled` : `All top ${bracketSize - guestsForCurrentGenre.length} participants placed in bracket` }}
+          </span>
+          <span
+            v-for="p in poolParticipants" :key="p.name"
+            draggable="true"
+            @dragstart="(e) => onPoolDragStart(p.name, e)"
+            @dragend="onPoolDragEnd"
+            class="para-chip-sm px-2.5 py-1 type-label text-content-primary cursor-grab active:cursor-grabbing select-none inline-flex items-center gap-1.5"
+            :class="poolDragName === p.name ? 'opacity-40' : ''"
+            :title="p.name"
           >
-            <option value="" disabled>Round</option>
-            <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
-          </select>
-          <button
-            @click="submitAddBattleGuest"
-            :disabled="addingGuest || !newGuestName.trim() || !newGuestEntryRound"
-            class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            <i class="pi pi-plus text-xs"></i>
-            Add
-          </button>
+            <span>{{ p.name }}</span>
+            <span class="text-content-muted" style="font-size:10px;letter-spacing:0.05em;opacity:0.7">{{ p.score % 1 === 0 ? p.score : p.score.toFixed(1) }}</span>
+          </span>
         </div>
       </div>
 
@@ -1311,16 +1609,28 @@ onUnmounted(() => {
                   @drop.prevent="onDrop(`Top${size}`, mIdx, 0)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <div
-                    v-if="match[0]"
+                  <div v-if="match[0]"
                     draggable="true"
                     @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 0, e)"
                     @dragend="onDragEnd"
-                    class="flex-1 min-w-0 type-body truncate select-none cursor-grab active:cursor-grabbing"
+                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
                     :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary'"
-                  >{{ match[0] }}</div>
+                  >
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      <span class="type-body">{{ match[0] }}</span>
+                      <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
+                    </div>
+                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1 flex-1 min-w-0">
+                      <span
+                        v-for="m in getMembersFor(match[0])" :key="m"
+                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                        :class="match[2] === match[0] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                      >{{ m }}</span>
+                    </div>
+                  </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[0]" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[0]"
                     @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 0)"
@@ -1348,16 +1658,28 @@ onUnmounted(() => {
                   @drop.prevent="onDrop(`Top${size}`, mIdx, 1)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <div
-                    v-if="match[1]"
+                  <div v-if="match[1]"
                     draggable="true"
                     @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 1, e)"
                     @dragend="onDragEnd"
-                    class="flex-1 min-w-0 type-body truncate select-none cursor-grab active:cursor-grabbing"
+                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
                     :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary'"
-                  >{{ match[1] }}</div>
+                  >
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      <span class="type-body">{{ match[1] }}</span>
+                      <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
+                    </div>
+                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1 flex-1 min-w-0">
+                      <span
+                        v-for="m in getMembersFor(match[1])" :key="m"
+                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                        :class="match[2] === match[1] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                      >{{ m }}</span>
+                    </div>
+                  </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[1]" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-0.5 text-surface-600 hover:text-red-400 transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[1]"
                     @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 1)"
@@ -1386,19 +1708,48 @@ onUnmounted(() => {
           <div class="section-rule-line"></div>
         </div>
 
-        <!-- Queue: ordered chips, populated by fill buttons above -->
-        <div v-if="Array.isArray(rounds) && rounds.some(r => r.name)" class="flex flex-wrap gap-2 mb-4">
+        <!-- Queue: ordered chips, drag-to-reorder + pool drop — always shows all 8 slots -->
+        <div v-if="Array.isArray(rounds)" class="flex flex-wrap gap-2 mb-4">
           <div
             v-for="(match, mIdx) in rounds"
             :key="mIdx"
-            class="card-hover p-2 relative flex items-center gap-1.5 px-3"
+            :draggable="!!match.name"
+            @dragstart="(e) => onSmokeDragStart(mIdx, e)"
+            @dragend="onDragEnd"
+            @dragover.prevent="onSmokeDragOver(mIdx)"
+            @dragleave="dragOverKey = null"
+            @drop.prevent="onSmokeDrop(mIdx)"
+            class="card-hover relative flex items-stretch overflow-hidden transition-all duration-150"
+            :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-primary-500/70 bg-primary-500/10' :
+                    (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-primary-400/80 bg-primary-400/12' : '')"
+            style="padding:0"
           >
             <div class="corner-bar-tl"></div>
-            <span class="type-label text-accent">{{ mIdx + 1 }}</span>
-            <span class="type-body text-content-primary">{{ match.name || '—' }}</span>
+            <!-- position number -->
+            <div class="flex items-center px-2 border-r border-surface-600/30 bg-surface-900/40">
+              <span class="type-label text-accent select-none">{{ mIdx + 1 }}</span>
+            </div>
+            <!-- name + guest badge -->
+            <div
+              class="flex items-center gap-1.5 px-3 py-2 min-w-0 flex-1 select-none"
+              :class="match.name ? 'cursor-grab active:cursor-grabbing' : ''"
+            >
+              <span class="type-body truncate" :class="match.name ? 'text-content-primary' : 'text-surface-600/50 italic'">{{ match.name || '—' }}</span>
+              <span
+                v-if="match.name && isGuestSlot(match.name)"
+                class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded"
+                style="font-size:9px;font-weight:700;letter-spacing:0.1em"
+              ><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
+            </div>
+            <!-- clear button — only for filled non-guest slots -->
+            <button
+              v-if="match.name && !isGuestSlot(match.name)"
+              @click.stop="clearSmokeSlot(mIdx)"
+              class="flex items-center justify-center px-2 flex-shrink-0 border-l border-surface-600/30 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Clear slot"
+            ><i class="pi pi-times" style="font-size:10px"></i></button>
           </div>
         </div>
-        <p v-else class="type-body text-content-muted mb-4">Use the Seed by buttons above to fill the queue.</p>
 
         <button
           @click="initiateBattlePair(0, 0)"
@@ -1504,8 +1855,10 @@ onUnmounted(() => {
           <span class="type-label text-accent mb-1">Current</span>
           <template v-if="currentBattlePair">
             <span class="type-body text-content-primary block">{{ currentBattlePair[0] }}</span>
-            <span class="type-label text-content-muted">vs</span>
+            <span v-if="getMembersFor(currentBattlePair[0]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[0]).join(' · ') }}</span>
+            <span class="type-label text-content-muted my-0.5 block">vs</span>
             <span class="type-body text-content-primary block">{{ currentBattlePair[1] }}</span>
+            <span v-if="getMembersFor(currentBattlePair[1]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[1]).join(' · ') }}</span>
           </template>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>

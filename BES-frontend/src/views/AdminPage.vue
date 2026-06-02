@@ -187,6 +187,8 @@ onMounted(async () => {
           <div class="section-rule-line"></div>
         </div>
 
+        <p class="type-label text-content-muted mb-4">Genres — used to group divisions when setting up events.</p>
+
         <div class="flex gap-3 mb-5">
           <input
             v-model="addGenreInput"
@@ -198,25 +200,30 @@ onMounted(async () => {
           <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Genre</button>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           <div
             v-for="g in genres"
             :key="g.id"
-            class="card-hover p-3 relative flex items-center justify-between"
+            class="card-hover p-3 relative flex flex-col gap-1.5"
           >
             <div class="corner-bar-tl"></div>
-            <button
-              @click="selectId(g.id, 'genre')"
-              class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
-            >
-              {{ g.genreName }}
-            </button>
-            <button
-              @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
-              class="ml-2 flex-shrink-0 w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-            >
-              <i class="pi pi-times text-xs"></i>
-            </button>
+            <!-- Name row -->
+            <div class="flex items-center justify-between">
+              <button
+                @click="selectId(g.id, 'genre')"
+                class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
+              >
+                {{ g.genreName }}
+              </button>
+              <div class="flex gap-0.5 ml-1 flex-shrink-0">
+                <button
+                  @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
+                  class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                >
+                  <i class="pi pi-times text-xs"></i>
+                </button>
+              </div>
+            </div>
           </div>
           <div v-if="genres.length === 0" class="col-span-full type-label text-content-muted py-4">
             No genres added yet

@@ -1,8 +1,10 @@
 <script setup>
 defineProps({
-  show:    { type: Boolean, default: false },
-  title:   { type: String,  default: 'Notification' },
-  variant: { type: String,  default: 'info' }
+  show:        { type: Boolean, default: false },
+  title:       { type: String,  default: 'Notification' },
+  variant:     { type: String,  default: 'info' },
+  acceptLabel: { type: String,  default: 'OK' },
+  scrollable:  { type: Boolean, default: false }
 })
 
 defineEmits(['close', 'accept'])
@@ -27,35 +29,61 @@ defineEmits(['close', 'accept'])
       ></div>
 
       <div
-        class="card-hover p-8 relative max-w-sm w-full mx-4"
+        class="card-hover relative max-w-sm w-full mx-4"
+        :class="scrollable ? 'flex flex-col p-0' : 'p-8'"
+        :style="scrollable ? 'max-height:90dvh' : ''"
       >
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>
 
-        <p class="type-page-title mb-4">{{ title }}</p>
+        <!-- scrollable layout: sticky header + scrollable body + sticky footer -->
+        <template v-if="scrollable">
+          <div class="flex-shrink-0 px-8 pt-8 pb-3">
+            <p class="type-page-title">{{ title }}</p>
+          </div>
+          <div
+            class="flex-1 min-h-0 overflow-y-auto px-8"
+            style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent"
+          >
+            <div v-if="variant === 'warning'" class="semantic-chip-warning p-4 mb-4 flex items-start gap-3">
+              <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.8)"></div>
+              <slot></slot>
+            </div>
+            <div v-else-if="variant === 'error'" class="semantic-chip-error p-4 mb-4 flex items-start gap-3">
+              <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f87171;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>
+              <slot></slot>
+            </div>
+            <div v-else class="type-body text-content-muted">
+              <slot></slot>
+            </div>
+          </div>
+          <div class="flex-shrink-0 px-8 pb-8 pt-4 border-t border-surface-600/30">
+            <button
+              @click="$emit('accept')"
+              class="para-chip type-label px-6 py-3 w-full border-2 border-accent text-accent hover:bg-accent hover:text-surface-900 transition-colors"
+            >{{ acceptLabel }}</button>
+          </div>
+        </template>
 
-        <div
-          v-if="variant === 'warning'"
-          class="semantic-chip-warning p-4 mb-6 flex items-start gap-3"
-        >
-          <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.8)"></div>
-          <slot></slot>
-        </div>
-        <div
-          v-else-if="variant === 'error'"
-          class="semantic-chip-error p-4 mb-6 flex items-start gap-3"
-        >
-          <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f87171;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>
-          <slot></slot>
-        </div>
-        <div v-else class="type-body text-content-muted mb-6">
-          <slot></slot>
-        </div>
-
-        <button
-          @click="$emit('accept')"
-          class="bg-accent para-chip type-label text-surface-900 px-6 py-2 w-full"
-        >OK</button>
+        <!-- default non-scrollable layout (unchanged) -->
+        <template v-else>
+          <p class="type-page-title mb-4">{{ title }}</p>
+          <div v-if="variant === 'warning'" class="semantic-chip-warning p-4 mb-6 flex items-start gap-3">
+            <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.8)"></div>
+            <slot></slot>
+          </div>
+          <div v-else-if="variant === 'error'" class="semantic-chip-error p-4 mb-6 flex items-start gap-3">
+            <div class="w-2 h-2 rounded-full flex-shrink-0 mt-1" style="background:#f87171;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>
+            <slot></slot>
+          </div>
+          <div v-else class="type-body text-content-muted mb-6">
+            <slot></slot>
+          </div>
+          <button
+            @click="$emit('accept')"
+            class="para-chip type-label px-6 py-3 w-full border-2 border-accent text-accent hover:bg-accent hover:text-surface-900 transition-colors"
+          >{{ acceptLabel }}</button>
+        </template>
       </div>
     </div>
   </Transition>

@@ -5,13 +5,16 @@ const props = defineProps({
   visible:          { type: Boolean, default: false },
   participant:      { type: Object,  default: null },
   tagGroups:        { type: Array,   default: () => [] },
-  existingFeedback: { type: Object,  default: null },   // { tagIds: [], note: '' }
+  existingFeedback: { type: Object,  default: null },
+  saving:           { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'save'])
+
+const emit = defineEmits(['close', 'save', 'change'])
 
 const selectedTagIds = ref(new Set())
 const note = ref('')
+let noteTimer = null
 
 // When the popout opens or existing feedback changes, pre-populate selections
 watch(() => [props.visible, props.existingFeedback], () => {
@@ -26,13 +29,14 @@ function toggleTag(tagId) {
   if (next.has(tagId)) next.delete(tagId)
   else next.add(tagId)
   selectedTagIds.value = next
+  emit('change', { tagIds: [...selectedTagIds.value], note: note.value.trim() || null })
 }
 
-function handleSave() {
-  emit('save', {
-    tagIds: [...selectedTagIds.value],
-    note: note.value.trim() || null,
-  })
+function onNoteInput() {
+  clearTimeout(noteTimer)
+  noteTimer = setTimeout(() => {
+    emit('change', { tagIds: [...selectedTagIds.value], note: note.value.trim() || null })
+  }, 800)
 }
 
 
@@ -122,6 +126,7 @@ function handleSave() {
             </div>
             <textarea
               v-model="note"
+              @input="onNoteInput"
               rows="2"
               placeholder="Optional note for this dancer…"
               class="input-base resize-none"
@@ -130,15 +135,16 @@ function handleSave() {
         </div>
 
         <!-- Footer -->
-        <div class="flex gap-3 flex-shrink-0">
+        <div class="flex gap-3 flex-shrink-0 items-center">
           <button
             @click="emit('close')"
             class="flex-1 py-2 para-chip type-label text-content-muted hover:text-content-primary transition-all"
-          >Skip</button>
-          <button
-            @click="handleSave"
-            class="flex-1 py-2 bg-accent para-chip type-label text-surface-900 transition-all"
-          >Save Feedback</button>
+          >Done</button>
+          <div class="flex items-center gap-2 type-label text-content-muted">
+            <i v-if="saving" class="pi pi-spin pi-spinner text-accent/60 text-xs"></i>
+            <i v-else-if="selectedTagIds.size > 0 || note.trim()" class="pi pi-check-circle text-emerald-400 text-xs"></i>
+            <span v-if="saving" class="text-accent/60 text-xs normal-case">Saving…</span>
+          </div>
         </div>
       </div>
     </div>

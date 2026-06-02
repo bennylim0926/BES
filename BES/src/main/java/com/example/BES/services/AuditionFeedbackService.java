@@ -84,7 +84,7 @@ public class AuditionFeedbackService {
         EventGenreParticipant egp = egpRepo.findByEventNameAndGenreNameAndAuditionNumber(
             dto.getEventName(), dto.getGenreName(), dto.getAuditionNumber()
         ).orElse(null);
-        Judge judge = judgeRepo.findByName(dto.getJudgeName()).orElse(null);
+        Judge judge = judgeRepo.findFirstByName(dto.getJudgeName()).orElse(null);
 
         if (egp == null || judge == null) return;
 
@@ -123,12 +123,16 @@ public class AuditionFeedbackService {
         return result;
     }
 
+    public void resetFeedbackByJudge(String eventName, String genreName, String judgeName) {
+        feedbackRepo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+    }
+
     public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,
                                                String judgeName, Integer auditionNumber) {
         EventGenreParticipant egp = egpRepo.findByEventNameAndGenreNameAndAuditionNumber(
             eventName, genreName, auditionNumber
         ).orElse(null);
-        Judge judge = judgeRepo.findByName(judgeName).orElse(null);
+        Judge judge = judgeRepo.findFirstByName(judgeName).orElse(null);
 
         if (egp == null || judge == null) return new GetAuditionFeedbackDto(List.of(), null);
 

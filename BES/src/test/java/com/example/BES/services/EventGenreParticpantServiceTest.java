@@ -9,6 +9,7 @@ import com.example.BES.respositories.EventGenreParticpantRepo;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
+import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
@@ -31,11 +32,13 @@ class EventGenreParticpantServiceTest {
     @Mock EventGenreParticpantRepo repo;
     @Mock EventRepo eventRepo;
     @Mock GenreRepo genreRepo;
+    @Mock Event event;
     @Mock ParticipantRepo participantRepo;
     @Mock SimpMessagingTemplate messagingTemplate;
     @Mock JudgeRepo judgeRepo;
     @Mock EventParticipantRepo eventParticipantRepo;
     @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventGenreParticipantMemberRepo egpMemberRepo;
     @InjectMocks EventGenreParticpantService service;
 
     @Test
@@ -60,10 +63,11 @@ class EventGenreParticpantServiceTest {
 
     @Test
     void addGenreToExistingParticipant_throwsWhenGenreNotFound() {
-        when(genreRepo.findByGenreName("ghost")).thenReturn(Optional.empty());
+        when(eventRepo.findById(1L)).thenReturn(Optional.of(event));
+        when(eventGenreRepo.findByEventAndName(event, "ghost")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.addGenreToExistingParticipant(1L, 1L, "ghost"))
+        assertThatThrownBy(() -> service.addGenreToExistingParticipant(1L, 1L, "ghost", null, null, null))
             .isInstanceOf(RuntimeException.class)
-            .hasMessageContaining("Genre not found");
+            .hasMessageContaining("Event genre not found");
     }
 }

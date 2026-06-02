@@ -11,7 +11,7 @@ public class GetEventGenreParticipantDto {
     public Boolean walkin;
     public Long participantId;
     public Long eventId;
-    public Long genreId;
+    public Long eventGenreId;
     public String referenceCode;
     public List<String> memberNames;
     public String format;

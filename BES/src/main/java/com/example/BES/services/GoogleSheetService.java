@@ -5,10 +5,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +19,14 @@ import com.example.BES.clients.GoogleSheetClient;
 import com.example.BES.config.GoogleSheetConfig;
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
-import com.example.BES.dtos.GoogleSheetFileDto;
-import com.example.BES.enums.Genre;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
+import com.example.BES.models.EventGenre;
+import com.example.BES.models.Genre;
 import com.example.BES.parsers.GoogleSheetParser;
+import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventRepo;
+import com.example.BES.respositories.GenreRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
@@ -31,7 +34,7 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 @Profile("!test")
 public class GoogleSheetService {
     private static final String CATEGORY_KEYWORD = "categor";
-    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL, SheetHeader.NAME, SheetHeader.PAYMENT_STATUS, SheetHeader.CATEGORIES, SheetHeader.LOCAL_OVERSEAS));
+    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL, SheetHeader.NAME, SheetHeader.PAYMENT_STATUS, SheetHeader.CATEGORIES));
     private final static List<String> SCREENSHOT_KEYWORDS = new ArrayList<>(Arrays.asList("screenshot", "receipt", "proof", "prove", "payment"));
 
     @Autowired
@@ -43,38 +46,23 @@ public class GoogleSheetService {
     @Autowired
     GoogleSheetConfig config;
 
-    Map<String, BiConsumer<GoogleSheetFileDto, List<String>>> actions;
-    List<String> genres;
+    @Autowired
+    private GenreRepo genreRepo;
 
-    public GoogleSheetService() {
-        genres = new ArrayList<>();
-        actions = new HashMap<>();
+    @Autowired
+    private GenreService genreService;
 
-        for (Genre g : Genre.values()) {
-            for (String matchString : g.getAllMatchStrings()) {
-                genres.add(matchString);
-                final String key = matchString;
-                switch (g) {
-                    case POPPING   -> actions.put(key, (dto, list) -> dto.setPopping(categoriesCount(list, key)));
-                    case WAACKING  -> actions.put(key, (dto, list) -> dto.setWaacking(categoriesCount(list, key)));
-                    case LOCKING   -> actions.put(key, (dto, list) -> dto.setLocking(categoriesCount(list, key)));
-                    case BREAKING  -> actions.put(key, (dto, list) -> dto.setBreaking(categoriesCount(list, key)));
-                    case HIPHOP    -> actions.put(key, (dto, list) -> dto.setHiphop(categoriesCount(list, key)));
-                    case OPEN      -> actions.put(key, (dto, list) -> dto.setOpen(categoriesCount(list, key)));
-                    case AUDIENCE  -> actions.put(key, (dto, list) -> dto.setAudience(categoriesCount(list, key)));
-                    case ROOKIE    -> actions.put(key, (dto, list) -> dto.setRookie(categoriesCount(list, key)));
-                    case SMOKE     -> actions.put(key, (dto, list) -> dto.setSmoke(categoriesCount(list, key)));
-                }
-            }
-        }
-    }
+    @Autowired
+    private EventRepo eventRepo;
 
-    public GoogleSheetFileDto getParticipantsBreakDown(String fileId) throws IOException {
-        GoogleSheetFileDto dto = new GoogleSheetFileDto();
+    @Autowired
+    private EventGenreRepo eventGenreRepo;
+
+    public Map<String, Integer> getParticipantsBreakDown(String fileId) throws IOException {
         List<Integer> matchingCategoriesIndixes = getCategoriesColumns(fileId);
 
         if (matchingCategoriesIndixes.isEmpty()) {
-            return dto;
+            return new LinkedHashMap<>();
         }
 
         List<String> matchingColumnAlphabet = new ArrayList<>();
@@ -110,8 +98,7 @@ public class GoogleSheetService {
             combined.add(value);
         }
 
-        setDtoCategory(dto, combined);
-        return dto;
+        return buildGenreCounts(combined);
     }
 
     public void insertPaymentColumn(String fileId) throws IOException {
@@ -132,14 +119,45 @@ public class GoogleSheetService {
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);
         List<Integer> memberCols = getMemberNameColumns(originalHeaders);
 
+        List<String> genreMatchStrings = loadGenreMatchStrings(dto.eventName);
         for (List<String> res : resultString) {
-            AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genres, memberCols);
+            AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genreMatchStrings, memberCols);
             String name = participant.getParticipantName();
             if (name != null && !name.isBlank()) {
                 importable.add(participant);
             }
         }
         return importable;
+    }
+
+    public List<String> getAllCategoryValues(String fileId) throws IOException {
+        List<Integer> categoryIndices = getCategoriesColumns(fileId);
+        if (categoryIndices.isEmpty()) return new ArrayList<>();
+
+        List<String> ranges = new ArrayList<>();
+        for (int index : categoryIndices) {
+            String colLetter = colIndexToLetter(index + 1);
+            ranges.add(colLetter + ":" + colLetter);
+        }
+
+        BatchGetValuesResponse response = sheetClient.batchGet(fileId, ranges);
+        List<ValueRange> valueRanges = response.getValueRanges();
+
+        List<String> values = new ArrayList<>();
+        for (ValueRange vr : valueRanges) {
+            List<List<Object>> rows = vr.getValues();
+            if (rows == null || rows.isEmpty()) continue;
+            for (int i = 1; i < rows.size(); i++) {
+                List<Object> cell = rows.get(i);
+                if (cell != null && !cell.isEmpty() && cell.get(0) != null) {
+                    String val = cell.get(0).toString().trim();
+                    if (!val.isBlank()) {
+                        values.add(val);
+                    }
+                }
+            }
+        }
+        return values;
     }
 
     public Integer getSheetSizeService(String fileId) throws IOException {
@@ -157,6 +175,7 @@ public class GoogleSheetService {
             String h = headers.get(i).toLowerCase();
             if (h.contains(SheetHeader.STAGE_NAME)) colIndexMap.putIfAbsent(SheetHeader.STAGE_NAME, i);
             if (h.contains(SheetHeader.TEAM_NAME))  colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i);
+            if (h.contains(SheetHeader.ENTRY_TYPE)) colIndexMap.putIfAbsent(SheetHeader.ENTRY_TYPE, i);
         }
 
         // Normalize headers: remove extra name columns (passing pre-scan map so special cols are skipped)
@@ -271,10 +290,33 @@ public class GoogleSheetService {
                 .collect(Collectors.toList());
     }
 
-    private Integer categoriesCount(List<String> data, String category) {
-        return (int) data.stream()
-                .filter(s -> s.toLowerCase().contains(category.toLowerCase()))
+    private List<String> loadGenreMatchStrings(String eventName) {
+        List<String> all = new ArrayList<>();
+        var event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (event != null) {
+            for (EventGenre eg : eventGenreRepo.findByEvent(event)) {
+                all.add(eg.getName().toLowerCase());
+                if (eg.getSheetAliases() != null) {
+                    for (String alias : eg.getSheetAliases().split(",")) {
+                        String trimmed = alias.trim().toLowerCase();
+                        if (!trimmed.isBlank()) all.add(trimmed);
+                    }
+                }
+            }
+        }
+        return all;
+    }
+
+    private Map<String, Integer> buildGenreCounts(List<String> data) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Genre g : genreRepo.findAll()) {
+            List<String> matchStrings = genreService.getMatchStrings(g);
+            long count = data.stream()
+                .filter(s -> matchStrings.stream().anyMatch(s.toLowerCase()::contains))
                 .count();
+            if (count > 0) counts.put(g.getGenreName(), (int) count);
+        }
+        return counts;
     }
 
     private List<Integer> getCategoriesColumns(String fileId) throws IOException {
@@ -287,16 +329,6 @@ public class GoogleSheetService {
             }
         }
         return matchingColumnIndices;
-    }
-
-    private void setDtoCategory(GoogleSheetFileDto dto, List<String> data) {
-        Set<String> categories = new HashSet<>(data);
-        for (String category : categories) {
-            List<String> normalizeCategories = GoogleSheetParser.normalizeGenre(category, genres);
-            for (String normalizeCategory : normalizeCategories) {
-                actions.get(normalizeCategory).accept(dto, data);
-            }
-        }
     }
 
     private static String colIndexToLetter(int index) {

@@ -8,11 +8,9 @@ import org.springframework.stereotype.Repository;
 
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreId;
-import com.example.BES.models.Genre;
 
 @Repository
-public interface EventGenreRepo extends JpaRepository<EventGenre, EventGenreId>{
-    Optional<EventGenre> findByEventAndGenre(Event event, Genre genre);
+public interface EventGenreRepo extends JpaRepository<EventGenre, Long>{
+    Optional<EventGenre> findByEventAndName(Event event, String name);
     List<EventGenre> findByEvent(Event event);
 }

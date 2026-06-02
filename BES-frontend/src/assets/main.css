@@ -1,3 +1,5 @@
+/* Lock PrimeVue's layer position BEFORE Tailwind so our utilities win */
+@layer primevue;
+
 @import "tailwindcss";
 @import './base.css';
-

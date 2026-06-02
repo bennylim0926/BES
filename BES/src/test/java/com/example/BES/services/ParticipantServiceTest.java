@@ -40,7 +40,7 @@ class ParticipantServiceTest {
         dto.name = "Existing";
         Participant existing = new Participant();
         existing.setParticipantName("Existing");
-        when(repo.findByParticipantName("Existing")).thenReturn(Optional.of(existing));
+        when(repo.findFirstByParticipantName("Existing")).thenReturn(Optional.of(existing));
 
         Participant result = service.addWalkInService(dto);
 
@@ -53,7 +53,7 @@ class ParticipantServiceTest {
         AddWalkInDto dto = new AddWalkInDto();
         dto.name = "Newbie";
         Participant empty = new Participant();
-        when(repo.findByParticipantName("Newbie")).thenReturn(Optional.of(empty));
+        when(repo.findFirstByParticipantName("Newbie")).thenReturn(Optional.of(empty));
         when(repo.save(any())).thenReturn(empty);
 
         service.addWalkInService(dto);

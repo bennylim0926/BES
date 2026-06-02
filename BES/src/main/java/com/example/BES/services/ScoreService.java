@@ -38,7 +38,7 @@ public class ScoreService {
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
             dto.participantId = s.getEventGenreParticipant().getId().getParticipantId();
             dto.eventName = s.getEventGenreParticipant().getEvent().getEventName();
-            dto.genreName = s.getEventGenreParticipant().getGenre().getGenreName();
+            dto.genreName = s.getEventGenreParticipant().getEventGenre().getName();
             dto.judgeName = s.getJudge().getName();
             dto.participantName = s.getEventGenreParticipant().getDisplayName();
             dto.score = s.getValue();
@@ -54,7 +54,7 @@ public class ScoreService {
         for (ParticipantScoreDto d : dto.participantScore) {
             EventGenreParticipant record = eventGenreParticpantRepo
                     .findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName).orElse(null);
-            Judge judge = judgeRepo.findByName(dto.judgeName).orElse(null);
+            Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
 
             if (d.aspects != null && !d.aspects.isEmpty()) {
@@ -89,5 +89,10 @@ public class ScoreService {
 
     public Integer deleteScoreByEventService(DeleteScoreByEventDto dto) {
         return repo.deleteByEventId(dto.getEvent_id());
+    }
+
+    @Transactional
+    public void resetScoresByJudge(String eventName, String genreName, String judgeName) {
+        repo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
     }
 }

@@ -67,7 +67,7 @@ class EventParticpantServiceTest {
         when(eventRepo.findByEventName("Missing")).thenReturn(Optional.empty());
         Participant p = new Participant();
 
-        assertThat(service.addNewWalkInInEventService(p, "Missing", "breaking", null, null)).isNull();
+        assertThat(service.addNewWalkInInEventService(p, "Missing")).isNull();
     }
 
     @Test
@@ -77,9 +77,8 @@ class EventParticpantServiceTest {
         EventParticipant existing = new EventParticipant();
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
         when(eventParticipantRepo.findByEventAndParticipant(e, p)).thenReturn(Optional.of(existing));
-        when(eventParticipantRepo.save(existing)).thenReturn(existing);
 
-        EventParticipant result = service.addNewWalkInInEventService(p, "Fest", "breaking", null, null);
+        EventParticipant result = service.addNewWalkInInEventService(p, "Fest");
 
         assertThat(result).isSameAs(existing);
     }

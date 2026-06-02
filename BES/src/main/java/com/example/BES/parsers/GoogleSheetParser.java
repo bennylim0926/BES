@@ -52,7 +52,7 @@ public class GoogleSheetParser {
 
             // Match against all known genre strings
             for (String genre : genres) {
-                if (seg.contains(genre)) {
+                if (seg.contains(genre) || genre.contains(seg)) {
                     result.putIfAbsent(genre, format);
                 }
             }

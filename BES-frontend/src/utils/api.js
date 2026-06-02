@@ -208,24 +208,29 @@ export const removeEventJudge = async(eventName, judgeId) => {
   } catch(err) { console.log(err) }
 }
 
-export const addJudges = async(judgeList) => {
-  try{
-    const res = await fetch(`${domain}/api/v1/event/judges`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-          judges: judgeList
-      })
+export const getJudgesByDivision = async (eventName, divisionId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judges`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    return res.ok ? await res.json() : []
+  } catch { return [] }
+}
+
+export const addJudgeToDivision = async (eventName, divisionId, judgeName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judge`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeName })
     })
-    return res.ok
-  }catch(e){
-      console.log(e)
-      return false
-  }
+  } catch { return null }
+}
+
+export const removeJudgeFromDivision = async (eventName, divisionId, judgeId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/judge/${judgeId}`, {
+      method: 'DELETE', credentials: 'include', headers: { 'Accept': 'application/json' }
+    })
+  } catch { return null }
 }
 
 export const insertPaymentColumnInSheet = async (fileId) =>{
@@ -269,7 +274,7 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   }
 }
 
-export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
+export const linkGenreToEvent = async(eventName, divisions) =>{
   try{
     return await fetch(`${domain}/api/v1/event/genre`, {
       method: 'POST',
@@ -280,8 +285,7 @@ export const linkGenreToEvent = async(eventName, genres, genreFormats = {}) =>{
       },
       body: JSON.stringify({
           eventName: eventName,
-          genreName: genres,
-          genreFormats: genreFormats
+          divisions: divisions
       })
   })
   }catch(e){
@@ -309,7 +313,7 @@ export const addParticipantToSystem = async (fileId, eventName)=>{
   }
 }
 
-export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '')=>{
+export const addWalkinToSystem = async (participantName, eventName, genreName, judgeName, teamMembers = [], teamName = '', entryMode = 'team')=>{
   try{
   return await fetch(`${domain}/api/v1/event/walkins/`, {
     method: 'POST',
@@ -324,7 +328,8 @@ export const addWalkinToSystem = async (participantName, eventName, genreName, j
         genre: genreName,
         judgeName: judgeName,
         teamMembers: teamMembers,
-        teamName: teamName
+        teamName: teamName,
+        entryMode: entryMode
     })
   })
   }catch(e){
@@ -366,6 +371,26 @@ export const getParticipantScore = async(eventName) =>{
         console.log(e)
         return []
     }
+}
+
+export const resetJudgeScores = async (eventName, genreName, judgeName) => {
+  const params = new URLSearchParams({ eventName, genreName, judgeName })
+  try {
+    return await fetch(`${domain}/api/v1/event/scores/reset?${params}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const resetJudgeFeedback = async (eventName, genreName, judgeName) => {
+  const params = new URLSearchParams({ eventName, genreName, judgeName })
+  try {
+    return await fetch(`${domain}/api/v1/event/feedback/reset?${params}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.log(e) }
 }
 
 export const getBattleJudges = async() =>{
@@ -449,7 +474,7 @@ export const removeBattleJudge = async(id) =>{
     return null
   }
 }
-export const setBattlePair = async(leftBattler, rightBattler, isFinal = false) =>{
+export const setBattlePair = async(leftBattler, rightBattler, isFinal = false, leftMembers = [], rightMembers = []) =>{
   try{
     return await fetch(`${domain}/api/v1/battle/battle-pair`,{
       method: 'POST',
@@ -461,7 +486,9 @@ export const setBattlePair = async(leftBattler, rightBattler, isFinal = false) =
       body: JSON.stringify({
         leftBattler: leftBattler,
         rightBattler: rightBattler,
-        isFinal: isFinal
+        isFinal: isFinal,
+        leftMembers: leftMembers,
+        rightMembers: rightMembers
       })
     })
   }catch(e){
@@ -729,7 +756,7 @@ export const removeParticipantGenre = async (participantId, eventId, genreId) =>
   }
 }
 
-export const addGenreToParticipant = async (participantId, eventId, genreName) => {
+export const addGenreToParticipant = async (participantId, eventId, genreName, entryMode, teamName, teamMembers) => {
   try {
     return await fetch(`${domain}/api/v1/event/participant-genre`, {
       method: 'POST',
@@ -738,7 +765,7 @@ export const addGenreToParticipant = async (participantId, eventId, genreName) =
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ participantId, eventId, genreName })
+      body: JSON.stringify({ participantId, eventId, genreName, entryMode, teamName, teamMembers })
     })
   } catch (e) {
     console.log(e)
@@ -1042,9 +1069,9 @@ export const deletePickupCrew = async (crewId) => {
   }
 }
 
-export const updateEventGenreFormat = async (eventName, genreName, format) => {
+export const updateEventGenreFormat = async (eventName, eventGenreId, format) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${encodeURIComponent(genreName)}/format`, {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${eventGenreId}/format`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -1105,6 +1132,19 @@ export const checkInParticipant = async (participantId, eventId) => {
   }
 }
 
+export const sendCheckinPreview = async (eventName, previewData) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${eventName}/checkin-preview`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(previewData)
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
 export const getBattleGuests = async (eventName) => {
   try {
     return await fetch(`${domain}/api/v1/event/battle-guests/${encodeURIComponent(eventName)}`, {
@@ -1115,13 +1155,13 @@ export const getBattleGuests = async (eventName) => {
   }
 }
 
-export const addBattleGuest = async (eventName, genreName, guestName, entryRound) => {
+export const addBattleGuest = async (eventName, genreName, guestName, entryRound, memberNames = []) => {
   try {
     return await fetch(`${domain}/api/v1/event/battle-guests/${encodeURIComponent(eventName)}/${encodeURIComponent(genreName)}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ guestName, entryRound })
+      body: JSON.stringify({ guestName, entryRound, memberNames })
     })
   } catch (e) {
     console.log(e)
@@ -1152,4 +1192,112 @@ export const postAppConfig = async (accentColor) => {
     body: JSON.stringify({ accentColor })
   })
   return res.json()
+}
+
+export const addDivision = async (eventName, name, format, genreId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, format: format || null, genreId: genreId || null })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const renameDivision = async (eventName, divisionId, name) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/name`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const updateDivisionAliases = async (eventName, divisionId, aliases) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/aliases`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliases })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const updateDivisionSoloAllowed = async (eventName, divisionId, soloAllowed) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/solo-allowed`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ soloAllowed })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const deleteDivision = async (eventName, divisionId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const getSheetCategories = async (fileId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/sheets/categories/${fileId}`, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+    return res.ok ? (await res.json()).values ?? [] : []
+  } catch (e) { console.log(e); return [] }
+}
+
+export const assignAuditionNumber = async (eventId, participantId, eventGenreId, auditionNumber) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/adjust/assign`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId, participantId, eventGenreId, auditionNumber })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const assignAuditionNumbersBatch = async (eventId, participantId, assignments) => {
+  // assignments: [{ eventGenreId, auditionNumber }, ...]
+  try {
+    return await fetch(`${domain}/api/v1/event/adjust/assign-batch`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId, participantId, assignments })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const swapAuditionNumbers = async (eventId, eventGenreId, participantId1, participantId2) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/adjust/swap`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId, eventGenreId, participantId1, participantId2 })
+    })
+  } catch (e) { console.log(e) }
+}
+
+export const releaseAuditionNumbers = async (eventId, participantId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/adjust/release`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId, participantId })
+    })
+  } catch (e) { console.log(e) }
 }

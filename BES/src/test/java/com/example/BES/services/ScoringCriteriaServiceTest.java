@@ -4,10 +4,11 @@ import com.example.BES.dtos.AddScoringCriteriaDto;
 import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
 import com.example.BES.models.ScoringCriteria;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ScoringCriteriaRepo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +31,7 @@ class ScoringCriteriaServiceTest {
     @Mock
     EventRepo eventRepo;
     @Mock
-    GenreRepo genreRepo;
+    EventGenreRepo eventGenreRepo;
     @InjectMocks
     ScoringCriteriaService service;
 
@@ -108,7 +109,7 @@ class ScoringCriteriaServiceTest {
         Event e = new Event();
         e.setEventName("Fest");
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.empty());
+        when(eventGenreRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addCriteria(dto))
             .isInstanceOf(ResponseStatusException.class);
@@ -143,13 +144,13 @@ class ScoringCriteriaServiceTest {
         dto.weight = 0.5;
         Event e = new Event();
         e.setEventName("Fest");
-        Genre g = new Genre();
-        g.setGenreName("breaking");
+        EventGenre eg = new EventGenre();
+        eg.setName("breaking");
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.of(g));
+        when(eventGenreRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.of(eg));
         ScoringCriteria saved = criteria(2L, "Musicality", 0.5);
         saved.setEvent(e);
-        saved.setGenre(g);
+        saved.setEventGenre(eg);
         when(repo.save(any())).thenReturn(saved);
 
         GetScoringCriteriaDto result = service.addCriteria(dto);

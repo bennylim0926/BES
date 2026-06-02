@@ -22,7 +22,7 @@ public class AuditionFeedback {
     @ManyToOne
     @JoinColumns({
         @JoinColumn(name = "event_id", referencedColumnName = "event_id"),
-        @JoinColumn(name = "genre_id", referencedColumnName = "genre_id"),
+        @JoinColumn(name = "event_genre_id", referencedColumnName = "event_genre_id"),
         @JoinColumn(name = "participant_id", referencedColumnName = "participant_id")
     })
     private EventGenreParticipant eventGenreParticipant;
