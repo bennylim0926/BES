@@ -4,19 +4,17 @@ import ActionDoneModal from './ActionDoneModal.vue'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 
 // ── State ──────────────────────────────────────────────────────────────────
-const currentPerson = ref(null)
-// { name, refCode, memberNames: [], genres: [{ genreName, auditionNumber, rolling }] }
+const slotKey = (participantId, name) => String(participantId ?? name)
+
+const activeSlots = ref([])
+// { slotId: string, person: { participantId, name, refCode, memberNames, genres[] }, queue: [], running: false }
 
 const history = ref([])
-const revealingRef = ref(null)
+const revealingRef = ref({})        // { [slotId | historyKey]: boolean }
 
-// Per-division slot animation
-const fakeNums = ref({})        // { [genreName]: number }
-const rollingIntervals = {}     // { [genreName]: intervalId }
-
-// Sequential animation queue — processes one division at a time
-const auditionQueue = []
-let queueRunning = false
+// Per-slot rolling animation state — keyed by "${slotId}-${genreName}"
+const fakeNums = ref({})
+const rollingIntervals = {}         // { "${slotId}-${genreName}": intervalId }
 
 const modalTitle = ref('')
 const modalMessage = ref('')
@@ -25,132 +23,143 @@ const showModal = ref(false)
 const wsClients = []
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const flushCurrentToHistory = () => {
-  if (currentPerson.value) {
-    // Capture any numbers still pending in the queue so history is accurate
-    const pendingNums = {}
-    auditionQueue.forEach(m => { if (isSamePerson(currentPerson.value, m)) pendingNums[m.genre] = m.auditionNumber })
-    const genres = currentPerson.value.genres.map(g => ({
-      ...g,
-      auditionNumber: g.auditionNumber ?? pendingNums[g.genreName] ?? null
-    }))
-    history.value.unshift({ ...currentPerson.value, genres })
-  }
-}
+const setReveal = (key, val) => { revealingRef.value = { ...revealingRef.value, [key]: val } }
+const toggleReveal = (key) => { revealingRef.value = { ...revealingRef.value, [key]: !revealingRef.value[key] } }
 
-function startRolling(genreName) {
-  clearInterval(rollingIntervals[genreName])
-  rollingIntervals[genreName] = setInterval(() => {
-    fakeNums.value = { ...fakeNums.value, [genreName]: Math.floor(Math.random() * 99) + 1 }
-  }, 80)
-}
-
-function stopRolling(genreName) {
-  clearInterval(rollingIntervals[genreName])
-  delete rollingIntervals[genreName]
+function stopRolling(slotId, genreName) {
+  const key = `${slotId}-${genreName}`
+  clearInterval(rollingIntervals[key])
+  delete rollingIntervals[key]
   const next = { ...fakeNums.value }
-  delete next[genreName]
+  delete next[key]
   fakeNums.value = next
 }
 
-function processNextInQueue() {
-  if (auditionQueue.length === 0) {
-    queueRunning = false
-    return
-  }
-  queueRunning = true
-  const msg = auditionQueue.shift()
-  animateAuditionNumber(msg)
+function stopAllSlotRolling(slotId) {
+  const slot = activeSlots.value.find(s => s.slotId === slotId)
+  if (!slot) return
+  const allGenreKeys = new Set()
+  slot.person.genres.forEach(g => allGenreKeys.add(`${slotId}-${g.genreName}`))
+  allGenreKeys.forEach(k => {
+    clearInterval(rollingIntervals[k])
+    delete rollingIntervals[k]
+  })
+  const next = { ...fakeNums.value }
+  allGenreKeys.forEach(k => delete next[k])
+  fakeNums.value = next
 }
 
-function animateAuditionNumber(msg) {
-  // If person moved to history before animation ran, update history and skip animation
-  if (!isSamePerson(currentPerson.value, msg)) {
-    const historyEntry = history.value.find(h => h.name === msg.name)
-    if (historyEntry) {
-      const hGenre = historyEntry.genres.find(g => g.genreName === msg.genre)
-      if (hGenre) hGenre.auditionNumber = msg.auditionNumber
-    }
-    processNextInQueue()
-    return
+const flushSlotToHistory = (slotId) => {
+  const idx = activeSlots.value.findIndex(s => s.slotId === slotId)
+  if (idx !== -1) {
+    history.value.unshift({ ...activeSlots.value[idx].person })
+    activeSlots.value.splice(idx, 1)
   }
+}
 
-  // Update refCode once we have it
-  if (msg.refCode && !currentPerson.value.refCode) {
-    currentPerson.value.refCode = msg.refCode
-  }
+function animateSlot(slotId, msg) {
+  const slot = activeSlots.value.find(s => s.slotId === slotId)
+  if (!slot) return
 
-  // Find or create the genre entry (auditionNumber stays null until animation reveals it)
-  let genre = currentPerson.value.genres.find(g => g.genreName === msg.genre)
+  if (msg.refCode && !slot.person.refCode) slot.person.refCode = msg.refCode
+
+  let genre = slot.person.genres.find(g => g.genreName === msg.genre)
   if (!genre) {
     genre = { genreName: msg.genre, auditionNumber: null, rolling: false }
-    currentPerson.value.genres.push(genre)
+    slot.person.genres.push(genre)
   }
 
-  // Slot animation — reveal the number only when animation finishes (no spoiler)
   genre.rolling = true
-  startRolling(msg.genre)
+  const intervalKey = `${slotId}-${msg.genre}`
+  clearInterval(rollingIntervals[intervalKey])
+  rollingIntervals[intervalKey] = setInterval(() => {
+    fakeNums.value = { ...fakeNums.value, [intervalKey]: Math.floor(Math.random() * 99) + 1 }
+  }, 80)
+
   setTimeout(() => {
-    stopRolling(msg.genre)
-    const g = currentPerson.value?.genres.find(g => g.genreName === msg.genre)
-    if (g) {
-      g.rolling = false
-      g.auditionNumber = msg.auditionNumber
+    stopRolling(slotId, msg.genre)
+    const currentSlot = activeSlots.value.find(s => s.slotId === slotId)
+    if (currentSlot) {
+      const g = currentSlot.person.genres.find(g => g.genreName === msg.genre)
+      if (g) {
+        g.rolling = false
+        g.auditionNumber = msg.auditionNumber
+      }
     }
-    processNextInQueue()
+    processSlotQueue(slotId)
   }, 2000)
 }
 
-// ── WS Handlers ─────────────────────────────────────────────────────────────
-const isSamePerson = (a, b) =>
-  a && b && (a.participantId != null && b.participantId != null
-    ? a.participantId === b.participantId
-    : a.name === b.name)
+function processSlotQueue(slotId) {
+  const slot = activeSlots.value.find(s => s.slotId === slotId)
+  if (!slot) return
 
+  if (slot.queue.length === 0) {
+    slot.running = false
+    if (slot.person.genres.every(g => g.auditionNumber !== null)) {
+      setTimeout(() => flushSlotToHistory(slotId), 1500)
+    }
+    return
+  }
+
+  slot.running = true
+  const msg = slot.queue.shift()
+  animateSlot(slotId, msg)
+}
+
+// ── WS Handlers ─────────────────────────────────────────────────────────────
 const onPreview = (msg) => {
-  if (isSamePerson(currentPerson.value, msg)) {
-    // Same person — merge any new genres without overwriting existing
-    if (msg.refCode && !currentPerson.value.refCode) currentPerson.value.refCode = msg.refCode
-    const existing = new Set(currentPerson.value.genres.map(g => g.genreName))
+  if (msg.cancelled) {
+    const id = slotKey(msg.participantId, msg.name)
+    const idx = activeSlots.value.findIndex(s => s.slotId === id)
+    if (idx !== -1) {
+      stopAllSlotRolling(id)
+      activeSlots.value.splice(idx, 1)
+    }
+    return
+  }
+
+  const id = slotKey(msg.participantId, msg.name)
+  const existing = activeSlots.value.find(s => s.slotId === id)
+  if (existing) {
+    if (msg.refCode && !existing.person.refCode) existing.person.refCode = msg.refCode
+    const existingGenres = new Set(existing.person.genres.map(g => g.genreName))
     for (const g of (msg.genres ?? [])) {
-      if (!existing.has(g.genreName)) {
-        currentPerson.value.genres.push({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false })
+      if (!existingGenres.has(g.genreName)) {
+        existing.person.genres.push({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false })
       }
     }
   } else {
-    // Different person — discard pending animations and flush current to history
-    if (currentPerson.value) {
-      auditionQueue.length = 0
-      flushCurrentToHistory()
-    }
-    currentPerson.value = {
-      participantId: msg.participantId ?? null,
-      name: msg.name,
-      refCode: msg.refCode ?? null,
-      memberNames: msg.memberNames ?? [],
-      genres: (msg.genres ?? []).map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false }))
-    }
+    activeSlots.value.push({
+      slotId: id,
+      person: {
+        participantId: msg.participantId ?? null,
+        name: msg.name,
+        refCode: msg.refCode ?? null,
+        memberNames: msg.memberNames ?? [],
+        genres: (msg.genres ?? []).map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false }))
+      },
+      queue: [],
+      running: false
+    })
   }
 }
 
 const onReceiveAuditionNumber = (msg) => {
-  if (isSamePerson(currentPerson.value, msg)) {
-    // Ensure genre row exists (pending state) — number revealed only after animation
-    if (!currentPerson.value.genres.find(g => g.genreName === msg.genre)) {
-      currentPerson.value.genres.push({ genreName: msg.genre, auditionNumber: null, rolling: false })
+  const id = slotKey(msg.participantId, msg.name)
+  const slot = activeSlots.value.find(s => s.slotId === id)
+  if (slot) {
+    if (!slot.person.genres.find(g => g.genreName === msg.genre)) {
+      slot.person.genres.push({ genreName: msg.genre, auditionNumber: null, rolling: false })
     }
-    if (msg.refCode && !currentPerson.value.refCode) currentPerson.value.refCode = msg.refCode
-    auditionQueue.push(msg)
-    if (!queueRunning) processNextInQueue()
+    if (msg.refCode && !slot.person.refCode) slot.person.refCode = msg.refCode
+    slot.queue.push(msg)
+    if (!slot.running) processSlotQueue(id)
   } else {
-    // Late message — update history directly, no animation
-    const historyEntry = history.value.find(h => h.name === msg.name)
+    const historyEntry = history.value.find(h => slotKey(h.participantId, h.name) === id)
     if (historyEntry) {
       const hGenre = historyEntry.genres.find(g => g.genreName === msg.genre)
       if (hGenre) hGenre.auditionNumber = msg.auditionNumber
-    } else {
-      auditionQueue.push(msg)
-      if (!queueRunning) processNextInQueue()
     }
   }
 }
@@ -183,14 +192,14 @@ onBeforeUnmount(() => {
   <div class="page-container">
     <div class="color-bleed"></div>
 
-    <!-- ── Current Participant ─────────────────────────────────────────── -->
+    <!-- ── Current Participants ────────────────────────────────────────── -->
     <div class="section-rule mb-4">
       <span class="section-rule-label">Current Participant</span>
       <div class="section-rule-line"></div>
     </div>
 
     <!-- Idle state -->
-    <div v-if="!currentPerson" class="flex flex-col items-center justify-center py-16 text-center">
+    <div v-if="activeSlots.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
       <div class="para-chip-sm w-16 h-16 flex items-center justify-center mb-4">
         <i class="pi pi-qrcode text-content-muted text-2xl"></i>
       </div>
@@ -198,88 +207,98 @@ onBeforeUnmount(() => {
       <p class="type-label text-content-muted mt-1">Check in a participant on the Event Details page</p>
     </div>
 
-    <!-- Active participant card -->
-    <div v-else class="card-hover p-5 relative mb-6">
-      <div class="corner-bar-tl"></div>
-      <div class="corner-bar-bl"></div>
+    <!-- Active slots grid -->
+    <div
+      v-else
+      class="grid gap-4 mb-6"
+      :style="{ gridTemplateColumns: `repeat(${Math.min(activeSlots.length, 3)}, 1fr)` }"
+    >
+      <div
+        v-for="slot in activeSlots"
+        :key="slot.slotId"
+        class="card-hover p-5 relative"
+      >
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
 
-      <!-- Name row -->
-      <div class="flex items-start justify-between gap-4 mb-1">
-        <div class="flex-1 min-w-0">
-          <p class="type-label text-content-muted mb-1">Good Luck</p>
-          <p class="type-page-title text-content-primary leading-tight" style="font-size:clamp(1.4rem,4vw,2.2rem)">
-            {{ currentPerson.name }}
-          </p>
+        <!-- Name row -->
+        <div class="flex items-start justify-between gap-4 mb-1">
+          <div class="flex-1 min-w-0">
+            <p class="type-label text-content-muted mb-1">Good Luck</p>
+            <p class="type-page-title text-content-primary leading-tight" style="font-size:clamp(1.4rem,4vw,2.2rem)">
+              {{ slot.person.name }}
+            </p>
+          </div>
+          <!-- Ref code chip (hold to reveal) -->
+          <div
+            v-if="slot.person.refCode"
+            class="flex-shrink-0 para-chip-sm px-3 py-2 cursor-pointer select-none flex flex-col items-end gap-0.5"
+            @mousedown="setReveal(slot.slotId, true)" @mouseup="setReveal(slot.slotId, false)" @mouseleave="setReveal(slot.slotId, false)"
+            @touchstart="setReveal(slot.slotId, true)" @touchend="setReveal(slot.slotId, false)" @touchcancel="setReveal(slot.slotId, false)"
+          >
+            <span class="type-label text-content-muted">Ref Code</span>
+            <span v-if="revealingRef[slot.slotId]" class="font-source tracking-widest text-accent" style="font-size:1rem;letter-spacing:0.2em">
+              {{ slot.person.refCode }}
+            </span>
+            <span v-else class="type-label text-content-muted/40">Hold to reveal</span>
+          </div>
+          <div v-else-if="slot.person.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5">
+            <i class="pi pi-spin pi-spinner text-content-muted text-xs"></i>
+            <span class="type-label text-content-muted">Assigning…</span>
+          </div>
         </div>
-        <!-- Ref code chip (hold to reveal) -->
-        <div
-          v-if="currentPerson.refCode"
-          class="flex-shrink-0 para-chip-sm px-3 py-2 cursor-pointer select-none flex flex-col items-end gap-0.5"
-          @mousedown="revealingRef = 'current'" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
-          @touchstart="revealingRef = 'current'" @touchend="revealingRef = null" @touchcancel="revealingRef = null"
-        >
-          <span class="type-label text-content-muted">Ref Code</span>
-          <span v-if="revealingRef === 'current'" class="font-source tracking-widest text-accent" style="font-size:1rem;letter-spacing:0.2em">
-            {{ currentPerson.refCode }}
-          </span>
-          <span v-else class="type-label text-content-muted/40">Hold to reveal</span>
+
+        <!-- Team members -->
+        <div v-if="slot.person.memberNames?.length" class="flex items-center gap-1.5 type-label text-content-muted mb-3">
+          <i class="pi pi-users" style="font-size:0.65rem"></i>
+          <span>{{ slot.person.memberNames.join(' · ') }}</span>
         </div>
-        <div v-else-if="currentPerson.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5">
-          <i class="pi pi-spin pi-spinner text-content-muted text-xs"></i>
-          <span class="type-label text-content-muted">Assigning…</span>
+
+        <!-- Divisions -->
+        <div class="section-rule my-3">
+          <span class="section-rule-label">Divisions</span>
+          <div class="section-rule-line"></div>
         </div>
-      </div>
 
-      <!-- Team members -->
-      <div v-if="currentPerson.memberNames?.length" class="flex items-center gap-1.5 type-label text-content-muted mb-3">
-        <i class="pi pi-users" style="font-size:0.65rem"></i>
-        <span>{{ currentPerson.memberNames.join(' · ') }}</span>
-      </div>
+        <div class="space-y-2">
+          <div
+            v-for="g in slot.person.genres"
+            :key="g.genreName"
+            class="flex items-center gap-3 para-chip-sm px-3 py-2.5"
+            :style="g.auditionNumber !== null ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
+          >
+            <!-- Status dot -->
+            <span
+              class="inline-block w-2 h-2 rounded-full flex-shrink-0"
+              :style="g.auditionNumber !== null
+                ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
+                : g.rolling
+                  ? 'background:rgba(245,158,11,0.7);box-shadow:0 0 6px rgba(245,158,11,0.5)'
+                  : 'background:rgba(255,255,255,0.15)'"
+            ></span>
 
-      <!-- Divisions -->
-      <div class="section-rule my-3">
-        <span class="section-rule-label">Divisions</span>
-        <div class="section-rule-line"></div>
-      </div>
+            <!-- Division name -->
+            <span class="type-body text-content-primary flex-1">{{ g.genreName }}</span>
 
-      <div class="space-y-2">
-        <div
-          v-for="g in currentPerson.genres"
-          :key="g.genreName"
-          class="flex items-center gap-3 para-chip-sm px-3 py-2.5"
-          :style="g.auditionNumber !== null ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
-        >
-          <!-- Status dot -->
-          <span
-            class="inline-block w-2 h-2 rounded-full flex-shrink-0"
-            :style="g.auditionNumber !== null
-              ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
-              : g.rolling
-                ? 'background:rgba(245,158,11,0.7);box-shadow:0 0 6px rgba(245,158,11,0.5)'
-                : 'background:rgba(255,255,255,0.15)'"
-          ></span>
-
-          <!-- Division name -->
-          <span class="type-body text-content-primary flex-1">{{ g.genreName }}</span>
-
-          <!-- Number area -->
-          <div class="flex items-baseline gap-1 tabular-nums min-w-[5rem] justify-end">
-            <!-- Rolling -->
-            <template v-if="g.rolling">
-              <span class="type-label text-amber-400/60 text-xs">Drawing</span>
-              <span class="type-stat text-amber-400" style="font-size:1.6rem">
-                {{ fakeNums[g.genreName] ?? '—' }}
-              </span>
-            </template>
-            <!-- Revealed -->
-            <template v-else-if="g.auditionNumber !== null">
-              <span class="type-label text-accent/60 text-xs">#</span>
-              <span class="type-stat text-accent" style="font-size:1.6rem">{{ g.auditionNumber }}</span>
-            </template>
-            <!-- Pending -->
-            <template v-else>
-              <span class="type-stat text-content-muted/20" style="font-size:1.6rem">—</span>
-            </template>
+            <!-- Number area -->
+            <div class="flex items-baseline gap-1 tabular-nums min-w-[5rem] justify-end">
+              <!-- Rolling -->
+              <template v-if="g.rolling">
+                <span class="type-label text-amber-400/60 text-xs">Drawing</span>
+                <span class="type-stat text-amber-400" style="font-size:1.6rem">
+                  {{ fakeNums[`${slot.slotId}-${g.genreName}`] ?? '—' }}
+                </span>
+              </template>
+              <!-- Revealed -->
+              <template v-else-if="g.auditionNumber !== null">
+                <span class="type-label text-accent/60 text-xs">#</span>
+                <span class="type-stat text-accent" style="font-size:1.6rem">{{ g.auditionNumber }}</span>
+              </template>
+              <!-- Pending -->
+              <template v-else>
+                <span class="type-stat text-content-muted/20" style="font-size:1.6rem">—</span>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -317,15 +336,15 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
-          <!-- Ref code (press and hold to reveal) -->
+          <!-- Ref code (click to reveal) -->
           <span
             v-if="person.refCode"
             class="relative ml-auto shrink-0 inline-flex items-center gap-1.5 para-chip-sm px-2.5 py-1 type-label cursor-pointer select-none transition-colors"
-            :class="revealingRef === person.name + i ? 'text-accent' : 'text-content-muted hover:text-accent'"
-            @click="revealingRef = revealingRef === person.name + i ? null : person.name + i"
+            :class="revealingRef['h-' + person.name + '-' + i] ? 'text-accent' : 'text-content-muted hover:text-accent'"
+            @click="toggleReveal('h-' + person.name + '-' + i)"
           >
             <i class="pi pi-eye" style="font-size:0.6rem"></i>
-            <template v-if="revealingRef === person.name + i">
+            <template v-if="revealingRef['h-' + person.name + '-' + i]">
               <span class="font-source tracking-widest" style="font-size:0.75rem;letter-spacing:0.2em">{{ person.refCode }}</span>
             </template>
             <template v-else>Ref</template>

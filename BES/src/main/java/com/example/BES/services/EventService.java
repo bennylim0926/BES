@@ -41,6 +41,12 @@ public class EventService {
         emailTemplateService.createDefaultTemplate(saved);
     }
 
+    public String getEventNameById(Long eventId) {
+        return repo.findById(eventId)
+            .map(Event::getEventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+    }
+
     public AddEventDto findEventbyNameSerivce(String eventName){
         Event event = repo.findByEventName(eventName).orElse(null);
         if(event != null){
