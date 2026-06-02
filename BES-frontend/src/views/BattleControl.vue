@@ -157,6 +157,7 @@ const initiateBattlePairAt = async (top, pairList, startIdx) => {
   currentRound.value = startIdx
   currentTop.value = top
   localStorage.setItem('currentTop', top)
+  broadcastBracket()  // syncs currentRoundIndex to backend so recovery finds the right pair
   saveGenreBattleState(selectedGenre.value)
   markSaved()
 }
@@ -881,9 +882,12 @@ const jumpToRecoveredPair = async () => {
     }
     currentTop.value = topKey
     localStorage.setItem('currentTop', topKey)
-    currentRound.value = currentRoundIndex ?? 0
     const pairList = bracket.rounds[topKey] ?? []
-    currentBattle.value = [currentRoundIndex ?? 0, pairList]
+    // Find pair by name — currentRoundIndex can be stale if broadcastBracket wasn't called
+    const nameIdx = pairList.findIndex(m => m[0] === currentPair.left && m[1] === currentPair.right)
+    const resolvedIdx = nameIdx >= 0 ? nameIdx : (currentRoundIndex ?? 0)
+    currentRound.value = resolvedIdx
+    currentBattle.value = [resolvedIdx, pairList]
     await setBattlePair(
       currentPair.left, currentPair.right, currentPair.isFinal,
       currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
@@ -1292,20 +1296,7 @@ onUnmounted(() => {
     <!-- Page header -->
     <div>
       <div class="type-page-title">Battle Control</div>
-      <div class="flex items-center gap-3 mt-1">
-        <p class="type-label text-content-muted">Manage brackets, rounds, and live voting</p>
-        <Transition name="recovery-fade" mode="out-in">
-          <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">
-            <i class="pi pi-spin pi-spinner" style="font-size:9px"></i> SAVING
-          </span>
-          <span v-else-if="saveStatus === 'saved'" key="saved" class="inline-flex items-center gap-1 type-label text-emerald-400" style="font-size:10px;letter-spacing:0.18em">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span> SAVED
-          </span>
-          <span v-else-if="saveStatus === 'error'" key="error" class="inline-flex items-center gap-1 type-label text-amber-400" style="font-size:10px;letter-spacing:0.18em">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span> SAVE FAILED
-          </span>
-        </Transition>
-      </div>
+      <p class="type-label text-content-muted mt-1">Manage brackets, rounds, and live voting</p>
     </div>
 
     <!-- Quick access links -->
@@ -1938,6 +1929,18 @@ onUnmounted(() => {
           ></div>
           <span class="type-body" :class="battlePhase === 'REVEALED' ? 'text-emerald-400' : battlePhase === 'LOCKED' ? 'text-amber-400' : battlePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ battlePhase }}</span>
         </div>
+        <!-- Save state indicator — next to phase badge so operator sees it -->
+        <Transition name="recovery-fade" mode="out-in">
+          <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.16em;background:rgba(255,255,255,0.04);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
+            <i class="pi pi-spin pi-spinner" style="font-size:9px"></i> SAVING
+          </span>
+          <span v-else-if="saveStatus === 'saved'" key="saved" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-emerald-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(52,211,153,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,0.7)"></span> SAVED
+          </span>
+          <span v-else-if="saveStatus === 'error'" key="error" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-amber-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(245,158,11,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span> SAVE FAILED
+          </span>
+        </Transition>
       </div>
 
       <!-- Final tie warning -->
