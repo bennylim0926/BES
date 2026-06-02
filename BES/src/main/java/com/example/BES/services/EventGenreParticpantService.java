@@ -118,7 +118,7 @@ public class EventGenreParticpantService {
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
         List<EventGenreParticipant> entries =
             repo.findByEventIdAndParticipantId(eventId, participantId);
-        if (entries.stream().allMatch(e -> e.getAuditionNumber() != null)) {
+        if (!entries.isEmpty() && entries.stream().allMatch(e -> e.getAuditionNumber() != null)) {
             throw new IllegalStateException("already_checked_in");
         }
         for (EventGenreParticipant entry : entries) {
