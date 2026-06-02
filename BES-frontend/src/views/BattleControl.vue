@@ -487,7 +487,7 @@ const applyToFirstRound = () => {
     const guestNames = new Set(guestsForCurrentGenre.value.map(g => g.guestName))
     const filteredSeeds = seeds.value.filter(n => n === null || !guestNames.has(n))
     let si = 0
-    rounds.value = rounds.value.map((r, i) => {
+    rounds.value = rounds.value.map((r, _i) => {
       if (r?.name && guestNames.has(r.name)) return r // pinned guest
       return { name: filteredSeeds[si++] ?? null, score: r?.score ?? 0 }
     })

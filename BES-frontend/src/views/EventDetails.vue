@@ -754,15 +754,11 @@ const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', r
 const dialogFakeNums = ref({})
 const dialogRollingIntervals = {}
 const dialogNumberQueue = []
-let dialogQueueRunning = false
-
 function processNextDialogNumber() {
   if (dialogNumberQueue.length === 0) {
-    dialogQueueRunning = false
     checkinConfirm.value.phase = 'done'
     return
   }
-  dialogQueueRunning = true
   const { genre, auditionNumber } = dialogNumberQueue.shift()
   const g = checkinConfirm.value.participant?.genres.find(x => x.genreName === genre)
   if (!g) { processNextDialogNumber(); return }
@@ -813,7 +809,6 @@ const confirmCheckIn = async () => {
   Object.values(dialogRollingIntervals).forEach(clearInterval)
   for (const k in dialogRollingIntervals) delete dialogRollingIntervals[k]
   dialogFakeNums.value = {}
-  dialogQueueRunning = false
 
   checkinConfirm.value.phase = 'generating'
   checkinConfirm.value.refCode = null

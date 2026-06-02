@@ -39,13 +39,6 @@ function onNoteInput() {
   }, 800)
 }
 
-function handleSave() {
-  emit('save', {
-    tagIds: [...selectedTagIds.value],
-    note: note.value.trim() || null,
-  })
-}
-
 
 </script>
 

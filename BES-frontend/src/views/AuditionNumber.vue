@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 
