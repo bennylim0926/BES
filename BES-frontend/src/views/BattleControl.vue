@@ -1289,6 +1289,11 @@ watch(topSize, async (newVal, oldVal) => {
     currentBattle.value = battle ?? []
     currentTop.value = top ?? ''
     currentRound.value = round ?? 0
+    // Broadcast the restored pair so the overlay reflects this size immediately
+    const pair = currentBattlePair.value
+    if (!isSmoke.value && pair?.[0] && pair?.[1]) {
+      await setBattlePair(pair[0], pair[1], top === 'Top2', getMembersFor(pair[0]), getMembersFor(pair[1]))
+    }
   } else {
     currentBattle.value = []
     currentTop.value = ''
