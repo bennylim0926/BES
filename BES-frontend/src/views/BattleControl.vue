@@ -36,7 +36,7 @@ const markSaved  = () => {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2200)
 }
-const markSaveError = () => { saveStatus.value = 'error' }
+const _markSaveError = () => { saveStatus.value = 'error' }
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
