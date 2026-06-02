@@ -10,18 +10,21 @@ export const createClient = () =>{
     })
 }
 export const subscribeToChannel = (client, topic, callback) =>{
-    if(!client.connected){
-        client.onConnect = ()=>{
-            client.subscribe(topic, (msg) =>{
-                callback(JSON.parse(msg.body))
-            })
-        }
-    }else{
-        client.subscribe(topic, (msg)=>{
+    const doSubscribe = () => {
+        client.subscribe(topic, (msg) => {
             callback(JSON.parse(msg.body))
         })
     }
-    client.activate()
+    if(!client.connected){
+        const prev = client.onConnect
+        client.onConnect = () => {
+            if (prev) prev()
+            doSubscribe()
+        }
+    }else{
+        doSubscribe()
+    }
+    if (!client.active) client.activate()
 }
 
 export const deactivateClient = (client) =>{
