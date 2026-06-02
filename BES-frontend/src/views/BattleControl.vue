@@ -1533,7 +1533,7 @@ onUnmounted(() => {
               : 'text-content-muted hover:text-content-primary'"
           >
             {{ g }}
-            <i v-if="g === selectedGenre && showFinalReveal" class="pi pi-star-fill text-[9px] text-amber-400" title="Judges voted — ready to reveal champion"></i>
+            <i v-if="g === selectedGenre && (showFinalReveal || (genreChampions[g] && !currentGenreChampion))" class="pi pi-star-fill text-[9px] text-amber-400" title="Judges voted — ready to reveal champion"></i>
           </button>
         </div>
         <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
@@ -2223,9 +2223,11 @@ onUnmounted(() => {
         <!-- Champion Reveal — only for the final (Top2).
              showFinalReveal: judges voted live in the final.
              currentGenreChampion: winner slot in rounds['Top2'][0][2] is set — only
-             possible after the actual final match is scored, not from Top4/etc propagation. -->
+             possible after the actual final match is scored, not from Top4/etc propagation.
+             genreChampions[selectedGenre]: pending champion saved when organiser switched
+             genres before clicking Reveal — persists across genre switches. -->
         <button
-          v-if="(showFinalReveal || currentGenreChampion) && !revealActive"
+          v-if="(showFinalReveal || currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
           @click="revealChampionForGenre"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
