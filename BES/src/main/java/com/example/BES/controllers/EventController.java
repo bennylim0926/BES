@@ -449,6 +449,11 @@ public class EventController {
         try {
             eventGenreParticipantService.getAllAuditionNumsViaQR(participantId, eventId);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
+        } catch (IllegalStateException e) {
+            if ("already_checked_in".equals(e.getMessage())) {
+                return new ResponseEntity<>("already_checked_in", HttpStatus.CONFLICT);
+            }
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
         }
