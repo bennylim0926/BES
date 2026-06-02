@@ -1101,6 +1101,11 @@ const revealChampionForGenre = async () => {
   // Case 2: score already in bracket (winner in rounds data) OR tracked in genreChampions
   const champion = currentGenreChampion.value ?? genreChampions.value[selectedGenre.value]
   if (!champion) return
+  // Update live match winner display so the WIN button reflects the correct side
+  if (currentBattlePair.value) {
+    const side = champion === currentBattlePair.value[0] ? 0 : (champion === currentBattlePair.value[1] ? 1 : -1)
+    if (side !== -1) currentWinner.value = side
+  }
   await revealChampion(selectedGenre.value, champion)
   revealActive.value = true
 }
@@ -1131,6 +1136,10 @@ const confirmResetBracket = async () => {
   currentTop.value = ''
   localStorage.removeItem('currentTop')
   saveGenreBattleState(selectedGenre.value)
+  // Clear champion tracking for this genre
+  const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+  genreChampions.value = rest
+  localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -1257,6 +1266,8 @@ const sizeStateKey = (size) => `battleSizeState_${selectedEvent.value}_${selecte
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
+  // Reset to first round tab so the bracket is always visible after a size change
+  activeRoundIdx.value = 0
   // Save last-selected pair for outgoing size so we can restore it on return
   if (oldVal && currentBattle.value.length > 0) {
     localStorage.setItem(sizeStateKey(oldVal), JSON.stringify({
@@ -1508,7 +1519,7 @@ onUnmounted(() => {
               : 'text-content-muted hover:text-content-primary'"
           >
             {{ g }}
-            <i v-if="genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" :title="`Champion: ${genreChampions[g]}`"></i>
+            <i v-if="genreChampions[g] || (g === selectedGenre && showFinalReveal)" class="pi pi-star-fill text-[9px] text-amber-400" :title="genreChampions[g] ? `Champion: ${genreChampions[g]}` : 'Judges voted — ready to reveal'"></i>
           </button>
         </div>
         <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->

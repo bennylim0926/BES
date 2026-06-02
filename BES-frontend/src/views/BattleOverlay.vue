@@ -344,6 +344,46 @@ onMounted(async () => {
     }
   })
 
+  // Champion reveal — re-plays the winner animation when organiser clicks Reveal Champion
+  // after a refresh or genre switch (score already submitted, but overlay needs to animate).
+  const cChampion = createClient(); clients.push(cChampion)
+  subscribeToChannel(cChampion, '/topic/battle/champion-reveal', async (msg) => {
+    if (!msg || msg.dismiss || isSmoke.value) return
+    const champion = msg.championName
+    if (!champion) return
+    // If we don't have a current pair loaded, fetch it first
+    if (!leftName.value) {
+      const freshState = await getBattleState()
+      if (freshState?.currentPair?.left) await updateBattlePair(freshState.currentPair)
+    }
+    const side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
+    if (side === -1) return
+    animToken++
+    const myToken = animToken
+    const ok = () => !unmounted && animToken === myToken
+    // Brief pause before reveal so entrance animation can complete if pair was just loaded
+    await useDelay().wait(350)
+    if (!ok()) return
+    hideJudgeDecision.value = true
+    judgeAnim.value = ''
+    if (side === 0) {
+      leftWin.value          = true
+      winnerTagVisible.value = true
+      vsAnim.value           = 'knock-right'
+      await useDelay().wait(100)
+      if (!ok()) return
+      rightReset.value = true
+    } else {
+      rightWin.value         = true
+      winnerTagVisible.value = true
+      vsAnim.value           = 'knock-left'
+      await useDelay().wait(100)
+      if (!ok()) return
+      leftReset.value = true
+    }
+    currentWinner.value = side
+  })
+
   // Always subscribe to /topic/battle/state — detects genre switches in real-time
   const cState = createClient(); clients.push(cState)
   subscribeToChannel(cState, '/topic/battle/state', async (msg) => {
