@@ -128,6 +128,27 @@ const updateSmokePair = async () => {
   await updateSmokeList(rounds.value)
 }
 
+const initiateBattlePairAt = async (top, pairList, startIdx) => {
+  currentWinner.value = -2
+  revealActive.value = false
+  await resetJudgeVote()
+  if (top === 'Top2' && Array.isArray(rounds.value['Top2']?.[0])) {
+    rounds.value['Top2'][0][2] = null
+    localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    broadcastBracket()
+  }
+  currentBattle.value = [startIdx, pairList]
+  const left = pairList[startIdx][0]
+  const right = pairList[startIdx][1]
+  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right))
+  await setBattlePhase('LOCKED')
+  battlePhase.value = 'LOCKED'
+  currentRound.value = startIdx
+  currentTop.value = top
+  localStorage.setItem('currentTop', top)
+  saveGenreBattleState(selectedGenre.value)
+}
+
 const initiateBattlePair = async (top, pairList) => {
   // Reset winner FIRST so the winnerAnnouncement computed doesn't fire setWinner
   // with stale winner + new round/top values when reactive state updates below.
@@ -827,8 +848,42 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
 const jumpToRecoveredPair = async () => {
   if (!recoveryState.value) return
   showRecoveryBanner.value = false
-  currentRound.value = recoveryState.value.currentRoundIndex ?? 0
-  await restoreAndBroadcastGenreBattle(selectedGenre.value)
+  const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket } = recoveryState.value
+
+  if (!isSmoke.value && bracket?.rounds) {
+    rounds.value = bracket.rounds
+    // Find which round key contains this match
+    let topKey = 'Top2'
+    if (!currentPair.isFinal) {
+      for (const key of Object.keys(bracket.rounds)) {
+        const matchList = bracket.rounds[key]
+        if (!Array.isArray(matchList)) continue
+        if (matchList.some(m => m[0] === currentPair.left && m[1] === currentPair.right)) {
+          topKey = key
+          break
+        }
+      }
+    }
+    currentTop.value = topKey
+    localStorage.setItem('currentTop', topKey)
+    currentRound.value = currentRoundIndex ?? 0
+    const pairList = bracket.rounds[topKey] ?? []
+    currentBattle.value = [currentRoundIndex ?? 0, pairList]
+    await setBattlePair(
+      currentPair.left, currentPair.right, currentPair.isFinal,
+      currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
+      currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
+    )
+  } else {
+    // Smoke or no bracket data — just re-broadcast the pair
+    await setBattlePair(currentPair.left, currentPair.right, false,
+      getMembersFor(currentPair.left), getMembersFor(currentPair.right))
+  }
+
+  const phase = restoredPhase && restoredPhase !== 'IDLE' ? restoredPhase : 'LOCKED'
+  await setBattlePhase(phase)
+  battlePhase.value = phase
+  saveGenreBattleState(selectedGenre.value)
 }
 
 // Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
@@ -1159,15 +1214,13 @@ onMounted(async () => {
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
-  // Sync backend to the current genre's saved judges.
-  // On reload, the backend may have stale judges from a previous genre.
-  // If localStorage has a saved state for this genre, use it as truth.
-  // If not, save what the backend has so future genre switches work correctly.
+  // Backend DB is now authoritative for judges (persisted on every change).
+  // On refresh, don't call syncJudgesForGenre — that removes all judges and re-adds
+  // from localStorage, which broadcasts an empty list and makes BattleJudge ask "who are you?".
+  // Just seed localStorage if it's empty so future genre switches have a value to restore.
   if (selectedGenre.value) {
     const savedRaw = localStorage.getItem(genreJudgeKey(selectedGenre.value))
-    if (savedRaw !== null) {
-      await syncJudgesForGenre(selectedGenre.value, null)
-    } else {
+    if (savedRaw === null) {
       saveGenreJudges(selectedGenre.value)
     }
   }
@@ -1182,13 +1235,12 @@ onMounted(async () => {
     const storedTop = localStorage.getItem('currentTop')
     if (storedTop) currentTop.value = storedTop
   }
-  // Recovery banner: if a battle was in progress, offer to jump back to the active pair
-  if (battlePhase.value !== 'IDLE' && currentBattlePair.value?.[0]) {
-    const raw = await getBattleState()
-    if (raw && raw.currentRoundIndex !== undefined) {
-      recoveryState.value = raw
-      showRecoveryBanner.value = true
-    }
+  // Recovery banner — always check backend state (local refs are empty on fresh load)
+  const battleState = await getBattleState()
+  if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
+    currentRound.value = battleState.currentRoundIndex ?? 0
+    recoveryState.value = battleState
+    showRecoveryBanner.value = true
   }
   wsClient.value = createClient()
   // Single onConnect handler — multiple subscribeToChannel calls before connection
@@ -1733,6 +1785,13 @@ onUnmounted(() => {
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
+                <!-- Start from this match -->
+                <button
+                  v-if="match[0] && match[1]"
+                  @click="initiateBattlePairAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
+                  class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
+                  title="Start round from this match"
+                ><i class="pi pi-play text-[10px]"></i></button>
               </div>
             </div>
 
