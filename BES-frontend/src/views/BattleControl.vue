@@ -28,6 +28,16 @@ const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: 
 const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
 
+const saveStatus = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
+let saveTimer = null
+const markSaving = () => { saveStatus.value = 'saving'; clearTimeout(saveTimer) }
+const markSaved  = () => {
+  saveStatus.value = 'saved'
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2200)
+}
+const markSaveError = () => { saveStatus.value = 'error' }
+
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
 const pushOverlayConfig = async () => {
@@ -129,6 +139,7 @@ const updateSmokePair = async () => {
 }
 
 const initiateBattlePairAt = async (top, pairList, startIdx) => {
+  markSaving()
   currentWinner.value = -2
   revealActive.value = false
   await resetJudgeVote()
@@ -147,11 +158,11 @@ const initiateBattlePairAt = async (top, pairList, startIdx) => {
   currentTop.value = top
   localStorage.setItem('currentTop', top)
   saveGenreBattleState(selectedGenre.value)
+  markSaved()
 }
 
 const initiateBattlePair = async (top, pairList) => {
-  // Reset winner FIRST so the winnerAnnouncement computed doesn't fire setWinner
-  // with stale winner + new round/top values when reactive state updates below.
+  markSaving()
   currentWinner.value = -2
   revealActive.value = false
   await resetJudgeVote()
@@ -179,10 +190,12 @@ const initiateBattlePair = async (top, pairList) => {
   currentTop.value = top
   localStorage.setItem('currentTop', top)
   saveGenreBattleState(selectedGenre.value)
+  markSaved()
 }
 
 const prevPair = async () => {
   if (currentBattle.value.length !== 0 && currentBattle.value[0] > 0) {
+    markSaving()
     currentBattle.value = [currentBattle.value[0] - 1, currentBattle.value[1]]
     const left = currentBattle?.value[1][currentBattle?.value[0]][0]
     const right = currentBattle?.value[1][currentBattle?.value[0]][1]
@@ -192,14 +205,16 @@ const prevPair = async () => {
     currentWinner.value = -2
     currentRound.value -= 1
     saveGenreBattleState(selectedGenre.value)
+    markSaved()
   }
 }
 
 const nextPair = async () => {
   if (currentBattle.value.length === 0) return
+  markSaving()
   await resetJudgeVote()
   if (isSmoke.value) {
-    await update7toSmokeMatch(currentWinner.value)  // handles queue reorder + updateSmokePair + currentWinner reset
+    await update7toSmokeMatch(currentWinner.value)
     await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name))
     await setBattlePhase('LOCKED')
     battlePhase.value = 'LOCKED'
@@ -216,7 +231,6 @@ const nextPair = async () => {
       currentRound.value += 1
       saveGenreBattleState(selectedGenre.value)
     } else {
-      // Last battle of this round — end match and return to IDLE
       await setBattlePhase('IDLE')
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
@@ -226,6 +240,7 @@ const nextPair = async () => {
       saveGenreBattleState(selectedGenre.value)
     }
   }
+  markSaved()
 }
 
 const topParticipants = computed(() => {
@@ -847,7 +862,7 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
 
 const jumpToRecoveredPair = async () => {
   if (!recoveryState.value) return
-  showRecoveryBanner.value = false
+  markSaving()
   const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket } = recoveryState.value
 
   if (!isSmoke.value && bracket?.rounds) {
@@ -884,6 +899,7 @@ const jumpToRecoveredPair = async () => {
   await setBattlePhase(phase)
   battlePhase.value = phase
   saveGenreBattleState(selectedGenre.value)
+  markSaved()
 }
 
 // Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
@@ -1076,9 +1092,11 @@ const dismissReveal = async () => {
 }
 
 const openVoting = async () => {
+  markSaving()
   await setBattlePhase('VOTING')
   battlePhase.value = 'VOTING'
   saveGenreBattleState(selectedGenre.value)
+  markSaved()
 }
 
 const confirmResetBracket = async () => {
@@ -1235,12 +1253,12 @@ onMounted(async () => {
     const storedTop = localStorage.getItem('currentTop')
     if (storedTop) currentTop.value = storedTop
   }
-  // Recovery banner — always check backend state (local refs are empty on fresh load)
+  // Auto-restore from backend state on refresh — always check regardless of local state
   const battleState = await getBattleState()
   if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
-    currentRound.value = battleState.currentRoundIndex ?? 0
     recoveryState.value = battleState
-    showRecoveryBanner.value = true
+    await jumpToRecoveredPair()   // restore silently
+    showRecoveryBanner.value = true  // then notify the operator
   }
   wsClient.value = createClient()
   // Single onConnect handler — multiple subscribeToChannel calls before connection
@@ -1274,7 +1292,20 @@ onUnmounted(() => {
     <!-- Page header -->
     <div>
       <div class="type-page-title">Battle Control</div>
-      <p class="type-label text-content-muted mt-1">Manage brackets, rounds, and live voting</p>
+      <div class="flex items-center gap-3 mt-1">
+        <p class="type-label text-content-muted">Manage brackets, rounds, and live voting</p>
+        <Transition name="recovery-fade" mode="out-in">
+          <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">
+            <i class="pi pi-spin pi-spinner" style="font-size:9px"></i> SAVING
+          </span>
+          <span v-else-if="saveStatus === 'saved'" key="saved" class="inline-flex items-center gap-1 type-label text-emerald-400" style="font-size:10px;letter-spacing:0.18em">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span> SAVED
+          </span>
+          <span v-else-if="saveStatus === 'error'" key="error" class="inline-flex items-center gap-1 type-label text-amber-400" style="font-size:10px;letter-spacing:0.18em">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span> SAVE FAILED
+          </span>
+        </Transition>
+      </div>
     </div>
 
     <!-- Quick access links -->
@@ -1332,14 +1363,11 @@ onUnmounted(() => {
         <div class="recovery-body">
           <span class="recovery-dot"></span>
           <div class="recovery-text">
-            <span class="recovery-title">IN PROGRESS</span>
+            <span class="recovery-title">RESTORED</span>
             <span class="recovery-detail">ROUND {{ recoveryState.currentRoundIndex + 1 }} — {{ recoveryState.currentPair?.left ?? '???' }} VS {{ recoveryState.currentPair?.right ?? '???' }}</span>
           </div>
         </div>
         <div class="recovery-actions">
-          <button class="recovery-btn recovery-btn-jump" @click="jumpToRecoveredPair">
-            JUMP TO PAIR
-          </button>
           <button class="recovery-btn recovery-btn-dismiss" @click="showRecoveryBanner = false">
             DISMISS
           </button>
