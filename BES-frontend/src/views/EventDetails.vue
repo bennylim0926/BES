@@ -33,6 +33,7 @@ const batchVerifying = ref(false)
 const checkinList = ref([])
 const loadingCheckinList = ref(false)
 const checkingInId = ref(null)
+const confirming = ref(false)
 const checkinSearch = ref('')
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
@@ -739,7 +740,13 @@ const fetchCheckinList = async () => {
 const checkIn = async (p) => {
   checkingInId.value = p.participantId
   try {
-    await checkInParticipant(p.participantId, p.eventId)
+    const res = await checkInParticipant(p.participantId, p.eventId)
+    if (res?.status === 409) {
+      checkinConfirm.value.phase = 'error'
+      checkinConfirm.value.errorMessage = 'Already checked in at another desk.'
+      checkingInId.value = null
+      return
+    }
     await Promise.all([fetchCheckinList(), refreshFromDb()])
   } catch (e) {
     console.error(e)
@@ -747,7 +754,7 @@ const checkIn = async (p) => {
   checkingInId.value = null
 }
 
-const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', refCode: null })
+const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', refCode: null, errorMessage: '' })
 // phase: 'confirm' → 'generating' → 'done'
 
 // Dialog slot machine animation state
@@ -797,9 +804,20 @@ const askCheckIn = (p) => {
   })
 }
 
+const closeCheckinDialog = () => {
+  if (checkinConfirm.value.phase === 'confirm' && checkinConfirm.value.participant) {
+    sendCheckinPreview(eventName.value, {
+      participantId: checkinConfirm.value.participant.participantId,
+      cancelled: true
+    })
+  }
+  checkinConfirm.value.show = false
+}
+
 const confirmCheckIn = async () => {
   const p = checkinConfirm.value.participant
-  if (!p) return
+  if (!p || confirming.value) return
+  confirming.value = true
 
   // Reset genre display state
   p.genres.forEach(g => { g.auditionNumber = null; g.rolling = false })
@@ -816,6 +834,10 @@ const confirmCheckIn = async () => {
   // checkIn awaits both the HTTP assignment AND fetchCheckinList + refreshFromDb,
   // so when it resolves we have fresh numbers in checkinList.value and verifiedDbParticipants.value
   await checkIn(p)
+  confirming.value = false
+
+  // Early exit if checkIn set an error phase (e.g. 409)
+  if (checkinConfirm.value.phase === 'error') return
 
   // Get ref code from fresh verifiedDbParticipants data
   const refEntry = verifiedDbParticipants.value.find(ep => ep.participantId === p.participantId)
@@ -2025,7 +2047,7 @@ onUnmounted(() => {
     >
       <div v-if="checkinConfirm.show" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          @click="checkinConfirm.phase !== 'generating' && (checkinConfirm.show = false)" />
+          @click="checkinConfirm.phase !== 'generating' && closeCheckinDialog()" />
         <div class="card-hover p-5 relative w-full max-w-md" style="clip-path:none">
           <div class="corner-bar-tl"></div>
           <div class="corner-bar-bl"></div>
@@ -2033,9 +2055,9 @@ onUnmounted(() => {
           <!-- Header -->
           <div class="flex items-center justify-between mb-4">
             <p class="type-body text-content-secondary">
-              {{ checkinConfirm.phase === 'confirm' ? 'Confirm Check-In' : checkinConfirm.phase === 'generating' ? 'Generating…' : 'Check-In Complete' }}
+              {{ checkinConfirm.phase === 'confirm' ? 'Confirm Check-In' : checkinConfirm.phase === 'generating' ? 'Generating…' : checkinConfirm.phase === 'error' ? 'Check-In Failed' : 'Check-In Complete' }}
             </p>
-            <button v-if="checkinConfirm.phase !== 'generating'" @click="checkinConfirm.show = false"
+            <button v-if="checkinConfirm.phase !== 'generating'" @click="closeCheckinDialog"
               class="p-1 text-content-muted hover:text-content-primary transition-colors">
               <i class="pi pi-times text-sm" />
             </button>
@@ -2113,12 +2135,13 @@ onUnmounted(() => {
           <div class="flex gap-3">
             <!-- Confirm phase -->
             <template v-if="checkinConfirm.phase === 'confirm'">
-              <button @click="checkinConfirm.show = false"
+              <button @click="closeCheckinDialog"
                 class="flex-1 py-2 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all">
                 Cancel
               </button>
               <button @click="confirmCheckIn"
-                class="flex-1 py-2 para-chip type-label text-white transition-all"
+                :disabled="confirming"
+                class="flex-1 py-2 para-chip type-label text-white transition-all disabled:opacity-50"
                 style="background:rgba(255,255,255,0.12);box-shadow:0 0 12px var(--accent-subtle)"
               >
                 <i class="pi pi-check mr-1.5 text-xs"></i> Confirm
@@ -2128,6 +2151,18 @@ onUnmounted(() => {
             <div v-else-if="checkinConfirm.phase === 'generating'"
               class="flex-1 py-2 flex items-center justify-center gap-2 type-label text-content-muted">
               <i class="pi pi-spin pi-spinner text-xs"></i> Generating…
+            </div>
+            <!-- Error phase (e.g. 409 already checked in) -->
+            <div v-else-if="checkinConfirm.phase === 'error'"
+              class="flex-1 flex flex-col items-center gap-3">
+              <div class="flex items-center gap-2 type-label text-red-400">
+                <i class="pi pi-exclamation-circle text-sm"></i>
+                {{ checkinConfirm.errorMessage }}
+              </div>
+              <button @click="checkinConfirm.show = false"
+                class="px-4 py-2 para-chip-sm type-label text-content-muted hover:text-content-primary transition-colors">
+                Close
+              </button>
             </div>
             <!-- Done phase -->
             <button v-else @click="checkinConfirm.show = false"
