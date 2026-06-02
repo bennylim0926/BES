@@ -24,3 +24,23 @@ BES-frontend/nginx/certs/*.key
 .agent-dispatch/shared/
 .agent-dispatch/.env
 .agent-docker/
+
+# Claude Code — local state (never commit)
+.claude.json
+.claude.json.backup
+.claude/.last-cleanup
+.claude/statsig/
+.claude/todos/
+.claude/projects/
+.claude/backups/
+
+# Build tool caches (Maven wrapper, npm)
+.m2/
+.npm/
+
+# Superpowers runtime
+.superpowers/
+
+# Temp / scratch files
+*_body.txt
+test_output.txt
