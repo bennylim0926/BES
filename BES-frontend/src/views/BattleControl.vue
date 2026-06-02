@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -27,6 +27,7 @@ const revealActive = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
+const genreChampions     = ref({})
 
 const saveStatus = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
 let saveTimer = null
@@ -864,7 +865,22 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
 const jumpToRecoveredPair = async () => {
   if (!recoveryState.value) return
   markSaving()
-  const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket } = recoveryState.value
+  const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket, champion: restoredChampion } = recoveryState.value
+
+  // Restore topSize from DB bracket state — browser localStorage may be stale if
+  // the operator switched sizes on another session or after clearing storage.
+  if (bracket?.topSize !== undefined) {
+    const restored = Number(bracket.topSize)
+    if (!isNaN(restored) && restored !== Number(topSize.value)) {
+      topSize.value = restored
+      localStorage.setItem('topSize', String(restored))
+    }
+  }
+
+  // Restore champion if the DB recorded one for this genre
+  if (restoredChampion && selectedGenre.value) {
+    genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: restoredChampion }
+  }
 
   if (!isSmoke.value && bracket?.rounds) {
     rounds.value = bracket.rounds
@@ -1081,12 +1097,14 @@ const revealChampionForGenre = async () => {
     if (data.winner === 0 || data.winner === 1) {
       setWinner(currentTop.value, currentRound.value, data.winner)
       await revealChampion(selectedGenre.value, winnerName)
+      genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winnerName }
       revealActive.value = true
     }
     return
   }
-  if (!currentGenreChampion.value) return
-  await revealChampion(selectedGenre.value, currentGenreChampion.value)
+  if (!currentGenreChampion.value && !genreChampions.value[selectedGenre.value]) return
+  const champion = genreChampions.value[selectedGenre.value] ?? currentGenreChampion.value
+  await revealChampion(selectedGenre.value, champion)
   revealActive.value = true
 }
 
@@ -1145,19 +1163,31 @@ watch(selectedEvent, async (newVal) => {
   }
 }, { immediate: true })
 
+const genreTopSizeKey = (genre) => `battleTopSize_${selectedEvent.value}_${genre}`
+
 watch(selectedGenre, async (newVal, oldVal) => {
   // Dismiss before resetting revealActive — the check must happen while it's still true
   if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
-    // Auto-detect format from genre name — smoke genres always use topSize=7, others reset to 16
+    // Persist outgoing genre's topSize before switching
+    if (oldVal) localStorage.setItem(genreTopSizeKey(oldVal), String(topSize.value))
+
+    // Restore per-genre topSize — smoke auto-detection takes priority, otherwise
+    // use the saved size for this genre or fall back to 16.
     const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
-    if (genreNeedsSmoke && Number(topSize.value) !== 7) {
-      topSize.value = 7
-      localStorage.setItem('topSize', '7')
-    } else if (!genreNeedsSmoke && Number(topSize.value) === 7) {
-      topSize.value = 16
-      localStorage.setItem('topSize', '16')
+    if (genreNeedsSmoke) {
+      if (Number(topSize.value) !== 7) {
+        topSize.value = 7
+        localStorage.setItem('topSize', '7')
+      }
+    } else {
+      const savedSize = localStorage.getItem(genreTopSizeKey(newVal))
+      const restoredSize = savedSize ? Number(savedSize) : (Number(topSize.value) === 7 ? 16 : Number(topSize.value))
+      if (restoredSize !== Number(topSize.value)) {
+        topSize.value = restoredSize
+        localStorage.setItem('topSize', String(restoredSize))
+      }
     }
     localStorage.setItem("selectedGenre", newVal)
     const storedRounds = localStorage.getItem(`Top${topSize.value}${newVal}Rounds`)
@@ -1258,6 +1288,10 @@ onMounted(async () => {
   mountJudgeSyncDone = true
   const savedConfig = await getOverlayConfig()
   if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
+  if (selectedEvent.value) {
+    const champions = await getBattleChampions(selectedEvent.value)
+    if (champions && typeof champions === 'object') genreChampions.value = champions
+  }
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
   // Restore currentTop from localStorage only if a battle is genuinely in progress
@@ -1388,11 +1422,14 @@ onUnmounted(() => {
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
             :class="selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
-          >{{ g }}</button>
+          >
+            {{ g }}
+            <i v-if="genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" :title="`Champion: ${genreChampions[g]}`"></i>
+          </button>
         </div>
         <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
         <template v-if="!isGenreSmoke">

@@ -71,6 +71,7 @@ public class BattleService {
 
     private String activeEventName;
     private String activeGenreName;
+    private String champion = null;
 
     BattleService() {
         selectedMode = "";
@@ -271,12 +272,24 @@ public class BattleService {
         if (dto.isDismiss()) {
             messagingTemplate.convertAndSend("/topic/battle/champion-reveal", Map.of("dismiss", true));
         } else {
+            champion = dto.getChampionName() != null ? dto.getChampionName() : "";
+            persistActiveState();
             messagingTemplate.convertAndSend("/topic/battle/champion-reveal", Map.of(
                 "dismiss",       false,
                 "genreName",     dto.getGenreName()    != null ? dto.getGenreName()    : "",
-                "championName",  dto.getChampionName() != null ? dto.getChampionName() : ""
+                "championName",  champion
             ));
         }
+    }
+
+    public Map<String, String> getChampionsForEvent(String eventName) {
+        Map<String, String> result = new HashMap<>();
+        battleGenreStateRepository.findByEventName(eventName).forEach(s -> {
+            if (s.getChampion() != null && !s.getChampion().isBlank()) {
+                result.put(s.getGenreName(), s.getChampion());
+            }
+        });
+        return result;
     }
 
     @Transactional
@@ -308,6 +321,7 @@ public class BattleService {
         pair.put("isFinal",      currentIsFinal);
         state.put("currentPair", pair);
         state.put("battlePhase", battlePhase);
+        state.put("champion", champion);
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
         }
@@ -342,6 +356,7 @@ public class BattleService {
                 objectMapper.writeValueAsString(currentPair.getRightBattler().getMembers()));
             s.setIsFinal(currentIsFinal);
             s.setBattlePhase(battlePhase);
+            s.setChampion(champion);
             synchronized (judges) {
                 s.setJudgesJson(objectMapper.writeValueAsString(new ArrayList<>(judges)));
             }
@@ -373,6 +388,7 @@ public class BattleService {
                 : new ArrayList<>());
             currentIsFinal = Boolean.TRUE.equals(s.getIsFinal());
             battlePhase = s.getBattlePhase() != null ? s.getBattlePhase() : "IDLE";
+            champion = s.getChampion();
             synchronized (judges) {
                 judges.clear();
                 if (s.getJudgesJson() != null) {
@@ -398,6 +414,7 @@ public class BattleService {
         currentPair.getRightBattler().setMembers(new ArrayList<>());
         currentIsFinal = false;
         battlePhase = "IDLE";
+        champion = null;
         synchronized (judges) { judges.clear(); }
     }
 

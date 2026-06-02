@@ -538,6 +538,19 @@ export const revealChampion = async (genreName, championName) => {
   }
 }
 
+export const getBattleChampions = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/champions?event=${encodeURIComponent(eventName)}`, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+    return res.ok ? res.json() : {}
+  } catch (e) {
+    console.log(e)
+    return {}
+  }
+}
+
 export const dismissChampionReveal = async () => {
   try {
     return await fetch(`${domain}/api/v1/battle/champion-reveal`, {

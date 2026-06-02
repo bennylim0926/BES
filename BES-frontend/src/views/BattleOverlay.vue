@@ -62,7 +62,12 @@ const glitching = ref(false)
 // stale leftWin/rightWin assignments from a previous pair's score animation.
 let animToken = 0
 
-const isSmoke = computed(() => route.query.isSmoke === 'true')
+// Start from URL param; updated in real-time when backend state reports a different genre
+const isSmoke = ref(route.query.isSmoke === 'true')
+
+const genreNameIsSmoke = (name) =>
+  typeof name === 'string' &&
+  (name.toLowerCase().includes('7 to smoke') || name.toLowerCase().includes('7tosmoke'))
 
 const judgePanelClass = computed(() => {
   if (isSmoke.value) return 'smoke-judge-always-on'
@@ -298,9 +303,13 @@ onMounted(async () => {
     }
   })
 
+  // Restore state from backend on mount — handles OBS refresh and genre switches.
+  // Runs for both standard and smoke mode so genre-switch detection always works.
+  const state = await getBattleState()
+  if (state?.genreName !== undefined) {
+    isSmoke.value = genreNameIsSmoke(state.genreName)
+  }
   if (!isSmoke.value) {
-    // Restore state from backend on mount — handles OBS refresh and genre switches
-    const state = await getBattleState()
     if (state?.battlePhase) battlePhase.value = state.battlePhase
     if (state?.judges?.length) {
       battleJudges.value = { judges: state.judges }
@@ -309,21 +318,31 @@ onMounted(async () => {
     }
     const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair()
     if (pair) await updateBattlePair(pair)
-    const cPair2   = createClient(); clients.push(cPair2)
-    const cScore2  = createClient(); clients.push(cScore2)
-    const cJudges2 = createClient(); clients.push(cJudges2)
-    subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
-    subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => updateScore(msg))
-    subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
-    // Subscribe to battle/state for genre switches
-    const cState = createClient(); clients.push(cState)
-    subscribeToChannel(cState, '/topic/battle/state', (msg) => {
-      if (!msg) return
+  }
+
+  // Subscribe to pair, score, judges — for standard mode.
+  // Connections are kept alive even in smoke mode so a live format switch works immediately.
+  const cPair2   = createClient(); clients.push(cPair2)
+  const cScore2  = createClient(); clients.push(cScore2)
+  const cJudges2 = createClient(); clients.push(cJudges2)
+  subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => { if (!isSmoke.value) updateBattlePair(msg) })
+  subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => { if (!isSmoke.value) updateScore(msg) })
+  subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => { if (!isSmoke.value) updateBattleJudge(msg) })
+
+  // Always subscribe to /topic/battle/state — detects format/genre switches in real-time
+  const cState = createClient(); clients.push(cState)
+  subscribeToChannel(cState, '/topic/battle/state', async (msg) => {
+    if (!msg) return
+    const wasSmoke = isSmoke.value
+    if (msg.genreName !== undefined) isSmoke.value = genreNameIsSmoke(msg.genreName)
+    if (!isSmoke.value) {
       if (msg.battlePhase !== undefined) battlePhase.value = msg.battlePhase
       if (msg.judges?.length) updateBattleJudge({ judges: msg.judges })
-      if (msg.currentPair?.left) updateBattlePair(msg.currentPair)
-    })
-  }
+      // On format switch from smoke → standard, restore the pair from state
+      if (wasSmoke && !isSmoke.value && msg.currentPair?.left) await updateBattlePair(msg.currentPair)
+      else if (!wasSmoke && msg.currentPair?.left) updateBattlePair(msg.currentPair)
+    }
+  })
 })
 
 onBeforeUnmount(() => {

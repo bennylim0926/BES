@@ -161,6 +161,11 @@ public class BattleController {
         return ResponseEntity.ok(Map.of("message", "Champion reveal broadcast"));
     }
 
+    @GetMapping("/champions")
+    public ResponseEntity<?> getChampionsForEvent(@RequestParam String event){
+        return ResponseEntity.ok(battleService.getChampionsForEvent(event));
+    }
+
     @GetMapping("/judges")
     public ResponseEntity<?> getAllBattleJudges(){
         return ResponseEntity.ok(Map.of(
