@@ -1,5 +1,5 @@
 <script setup>
-import { getBattleJudges, getCurrentBattlePair, getImage, getOverlayConfig } from '@/utils/api';
+import { getBattleJudges, getBattleState, getCurrentBattlePair, getImage, getOverlayConfig } from '@/utils/api';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useDelay } from '@/utils/utils';
@@ -299,15 +299,30 @@ onMounted(async () => {
   })
 
   if (!isSmoke.value) {
-    battleJudges.value = await getBattleJudges()
-    const res = await getCurrentBattlePair()
-    if (res) await updateBattlePair(res)
+    // Restore state from backend on mount — handles OBS refresh and genre switches
+    const state = await getBattleState()
+    if (state?.battlePhase) battlePhase.value = state.battlePhase
+    if (state?.judges?.length) {
+      battleJudges.value = { judges: state.judges }
+    } else {
+      battleJudges.value = await getBattleJudges()
+    }
+    const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair()
+    if (pair) await updateBattlePair(pair)
     const cPair2   = createClient(); clients.push(cPair2)
     const cScore2  = createClient(); clients.push(cScore2)
     const cJudges2 = createClient(); clients.push(cJudges2)
     subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => updateBattlePair(msg))
     subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => updateScore(msg))
     subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => updateBattleJudge(msg))
+    // Subscribe to battle/state for genre switches
+    const cState = createClient(); clients.push(cState)
+    subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+      if (!msg) return
+      if (msg.battlePhase !== undefined) battlePhase.value = msg.battlePhase
+      if (msg.judges?.length) updateBattleJudge({ judges: msg.judges })
+      if (msg.currentPair?.left) updateBattlePair(msg.currentPair)
+    })
   }
 })
 

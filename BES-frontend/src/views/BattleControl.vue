@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -25,6 +25,8 @@ const showResetConfirm = ref(false)
 const finalTieBlocked = ref(false)
 const revealActive = ref(false)
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
+const showRecoveryBanner = ref(false)
+const recoveryState      = ref(null)
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
@@ -523,7 +525,7 @@ function initRounds() {
   return standardBattleRound()
 }
 
-const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value)
+const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
 
 const onDragStart = (roundKey, matchIdx, slotIdx, event) => {
   dragSource.value = { roundKey, matchIdx, slotIdx }
@@ -822,6 +824,13 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
   }
 }
 
+const jumpToRecoveredPair = async () => {
+  if (!recoveryState.value) return
+  showRecoveryBanner.value = false
+  currentRound.value = recoveryState.value.currentRoundIndex ?? 0
+  await restoreAndBroadcastGenreBattle(selectedGenre.value)
+}
+
 // Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
 const genreJudgeKey = (genre) => `battleJudges_${selectedEvent.value}_${genre}`
 let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
@@ -1078,9 +1087,12 @@ watch(selectedGenre, async (newVal, oldVal) => {
     rounds.value = JSON.parse(storedRounds) || initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
     placeGuestsInBracket()
-    broadcastBracket()
     if (oldVal) {
       saveGenreBattleState(oldVal)
+      await setActiveGenre(selectedEvent.value, newVal)
+    }
+    broadcastBracket()
+    if (oldVal) {
       await restoreAndBroadcastGenreBattle(newVal)
     }
     // Sync per-genre judges on genre switch.
@@ -1170,6 +1182,14 @@ onMounted(async () => {
     const storedTop = localStorage.getItem('currentTop')
     if (storedTop) currentTop.value = storedTop
   }
+  // Recovery banner: if a battle was in progress, offer to jump back to the active pair
+  if (battlePhase.value !== 'IDLE' && currentBattlePair.value?.[0]) {
+    const raw = await getBattleState()
+    if (raw && raw.currentRoundIndex !== undefined) {
+      recoveryState.value = raw
+      showRecoveryBanner.value = true
+    }
+  }
   wsClient.value = createClient()
   // Single onConnect handler — multiple subscribeToChannel calls before connection
   // overwrite each other's onConnect, so we wire everything here directly.
@@ -1248,6 +1268,32 @@ onUnmounted(() => {
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
     </div>
+
+    <!-- Recovery banner -->
+    <Transition name="recovery-fade">
+      <div
+        v-if="showRecoveryBanner && recoveryState"
+        class="recovery-banner"
+        role="alert"
+        aria-live="polite"
+      >
+        <div class="recovery-body">
+          <span class="recovery-dot"></span>
+          <div class="recovery-text">
+            <span class="recovery-title">IN PROGRESS</span>
+            <span class="recovery-detail">ROUND {{ recoveryState.currentRoundIndex + 1 }} — {{ recoveryState.currentPair?.left ?? '???' }} VS {{ recoveryState.currentPair?.right ?? '???' }}</span>
+          </div>
+        </div>
+        <div class="recovery-actions">
+          <button class="recovery-btn recovery-btn-jump" @click="jumpToRecoveredPair">
+            JUMP TO PAIR
+          </button>
+          <button class="recovery-btn recovery-btn-dismiss" @click="showRecoveryBanner = false">
+            DISMISS
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Config bar + Bracket (merged) -->
     <div class="card p-5">
@@ -2095,4 +2141,92 @@ onUnmounted(() => {
   margin: 4px 0 0;
   padding: 0 2px;
 }
+
+/* ── Recovery banner ────────────────────────────────── */
+.recovery-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-left: 3px solid rgba(245,158,11,0.85);
+  background: rgba(245,158,11,0.08);
+  font-family: 'Anton SC', sans-serif;
+}
+.recovery-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.recovery-dot {
+  flex-shrink: 0;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(245,158,11,0.85);
+  box-shadow: 0 0 8px rgba(245,158,11,0.6), 0 0 16px rgba(245,158,11,0.3);
+  animation: recoveryPulse 1.8s ease-in-out infinite;
+}
+.recovery-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.recovery-title {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(245,158,11,0.85);
+  text-transform: uppercase;
+}
+.recovery-detail {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recovery-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.recovery-btn {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: none;
+  cursor: pointer;
+  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+  transition: background 0.2s, color 0.2s;
+}
+.recovery-btn-jump {
+  background: rgba(245,158,11,0.85);
+  color: #060a14;
+}
+.recovery-btn-jump:hover {
+  background: rgba(245,158,11,1);
+}
+.recovery-btn-dismiss {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.55);
+}
+.recovery-btn-dismiss:hover {
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.75);
+}
+
+@keyframes recoveryPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+.recovery-fade-enter-active,
+.recovery-fade-leave-active { transition: opacity 0.3s ease; }
+.recovery-fade-enter-from,
+.recovery-fade-leave-to { opacity: 0; }
 </style>

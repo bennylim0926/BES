@@ -552,13 +552,13 @@ export const dismissChampionReveal = async () => {
   }
 }
 
-export const setBracketState = async (rounds, topSize) => {
+export const setBracketState = async (rounds, topSize, currentRoundIndex = 0) => {
   try {
     return await fetch(`${domain}/api/v1/battle/bracket`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rounds, topSize: String(topSize) })
+      body: JSON.stringify({ rounds, topSize: String(topSize), currentRoundIndex })
     })
   } catch (e) { console.error(e) }
 }
@@ -566,6 +566,31 @@ export const setBracketState = async (rounds, topSize) => {
 export const getBracketState = async () => {
   try {
     const res = await fetch(`${domain}/api/v1/battle/bracket`, { credentials: 'include' })
+    return res.ok ? await res.json() : null
+  } catch (_e) { return null }
+}
+
+export const setActiveGenre = async (eventName, genreName) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/active-genre`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getActiveGenre = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/active-genre`, { credentials: 'include' })
+    return res.ok ? await res.json() : null
+  } catch (_e) { return null }
+}
+
+export const getBattleState = async () => {
+  try {
+    const res = await fetch(`${domain}/api/v1/battle/state`, { credentials: 'include' })
     return res.ok ? await res.json() : null
   } catch (_e) { return null }
 }

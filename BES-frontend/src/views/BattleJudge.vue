@@ -150,10 +150,15 @@ onMounted(async () => {
   battleJudges.value = await getBattleJudges()
   resolveJudgeIdentity(battleJudges.value?.judges ?? [])
 
-  // 5. Restore vote from localStorage (backend WS overrides if different)
-  if (battlePhase.value === 'VOTING') {
-    const stored = restoreVoteFromStorage()
-    if (stored !== null) confirmedVote.value = stored
+  // 5. Restore vote from backend judges list if available, fall back to localStorage
+  if (battlePhase.value === 'VOTING' && judgeId.value != null) {
+    const myJudge = (battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)
+    if (myJudge && (myJudge.vote === 0 || myJudge.vote === 1 || myJudge.vote === -1)) {
+      confirmedVote.value = myJudge.vote
+    } else {
+      const stored = restoreVoteFromStorage()
+      if (stored !== null) confirmedVote.value = stored
+    }
   }
 
   // 6. WS subscriptions
