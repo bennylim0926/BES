@@ -1231,6 +1231,15 @@ const syncJudgeVoteSubscriptions = () => {
 // Re-sync vote subscriptions whenever judge list changes (add/remove)
 watch(() => battleJudges.value?.judges?.length, syncJudgeVoteSubscriptions)
 
+// Broadcast smoke list to overlay in real-time as operator assigns participants —
+// fires on any smoke rounds mutation (drag/drop, add, clear) without waiting for Start Round.
+let smokeListSyncTimer = null
+watch(rounds, () => {
+  if (!isSmoke.value || !Array.isArray(rounds.value) || rounds.value.length === 0) return
+  clearTimeout(smokeListSyncTimer)
+  smokeListSyncTimer = setTimeout(() => updateSmokeList(rounds.value), 250)
+}, { deep: true })
+
 onMounted(async () => {
   initialiseDropdown()
   await fetchAllJudges(selectedEvent.value)
