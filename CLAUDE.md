@@ -129,6 +129,25 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 ## Key Conventions
 
+### Branch Discipline (enforced via `git-scope-guard` skill)
+
+**Before touching any code, invoke the `git-scope-guard` skill.** It checks whether the task fits the current branch's declared purpose.
+
+| Branch prefix | Allowed work |
+|---------------|-------------|
+| `feat/X` | Feature X + UI/bugs introduced by this feature |
+| `fix/X` | Fix bug X only |
+| `ui/X` | Visual changes to component X only |
+| `refactor/X` | Restructure X, no behavior changes |
+| `chore/X` | Maintenance (deps, config, tooling) |
+| `docs/X` | Documentation only |
+
+**If a task is out of scope:** do not execute. Check branch state first:
+- **Branch has uncommitted WIP** → create a GitHub issue only, then stop
+- **Branch is clean** → offer the user a choice: (A) create issue for later, or (B) switch to a new branch now and implement immediately
+
+When switching to a new branch (option B): check for open PRs on the current branch, pull latest main, rebase the new branch onto it, search for related open issues to bundle, then implement. "It's just a small fix" is not an exception to the flow.
+
 ### API (see `docs/API_CONVENTIONS.md` for full details)
 
 - URLs: `/api/v1/{resource}` (collection), `/api/v1/{resource}/{id}` (single)
