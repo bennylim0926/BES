@@ -115,7 +115,8 @@ async function handleClick(side) {
 
 // ── WebSocket ───────────────────────────────────────────────────────────────
 const wsClients  = []
-let   voteClient = null
+let   voteClient      = null
+let   clearJudgeTimer = null
 
 function setupVoteSubscription() {
   if (judgeId.value == null || voteClient) return
@@ -195,12 +196,33 @@ onMounted(async () => {
     battleJudges.value = msg
     if (judgeId.value != null) {
       const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
-      if (!still) clearJudge()
+      if (still) {
+        clearTimeout(clearJudgeTimer)
+      } else {
+        // Judge absent — may be a temporary genre-sync remove+re-add. Debounce before clearing
+        // so the re-add has time to arrive. If still gone after 2.5s, clear for real.
+        if (clearJudgeTimer == null) {
+          clearJudgeTimer = setTimeout(() => {
+            clearJudgeTimer = null
+            const storedName = localStorage.getItem(LS_JUDGE_NAME)
+            const byName = storedName
+              ? (battleJudges.value?.judges ?? []).find(j => j.name === storedName)
+              : null
+            if (byName) {
+              judgeId.value = byName.id
+              localStorage.setItem(LS_JUDGE_ID, String(byName.id))
+            } else if (!(battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)) {
+              clearJudge()
+            }
+          }, 2500)
+        }
+      }
     }
   })
 })
 
 onUnmounted(() => {
+  clearTimeout(clearJudgeTimer)
   wsClients.forEach(c => deactivateClient(c))
 })
 </script>
