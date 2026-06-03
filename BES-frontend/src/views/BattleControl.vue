@@ -2569,7 +2569,7 @@ onUnmounted(() => {
             }"
           >
             <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:2px">{{ judge.name }}</div>
-            <div style="font-size:10px;color:#93c5fd;letter-spacing:0.1em;margin-bottom:4px">×{{ judge.weightage ?? 1 }}</div>
+            <div style="font-size:11px;color:#93c5fd;letter-spacing:0.12em;margin-bottom:4px;font-weight:700">WT {{ judge.weightage ?? 1 }}</div>
             <div
               v-if="judge.vote === -3"
               class="type-body text-amber-400"
