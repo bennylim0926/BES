@@ -66,10 +66,6 @@ const glitching = ref(false)
 // stale leftWin/rightWin assignments from a previous pair's score animation.
 let animToken = 0
 
-// prevTopSize: tracks the topSize last seen from a bracket message so we can
-// detect format changes (smoke ↔ standard).
-let prevTopSize = null
-
 // pendingEntrance: set when pair WS arrives while phase is IDLE so the entrance
 // animation fires after LOCKED confirms and panels mount (isBlank flips false).
 let pendingEntrance = false
@@ -390,9 +386,6 @@ onMounted(async () => {
   // Restore state from backend on mount — handles OBS refresh and genre switches.
   // Runs for both standard and smoke mode so genre-switch detection always works.
   const state = await getBattleState()
-  if (state?.bracket?.topSize !== undefined) {
-    prevTopSize = Number(state.bracket.topSize)
-  }
   if (state?.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
     activeGenreName.value = state.genreName
@@ -432,7 +425,6 @@ onMounted(async () => {
     const newTopSize = msg.topSize !== undefined ? Number(msg.topSize) : null
     if (newTopSize !== null) {
       isSmoke.value = newTopSize === 7
-      prevTopSize = newTopSize
     }
 
     // On format switch standard → smoke: Chart handles its own subscriptions.
