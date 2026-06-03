@@ -1,7 +1,7 @@
 <script setup>
 import { getBattleJudges, getBattleState, getCurrentBattlePair, getImage, getOverlayConfig } from '@/utils/api';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useDelay } from '@/utils/utils';
 import { useRoute } from 'vue-router'
 import Chart from './Chart.vue';
@@ -28,6 +28,10 @@ const currentWinner = ref(-2)
 const battleJudges  = ref([])
 
 const isFinal = ref(false)
+
+// Tracks the currently active genre name so stale phase WS messages from a
+// recently-deactivated genre can be discarded (same filter applied in BattleControl).
+const activeGenreName = ref('')
 
 // Judge panel visibility: true = off-screen (idle/battle), false = visible (score revealed)
 const hideJudgeDecision = ref(true)
@@ -66,6 +70,10 @@ let animToken = 0
 // detect format changes (smoke ↔ standard).
 let prevTopSize = null
 
+// pendingEntrance: set when pair WS arrives while phase is IDLE so the entrance
+// animation fires after LOCKED confirms and panels mount (isBlank flips false).
+let pendingEntrance = false
+
 // Start from URL param; updated in real-time when backend state reports a different genre
 const isSmoke = ref(route.query.isSmoke === 'true')
 
@@ -93,8 +101,11 @@ const runEntrance = async () => {
 }
 
 // ── Empty-pair state ───────────────────────────────────────────────────────
-// True while no battle is in progress — overlay shows waiting announcement
-const isBlank = computed(() => !isSmoke.value && battlePhase.value === 'IDLE')
+// Show WAITING whenever phase is IDLE, OR whenever no pair names are set (any phase).
+// This prevents the truly-transparent no-content state — either WAITING or panels, always.
+const isBlank = computed(() =>
+  !isSmoke.value && (battlePhase.value === 'IDLE' || (!leftName.value && !rightName.value))
+)
 
 // ── Battle pair update ─────────────────────────────────────────────────────
 const updateBattlePair = async (msg) => {
@@ -175,6 +186,8 @@ const updateBattlePair = async (msg) => {
   // Reset all state before new pair
   leftWin.value          = false
   rightWin.value         = false
+  leftReset.value        = false
+  rightReset.value       = false
   currentWinner.value    = -2
   vsAnim.value           = ''
   showVotingIndicator.value = false
@@ -191,7 +204,13 @@ const updateBattlePair = async (msg) => {
   imageLeft.value  = msg.left  ? await getImage(`${msg.left}.png`)  : null
   imageRight.value = msg.right ? await getImage(`${msg.right}.png`) : null
 
-  await runEntrance()
+  // If phase is still IDLE, isBlank=true so panels aren't in DOM yet.
+  // Defer entrance to the LOCKED handler which fires after panels mount.
+  if (battlePhase.value === 'IDLE') {
+    pendingEntrance = true
+  } else {
+    await runEntrance()
+  }
 }
 
 // ── Judge list update ──────────────────────────────────────────────────────
@@ -345,6 +364,9 @@ onMounted(async () => {
   clients.push(cPhase)
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     if (!msg?.phase) return
+    // Ignore phase messages from a different (inactive) genre — stale WS from a
+    // genre switch can arrive late and corrupt the current genre's phase display.
+    if (msg.genre && activeGenreName.value && msg.genre !== activeGenreName.value) return
     battlePhase.value = msg.phase
     showVotingIndicator.value = msg.phase === 'VOTING'
     if (msg.phase === 'LOCKED') {
@@ -358,6 +380,10 @@ onMounted(async () => {
       rightWin.value          = false
       leftReset.value         = false
       rightReset.value        = false
+      if (pendingEntrance) {
+        pendingEntrance = false
+        nextTick(() => runEntrance())
+      }
     }
   })
 
@@ -369,6 +395,7 @@ onMounted(async () => {
   }
   if (state?.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
+    activeGenreName.value = state.genreName
   }
   if (!isSmoke.value) {
     if (state?.battlePhase) battlePhase.value = state.battlePhase
@@ -379,8 +406,8 @@ onMounted(async () => {
     }
     const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair()
     if (pair) await updateBattlePair(pair)
-    // If phase is REVEALED, restore winner visual state without replaying the score animation
-    if (state?.battlePhase === 'REVEALED' && state?.bracket?.rounds) {
+    // Restore winner visual state for REVEALED and DECIDED without replaying the score animation
+    if ((state?.battlePhase === 'REVEALED' || state?.battlePhase === 'DECIDED') && state?.bracket?.rounds) {
       restoreRevealedState(state.bracket.rounds)
     }
   }
@@ -465,7 +492,10 @@ onMounted(async () => {
   subscribeToChannel(cState, '/topic/battle/state', async (msg) => {
     if (!msg) return
     const wasSmoke = isSmoke.value
-    if (msg.genreName !== undefined) isSmoke.value = genreNameIsSmoke(msg.genreName)
+    if (msg.genreName !== undefined) {
+      isSmoke.value = genreNameIsSmoke(msg.genreName)
+      activeGenreName.value = msg.genreName
+    }
     if (!isSmoke.value) {
       if (msg.battlePhase !== undefined) battlePhase.value = msg.battlePhase
       if (msg.judges?.length) updateBattleJudge({ judges: msg.judges })
@@ -474,18 +504,22 @@ onMounted(async () => {
         await updateBattlePair(msg.currentPair)
       } else if (!wasSmoke && msg.currentPair?.left) {
         const pairChanged = msg.currentPair.left !== leftName.value || msg.currentPair.right !== rightName.value
+        const needsWinnerRestore = msg.battlePhase === 'REVEALED' || msg.battlePhase === 'DECIDED'
         if (pairChanged) {
-          if (msg.battlePhase === 'REVEALED' && msg.bracket?.rounds) {
-            // Await so winner state is applied after entrance animation completes
+          if (needsWinnerRestore && msg.bracket?.rounds) {
+            // Await so winner state is applied after entrance animation completes.
+            // Applies to both REVEALED and DECIDED (genre switch back to a completed genre).
             await updateBattlePair(msg.currentPair)
             restoreRevealedState(msg.bracket.rounds)
           } else {
             // Only animate if the pair actually changed; prevents re-animation on every bracket drag
             updateBattlePair(msg.currentPair)
           }
-        } else if (msg.battlePhase === 'REVEALED' && msg.bracket?.rounds && !leftWin.value && !rightWin.value) {
-          // Same pair, REVEALED phase — winner state not yet shown (e.g. after OBS reconnect)
-          restoreRevealedState(msg.bracket.rounds)
+        } else if (needsWinnerRestore && !leftWin.value && !rightWin.value) {
+          // Same pair but no winner shown — re-trigger entrance animation so panels reappear
+          // after a WAITING state caused by a genre switch through an IDLE genre.
+          await updateBattlePair(msg.currentPair)
+          if (msg.bracket?.rounds) restoreRevealedState(msg.bracket.rounds)
         }
       }
     }
@@ -598,14 +632,14 @@ onUnmounted(() => {
     ═══════════════════════════════════════════════════ -->
     <template v-if="!isSmoke">
 
-      <!-- Blank announcement — no active pair, waiting for next battle -->
+      <!-- Blank announcement — no active pair -->
       <div v-if="isBlank" class="blank-announce" role="status" aria-live="polite">
         <div class="blank-ring"></div>
         <div class="blank-label">WAITING</div>
         <div class="blank-sub">NEXT BATTLE COMING UP</div>
       </div>
 
-      <!-- Battler panels (only when a pair is present) -->
+      <!-- Battler panels -->
       <template v-else>
 
       <!-- Left battler panel -->
@@ -737,31 +771,35 @@ body.transparent-page #app {
 </style>
 
 <style scoped>
-/* ── Blank announcement (IDLE phase) ──────────────────────── */
+/* ── Blank announcement ─────────────────────────────────────── */
 .blank-announce {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 18px;
   z-index: 60;
+  /* No background — stays transparent like the pair panels so OBS sees through consistently.
+     Text is readable on any background via drop shadows. */
 }
 .blank-ring {
   width: 80px; height: 80px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.12);
+  border: 2px solid rgba(255,255,255,0.6);
+  filter: drop-shadow(0 0 6px rgba(0,0,0,0.8));
   animation: blankPulse 2.4s ease-in-out infinite;
 }
 .blank-label {
   font-family: 'Anton SC', sans-serif;
   font-size: clamp(22px, 3.5vw, 42px);
   letter-spacing: 0.28em; text-transform: uppercase;
-  color: rgba(255,255,255,0.55);
-  text-shadow: 0 0 40px rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 40px rgba(255,255,255,0.3);
 }
 .blank-sub {
   font-family: 'Inter', sans-serif;
   font-size: 12px; font-weight: 600;
   letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.6);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
 @keyframes blankPulse {
   0%, 100% { transform: scale(1); opacity: 0.5; }

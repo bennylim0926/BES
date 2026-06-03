@@ -125,7 +125,10 @@ public class BattleService {
             "isFinal",      currentIsFinal
         ));
         battlePhase = "LOCKED";
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
+            "phase", battlePhase,
+            "genre", activeGenreName != null ? activeGenreName : ""
+        ));
         persistActiveState();
     }
 
@@ -173,7 +176,10 @@ public class BattleService {
         ));
         if (res == 0 || res == 1) {
             battlePhase = "REVEALED";
-            messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+            messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
+                "phase", battlePhase,
+                "genre", activeGenreName != null ? activeGenreName : ""
+            ));
             persistActiveState();
         }
         return res;
@@ -273,7 +279,10 @@ public class BattleService {
     public void setBattlePhaseService(String phase) {
         if ("REVEALED".equals(phase)) return;
         battlePhase = phase;
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
+            "phase", battlePhase,
+            "genre", activeGenreName != null ? activeGenreName : ""
+        ));
         persistActiveState();
     }
 
@@ -326,7 +335,10 @@ public class BattleService {
         activeGenreName = dto.getGenreName();
         loadGenreStateIntoMemory(activeEventName, activeGenreName);
         broadcastStateSnapshot();
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
+            "phase", battlePhase,
+            "genre", activeGenreName != null ? activeGenreName : ""
+        ));
     }
 
     public Map<String, Object> getBattleStateService() {

@@ -324,7 +324,10 @@ onMounted(async () => {
       if (data?.currentPair?.left) {
         activePair.value = { left: data.currentPair.left, right: data.currentPair.right }
       }
-      if (data?.genreName) currentGenre.value = data.genreName
+      if (data?.genreName) {
+        if (data.genreName !== currentGenre.value) championReveal.value = null
+        currentGenre.value = data.genreName
+      }
     })
 
     wsClient.subscribe('/topic/battle/bracket', (msg) => {
