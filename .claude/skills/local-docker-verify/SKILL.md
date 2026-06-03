@@ -108,6 +108,50 @@ If the local build **passes**: proceed to Step 3.
 
 ---
 
+## Step 2b — Verify no unmerged sibling branches will be dropped
+
+Before rebuilding, confirm the current branch includes all in-progress sibling branches. If any sibling branch has commits ahead of the default and no merged PR, a rebuild from the current branch will silently exclude that work.
+
+```bash
+DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "master")
+CURRENT=$(git branch --show-current)
+
+git for-each-ref --format='%(refname:short)' refs/heads/ \
+  | grep -vE "^(master|main|${CURRENT})$" \
+  | while read branch; do
+      AHEAD=$(git log origin/${DEFAULT}.."$branch" --oneline 2>/dev/null | wc -l | tr -d ' ')
+      if [ "$AHEAD" -gt 0 ]; then
+        MERGED=$(gh pr list --head "$branch" --state merged --limit 1 2>/dev/null | wc -l | tr -d ' ')
+        NOT_IN_CURRENT=$(git log HEAD.."$branch" --oneline 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$MERGED" -eq 0 ] && [ "$NOT_IN_CURRENT" -gt 0 ]; then
+          echo "  ⚠️  $branch — $AHEAD commits ahead of ${DEFAULT}, not merged into ${CURRENT}"
+        fi
+      fi
+    done
+```
+
+If any are found, **stop and warn before rebuilding**:
+```
+⚠️ Docker rebuild blocked — unmerged sibling branches detected:
+  feat/some-feature   (12 commits ahead of master, not in current branch)
+
+Rebuilding now will drop their changes from the running containers.
+
+Recommended: get each sibling branch merged to {DEFAULT} via PR first, then:
+  git fetch origin && git rebase origin/{DEFAULT}
+
+Do not rebuild until sibling branches are merged to {DEFAULT} and this branch
+has been rebased onto the updated origin/{DEFAULT}.
+```
+
+Do NOT use `git merge {sibling-branch}` — always keep history linear via rebase.
+
+Do not proceed to Step 3 until all sibling branches are resolved or the user explicitly confirms they want to rebuild without them.
+
+If no unmerged siblings are found: proceed to Step 3 silently.
+
+---
+
 ## Step 3 — Rebuild Affected Docker Containers
 
 **Targeted rebuild (preferred — faster)**
