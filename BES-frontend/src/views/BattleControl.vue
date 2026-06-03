@@ -128,6 +128,8 @@ const nextBattlePair = computed(() => {
 })
 
 const resetJudgeVote = async () => {
+  // Reset locally first so the panel shows WAITING immediately, before WS echo arrives
+  ;(battleJudges.value?.judges ?? []).forEach(j => { j.vote = -3 })
   await Promise.all(battleJudges.value.judges.map(j => battleJudgeVote(j.id, -3)))
 }
 
@@ -2524,47 +2526,62 @@ onUnmounted(() => {
           <div
             v-for="judge in battleJudges.judges"
             :key="judge.id"
-            class="px-3 py-2 text-center"
+            class="px-3 py-3 text-center"
             :style="{
               clipPath: 'polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)',
-              border: judge.vote === -3 ? '1px solid rgba(245,158,11,0.3)' : judge.vote === 0 ? '1px solid rgba(52,211,153,0.4)' : '1px solid rgba(59,130,246,0.4)',
-              background: judge.vote === -3 ? 'rgba(245,158,11,0.06)' : judge.vote === 0 ? 'rgba(52,211,153,0.08)' : 'rgba(59,130,246,0.08)',
+              border: judge.vote === -3
+                ? '1px solid rgba(245,158,11,0.3)'
+                : judge.vote === 0
+                  ? `1px solid ${overlayConfig.leftColor}99`
+                  : `1px solid ${overlayConfig.rightColor}99`,
+              background: judge.vote === -3
+                ? 'rgba(245,158,11,0.06)'
+                : judge.vote === 0
+                  ? `${overlayConfig.leftColor}18`
+                  : `${overlayConfig.rightColor}18`,
             }"
           >
-            <span class="type-label text-content-muted block mb-1">{{ judge.judgeName }}</span>
-            <span
+            <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:6px">{{ judge.name }}</div>
+            <div
               v-if="judge.vote === -3"
               class="type-body text-amber-400"
-            >⏳ WAITING</span>
-            <span
+              style="font-size:13px"
+            >⏳ WAITING</div>
+            <div
               v-else-if="judge.vote === 0"
-              class="type-body text-emerald-400"
-            >{{ currentBattlePair?.[0] ?? 'LEFT' }}</span>
-            <span
+              class="type-body"
+              :style="{ fontSize: '13px', color: overlayConfig.leftColor }"
+            >{{ currentBattlePair?.[0] ?? 'LEFT' }}</div>
+            <div
               v-else-if="judge.vote === 1"
-              class="type-body text-blue-400"
-            >{{ currentBattlePair?.[1] ?? 'RIGHT' }}</span>
+              class="type-body"
+              :style="{ fontSize: '13px', color: overlayConfig.rightColor }"
+            >{{ currentBattlePair?.[1] ?? 'RIGHT' }}</div>
           </div>
         </div>
         <!-- Winner preview banner when all judges have voted -->
         <div
           v-if="allJudgesVoted && tentativeWinner !== -1"
-          class="semantic-chip-success px-4 py-3"
+          class="px-4 py-3"
+          :style="{
+            borderLeft: `4px solid ${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}`,
+            background: `${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}18`,
+          }"
         >
-          <div class="type-label text-emerald-400 mb-1" style="font-size:9px;letter-spacing:0.18em">WINNER PREVIEW (ORGANISER ONLY)</div>
-          <div class="type-body text-emerald-400" style="font-size:13px">
+          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">WINNER PREVIEW (ORGANISER ONLY)</div>
+          <div class="type-body" style="font-size:20px;letter-spacing:0.08em;font-weight:bold" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">
             {{ tentativeWinner === 0 ? (currentBattlePair?.[0] ?? 'LEFT') : (currentBattlePair?.[1] ?? 'RIGHT') }}
           </div>
-          <div class="type-label text-content-muted mt-1" style="font-size:9px">{{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
         </div>
         <div
           v-else-if="allJudgesVoted && tentativeWinner === -1"
           class="px-4 py-3"
           style="border-left:3px solid #6b7280;background:rgba(107,114,128,0.08)"
         >
-          <div class="type-label mb-1" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
-          <div class="type-body" style="font-size:13px;color:#9ca3af">TIE — {{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
-          <div class="type-label text-content-muted mt-1" style="font-size:9px">Rematch required</div>
+          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
+          <div class="type-body" style="font-size:20px;letter-spacing:0.06em;font-weight:bold;color:#9ca3af">TIE — {{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">Rematch required</div>
         </div>
       </div>
       <div
@@ -2729,7 +2746,7 @@ onUnmounted(() => {
           Reveal Champion
         </button>
         <button
-          v-if="revealActive"
+          v-if="revealActive && battlePhase !== 'DECIDED'"
           @click="dismissReveal"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
