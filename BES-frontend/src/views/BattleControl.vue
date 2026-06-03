@@ -1990,8 +1990,8 @@ onUnmounted(() => {
             <i v-if="(g === selectedGenre && battlePhase === 'DECIDED') || genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" title="Champion locked — ready to reveal"></i>
           </button>
         </div>
-        <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
-        <template v-if="!isGenreSmoke">
+        <!-- Format toggle — hidden for smoke genres and when locked -->
+        <template v-if="!isGenreSmoke && !setupLocked">
           <span class="text-surface-600 select-none">|</span>
           <div class="flex flex-wrap gap-2">
             <button
@@ -2025,7 +2025,9 @@ onUnmounted(() => {
             <span class="type-body text-content-primary">{{ j.name }}</span>
             <div class="flex items-center gap-1">
               <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
+              <span v-if="setupLocked" class="type-body text-content-muted" style="font-size:12px;min-width:2.5rem;text-align:center">{{ j.weightage ?? 1 }}</span>
               <input
+                v-else
                 type="number"
                 :value="j.weightage ?? 1"
                 min="1"
@@ -2035,6 +2037,7 @@ onUnmounted(() => {
               />
             </div>
             <button
+              v-if="!setupLocked"
               @click="submitRemoveBattleJudge(j.name)"
               class="flex items-center justify-center hover:text-red-400 transition-colors"
             >
@@ -2044,8 +2047,8 @@ onUnmounted(() => {
           <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
         </div>
 
-        <!-- Add control pushed to the right -->
-        <div class="ml-auto flex items-center gap-2">
+        <!-- Add control pushed to the right — hidden when locked -->
+        <div v-if="!setupLocked" class="ml-auto flex items-center gap-2">
           <div class="w-44">
             <ReusableDropdown v-model="selectedJudge" labelId="" :options="allJudgeOptions" />
           </div>
@@ -2123,7 +2126,7 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 mt-4 mb-5">
+      <div v-if="!setupLocked" class="flex flex-wrap items-center gap-2 mt-4 mb-5">
         <!-- Pickup crew sort toggle (mixed bracket only) -->
         <template v-if="isMixedBracket">
           <div class="flex gap-1">
@@ -2218,8 +2221,9 @@ onUnmounted(() => {
                 >{{ g.memberNames.join(' · ') }}</div>
               </div>
             </div>
-            <!-- remove button — visually separated strip -->
+            <!-- remove button — hidden when locked -->
             <button
+              v-if="!setupLocked"
               @click="submitRemoveBattleGuest(g)"
               class="flex items-center justify-center px-2.5 flex-shrink-0 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Remove guest"
@@ -2230,8 +2234,8 @@ onUnmounted(() => {
           <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
 
-        <!-- Add guest form pushed to the right -->
-        <div class="ml-auto flex flex-col gap-2 flex-shrink-0">
+        <!-- Add guest form — hidden when locked -->
+        <div v-if="!setupLocked" class="ml-auto flex flex-col gap-2 flex-shrink-0">
           <div class="flex items-center gap-2">
             <input
               v-model="newGuestName"
@@ -2269,7 +2273,7 @@ onUnmounted(() => {
       </div>
 
       <!-- ── Seeding Pool ──────────────────────────────── -->
-      <div class="mb-5">
+      <div v-if="!setupLocked" class="mb-5">
         <div class="section-rule">
           <span class="section-rule-label">Seeding Pool</span>
           <span v-if="guestsForCurrentGenre.length" class="type-label text-content-muted ml-2">
