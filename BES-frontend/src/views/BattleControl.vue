@@ -901,6 +901,14 @@ const showFinalReveal = computed(() =>
   tentativeWinner.value !== -1
 )
 
+const voteCountDisplay = computed(() => {
+  const judges = battleJudges.value?.judges ?? []
+  return {
+    left:  judges.filter(j => j.vote === 0).length,
+    right: judges.filter(j => j.vote === 1).length,
+  }
+})
+
 const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
 // Per-genre battle state persistence — saves which round/match was in progress so
@@ -2469,8 +2477,24 @@ onUnmounted(() => {
         >START REVOTE</button>
       </div>
 
-      <!-- Winner announcement -->
+      <!-- WINNER ANNOUNCEMENT -->
+      <!-- DECIDED: champion locked — show glowing champion name -->
       <div
+        v-if="battlePhase === 'DECIDED'"
+        class="px-4 py-3 mb-4"
+        style="border-left:4px solid #34d399;background:rgba(52,211,153,0.08)"
+      >
+        <span class="type-label text-emerald-400" style="font-size:9px;letter-spacing:0.22em">⭐ CHAMPION LOCKED</span>
+        <span class="type-body text-emerald-400 block mt-1" style="font-size:18px;font-weight:bold;text-shadow:0 0 12px rgba(52,211,153,0.4)">
+          {{ genreChampions[selectedGenre] ?? currentGenreChampion ?? '—' }}
+        </span>
+        <span v-if="!revealActive" class="type-label text-content-muted block mt-1" style="font-size:9px;letter-spacing:0.22em">
+          FINAL · ORGANISER ONLY — NOT REVEALED YET
+        </span>
+      </div>
+      <!-- All other phases: ongoing/wait/winner/tie announcement -->
+      <div
+        v-else
         class="px-4 py-3 mb-4"
         :class="{
           'semantic-chip-warning': winnerVariant === 'ongoing',
@@ -2485,6 +2509,70 @@ onUnmounted(() => {
           :style="winnerVariant === 'winner' ? 'box-shadow:0 0 8px rgba(52,211,153,0.8)' : winnerVariant === 'tie' ? '' : 'box-shadow:0 0 8px rgba(245,158,11,0.8)'"
         ></div>
         <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
+      </div>
+
+      <!-- Judge vote panel — live per-judge votes, visible in all phases -->
+      <div v-if="battleJudges?.judges?.length" class="mb-4">
+        <div class="section-rule mb-3">
+          <span class="section-rule-label">JUDGES</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div
+          class="grid gap-2 mb-3"
+          :style="{ gridTemplateColumns: `repeat(${battleJudges.judges.length}, 1fr)` }"
+        >
+          <div
+            v-for="judge in battleJudges.judges"
+            :key="judge.id"
+            class="px-3 py-2 text-center"
+            :style="{
+              clipPath: 'polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)',
+              border: judge.vote === -3 ? '1px solid rgba(245,158,11,0.3)' : judge.vote === 0 ? '1px solid rgba(52,211,153,0.4)' : '1px solid rgba(59,130,246,0.4)',
+              background: judge.vote === -3 ? 'rgba(245,158,11,0.06)' : judge.vote === 0 ? 'rgba(52,211,153,0.08)' : 'rgba(59,130,246,0.08)',
+            }"
+          >
+            <span class="type-label text-content-muted block mb-1">{{ judge.judgeName }}</span>
+            <span
+              v-if="judge.vote === -3"
+              class="type-body text-amber-400"
+            >⏳ WAITING</span>
+            <span
+              v-else-if="judge.vote === 0"
+              class="type-body text-emerald-400"
+            >{{ currentBattlePair?.[0] ?? 'LEFT' }}</span>
+            <span
+              v-else-if="judge.vote === 1"
+              class="type-body text-blue-400"
+            >{{ currentBattlePair?.[1] ?? 'RIGHT' }}</span>
+          </div>
+        </div>
+        <!-- Winner preview banner when all judges have voted -->
+        <div
+          v-if="allJudgesVoted && tentativeWinner !== -1"
+          class="semantic-chip-success px-4 py-3"
+        >
+          <div class="type-label text-emerald-400 mb-1" style="font-size:9px;letter-spacing:0.18em">WINNER PREVIEW (ORGANISER ONLY)</div>
+          <div class="type-body text-emerald-400" style="font-size:13px">
+            {{ tentativeWinner === 0 ? (currentBattlePair?.[0] ?? 'LEFT') : (currentBattlePair?.[1] ?? 'RIGHT') }}
+          </div>
+          <div class="type-label text-content-muted mt-1" style="font-size:9px">{{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+        </div>
+        <div
+          v-else-if="allJudgesVoted && tentativeWinner === -1"
+          class="px-4 py-3"
+          style="border-left:3px solid #6b7280;background:rgba(107,114,128,0.08)"
+        >
+          <div class="type-label mb-1" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
+          <div class="type-body" style="font-size:13px;color:#9ca3af">TIE — {{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+          <div class="type-label text-content-muted mt-1" style="font-size:9px">Rematch required</div>
+        </div>
+      </div>
+      <div
+        v-else-if="!battleJudges?.judges?.length"
+        class="mb-4 px-3 py-2"
+        style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.04)"
+      >
+        <span class="type-label text-content-muted">No judges assigned for this battle</span>
       </div>
 
       <!-- Match pairs (standard) — only shown when viewing the active round -->
@@ -2557,8 +2645,12 @@ onUnmounted(() => {
         <!-- VOTING: non-final, not all voted, or tie → Get Score / Rematch -->
         <button
           v-if="battlePhase === 'VOTING' && !showFinalReveal"
+          :disabled="!allJudgesVoted"
           @click="submitGetScore"
-          class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+          :class="allJudgesVoted
+            ? 'bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all'
+            : 'bg-surface-700/30 para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50'"
+          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
         >
           <i class="pi pi-bolt text-xs"></i>
           {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
