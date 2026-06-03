@@ -782,7 +782,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   border-bottom: 1px solid var(--c-connector);
   pointer-events: none; z-index: 1;
 }
-.match-active.pair-group::after { border-color: rgba(255,255,255,0.3); }
+.match-active.pair-group::after { border-color: color-mix(in srgb, var(--accent-color) 45%, transparent); }
 
 .match-wrap { flex: 1; display: flex; align-items: center; padding: 0 2px; }
 
@@ -798,9 +798,9 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
 .match-active .battler-slot {
-  background: rgba(255,255,255,0.05);
-  border-color: rgba(255,255,255,0.18);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 0 14px rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--accent-color) 6%, transparent);
+  border-color: color-mix(in srgb, var(--accent-color) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 12%, transparent), 0 0 16px color-mix(in srgb, var(--accent-color) 18%, transparent);
 }
 .slot-active-left {
   background: color-mix(in srgb, var(--left-color) 18%, transparent) !important;
@@ -895,8 +895,8 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .final-match .battler-slot { height: var(--final-slot-h, 58px); }
 .final-match .battler-name { font-size: 17px; letter-spacing: 0.06em; }
 .final-match.match-active .battler-slot {
-  border-color: rgba(255,255,255,0.3);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 0 16px rgba(255,255,255,0.1);
+  border-color: color-mix(in srgb, var(--accent-color) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 14%, transparent), 0 0 20px color-mix(in srgb, var(--accent-color) 22%, transparent);
 }
 .final-vs {
   text-align: center;
