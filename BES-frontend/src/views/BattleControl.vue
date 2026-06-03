@@ -2354,17 +2354,17 @@ onUnmounted(() => {
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 0)"
+                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 0)"
                   @dragleave="dragOverKey = null"
-                  @drop.prevent="onDrop(`Top${size}`, mIdx, 0)"
+                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 0)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[0]"
-                    draggable="true"
-                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 0, e)"
-                    @dragend="onDragEnd"
-                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
-                    :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary'"
+                    :draggable="!setupLocked"
+                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 0, $event)"
+                    @dragend="!setupLocked && onDragEnd()"
+                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[0] }}</span>
@@ -2380,10 +2380,10 @@ onUnmounted(() => {
                     </div>
                   </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[0]"
-                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 0)"
+                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
                     class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
@@ -2403,17 +2403,17 @@ onUnmounted(() => {
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 1)"
+                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 1)"
                   @dragleave="dragOverKey = null"
-                  @drop.prevent="onDrop(`Top${size}`, mIdx, 1)"
+                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 1)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[1]"
-                    draggable="true"
-                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 1, e)"
-                    @dragend="onDragEnd"
-                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
-                    :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary'"
+                    :draggable="!setupLocked"
+                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 1, $event)"
+                    @dragend="!setupLocked && onDragEnd()"
+                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[1] }}</span>
@@ -2429,10 +2429,10 @@ onUnmounted(() => {
                     </div>
                   </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[1]"
-                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 1)"
+                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
                     class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
@@ -2440,7 +2440,7 @@ onUnmounted(() => {
                 <!-- Start from this match — only when round is idle and all slots filled -->
                 <button
                   v-if="match[0] && match[1] && isActiveRoundFilled && effectivePhase === 'IDLE'"
-                  @click="initiateBattlePairAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
+                  @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
                   class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
                 ><i class="pi pi-play text-[10px]"></i></button>
@@ -2448,7 +2448,7 @@ onUnmounted(() => {
             </div>
 
             <button
-              v-if="effectivePhase === 'IDLE'"
+              v-if="effectivePhase === 'IDLE' && !setupLocked"
               :disabled="!isActiveRoundFilled"
               @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
               class="w-full py-2 para-chip type-label transition-all duration-200"
@@ -2477,12 +2477,12 @@ onUnmounted(() => {
           <div
             v-for="(match, mIdx) in rounds"
             :key="mIdx"
-            :draggable="!!match.name"
-            @dragstart="(e) => onSmokeDragStart(mIdx, e)"
+            :draggable="!!match.name && !setupLocked"
+            @dragstart="!setupLocked && onSmokeDragStart(mIdx, $event)"
             @dragend="onDragEnd"
-            @dragover.prevent="onSmokeDragOver(mIdx)"
+            @dragover.prevent="!setupLocked && onSmokeDragOver(mIdx)"
             @dragleave="dragOverKey = null"
-            @drop.prevent="onSmokeDrop(mIdx)"
+            @drop.prevent="!setupLocked && onSmokeDrop(mIdx)"
             class="card-hover relative flex items-stretch overflow-hidden transition-all duration-150"
             :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-primary-500/70 bg-primary-500/10' :
                     (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-primary-400/80 bg-primary-400/12' : '')"
@@ -2507,7 +2507,7 @@ onUnmounted(() => {
             </div>
             <!-- clear button — only for filled non-guest slots -->
             <button
-              v-if="match.name && !isGuestSlot(match.name)"
+              v-if="!setupLocked && match.name && !isGuestSlot(match.name)"
               @click.stop="clearSmokeSlot(mIdx)"
               class="flex items-center justify-center px-2 flex-shrink-0 border-l border-surface-600/30 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Clear slot"
@@ -2516,6 +2516,7 @@ onUnmounted(() => {
         </div>
 
         <button
+          v-if="!setupLocked || currentBattle.length === 0"
           @click="initiateBattlePair(0, 0)"
           class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
         >
@@ -2966,6 +2967,61 @@ onUnmounted(() => {
 
     </div>
   </div>
+
+    <!-- WIN confirmation modal -->
+    <Transition name="fade">
+      <div v-if="pendingWin" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">
+            {{ pendingWin.replacing ? 'Replace Winner?' : 'Set Winner?' }}
+          </div>
+          <p class="type-body text-content-muted mb-1">
+            <template v-if="pendingWin.replacing">
+              Replace <span class="text-content-primary">{{ pendingWin.replacing }}</span> with <span class="text-content-primary">{{ pendingWin.name }}</span>?
+              The next round slot will be updated.
+            </template>
+            <template v-else>
+              Set <span class="text-content-primary">{{ pendingWin.name }}</span> as winner?
+              They will be placed in the next round slot.
+            </template>
+          </p>
+          <p v-if="pendingWin.replacing" class="type-label text-content-muted mb-6" style="font-size:10px;letter-spacing:0.12em">
+            If {{ pendingWin.name }} has already played in a later round, correct those results manually.
+          </p>
+          <p v-else class="mb-6"></p>
+          <div class="flex gap-3 justify-end">
+            <button @click="cancelWin" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
+            <button @click="confirmWin" class="para-chip-sm px-4 py-2 type-label bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 transition-all">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Start-from-here confirmation modal -->
+    <Transition name="fade">
+      <div v-if="pendingStartAt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">Start from this match?</div>
+          <p class="type-body text-content-muted mb-1">
+            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
+            vs
+            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
+          </p>
+          <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-content-muted mb-6" style="font-size:10px;letter-spacing:0.12em">
+            Matches before this one will be skipped.
+          </p>
+          <p v-else class="mb-6"></p>
+          <div class="flex gap-3 justify-end">
+            <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
+            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all">
+              <i class="pi pi-play text-xs mr-1.5"></i>Start
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 </template>
 
 <style scoped>
