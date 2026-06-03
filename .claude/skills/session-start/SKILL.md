@@ -76,8 +76,15 @@ If any sibling branches are found, warn:
   feat/some-feature   (12 commits ahead, no merged PR)
 
 A Docker rebuild on this branch will not contain their changes.
-Merge them in before rebuilding? Or continue without them?
+
+Recommended: get each sibling branch merged to {DEFAULT} via PR first, then:
+  git fetch origin && git rebase origin/{DEFAULT}
+
+Do not proceed with a Docker rebuild until sibling branches are merged to {DEFAULT}
+and this branch has been rebased onto the updated origin/{DEFAULT}.
 ```
+
+Do NOT use `git merge {sibling-branch}` — always keep history linear via rebase.
 
 If none are found, proceed silently.
 

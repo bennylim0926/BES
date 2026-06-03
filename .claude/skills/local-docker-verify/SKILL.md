@@ -136,12 +136,17 @@ If any are found, **stop and warn before rebuilding**:
   feat/some-feature   (12 commits ahead of master, not in current branch)
 
 Rebuilding now will drop their changes from the running containers.
-Options:
-  1. git merge {branch} — include the work in this branch first
-  2. Confirm you intentionally want to rebuild without it
+
+Recommended: get each sibling branch merged to {DEFAULT} via PR first, then:
+  git fetch origin && git rebase origin/{DEFAULT}
+
+Do not rebuild until sibling branches are merged to {DEFAULT} and this branch
+has been rebased onto the updated origin/{DEFAULT}.
 ```
 
-Do not proceed to Step 3 until the user either merges the sibling branches or explicitly confirms they want to rebuild without them.
+Do NOT use `git merge {sibling-branch}` — always keep history linear via rebase.
+
+Do not proceed to Step 3 until all sibling branches are resolved or the user explicitly confirms they want to rebuild without them.
 
 If no unmerged siblings are found: proceed to Step 3 silently.
 
