@@ -38,6 +38,19 @@ let unmounted = false
 const activeLeft  = computed(() => smokeParticipants.value[0] ?? null)
 const activeRight = computed(() => smokeParticipants.value[1] ?? null)
 
+// Flatten participants + stable spacer entries so TransitionGroup FLIP has a unique
+// key per DOM node — prevents vs-chip/queue-gap from sharing keys with their
+// surrounding participant and causing jitter during queue reorders.
+const chartItems = computed(() => {
+  const result = []
+  smokeParticipants.value.forEach((p, idx) => {
+    if (idx === 1) result.push({ _type: 'vs',  _key: '__vs__' })
+    if (idx === 2) result.push({ _type: 'gap', _key: '__gap__' })
+    result.push({ _type: 'col', _key: p.name, _idx: idx, name: p.name, score: p.score })
+  })
+  return result
+})
+
 // ── Score pop: watch for score increases ────────────────────────────────────
 watch(
   smokeParticipants,
@@ -202,21 +215,18 @@ onBeforeUnmount(() => {
     <!-- Bar chart -->
     <div class="smoke-chart">
       <TransitionGroup tag="div" name="col" class="smoke-cols">
-        <template v-for="(item, idx) in smokeParticipants" :key="item.name">
-          <!-- VS chip between position 0 and 1 -->
-          <div v-if="idx === 1" class="vs-chip" aria-hidden="true">VS</div>
-
-          <!-- Queue gap spacer between position 1 and 2 -->
-          <div v-if="idx === 2" class="queue-gap" aria-hidden="true"></div>
-
-          <!-- Fighter column -->
-          <div
-            class="smoke-col"
-            :class="{
-              'col-active-left':  idx === 0,
-              'col-active-right': idx === 1,
-            }"
-          >
+        <div
+          v-for="item in chartItems"
+          :key="item._key"
+          :class="
+            item._type === 'vs'  ? 'vs-chip' :
+            item._type === 'gap' ? 'queue-gap' :
+            ['smoke-col', { 'col-active-left': item._idx === 0, 'col-active-right': item._idx === 1 }]
+          "
+          :aria-hidden="item._type !== 'col' ? 'true' : undefined"
+        >
+          <template v-if="item._type === 'vs'">VS</template>
+          <template v-else-if="item._type === 'col'">
             <div class="bar-wrap">
               <div
                 class="bar"
@@ -226,17 +236,11 @@ onBeforeUnmount(() => {
               ></div>
             </div>
             <div class="dots-row" aria-hidden="true">
-              <div
-                v-for="d in 7"
-                :key="d"
-                class="dot"
-                :class="{ filled: d <= item.score }"
-              ></div>
+              <div v-for="d in 7" :key="d" class="dot" :class="{ filled: d <= item.score }"></div>
             </div>
             <div class="col-name">{{ item.name }}</div>
-            <div v-if="idx >= 2" class="queue-pos" aria-label="Queue position">#{{ idx - 1 }}</div>
-          </div>
-        </template>
+          </template>
+        </div>
       </TransitionGroup>
 
       <!-- Design B: ghost names behind chart -->
@@ -402,6 +406,7 @@ body.transparent-page #app {
   height: 100%;
   /* Cap columns so full bars (7/7) only graze the bottom quarter of the ghost names */
   max-height: 68%;
+  will-change: transform;
 }
 
 /* ── Bar wrap + bar ───────────────────────────────────── */
@@ -496,15 +501,6 @@ body.transparent-page #app {
 .col-active-right .col-name {
   color: color-mix(in srgb, var(--right-color) 50%, #fff);
   text-shadow: 0 0 12px color-mix(in srgb, var(--right-color) 80%, transparent);
-}
-
-/* ── Queue position label ─────────────────────────────── */
-.queue-pos {
-  font-size: clamp(8px, 0.9vw, 11px);
-  letter-spacing: 0.18em;
-  color: rgba(255,255,255,0.22);
-  text-align: center;
-  margin-top: 1px;
 }
 
 /* ── VS chip ──────────────────────────────────────────── */

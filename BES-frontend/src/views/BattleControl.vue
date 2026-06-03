@@ -141,6 +141,15 @@ const currentBattlePair = computed(() => {
   return [left, right]
 })
 
+// Smoke mode pair entries are objects {name, score}; standard mode entries are strings.
+// This computed always returns [string|null, string|null] so templates are uniform.
+const currentBattlePairNames = computed(() => {
+  const pair = currentBattlePair.value
+  if (!pair) return [null, null]
+  const n = (p) => (p && typeof p === 'object') ? p.name : p
+  return [n(pair[0]), n(pair[1])]
+})
+
 const isActivePair = (match) => {
   if (!currentBattlePair.value || !match[0] || !match[1]) return false
   const [a, b] = currentBattlePair.value
@@ -2579,12 +2588,12 @@ onUnmounted(() => {
               v-else-if="judge.vote === 0"
               class="type-body"
               :style="{ fontSize: '13px', color: overlayConfig.leftColor }"
-            >{{ currentBattlePair?.[0] ?? 'LEFT' }}</div>
+            >{{ currentBattlePairNames?.[0] ?? 'LEFT' }}</div>
             <div
               v-else-if="judge.vote === 1"
               class="type-body"
               :style="{ fontSize: '13px', color: overlayConfig.rightColor }"
-            >{{ currentBattlePair?.[1] ?? 'RIGHT' }}</div>
+            >{{ currentBattlePairNames?.[1] ?? 'RIGHT' }}</div>
           </div>
         </div>
         <!-- Winner preview banner when all judges have voted -->
@@ -2598,7 +2607,7 @@ onUnmounted(() => {
         >
           <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">WINNER PREVIEW (ORGANISER ONLY)</div>
           <div class="type-body" style="font-size:20px;letter-spacing:0.08em;font-weight:bold" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">
-            {{ tentativeWinner === 0 ? (currentBattlePair?.[0] ?? 'LEFT') : (currentBattlePair?.[1] ?? 'RIGHT') }}
+            {{ tentativeWinner === 0 ? (currentBattlePairNames?.[0] ?? 'LEFT') : (currentBattlePairNames?.[1] ?? 'RIGHT') }}
           </div>
           <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
         </div>
