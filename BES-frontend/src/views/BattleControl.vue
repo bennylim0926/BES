@@ -141,6 +141,12 @@ const currentBattlePair = computed(() => {
   return [left, right]
 })
 
+const isActivePair = (match) => {
+  if (!currentBattlePair.value || !match[0] || !match[1]) return false
+  const [a, b] = currentBattlePair.value
+  return (match[0] === a && match[1] === b) || (match[0] === b && match[1] === a)
+}
+
 const updateSmokePair = async () => {
   currentBattle.value = [rounds.value[0], rounds.value[1], rounds.value.slice(2)]
   await updateSmokeList(rounds.value)
@@ -2181,6 +2187,9 @@ onUnmounted(() => {
                 v-for="(match, mIdx) in rounds[`Top${size}`]"
                 :key="mIdx"
                 class="card-hover p-3 relative flex items-stretch min-h-[44px]"
+                :style="isActivePair(match) && effectivePhase !== 'IDLE'
+                  ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
+                  : ''"
               >
                 <div class="corner-bar-tl"></div>
                 <!-- Slot 0 — left -->
