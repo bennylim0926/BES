@@ -286,6 +286,35 @@ public class BattleControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = {"ADMIN"})
+    public void testUpdateJudgeWeightage_setsWeightageAndReturnsOk() throws Exception {
+        Judge j = new Judge();
+        j.setJudgeId(42L);
+        j.setName("WeightTest");
+        when(judgeService.getJudgeById(42L)).thenReturn(j);
+
+        mockMvc.perform(post("/api/v1/battle/judge")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 42))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/battle/judge/weightage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 42, "weightage", 3))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Weightage updated"));
+
+        mockMvc.perform(get("/api/v1/battle/judges"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.judges[?(@.id == 42)].weightage").value(3));
+
+        mockMvc.perform(delete("/api/v1/battle/judge")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("id", 42))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
     public void testRevote_resetsJudgeVotesToMinusOne() throws Exception {
         Judge j = new Judge(12L, "RevoteJ", null);
         when(judgeService.getJudgeById(12L)).thenReturn(j);

@@ -5,6 +5,7 @@ import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetVoteDto;
+import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.models.Judge;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -313,5 +314,74 @@ class BattleServiceTest {
             eq("/topic/battle/champion-reveal"),
             any(Map.class)
         );
+    }
+
+    @Test
+    void setScore_heavierJudgeWins_overrulesHeadcount() {
+        Judge judgeA = new Judge(); judgeA.setJudgeId(10L); judgeA.setName("A");
+        Judge judgeB = new Judge(); judgeB.setJudgeId(11L); judgeB.setName("B");
+        when(judgeService.getJudgeById(10L)).thenReturn(judgeA);
+        when(judgeService.getJudgeById(11L)).thenReturn(judgeB);
+
+        SetJudgeDto dtoA = mock(SetJudgeDto.class);
+        when(dtoA.getId()).thenReturn(10L);
+        when(dtoA.getWeightage()).thenReturn(2);
+        service.setBattleJudgeService(dtoA);
+
+        SetJudgeDto dtoB = mock(SetJudgeDto.class);
+        when(dtoB.getId()).thenReturn(11L);
+        when(dtoB.getWeightage()).thenReturn(1);
+        service.setBattleJudgeService(dtoB);
+
+        SetVoteDto vA = mock(SetVoteDto.class); when(vA.getId()).thenReturn(10L); when(vA.getVote()).thenReturn(0);
+        SetVoteDto vB = mock(SetVoteDto.class); when(vB.getId()).thenReturn(11L); when(vB.getVote()).thenReturn(1);
+        service.setVoteService(vA);
+        service.setVoteService(vB);
+
+        assertThat(service.setScoreService(false)).isEqualTo(0);
+    }
+
+    @Test
+    void setScore_equalWeightedVotes_returnsTie() {
+        Judge judgeA = new Judge(); judgeA.setJudgeId(12L); judgeA.setName("C");
+        Judge judgeB = new Judge(); judgeB.setJudgeId(13L); judgeB.setName("D");
+        when(judgeService.getJudgeById(12L)).thenReturn(judgeA);
+        when(judgeService.getJudgeById(13L)).thenReturn(judgeB);
+
+        SetJudgeDto dtoA = mock(SetJudgeDto.class);
+        when(dtoA.getId()).thenReturn(12L);
+        when(dtoA.getWeightage()).thenReturn(2);
+        service.setBattleJudgeService(dtoA);
+
+        SetJudgeDto dtoB = mock(SetJudgeDto.class);
+        when(dtoB.getId()).thenReturn(13L);
+        when(dtoB.getWeightage()).thenReturn(2);
+        service.setBattleJudgeService(dtoB);
+
+        SetVoteDto vA = mock(SetVoteDto.class); when(vA.getId()).thenReturn(12L); when(vA.getVote()).thenReturn(0);
+        SetVoteDto vB = mock(SetVoteDto.class); when(vB.getId()).thenReturn(13L); when(vB.getVote()).thenReturn(1);
+        service.setVoteService(vA);
+        service.setVoteService(vB);
+
+        assertThat(service.setScoreService(false)).isEqualTo(-1);
+    }
+
+    @Test
+    void updateJudgeWeightage_setsNewWeightageAndBroadcasts() {
+        Judge j = new Judge(); j.setJudgeId(14L); j.setName("WeightJudge");
+        when(judgeService.getJudgeById(14L)).thenReturn(j);
+
+        SetJudgeDto addDto = mock(SetJudgeDto.class);
+        when(addDto.getId()).thenReturn(14L);
+        service.setBattleJudgeService(addDto);
+
+        UpdateJudgeWeightageDto updateDto = mock(UpdateJudgeWeightageDto.class);
+        when(updateDto.getId()).thenReturn(14L);
+        when(updateDto.getWeightage()).thenReturn(3);
+        service.updateJudgeWeightageService(updateDto);
+
+        assertThat(service.getJudges().get(0).getWeightage()).isEqualTo(3);
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(
+            eq("/topic/battle/judges"), any(Map.class));
     }
 }

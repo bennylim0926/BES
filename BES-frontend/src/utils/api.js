@@ -437,7 +437,7 @@ export const battleJudgeVote = async(id, vote) =>{
   }
 }
 
-export const addBattleJudge = async(id) =>{
+export const addBattleJudge = async(id, weightage = 1) =>{
   try{
     return await fetch(`${domain}/api/v1/battle/judge`,{
       method: 'POST',
@@ -448,6 +448,27 @@ export const addBattleJudge = async(id) =>{
       },
       body: JSON.stringify({
         id: Number(id),
+        weightage: Math.max(1, Number(weightage) || 1),
+      })
+    })
+  }catch(e){
+    console.log(e)
+    return null
+  }
+}
+
+export const updateJudgeWeightage = async(id, weightage) =>{
+  try{
+    return await fetch(`${domain}/api/v1/battle/judge/weightage`,{
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: Number(id),
+        weightage: Math.max(1, Number(weightage) || 1),
       })
     })
   }catch(e){

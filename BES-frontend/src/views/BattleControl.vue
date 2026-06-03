@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -894,11 +894,11 @@ const allJudgesVoted = computed(() => {
 // Tentative winner from live judge votes — mirrors backend scoring logic
 const tentativeWinner = computed(() => {
   const judges = battleJudges.value?.judges ?? []
-  if (judges.some(j => j.vote === -3)) return -2   // not all voted yet
-  const leftVotes  = judges.filter(j => j.vote === 0).length
-  const rightVotes = judges.filter(j => j.vote === 1).length
-  if (leftVotes === rightVotes) return -1            // tie
-  return leftVotes > rightVotes ? 0 : 1
+  if (judges.some(j => j.vote === -3)) return -2
+  const leftWeight  = judges.filter(j => j.vote === 0).reduce((s, j) => s + (j.weightage ?? 1), 0)
+  const rightWeight = judges.filter(j => j.vote === 1).reduce((s, j) => s + (j.weightage ?? 1), 0)
+  if (leftWeight === rightWeight) return -1
+  return leftWeight > rightWeight ? 0 : 1
 })
 
 // Show "Reveal Champion" in VOTING when all judges voted + clear winner (final only)
@@ -909,11 +909,11 @@ const showFinalReveal = computed(() =>
   tentativeWinner.value !== -1
 )
 
-const voteCountDisplay = computed(() => {
+const voteWeightDisplay = computed(() => {
   const judges = battleJudges.value?.judges ?? []
   return {
-    left:  judges.filter(j => j.vote === 0).length,
-    right: judges.filter(j => j.vote === 1).length,
+    left:  judges.filter(j => j.vote === 0).reduce((s, j) => s + (j.weightage ?? 1), 0),
+    right: judges.filter(j => j.vote === 1).reduce((s, j) => s + (j.weightage ?? 1), 0),
   }
 })
 
@@ -1074,7 +1074,7 @@ const genreJudgeKey = (genre) => `battleJudges_${selectedEvent.value}_${genre}`
 let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
 
 const saveGenreJudges = (genre) => {
-  const judges = (battleJudges.value?.judges ?? []).map(j => ({ id: j.id, vote: j.vote }))
+  const judges = (battleJudges.value?.judges ?? []).map(j => ({ id: j.id, vote: j.vote, weightage: j.weightage ?? 1 }))
   localStorage.setItem(genreJudgeKey(genre), JSON.stringify(judges))
 }
 
@@ -1100,10 +1100,10 @@ const syncJudgesForGenre = async (newGenre, prevGenre) => {
     const raw = JSON.parse(localStorage.getItem(genreJudgeKey(newGenre)) ?? '[]')
     if (raw.length > 0) {
       // Support both old format (array of ids) and new format (array of { id, vote })
-      const entries = raw.map(s => (typeof s === 'object' ? s : { id: s, vote: -3 }))
+      const entries = raw.map(s => (typeof s === 'object' ? s : { id: s, vote: -3, weightage: 1 }))
       // Add sequentially for the same reason as removes above
-      for (const { id } of entries) {
-        await addBattleJudge(id)
+      for (const { id, weightage } of entries) {
+        await addBattleJudge(id, weightage ?? 1)
       }
       // Restore non-default votes — addBattleJudge sets vote=-3 ("not voted"), so skip those.
       // -1 is a real tie vote and must be restored; only -3 means "hasn't voted this round".
@@ -1124,6 +1124,13 @@ const submitAddBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   const res = await addBattleJudge(j?.judgeId)
   if (res.status === 404) console.log("No judge in database")
+  battleJudges.value = await getBattleJudges()
+  saveGenreJudges(selectedGenre.value)
+}
+
+const submitUpdateJudgeWeightage = async (id, value) => {
+  const weightage = Math.max(1, parseInt(value) || 1)
+  await updateJudgeWeightage(id, weightage)
   battleJudges.value = await getBattleJudges()
   saveGenreJudges(selectedGenre.value)
 }
@@ -1881,10 +1888,21 @@ onUnmounted(() => {
           <div
             v-for="(j, index) in battleJudges?.judges || []"
             :key="index"
-            class="card-hover p-2 relative inline-flex items-center gap-1.5 px-3"
+            class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
           >
             <div class="corner-bar-tl"></div>
             <span class="type-body text-content-primary">{{ j.name }}</span>
+            <div class="flex items-center gap-1">
+              <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
+              <input
+                type="number"
+                :value="j.weightage ?? 1"
+                min="1"
+                class="w-10 bg-surface-900 border border-surface-600 text-content-primary text-center type-body"
+                style="padding:2px 4px;font-size:12px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+                @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
+              />
+            </div>
             <button
               @click="submitRemoveBattleJudge(j.name)"
               class="flex items-center justify-center hover:text-red-400 transition-colors"
@@ -2550,7 +2568,8 @@ onUnmounted(() => {
                   : `${overlayConfig.rightColor}18`,
             }"
           >
-            <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:6px">{{ judge.name }}</div>
+            <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:2px">{{ judge.name }}</div>
+            <div style="font-size:10px;color:#93c5fd;letter-spacing:0.1em;margin-bottom:4px">×{{ judge.weightage ?? 1 }}</div>
             <div
               v-if="judge.vote === -3"
               class="type-body text-amber-400"
@@ -2581,7 +2600,7 @@ onUnmounted(() => {
           <div class="type-body" style="font-size:20px;letter-spacing:0.08em;font-weight:bold" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">
             {{ tentativeWinner === 0 ? (currentBattlePair?.[0] ?? 'LEFT') : (currentBattlePair?.[1] ?? 'RIGHT') }}
           </div>
-          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
         </div>
         <div
           v-else-if="allJudgesVoted && tentativeWinner === -1"
@@ -2589,7 +2608,7 @@ onUnmounted(() => {
           style="border-left:3px solid #6b7280;background:rgba(107,114,128,0.08)"
         >
           <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
-          <div class="type-body" style="font-size:20px;letter-spacing:0.06em;font-weight:bold;color:#9ca3af">TIE — {{ voteCountDisplay.left }} – {{ voteCountDisplay.right }}</div>
+          <div class="type-body" style="font-size:20px;letter-spacing:0.06em;font-weight:bold;color:#9ca3af">TIE — {{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
           <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">Rematch required</div>
         </div>
       </div>
