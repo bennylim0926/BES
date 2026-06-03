@@ -58,6 +58,9 @@ public class BattleGenreState {
     @Column(name = "champion")
     private String champion;
 
+    @Column(name = "smoke_list_json", columnDefinition = "TEXT")
+    private String smokeListJson;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
