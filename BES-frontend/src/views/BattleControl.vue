@@ -1973,23 +1973,6 @@ onUnmounted(() => {
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <!-- Event name -->
         <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-        <span class="text-surface-600 select-none">|</span>
-
-        <!-- Genre toggle -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="g in uniqueGenres"
-            :key="g"
-            @click="requestGenreChange(g)"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
-            :class="selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >
-            {{ g }}
-            <i v-if="(g === selectedGenre && battlePhase === 'DECIDED') || genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" title="Champion locked — ready to reveal"></i>
-          </button>
-        </div>
         <!-- Format toggle — hidden for smoke genres and when locked -->
         <template v-if="!isGenreSmoke && !setupLocked">
           <span class="text-surface-600 select-none">|</span>
@@ -2592,6 +2575,49 @@ onUnmounted(() => {
 
     <!-- Live match tracker -->
     <div class="card p-5">
+      <!-- Genre switcher with per-genre status dots -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="g in uniqueGenres"
+            :key="g"
+            @click="requestGenreChange(g)"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+            :class="[
+              selectedGenre === g
+                ? 'text-accent border-[color:var(--accent-muted)]'
+                : !canSwitchGenre && g !== selectedGenre
+                  ? 'text-content-muted/40 cursor-not-allowed'
+                  : 'text-content-muted hover:text-content-primary'
+            ]"
+            :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
+            :disabled="g !== selectedGenre && !canSwitchGenre"
+          >
+            <!-- Status dot -->
+            <template v-if="genreStatusDot(g) === 'champion'">
+              <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
+            </template>
+            <template v-else-if="genreStatusDot(g) === 'active'">
+              <span
+                class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+                style="box-shadow:0 0 6px rgba(245,158,11,0.7)"
+              ></span>
+            </template>
+            <template v-else>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
+            </template>
+            {{ g }}
+          </button>
+        </div>
+        <!-- Block reason inline hint when switch is blocked -->
+        <span
+          v-if="uniqueGenres.length > 1 && !canSwitchGenre"
+          class="type-label text-amber-400/70"
+          style="font-size:10px;letter-spacing:0.12em"
+        >{{ genreSwitchBlockReason }}</span>
+      </div>
+
       <div class="section-rule mb-4">
         <span class="section-rule-label">Live Match</span>
         <div class="section-rule-line"></div>
