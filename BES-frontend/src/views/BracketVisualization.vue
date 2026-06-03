@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { getBracketState, getOverlayConfig } from '@/utils/api'
+import { getBattleState, getBracketState, getOverlayConfig } from '@/utils/api'
 import { createClient } from '@/utils/websocket'
 
 const bracketState   = ref(null)
@@ -287,14 +287,48 @@ function getActiveMatchInfo() {
 
 // ── lifecycle ─────────────────────────────────────────────
 onMounted(async () => {
-  const state = await getBracketState()
-  if (state && (state.topSize || state.rounds)) bracketState.value = state
+  // Restore state from backend — authoritative source for bracket/pair/genre
+  const battleState = await getBattleState()
+  if (battleState?.bracket && (battleState.bracket.topSize || battleState.bracket.rounds)) {
+    bracketState.value = battleState.bracket
+  }
+  if (battleState?.currentPair?.left) {
+    activePair.value = { left: battleState.currentPair.left, right: battleState.currentPair.right }
+  }
+  if (battleState?.genreName) {
+    currentGenre.value = battleState.genreName
+  }
+
+  if (!bracketState.value) {
+    const state = await getBracketState()
+    if (state && (state.topSize || state.rounds)) bracketState.value = state
+  }
 
   const cfg = await getOverlayConfig()
   if (cfg) overlayConfig.value = cfg
 
   wsClient = createClient()
   wsClient.onConnect = () => {
+
+    wsClient.subscribe('/topic/battle/state', (msg) => {
+      const data = JSON.parse(msg.body)
+      if (data?.bracket && (data.bracket.topSize || data.bracket.rounds)) {
+        if (animRunning) {
+          pendingBracket.value = data.bracket
+        } else {
+          pendingBracket.value = null
+          prevBracketUpdate = { state: bracketState.value, timestamp: Date.now() }
+          bracketState.value = data.bracket
+        }
+      }
+      if (data?.currentPair?.left) {
+        activePair.value = { left: data.currentPair.left, right: data.currentPair.right }
+      }
+      if (data?.genreName) {
+        if (data.genreName !== currentGenre.value) championReveal.value = null
+        currentGenre.value = data.genreName
+      }
+    })
 
     wsClient.subscribe('/topic/battle/bracket', (msg) => {
       const newState = JSON.parse(msg.body)

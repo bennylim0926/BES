@@ -239,7 +239,7 @@ class BattleServiceTest {
     }
 
     @Test
-    void resetJudgeVotes_setsAllVotesToMinusOneAndBroadcasts() {
+    void resetJudgeVotes_setsAllVotesToMinusThreeAndBroadcasts() {
         Judge j = new Judge();
         j.setJudgeId(5L);
         j.setName("Alex");
@@ -256,7 +256,7 @@ class BattleServiceTest {
 
         service.resetJudgeVotesService();
 
-        assertThat(service.getJudges().get(0).getVote()).isEqualTo(-1);
+        assertThat(service.getJudges().get(0).getVote()).isEqualTo(-3);
         verify(messagingTemplate, atLeastOnce()).convertAndSend(
             eq("/topic/battle/judges"), any(Map.class));
     }

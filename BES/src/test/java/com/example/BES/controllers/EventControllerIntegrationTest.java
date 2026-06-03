@@ -41,6 +41,7 @@ import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
+import com.example.BES.services.CheckinPreviewService;
 import com.example.BES.services.EventGenreParticpantService;
 import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
@@ -81,6 +82,8 @@ public class EventControllerIntegrationTest {
     private JudgeService judgeService;
     @MockBean
     private ScoreService scoreService;
+    @MockBean
+    private CheckinPreviewService checkinPreviewService;
 
     @Test
     @WithMockUser

@@ -234,6 +234,7 @@ onBeforeUnmount(() => {
               ></div>
             </div>
             <div class="col-name">{{ item.name }}</div>
+            <div v-if="idx >= 2" class="queue-pos" aria-label="Queue position">#{{ idx - 1 }}</div>
           </div>
         </template>
       </TransitionGroup>
@@ -495,6 +496,15 @@ body.transparent-page #app {
 .col-active-right .col-name {
   color: color-mix(in srgb, var(--right-color) 50%, #fff);
   text-shadow: 0 0 12px color-mix(in srgb, var(--right-color) 80%, transparent);
+}
+
+/* ── Queue position label ─────────────────────────────── */
+.queue-pos {
+  font-size: clamp(8px, 0.9vw, 11px);
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.22);
+  text-align: center;
+  margin-top: 1px;
 }
 
 /* ── VS chip ──────────────────────────────────────────── */

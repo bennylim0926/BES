@@ -8,6 +8,7 @@ public class CheckinPreviewDto {
     public String refCode;
     public List<String> memberNames;
     public List<GenreEntry> genres;
+    public Boolean cancelled;
 
     public static class GenreEntry {
         public String genreName;

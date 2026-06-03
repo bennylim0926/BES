@@ -150,10 +150,15 @@ onMounted(async () => {
   battleJudges.value = await getBattleJudges()
   resolveJudgeIdentity(battleJudges.value?.judges ?? [])
 
-  // 5. Restore vote from localStorage (backend WS overrides if different)
-  if (battlePhase.value === 'VOTING') {
-    const stored = restoreVoteFromStorage()
-    if (stored !== null) confirmedVote.value = stored
+  // 5. Restore vote from backend judges list if available, fall back to localStorage
+  if (battlePhase.value === 'VOTING' && judgeId.value != null) {
+    const myJudge = (battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)
+    if (myJudge && (myJudge.vote === 0 || myJudge.vote === 1 || myJudge.vote === -1)) {
+      confirmedVote.value = myJudge.vote
+    } else {
+      const stored = restoreVoteFromStorage()
+      if (stored !== null) confirmedVote.value = stored
+    }
   }
 
   // 6. WS subscriptions
@@ -246,12 +251,12 @@ onUnmounted(() => {
       <!-- Phase blocker (LOCKED / IDLE) -->
       <Transition name="phase-fade">
         <div
-          v-if="battlePhase === 'LOCKED' || battlePhase === 'IDLE'"
+          v-if="battlePhase === 'LOCKED' || battlePhase === 'IDLE' || battlePhase === 'DECIDED'"
           class="panels-blocker"
           aria-live="polite"
         >
-          <span class="blocker-icon">{{ battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
-          <span class="blocker-text">{{ battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
+          <span class="blocker-icon">{{ battlePhase === 'DECIDED' ? '⭐' : battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
+          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
         </div>
       </Transition>
 

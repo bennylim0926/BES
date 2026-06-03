@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 vi.mock('@/utils/api', () => ({
   getBattleJudges: vi.fn().mockResolvedValue({ judges: [] }),
+  getBattleState: vi.fn().mockResolvedValue(null),
   getCurrentBattlePair: vi.fn().mockResolvedValue(null),
   getImage: vi.fn().mockResolvedValue(null),
   getOverlayConfig: vi.fn().mockResolvedValue({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' }),
