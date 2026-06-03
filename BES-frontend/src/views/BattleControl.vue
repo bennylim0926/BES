@@ -2043,65 +2043,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Overlay Settings -->
-      <details class="overlay-settings-panel">
-        <summary class="overlay-settings-summary">Overlay Settings</summary>
-        <div class="overlay-settings-body">
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Left Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Left team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#dc2626"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Right Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Right team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#2563eb"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Show Images</span>
-            <label class="overlay-toggle">
-              <input
-                type="checkbox"
-                v-model="overlayConfig.showImages"
-                @change="pushOverlayConfig"
-              />
-              <span class="overlay-toggle-track"></span>
-            </label>
-          </div>
-        </div>
-    <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
-      </details>
-
       <div class="section-rule">
         <span class="section-rule-label">Seeding</span>
         <div class="section-rule-line"></div>
@@ -2966,6 +2907,65 @@ onUnmounted(() => {
           <input type="file" multiple @change="onFileChange" class="hidden" />
         </label>
       </div>
+
+      <!-- Overlay Settings -->
+      <details class="overlay-settings-panel mt-2">
+        <summary class="overlay-settings-summary">Overlay Settings</summary>
+        <div class="overlay-settings-body">
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Left Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Left team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#dc2626"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Right Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Right team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#2563eb"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Show Images</span>
+            <label class="overlay-toggle">
+              <input
+                type="checkbox"
+                v-model="overlayConfig.showImages"
+                @change="pushOverlayConfig"
+              />
+              <span class="overlay-toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
+      </details>
 
       <!-- Uploaded images list -->
       <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
