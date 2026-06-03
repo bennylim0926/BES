@@ -49,7 +49,7 @@ const setupExpanded = ref(true)
 
 const setupLocked = computed(() =>
   battlePhase.value !== 'IDLE' ||
-  currentBattle.value.length > 0 ||
+  (currentBattle.value?.length ?? 0) > 0 ||
   (!isSmoke.value && Object.values(rounds.value).some(
     list => Array.isArray(list) && list.some(m => Array.isArray(m) && m[2])
   )) ||
@@ -101,13 +101,19 @@ const cancelStartAt = () => { pendingStartAt.value = null }
 
 // ── Genre switcher — per-genre status dot ─────────────────────
 // Returns 'champion' | 'active' | 'idle'
-const genreStatusDot = (genre) => {
-  if (genreChampions.value[genre]) return 'champion'
-  const phase = genre === selectedGenre.value
-    ? battlePhase.value
-    : (JSON.parse(localStorage.getItem(genreBattleStateKey(genre)) ?? '{}').phase ?? 'IDLE')
-  return ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
-}
+const _genreStatusDotMap = computed(() => {
+  const map = {}
+  for (const genre of uniqueGenres.value) {
+    if (genreChampions.value[genre]) { map[genre] = 'champion'; continue }
+    const phase = genre === selectedGenre.value
+      ? battlePhase.value
+      : (JSON.parse(localStorage.getItem(genreBattleStateKey(genre)) ?? '{}').phase ?? 'IDLE')
+    map[genre] = ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
+  }
+  return map
+})
+
+const genreStatusDot = (genre) => _genreStatusDotMap.value[genre] ?? 'idle'
 
 const canSwitchGenre = computed(() =>
   battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
