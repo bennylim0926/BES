@@ -310,11 +310,13 @@ const restoreRevealedState = (rounds) => {
     if (match) {
       currentWinner.value = match[2] === leftName.value ? 0 : 1
       if (match[2] === leftName.value) {
-        leftWin.value = true
-        vsAnim.value  = 'knock-right'
+        leftWin.value    = true
+        rightReset.value = true   // slide loser off screen
+        vsAnim.value     = 'knock-right'
       } else {
-        rightWin.value = true
-        vsAnim.value   = 'knock-left'
+        rightWin.value  = true
+        leftReset.value = true    // slide loser off screen
+        vsAnim.value    = 'knock-left'
       }
       winnerTagVisible.value = true
       return
