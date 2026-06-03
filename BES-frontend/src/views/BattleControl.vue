@@ -44,6 +44,81 @@ const markSaved  = () => {
 }
 const _markSaveError = () => { saveStatus.value = 'error' }
 
+// ── Setup panel state ──────────────────────────────────────────
+const setupExpanded = ref(true)
+
+const setupLocked = computed(() =>
+  battlePhase.value !== 'IDLE' ||
+  currentBattle.value.length > 0 ||
+  (!isSmoke.value && Object.values(rounds.value).some(
+    list => Array.isArray(list) && list.some(m => Array.isArray(m) && m[2])
+  )) ||
+  (isSmoke.value && Array.isArray(rounds.value) && rounds.value.some(r => (r?.score ?? 0) > 0))
+)
+
+// Auto-collapse setup panel the first time a battle starts
+watch(setupLocked, (locked) => {
+  if (locked) setupExpanded.value = false
+}, { once: true })
+
+// ── Reset bracket inline two-step ─────────────────────────────
+const resetConfirmStep = ref(0) // 0 = idle, 1 = awaiting confirm
+
+// ── WIN button confirmation ────────────────────────────────────
+// { roundKey, matchIdx, slotIdx, name, replacing } — null when no pending confirm
+const pendingWin = ref(null)
+
+const requestWin = (roundKey, matchIdx, slotIdx, name) => {
+  const currentWinnerName = rounds.value[roundKey]?.[matchIdx]?.[2] ?? null
+  pendingWin.value = { roundKey, matchIdx, slotIdx, name, replacing: currentWinnerName }
+}
+
+const confirmWin = () => {
+  if (!pendingWin.value) return
+  const { roundKey, matchIdx, slotIdx } = pendingWin.value
+  setWinner(roundKey, matchIdx, slotIdx)
+  pendingWin.value = null
+}
+
+const cancelWin = () => { pendingWin.value = null }
+
+// ── Start-from-here confirmation ──────────────────────────────
+// { top, pairList, matchIdx } — null when no pending confirm
+const pendingStartAt = ref(null)
+
+const requestStartAt = (top, pairList, matchIdx) => {
+  pendingStartAt.value = { top, pairList, matchIdx }
+}
+
+const confirmStartAt = async () => {
+  if (!pendingStartAt.value) return
+  const { top, pairList, matchIdx } = pendingStartAt.value
+  pendingStartAt.value = null
+  await initiateBattlePairAt(top, pairList, matchIdx)
+}
+
+const cancelStartAt = () => { pendingStartAt.value = null }
+
+// ── Genre switcher — per-genre status dot ─────────────────────
+// Returns 'champion' | 'active' | 'idle'
+const genreStatusDot = (genre) => {
+  if (genreChampions.value[genre]) return 'champion'
+  const phase = genre === selectedGenre.value
+    ? battlePhase.value
+    : (JSON.parse(localStorage.getItem(genreBattleStateKey(genre)) ?? '{}').phase ?? 'IDLE')
+  return ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
+}
+
+const canSwitchGenre = computed(() =>
+  battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
+)
+
+const genreSwitchBlockReason = computed(() => {
+  if (battlePhase.value === 'LOCKED' || battlePhase.value === 'VOTING') return 'Finish this match first'
+  if (battlePhase.value === 'REVEALED') return 'Click Next to advance, then switch genres'
+  return ''
+})
+
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
 const pushOverlayConfig = async () => {
@@ -1411,15 +1486,11 @@ const cancelRoundChange = () => {
   pendingRoundIdx.value = null
 }
 
-// Guard: prompt before switching genre when battle is in progress
+// Guard: block genre switch when battle is in progress
 const requestGenreChange = (genre) => {
-  if (battlePhase.value !== 'IDLE' && battlePhase.value !== 'DECIDED' && genre !== selectedGenre.value) {
-    if (confirm(`A battle is in progress for "${selectedGenre.value}". Switching to "${genre}" will save the current state. Continue?`)) {
-      selectedGenre.value = genre
-    }
-  } else {
-    selectedGenre.value = genre
-  }
+  if (genre === selectedGenre.value) return
+  if (!canSwitchGenre.value) return  // hard block — tooltip on button explains why
+  selectedGenre.value = genre
 }
 
 watch(selectedEvent, async (newVal, oldVal) => {
