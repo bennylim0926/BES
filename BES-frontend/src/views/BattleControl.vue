@@ -1936,8 +1936,40 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Config bar + Bracket (merged) -->
-    <div class="card p-5">
+    <!-- Setup panel (collapsible, locks once battle starts) -->
+    <div class="card overflow-hidden">
+      <!-- Header — always visible, click to expand/collapse -->
+      <div
+        class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+        :class="setupLocked ? 'border-b border-surface-600/40' : (setupExpanded ? 'border-b border-surface-600/40' : '')"
+        @click="setupExpanded = !setupExpanded"
+      >
+        <div class="flex items-center gap-3">
+          <span class="type-label text-content-secondary" style="letter-spacing:0.18em">SETUP</span>
+          <span
+            v-if="setupLocked"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label"
+            style="font-size:10px;letter-spacing:0.14em;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+          >
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
+            <span class="text-amber-400">LOCKED · BATTLE IN PROGRESS</span>
+          </span>
+        </div>
+        <i class="pi text-content-muted transition-transform duration-200" :class="setupExpanded ? 'pi-chevron-up' : 'pi-chevron-down'" style="font-size:11px"></i>
+      </div>
+
+      <!-- Collapsible content -->
+      <div v-show="setupExpanded" class="p-5">
+
+      <!-- Locked banner -->
+      <div
+        v-if="setupLocked"
+        class="mb-4 px-4 py-3 flex items-center gap-3"
+        style="border-left:3px solid rgba(245,158,11,0.6);background:rgba(245,158,11,0.06)"
+      >
+        <span class="type-label text-amber-400" style="font-size:11px;letter-spacing:0.16em">Setup locked — Reset Bracket to modify</span>
+      </div>
+
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <!-- Event name -->
         <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
@@ -2487,7 +2519,8 @@ onUnmounted(() => {
           Start Round
         </button>
       </div>
-    </div> <!-- end merged card -->
+      </div> <!-- end collapsible content -->
+    </div> <!-- end setup card -->
 
     <!-- Reset bracket confirmation modal -->
     <Transition name="fade">
