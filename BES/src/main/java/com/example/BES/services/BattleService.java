@@ -106,6 +106,19 @@ public class BattleService {
         battlers = new ArrayList<>();
         for (Battler battler : dto.getBattlers()) battlers.add(battler);
         messagingTemplate.convertAndSend("/topic/battle/smoke", Map.of("battlers", battlers));
+        for (Battler battler : battlers) {
+            if (battler.getScore() != null && battler.getScore() >= 7) {
+                battlePhase = "DECIDED";
+                champion = battler.getName();
+                messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
+                    "phase", battlePhase,
+                    "genre", activeGenreName != null ? activeGenreName : "",
+                    "champion", champion
+                ));
+                break;
+            }
+        }
+        persistActiveState();
     }
 
     public void setBattlerPairService(SetBattlerPairDto dto) {
@@ -405,6 +418,7 @@ public class BattleService {
             s.setIsFinal(currentIsFinal);
             s.setBattlePhase(battlePhase);
             s.setChampion(champion);
+            s.setSmokeListJson(objectMapper.writeValueAsString(new ArrayList<>(battlers)));
             synchronized (judges) {
                 s.setJudgesJson(objectMapper.writeValueAsString(new ArrayList<>(judges)));
             }
@@ -437,6 +451,9 @@ public class BattleService {
             currentIsFinal = Boolean.TRUE.equals(s.getIsFinal());
             battlePhase = s.getBattlePhase() != null ? s.getBattlePhase() : "IDLE";
             champion = s.getChampion();
+            battlers = s.getSmokeListJson() != null
+                ? objectMapper.readValue(s.getSmokeListJson(), new TypeReference<List<Battler>>(){})
+                : new ArrayList<>();
             synchronized (judges) {
                 judges.clear();
                 if (s.getJudgesJson() != null) {
@@ -463,6 +480,7 @@ public class BattleService {
         currentIsFinal = false;
         battlePhase = "IDLE";
         champion = null;
+        battlers = new ArrayList<>();
         synchronized (judges) { judges.clear(); }
     }
 

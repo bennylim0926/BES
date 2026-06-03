@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, getSmokeList, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -997,6 +997,16 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
       currentBattle.value = [resolvedIdx, pairList]
       saveGenreBattleState(genre)
     }
+  } else if (isSmoke.value) {
+    const smokeRes = await getSmokeList()
+    if (smokeRes?.list && Array.isArray(smokeRes.list)) {
+      rounds.value = smokeRes.list.map(b => ({ name: b.name, score: b.score }))
+      localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${genre}Rounds`, JSON.stringify(toRaw(rounds.value)))
+    }
+    if (state?.champion) {
+      genreChampions.value = { ...genreChampions.value, [genre]: state.champion }
+    }
+    saveGenreBattleState(genre)
   }
 }
 
@@ -1750,6 +1760,9 @@ onMounted(async () => {
       // switch can arrive after we've already switched back and set the correct phase.
       if (msg.genre && msg.genre !== selectedGenre.value) return
       battlePhase.value = msg.phase
+      if (msg.phase === 'DECIDED' && msg.champion) {
+        genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: msg.champion }
+      }
     })
     // NOTE: /topic/battle/judges is intentionally NOT subscribed here.
     // syncJudgesForGenre does multiple remove+add operations in sequence; each
