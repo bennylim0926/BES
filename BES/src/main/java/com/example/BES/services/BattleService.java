@@ -194,7 +194,7 @@ public class BattleService {
             if (exists) return 0;
             BattleJudge battleJudge = new BattleJudge();
             battleJudge.setName(judge.getName());
-            battleJudge.setVote(-1);
+            battleJudge.setVote(-3);
             battleJudge.setId(dto.getId());
             judges.add(battleJudge);
             code = dto.getId().intValue();
@@ -226,7 +226,7 @@ public class BattleService {
 
     public void resetJudgeVotesService() {
         synchronized (judges) {
-            for (BattleJudge judge : judges) judge.setVote(-1);
+            for (BattleJudge judge : judges) judge.setVote(-3);
         }
         messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
         persistActiveState();

@@ -300,6 +300,28 @@ const updateScore = async (msg) => {
   // msg.message === -1: tie — panels stay
 }
 
+// ── Revealed state restore ─────────────────────────────────────────────────
+// Sets winner visual state (leftWin/rightWin/winnerTagVisible) from bracket data
+// without replaying the score animation. Used when restoring a REVEALED phase.
+const restoreRevealedState = (rounds) => {
+  for (const matchList of Object.values(rounds)) {
+    if (!Array.isArray(matchList)) continue
+    const match = matchList.find(m => m[0] === leftName.value && m[1] === rightName.value && m[2])
+    if (match) {
+      currentWinner.value = match[2] === leftName.value ? 0 : 1
+      if (match[2] === leftName.value) {
+        leftWin.value = true
+        vsAnim.value  = 'knock-right'
+      } else {
+        rightWin.value = true
+        vsAnim.value   = 'knock-left'
+      }
+      winnerTagVisible.value = true
+      return
+    }
+  }
+}
+
 // ── Mount ──────────────────────────────────────────────────────────────────
 onMounted(async () => {
   document.documentElement.classList.add('transparent-page')
@@ -355,6 +377,10 @@ onMounted(async () => {
     }
     const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair()
     if (pair) await updateBattlePair(pair)
+    // If phase is REVEALED, restore winner visual state without replaying the score animation
+    if (state?.battlePhase === 'REVEALED' && state?.bracket?.rounds) {
+      restoreRevealedState(state.bracket.rounds)
+    }
   }
 
   // Subscribe to pair, score, judges — for standard mode.
@@ -445,9 +471,19 @@ onMounted(async () => {
       if (wasSmoke && !isSmoke.value && msg.currentPair?.left) {
         await updateBattlePair(msg.currentPair)
       } else if (!wasSmoke && msg.currentPair?.left) {
-        if (msg.currentPair.left !== leftName.value || msg.currentPair.right !== rightName.value) {
-          // Only animate if the pair actually changed; prevents re-animation on every bracket drag
-          updateBattlePair(msg.currentPair)
+        const pairChanged = msg.currentPair.left !== leftName.value || msg.currentPair.right !== rightName.value
+        if (pairChanged) {
+          if (msg.battlePhase === 'REVEALED' && msg.bracket?.rounds) {
+            // Await so winner state is applied after entrance animation completes
+            await updateBattlePair(msg.currentPair)
+            restoreRevealedState(msg.bracket.rounds)
+          } else {
+            // Only animate if the pair actually changed; prevents re-animation on every bracket drag
+            updateBattlePair(msg.currentPair)
+          }
+        } else if (msg.battlePhase === 'REVEALED' && msg.bracket?.rounds && !leftWin.value && !rightWin.value) {
+          // Same pair, REVEALED phase — winner state not yet shown (e.g. after OBS reconnect)
+          restoreRevealedState(msg.bracket.rounds)
         }
       }
     }

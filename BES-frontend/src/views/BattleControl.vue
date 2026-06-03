@@ -921,36 +921,52 @@ const saveGenreBattleState = (genre) => {
 }
 
 const restoreAndBroadcastGenreBattle = async (genre) => {
+  // At this point, switchActiveGenreService has already loaded this genre's state from DB
+  // and broadcast it to all connected clients (overlay, bracket, judge). We only need
+  // to restore local BattleControl UI state — no backend calls needed here.
   const saved = localStorage.getItem(genreBattleStateKey(genre))
-  if (!saved) {
+  if (saved) {
+    const { battle, top, round, phase } = JSON.parse(saved)
+    currentBattle.value = battle ?? []
+    currentTop.value = top ?? ''
+    currentRound.value = round ?? 0
+    currentWinner.value = -2
+    battlePhase.value = phase ?? 'IDLE'
+    return
+  }
+  // No localStorage: reconstruct local state from backend (already loaded by switchActiveGenreService).
+  // Do NOT clear or re-push to backend — it already has the correct state.
+  const state = await getBattleState()
+  if (!state?.currentPair?.left || state.battlePhase === 'IDLE') {
     currentBattle.value = []
     currentTop.value = ''
     currentRound.value = 0
     currentWinner.value = -2
-    // Ensure the backend is also clean — clearBattlePair doesn't persist, so
-    // explicitly set IDLE on the backend in case a stale pair was left behind.
-    await clearBattlePair()
-    await setBattlePhase('IDLE')
-    battlePhase.value = 'IDLE'
     return
   }
-  const { battle, top, round, phase } = JSON.parse(saved)
-  currentBattle.value = battle ?? []
-  currentTop.value = top ?? ''
-  currentRound.value = round ?? 0
+  battlePhase.value = state.battlePhase ?? 'IDLE'
   currentWinner.value = -2
-  // Re-broadcast so the overlay updates to this genre's current pair without needing "Start Round"
-  const pair = currentBattlePair.value
-  if (pair?.[0] && pair?.[1]) {
-    await setBattlePair(pair[0], pair[1], top === 'Top2', getMembersFor(pair[0]), getMembersFor(pair[1]))
-    // setBattlePair always forces backend phase to LOCKED. If the saved state was
-    // VOTING or DECIDED, restore it. Set local phase once at the end to avoid a WS
-    // race where the async LOCKED message overwrites a prior local assignment.
-    const targetPhase = (phase === 'VOTING' || phase === 'DECIDED') ? phase : 'LOCKED'
-    if (targetPhase !== 'LOCKED') {
-      await setBattlePhase(targetPhase)
+  if (!isSmoke.value && state.bracket?.rounds) {
+    const bRounds = state.bracket.rounds
+    let topKey = state.currentPair.isFinal ? 'Top2' : null
+    if (!topKey) {
+      for (const key of Object.keys(bRounds)) {
+        const matchList = bRounds[key]
+        if (!Array.isArray(matchList)) continue
+        if (matchList.some(m => m[0] === state.currentPair.left && m[1] === state.currentPair.right)) {
+          topKey = key; break
+        }
+      }
     }
-    battlePhase.value = targetPhase
+    if (topKey) {
+      currentTop.value = topKey
+      const pairList = bRounds[topKey] ?? []
+      const nameIdx = pairList.findIndex(m => m[0] === state.currentPair.left && m[1] === state.currentPair.right)
+      const resolvedIdx = nameIdx >= 0 ? nameIdx : (state.currentRoundIndex ?? 0)
+      currentRound.value = resolvedIdx
+      currentBattle.value = [resolvedIdx, pairList]
+      saveGenreBattleState(genre)
+    }
   }
 }
 
@@ -974,6 +990,7 @@ const jumpToRecoveredPair = async () => {
     genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: restoredChampion }
   }
 
+  // Restore local bracket and pair position first (no backend calls yet)
   if (!isSmoke.value && bracket?.rounds) {
     rounds.value = bracket.rounds
     // Find which round key contains this match
@@ -996,6 +1013,23 @@ const jumpToRecoveredPair = async () => {
     const resolvedIdx = nameIdx >= 0 ? nameIdx : (currentRoundIndex ?? 0)
     currentRound.value = resolvedIdx
     currentBattle.value = [resolvedIdx, pairList]
+  }
+
+  // REVEALED: backend already has the correct state loaded from DB on startup.
+  // Calling setBattlePair would force LOCKED and broadcast it to all connected devices.
+  if (restoredPhase === 'REVEALED') {
+    battlePhase.value = 'REVEALED'
+    const match = rounds.value[currentTop.value]?.[currentRound.value]
+    if (match?.[2]) {
+      currentWinner.value = match[2] === currentBattlePair.value?.[0] ? 0 : 1
+    }
+    saveGenreBattleState(selectedGenre.value)
+    markSaved()
+    return
+  }
+
+  // Non-REVEALED: re-broadcast pair and phase to overlay and judges
+  if (!isSmoke.value && bracket?.rounds) {
     await setBattlePair(
       currentPair.left, currentPair.right, currentPair.isFinal,
       currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
@@ -1731,7 +1765,7 @@ onUnmounted(() => {
           <span class="recovery-dot"></span>
           <div class="recovery-text">
             <span class="recovery-title">RESTORED</span>
-            <span class="recovery-detail">ROUND {{ recoveryState.currentRoundIndex + 1 }} — {{ recoveryState.currentPair?.left ?? '???' }} VS {{ recoveryState.currentPair?.right ?? '???' }}</span>
+            <span class="recovery-detail">{{ recoveryState.currentPair?.left ?? '???' }} VS {{ recoveryState.currentPair?.right ?? '???' }}</span>
           </div>
         </div>
         <div class="recovery-actions">
