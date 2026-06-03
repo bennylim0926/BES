@@ -198,6 +198,45 @@ describe('api.js', () => {
     })
   })
 
+  describe('addBattleJudge', () => {
+    it('sends id and default weightage 1 when no weightage given', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true })
+      await api.addBattleJudge(5)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/judge', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ id: 5, weightage: 1 }),
+      }))
+    })
+
+    it('sends the given weightage', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true })
+      await api.addBattleJudge(5, 3)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/judge', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ id: 5, weightage: 3 }),
+      }))
+    })
+  })
+
+  describe('updateJudgeWeightage', () => {
+    it('posts to /api/v1/battle/judge/weightage with id and weightage', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true })
+      await api.updateJudgeWeightage(7, 2)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/judge/weightage', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ id: 7, weightage: 2 }),
+      }))
+    })
+
+    it('clamps weightage to minimum 1', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true })
+      await api.updateJudgeWeightage(7, 0)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/battle/judge/weightage', expect.objectContaining({
+        body: JSON.stringify({ id: 7, weightage: 1 }),
+      }))
+    })
+  })
+
   describe('setOverlayConfig', () => {
     it('calls /api/v1/battle/overlay-config with POST and JSON body', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true })

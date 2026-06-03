@@ -43,6 +43,7 @@ import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattleScoreDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
+import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.services.BattleService;
 
 @RestController
@@ -207,6 +208,13 @@ public class BattleController {
         return ResponseEntity.ok(Map.of(
             "message", "Added judge"
         ));
+    }
+
+    @PostMapping("/judge/weightage")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateJudgeWeightage(@Valid @RequestBody UpdateJudgeWeightageDto dto) {
+        battleService.updateJudgeWeightageService(dto);
+        return ResponseEntity.ok(Map.of("message", "Weightage updated"));
     }
 
     @PostMapping("/vote")

@@ -24,6 +24,7 @@ import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
+import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.models.BattleActiveGenre;
 import com.example.BES.models.BattleGenreState;
 import com.example.BES.models.Judge;
@@ -153,16 +154,16 @@ public class BattleService {
     }
 
     public Integer setScoreService(boolean isFinal) {
-        List<Integer> score = new ArrayList<>();
-        Integer res = -100;
+        int leftWeight, rightWeight;
         synchronized (judges) {
-            if (judges.size() == 0) { res = -2; }
-            for (BattleJudge judge : judges) score.add(judge.getVote());
+            leftWeight  = judges.stream().filter(j -> j.getVote() == 0).mapToInt(BattleJudge::getWeightage).sum();
+            rightWeight = judges.stream().filter(j -> j.getVote() == 1).mapToInt(BattleJudge::getWeightage).sum();
         }
-        if (Collections.frequency(score, 0) == Collections.frequency(score, 1)) {
+        Integer res;
+        if (leftWeight == rightWeight) {
             if (isFinal) return -3;
             res = -1;
-        } else if (Collections.frequency(score, 0) > Collections.frequency(score, 1)) {
+        } else if (leftWeight > rightWeight) {
             currentPair.getLeftBattler().setScore(currentPair.leftBattler.getScore() + 1);
             res = 0;
         } else {
@@ -192,6 +193,17 @@ public class BattleService {
         return dto.getId().intValue();
     }
 
+    public void updateJudgeWeightageService(UpdateJudgeWeightageDto dto) {
+        synchronized (judges) {
+            judges.stream()
+                .filter(j -> j.getId().equals(dto.getId()))
+                .findFirst()
+                .ifPresent(j -> j.setWeightage(Math.max(1, dto.getWeightage())));
+        }
+        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
+        persistActiveState();
+    }
+
     public Integer setBattleJudgeService(SetJudgeDto dto) {
         Judge judge = judgeService.getJudgeById(dto.getId());
         Integer code = -50;
@@ -202,6 +214,7 @@ public class BattleService {
             battleJudge.setName(judge.getName());
             battleJudge.setVote(-3);
             battleJudge.setId(dto.getId());
+            battleJudge.setWeightage(Math.max(1, dto.getWeightage()));
             judges.add(battleJudge);
             code = dto.getId().intValue();
         } else {
@@ -461,12 +474,15 @@ public class BattleService {
         private Long id;
         private String name;
         private Integer vote;
+        private Integer weightage;
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
         public Integer getVote() { return vote; }
         public void setVote(Integer vote) { this.vote = vote; }
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public int getWeightage() { return weightage != null && weightage > 0 ? weightage : 1; }
+        public void setWeightage(int weightage) { this.weightage = weightage; }
     }
 
     public static class Battler {
