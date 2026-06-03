@@ -2907,21 +2907,24 @@ onUnmounted(() => {
           </button>
         </template>
 
-        <!-- REVEALED: previous + next -->
+        <!-- REVEALED: next (primary) + prev (small secondary, requires confirm) -->
         <template v-if="battlePhase === 'REVEALED'">
-          <button
-            @click="prevPair"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
-          >
-            <i class="pi pi-chevron-left text-xs"></i>
-            Previous
-          </button>
           <button
             @click="nextPair"
             class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
           >
             Next
             <i class="pi pi-chevron-right text-xs"></i>
+          </button>
+          <button
+            v-if="previousBattlePair"
+            @click="confirm(`Go back to ${previousBattlePair[0]} vs ${previousBattlePair[1]}? The current match result will be cleared.`) && prevPair()"
+            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-secondary transition-all"
+            style="font-size:11px"
+            title="Go back to previous match (rarely needed)"
+          >
+            <i class="pi pi-chevron-left text-[10px]"></i>
+            Prev
           </button>
         </template>
 
