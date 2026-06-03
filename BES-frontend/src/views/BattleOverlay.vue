@@ -62,6 +62,10 @@ const glitching = ref(false)
 // stale leftWin/rightWin assignments from a previous pair's score animation.
 let animToken = 0
 
+// prevTopSize: tracks the topSize last seen from a bracket message so we can
+// detect format changes (smoke ↔ standard).
+let prevTopSize = null
+
 // Start from URL param; updated in real-time when backend state reports a different genre
 const isSmoke = ref(route.query.isSmoke === 'true')
 
@@ -88,6 +92,10 @@ const runEntrance = async () => {
   stageShaking.value = false
 }
 
+// ── Empty-pair state ───────────────────────────────────────────────────────
+// True while no battle is in progress — overlay shows waiting announcement
+const isBlank = computed(() => !isSmoke.value && battlePhase.value === 'IDLE')
+
 // ── Battle pair update ─────────────────────────────────────────────────────
 const updateBattlePair = async (msg) => {
   if (!msg) return
@@ -107,6 +115,32 @@ const updateBattlePair = async (msg) => {
 
   // Increment token — aborts any in-progress updateScore for the previous pair
   animToken++
+
+  // EMPTY PAIR: organiser cleared the battle (end of round / reset). Skip
+  // entrance animation, just blank the overlay.
+  if (!msg.left && !msg.right) {
+    hideJudgeDecision.value  = true
+    judgeAnim.value          = ''
+    votesVisible.value       = false
+    winnerTagVisible.value   = false
+    leftWin.value            = false
+    rightWin.value           = false
+    leftReset.value          = false
+    rightReset.value         = false
+    vsAnim.value             = ''
+    currentWinner.value      = -2
+    showVotingIndicator.value = false
+    imageLeft.value  = null
+    imageRight.value = null
+    leftScore.value  = 0
+    rightScore.value = 0
+    leftMembers.value  = []
+    rightMembers.value = []
+    leftName.value  = ''
+    rightName.value = ''
+    isFinal.value   = false
+    return
+  }
 
   // STANDARD MODE: if the judge panel is visible, clean it up before the new pair
   if (!hideJudgeDecision.value) {
@@ -154,8 +188,8 @@ const updateBattlePair = async (msg) => {
   leftScore.value   = msg.leftScore  ?? 0
   rightScore.value  = msg.rightScore ?? 0
   isFinal.value     = !!msg.isFinal
-  imageLeft.value  = await getImage(`${msg.left}.png`)
-  imageRight.value = await getImage(`${msg.right}.png`)
+  imageLeft.value  = msg.left  ? await getImage(`${msg.left}.png`)  : null
+  imageRight.value = msg.right ? await getImage(`${msg.right}.png`) : null
 
   await runEntrance()
 }
@@ -306,6 +340,9 @@ onMounted(async () => {
   // Restore state from backend on mount — handles OBS refresh and genre switches.
   // Runs for both standard and smoke mode so genre-switch detection always works.
   const state = await getBattleState()
+  if (state?.bracket?.topSize !== undefined) {
+    prevTopSize = Number(state.bracket.topSize)
+  }
   if (state?.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
   }
@@ -331,11 +368,18 @@ onMounted(async () => {
 
   // /topic/battle/bracket — fires when operator changes bracket format or size in BattleControl.
   // Use topSize to determine smoke mode (7 = smoke, anything else = standard).
+  // Format change: overlay will receive phase → IDLE from BattleControl, triggering the
+  // blank announcement. No manual wipe needed here.
   const cBracket = createClient(); clients.push(cBracket)
   subscribeToChannel(cBracket, '/topic/battle/bracket', async (msg) => {
     if (!msg) return
     const wasSmoke = isSmoke.value
-    if (msg.topSize !== undefined) isSmoke.value = String(msg.topSize) === '7'
+    const newTopSize = msg.topSize !== undefined ? Number(msg.topSize) : null
+    if (newTopSize !== null) {
+      isSmoke.value = newTopSize === 7
+      prevTopSize = newTopSize
+    }
+
     // On format switch standard → smoke: Chart handles its own subscriptions.
     // On format switch smoke → standard: fetch current pair from backend to show something.
     if (wasSmoke && !isSmoke.value) {
@@ -351,12 +395,16 @@ onMounted(async () => {
     if (!msg || msg.dismiss || isSmoke.value) return
     const champion = msg.championName
     if (!champion) return
-    // If we don't have a current pair loaded, fetch it first
-    if (!leftName.value) {
+    // Check if the champion matches the current overlay pair. If not (e.g. stale pair
+    // from before a genre switch), fetch the authoritative pair from the backend.
+    let side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
+    if (side === -1) {
       const freshState = await getBattleState()
-      if (freshState?.currentPair?.left) await updateBattlePair(freshState.currentPair)
+      if (freshState?.currentPair?.left) {
+        await updateBattlePair(freshState.currentPair)
+        side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
+      }
     }
-    const side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
     if (side === -1) return
     animToken++
     const myToken = animToken
@@ -394,8 +442,14 @@ onMounted(async () => {
       if (msg.battlePhase !== undefined) battlePhase.value = msg.battlePhase
       if (msg.judges?.length) updateBattleJudge({ judges: msg.judges })
       // On format switch from smoke → standard, restore the pair from state
-      if (wasSmoke && !isSmoke.value && msg.currentPair?.left) await updateBattlePair(msg.currentPair)
-      else if (!wasSmoke && msg.currentPair?.left) updateBattlePair(msg.currentPair)
+      if (wasSmoke && !isSmoke.value && msg.currentPair?.left) {
+        await updateBattlePair(msg.currentPair)
+      } else if (!wasSmoke && msg.currentPair?.left) {
+        if (msg.currentPair.left !== leftName.value || msg.currentPair.right !== rightName.value) {
+          // Only animate if the pair actually changed; prevents re-animation on every bracket drag
+          updateBattlePair(msg.currentPair)
+        }
+      }
     }
   })
 })
@@ -506,6 +560,16 @@ onUnmounted(() => {
     ═══════════════════════════════════════════════════ -->
     <template v-if="!isSmoke">
 
+      <!-- Blank announcement — no active pair, waiting for next battle -->
+      <div v-if="isBlank" class="blank-announce" role="status" aria-live="polite">
+        <div class="blank-ring"></div>
+        <div class="blank-label">WAITING</div>
+        <div class="blank-sub">NEXT BATTLE COMING UP</div>
+      </div>
+
+      <!-- Battler panels (only when a pair is present) -->
+      <template v-else>
+
       <!-- Left battler panel -->
       <div
         class="battler-panel left-panel"
@@ -601,6 +665,16 @@ onUnmounted(() => {
         </div>
       </transition>
 
+      <!-- DECIDED indicator — champion locked, waiting for reveal -->
+      <transition name="fade-indicator">
+        <div v-if="battlePhase === 'DECIDED'" class="decided-indicator" aria-label="Champion decided">
+          <span class="decided-dot" aria-hidden="true"></span>
+          <span class="decided-label">JUDGES HAVE DECIDED</span>
+        </div>
+      </transition>
+
+      </template> <!-- end v-else (battler panels) -->
+
     </template>
 
     <!-- ══════════════════════════════════════════════════
@@ -625,6 +699,37 @@ body.transparent-page #app {
 </style>
 
 <style scoped>
+/* ── Blank announcement (IDLE phase) ──────────────────────── */
+.blank-announce {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  z-index: 60;
+}
+.blank-ring {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  animation: blankPulse 2.4s ease-in-out infinite;
+}
+.blank-label {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(22px, 3.5vw, 42px);
+  letter-spacing: 0.28em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+  text-shadow: 0 0 40px rgba(255,255,255,0.12);
+}
+.blank-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,0.18);
+}
+@keyframes blankPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%       { transform: scale(1.12); opacity: 1; }
+}
+
 /* ── Screen-reader only ─────────────────────────────────────── */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0;
@@ -1091,6 +1196,29 @@ body.transparent-page #app {
   color: rgba(255,255,255,0.45);
   text-transform: uppercase;
 }
+/* DECIDED indicator */
+.decided-indicator {
+  position: absolute;
+  bottom: 2vh; left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex; align-items: center; gap: 8px;
+}
+.decided-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgba(245,158,11,0.7);
+  animation: votingPulse 1.2s ease-in-out infinite;
+}
+.decided-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(245,158,11,0.75);
+  text-transform: uppercase;
+}
+
 /* Fade transition for voting indicator */
 .fade-indicator-enter-active,
 .fade-indicator-leave-active { transition: opacity 0.3s ease; }

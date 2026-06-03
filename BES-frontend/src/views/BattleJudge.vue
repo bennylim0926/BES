@@ -251,12 +251,12 @@ onUnmounted(() => {
       <!-- Phase blocker (LOCKED / IDLE) -->
       <Transition name="phase-fade">
         <div
-          v-if="battlePhase === 'LOCKED' || battlePhase === 'IDLE'"
+          v-if="battlePhase === 'LOCKED' || battlePhase === 'IDLE' || battlePhase === 'DECIDED'"
           class="panels-blocker"
           aria-live="polite"
         >
-          <span class="blocker-icon">{{ battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
-          <span class="blocker-text">{{ battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
+          <span class="blocker-icon">{{ battlePhase === 'DECIDED' ? '⭐' : battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
+          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
         </div>
       </Transition>
 

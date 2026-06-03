@@ -129,6 +129,26 @@ public class BattleService {
         persistActiveState();
     }
 
+    public void clearBattlePairService() {
+        getCurrentPair().leftBattler.setName("");
+        getCurrentPair().leftBattler.setScore(0);
+        getCurrentPair().leftBattler.setMembers(new ArrayList<>());
+        getCurrentPair().rightBattler.setName("");
+        getCurrentPair().rightBattler.setScore(0);
+        getCurrentPair().rightBattler.setMembers(new ArrayList<>());
+        currentIsFinal = false;
+        messagingTemplate.convertAndSend("/topic/battle/battle-pair", Map.of(
+            "left",         "",
+            "leftScore",    0,
+            "leftMembers",  new ArrayList<>(),
+            "right",        "",
+            "rightScore",   0,
+            "rightMembers", new ArrayList<>(),
+            "isFinal",      false
+        ));
+        // Does NOT change phase — caller sets phase afterward
+    }
+
     public Integer setScoreService(boolean isFinal) {
         List<Integer> score = new ArrayList<>();
         Integer res = -100;
@@ -270,6 +290,8 @@ public class BattleService {
 
     public void broadcastChampionReveal(ChampionRevealDto dto) {
         if (dto.isDismiss()) {
+            champion = null;
+            persistActiveState();
             messagingTemplate.convertAndSend("/topic/battle/champion-reveal", Map.of("dismiss", true));
         } else {
             champion = dto.getChampionName() != null ? dto.getChampionName() : "";
@@ -304,6 +326,7 @@ public class BattleService {
         activeGenreName = dto.getGenreName();
         loadGenreStateIntoMemory(activeEventName, activeGenreName);
         broadcastStateSnapshot();
+        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of("phase", battlePhase));
     }
 
     public Map<String, Object> getBattleStateService() {

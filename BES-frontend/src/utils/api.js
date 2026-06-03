@@ -497,6 +497,19 @@ export const setBattlePair = async(leftBattler, rightBattler, isFinal = false, l
   }
 }
 
+export const clearBattlePair = async () => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/battle-pair`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
 export const setBattleScore = async (isFinal = false) => {
   try {
     return await fetch(`${domain}/api/v1/battle/score`, {

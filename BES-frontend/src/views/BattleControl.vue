@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
-import { addBattleJudge, addBattleGuest, battleJudgeVote, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -22,8 +22,13 @@ const currentRound = ref(0)
 const currentTop = ref('')
 const battlePhase = ref('IDLE')
 const showResetConfirm = ref(false)
+const showSizeChangeConfirm = ref(false)  // prompt before switching bracket size
+const showRoundChangeConfirm = ref(false) // prompt before switching round during battle
+const pendingSize = ref(null)            // the size user wants to switch to
+const pendingRoundIdx = ref(null)        // the round index user wants to switch to
 const finalTieBlocked = ref(false)
 const revealActive = ref(false)
+let skipSizeChangeClear = false          // guard: suppress clear when topSize changes programmatically
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
@@ -233,6 +238,7 @@ const nextPair = async () => {
       currentRound.value += 1
       saveGenreBattleState(selectedGenre.value)
     } else {
+      await clearBattlePair()
       await setBattlePhase('IDLE')
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
@@ -601,7 +607,27 @@ const onDragEnd = () => {
   dragOverKey.value = null
 }
 
+// Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
+// its slots. Called after onDrop / onSmokeDrop so currentBattlePair already reflects
+// the updated rounds.
+const reBroadcastCurrentPairIfActive = () => {
+  if (isSmoke.value || currentBattle.value.length === 0) return
+  const pair = currentBattlePair.value
+  if (pair?.[0] && pair?.[1]) {
+    setBattlePair(pair[0], pair[1], currentTop.value === 'Top2',
+      getMembersFor(pair[0]), getMembersFor(pair[1]))
+  }
+}
+
 const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
+  // Capture whether the current pair is affected BEFORE clearing drag state
+  const curRound = currentTop.value
+  const curMatch = currentRound.value
+  const tgtIsCurrent = tgtRound === curRound && tgtMatch === curMatch
+  const srcIsCurrent = dragSource.value
+    ? dragSource.value.roundKey === curRound && dragSource.value.matchIdx === curMatch
+    : false
+
   // Pool → bracket drop
   if (poolDragName.value) {
     const name = poolDragName.value
@@ -613,6 +639,7 @@ const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
     rounds.value[tgtRound][tgtMatch][2] = null
     localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
     broadcastBracket()
+    if (tgtIsCurrent) reBroadcastCurrentPairIfActive()
     return
   }
   if (!dragSource.value) return
@@ -631,6 +658,7 @@ const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
 
   localStorage.setItem(`Top${topSize.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
+  if (tgtIsCurrent || srcIsCurrent) reBroadcastCurrentPairIfActive()
 }
 
 const onPoolDragStart = (name, event) => {
@@ -791,6 +819,63 @@ const currentGenreChampion = computed(() => {
 
 const isFinalInProgress = computed(() => !isSmoke.value && currentTop.value === 'Top2')
 
+// True when the current bracket has any placed participants (used for size-change guard)
+const bracketHasData = computed(() => {
+  if (isSmoke.value) return Array.isArray(rounds.value) && rounds.value.some(r => r?.name)
+  return Object.values(rounds.value).some(pairList =>
+    Array.isArray(pairList) && pairList.some(m => Array.isArray(m) && (m[0] || m[1]))
+  )
+})
+
+// Round tab status: 'active' (has current battle), 'done' (all winners set),
+// 'filled' (all slots filled + previous round complete), 'locked' (waiting for
+// previous round to finish), 'empty' (slots not yet filled)
+const roundTabStatus = (idx) => {
+  if (isSmoke.value) return 'empty'
+  const size = roundSizes.value[idx]
+  if (!size) return 'empty'
+  const pairList = rounds.value[`Top${size}`]
+  if (!Array.isArray(pairList)) return 'empty'
+  // Active battle in this round?
+  const hasActive = currentBattle.value.length > 0 && currentTop.value === `Top${size}`
+  if (hasActive) return 'active'
+  // All winners set? (round completed)
+  const allHaveWinners = pairList.every(m => Array.isArray(m) && m[2])
+  if (allHaveWinners && pairList.length > 0 && pairList.some(m => m[0] || m[1])) return 'done'
+  // Previous round incomplete? This round is locked
+  if (idx > 0) {
+    const prevSize = roundSizes.value[idx - 1]
+    const prevList = rounds.value[`Top${prevSize}`]
+    if (Array.isArray(prevList) && prevList.length > 0 && !prevList.every(m => Array.isArray(m) && m[2])) {
+      return 'locked'
+    }
+  }
+  // All slots filled? Ready to start
+  const allFilled = pairList.every(m => Array.isArray(m) && m[0] && m[1])
+  if (allFilled) return 'filled'
+  return 'empty'
+}
+
+// True when every match in the active round tab has both slots filled
+// AND the previous round (if any) is fully complete (all winners set).
+const isActiveRoundFilled = computed(() => {
+  if (isSmoke.value) return true
+  const idx = activeRoundIdx.value
+  const size = roundSizes.value[idx]
+  if (!size) return false
+  // Current round: all slots filled
+  const pairList = rounds.value[`Top${size}`]
+  if (!Array.isArray(pairList)) return false
+  if (!pairList.every(m => Array.isArray(m) && m[0] && m[1])) return false
+  // Previous round (if any): all winners set
+  if (idx > 0) {
+    const prevSize = roundSizes.value[idx - 1]
+    const prevList = rounds.value[`Top${prevSize}`]
+    if (Array.isArray(prevList) && !prevList.every(m => Array.isArray(m) && m[2])) return false
+  }
+  return true
+})
+
 // All judges have cast a vote (none still at -3 = "hasn't voted this round")
 const allJudgesVoted = computed(() => {
   const judges = battleJudges.value?.judges ?? []
@@ -842,6 +927,11 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
     currentTop.value = ''
     currentRound.value = 0
     currentWinner.value = -2
+    // Ensure the backend is also clean — clearBattlePair doesn't persist, so
+    // explicitly set IDLE on the backend in case a stale pair was left behind.
+    await clearBattlePair()
+    await setBattlePhase('IDLE')
+    battlePhase.value = 'IDLE'
     return
   }
   const { battle, top, round, phase } = JSON.parse(saved)
@@ -853,12 +943,14 @@ const restoreAndBroadcastGenreBattle = async (genre) => {
   const pair = currentBattlePair.value
   if (pair?.[0] && pair?.[1]) {
     await setBattlePair(pair[0], pair[1], top === 'Top2', getMembersFor(pair[0]), getMembersFor(pair[1]))
-    battlePhase.value = 'LOCKED'
-    // Restore VOTING phase so "Reveal Champion" is available immediately if judges already voted
-    if (phase === 'VOTING') {
-      await setBattlePhase('VOTING')
-      battlePhase.value = 'VOTING'
+    // setBattlePair always forces backend phase to LOCKED. If the saved state was
+    // VOTING or DECIDED, restore it. Set local phase once at the end to avoid a WS
+    // race where the async LOCKED message overwrites a prior local assignment.
+    const targetPhase = (phase === 'VOTING' || phase === 'DECIDED') ? phase : 'LOCKED'
+    if (targetPhase !== 'LOCKED') {
+      await setBattlePhase(targetPhase)
     }
+    battlePhase.value = targetPhase
   }
 }
 
@@ -1079,26 +1171,49 @@ const startRevote = async () => {
   currentWinner.value = -2
 }
 
+const lockChampion = async () => {
+  const winner = tentativeWinner.value === 0
+    ? currentBattlePair.value?.[0]
+    : currentBattlePair.value?.[1]
+  if (!winner) return
+  genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
+  localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winner)
+  await setBattlePhase('DECIDED')
+  battlePhase.value = 'DECIDED'
+  saveGenreBattleState(selectedGenre.value)
+}
+
+const unlockChampion = async () => {
+  const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+  genreChampions.value = rest
+  localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
+  await setBattlePhase('VOTING')
+  battlePhase.value = 'VOTING'
+  saveGenreBattleState(selectedGenre.value)
+}
+
 const revealChampionForGenre = async () => {
-  // Case 1: live voting round — score not yet submitted, use tentative winner from votes
-  if (showFinalReveal.value && !currentGenreChampion.value) {
-    const winnerName = tentativeWinner.value === 0
-      ? currentBattlePair.value?.[0]
-      : currentBattlePair.value?.[1]
+  // Case 1: DECIDED phase — champion locked, score not yet submitted
+  if (battlePhase.value === 'DECIDED' && !currentGenreChampion.value) {
+    const championName = genreChampions.value[selectedGenre.value]
+    if (!championName) return
     const res = await setBattleScore(true)
     if (res?.status === 409) { finalTieBlocked.value = true; return }
     const data = await res.json()
     currentWinner.value = Number(data.winner)
     if (data.winner === 0 || data.winner === 1) {
       setWinner(currentTop.value, currentRound.value, data.winner)
-      genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winnerName }
-      localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winnerName)
-      await revealChampion(selectedGenre.value, winnerName)
+      await revealChampion(selectedGenre.value, championName)
+      // Stay in DECIDED so the genre remains re-revealable forever
+      await setBattlePhase('DECIDED')
+      battlePhase.value = 'DECIDED'
+      saveGenreBattleState(selectedGenre.value)
       revealActive.value = true
     }
     return
   }
   // Case 2: score already in bracket (winner in rounds data) OR tracked in genreChampions
+  // (re-reveal). Also stays DECIDED.
   const champion = currentGenreChampion.value ?? genreChampions.value[selectedGenre.value]
   if (!champion) return
   // Update live match winner display so the WIN button reflects the correct side
@@ -1129,17 +1244,94 @@ const confirmResetBracket = async () => {
   rounds.value = initRounds()
   placeGuestsInBracket()
   broadcastBracket()
+  await clearBattlePair()
   await setBattlePhase('IDLE')
   battlePhase.value = 'IDLE'
   currentWinner.value = -2
   currentBattle.value = []
   currentTop.value = ''
+  currentRound.value = 0
+  activeRoundIdx.value = 0
+  finalTieBlocked.value = false
   localStorage.removeItem('currentTop')
+  localStorage.removeItem(sizeStateKey(topSize.value))
   saveGenreBattleState(selectedGenre.value)
-  // Clear champion tracking for this genre
+  // Clear champion tracking — both backend (DB) and local (ref + localStorage)
+  await dismissChampionReveal()
+  revealActive.value = false
   const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
   genreChampions.value = rest
   localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
+}
+
+const requestSizeChange = (newSize) => {
+  if (bracketHasData.value && Number(topSize.value) !== newSize) {
+    pendingSize.value = newSize
+    showSizeChangeConfirm.value = true
+  } else {
+    topSize.value = newSize
+  }
+}
+
+const confirmSizeChange = async () => {
+  showSizeChangeConfirm.value = false
+  // Reset bracket data for the current genre before switching size
+  localStorage.removeItem(`Top${topSize.value}${selectedGenre.value}Rounds`)
+  localStorage.removeItem(sizeStateKey(topSize.value))
+  topSize.value = pendingSize.value
+  pendingSize.value = null
+}
+
+const cancelSizeChange = () => {
+  showSizeChangeConfirm.value = false
+  pendingSize.value = null
+}
+
+// True when the active battle is happening in the currently-viewed round tab.
+// Smoke mode has only one "round" (the queue) — always true when battle is active.
+const isActiveBattleInThisRound = computed(() => {
+  if (currentBattle.value.length === 0) return false
+  if (isSmoke.value) return true
+  const size = roundSizes.value[activeRoundIdx.value]
+  return size != null && currentTop.value === `Top${size}`
+})
+
+// Effective phase for the currently-viewed round: IDLE if the active battle
+// is in a different round, otherwise the global phase.
+const effectivePhase = computed(() =>
+  isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
+)
+
+// Guard: prompt before switching round tab when battle is in progress
+const requestRoundChange = (idx) => {
+  if (battlePhase.value !== 'IDLE' && idx !== activeRoundIdx.value) {
+    pendingRoundIdx.value = idx
+    showRoundChangeConfirm.value = true
+  } else {
+    activeRoundIdx.value = idx
+  }
+}
+
+const confirmRoundChange = () => {
+  showRoundChangeConfirm.value = false
+  activeRoundIdx.value = pendingRoundIdx.value
+  pendingRoundIdx.value = null
+}
+
+const cancelRoundChange = () => {
+  showRoundChangeConfirm.value = false
+  pendingRoundIdx.value = null
+}
+
+// Guard: prompt before switching genre when battle is in progress
+const requestGenreChange = (genre) => {
+  if (battlePhase.value !== 'IDLE' && genre !== selectedGenre.value) {
+    if (confirm(`A battle is in progress for "${selectedGenre.value}". Switching to "${genre}" will save the current state. Continue?`)) {
+      selectedGenre.value = genre
+    }
+  } else {
+    selectedGenre.value = genre
+  }
 }
 
 watch(selectedEvent, async (newVal) => {
@@ -1184,21 +1376,23 @@ watch(uniqueGenres, (genres) => {
   genreChampions.value = { ...locals, ...genreChampions.value }
 }, { immediate: true })
 
-// When all judges vote in the final, capture the winner immediately — before the
-// organiser clicks Reveal. This persists the state across genre switches and refreshes.
-// When showFinalReveal goes false due to a revote that results in a tie, clear any
-// previously saved champion so stale data doesn't linger.
+// When all judges revote to a tie in the final, clear any previously locked
+// champion so stale data doesn't linger. (Champion is only saved via Lock button.)
 watch(showFinalReveal, (newVal) => {
   if (!selectedGenre.value) return
-  if (newVal) {
-    const winner = tentativeWinner.value === 0
-      ? currentBattlePair.value?.[0]
-      : currentBattlePair.value?.[1]
-    if (!winner) return
-    genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
-    localStorage.setItem(genreChampionLocalKey(selectedGenre.value), winner)
-  } else if (isFinalInProgress.value && allJudgesVoted.value && tentativeWinner.value === -1) {
-    // All judges voted but it's a tie — remove any pending champion
+  if (!newVal && isFinalInProgress.value && allJudgesVoted.value && tentativeWinner.value === -1) {
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    genreChampions.value = rest
+    localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
+  }
+})
+
+// When showFinalReveal is already false (e.g. after a Start Round reset) and judges
+// subsequently vote to a tie in the final, the watch above won't fire (no transition).
+// This watcher catches the steady-state tie condition and clears the champion.
+watch([allJudgesVoted, tentativeWinner], ([voted, winner]) => {
+  if (!selectedGenre.value) return
+  if (voted && winner === -1 && isFinalInProgress.value && genreChampions.value[selectedGenre.value]) {
     const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
     genreChampions.value = rest
     localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
@@ -1210,18 +1404,6 @@ watch(selectedGenre, async (newVal, oldVal) => {
   if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
-    // If all judges voted in the final but organiser hasn't clicked Reveal yet,
-    // save the winner before switching away so the button reappears on return.
-    if (oldVal && showFinalReveal.value) {
-      const winner = tentativeWinner.value === 0
-        ? currentBattlePair.value?.[0]
-        : currentBattlePair.value?.[1]
-      if (winner) {
-        genreChampions.value = { ...genreChampions.value, [oldVal]: winner }
-        localStorage.setItem(genreChampionLocalKey(oldVal), winner)
-      }
-    }
-
     // Persist outgoing genre's topSize before switching
     if (oldVal) localStorage.setItem(genreTopSizeKey(oldVal), String(topSize.value))
 
@@ -1239,6 +1421,7 @@ watch(selectedGenre, async (newVal, oldVal) => {
       const savedSize = localStorage.getItem(genreTopSizeKey(newVal))
       const restoredSize = savedSize ? Number(savedSize) : (oldVal ? 16 : Number(topSize.value))
       if (restoredSize !== Number(topSize.value)) {
+        skipSizeChangeClear = true
         topSize.value = restoredSize
         localStorage.setItem('topSize', String(restoredSize))
       }
@@ -1266,60 +1449,92 @@ watch(selectedGenre, async (newVal, oldVal) => {
     // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
     // oldVal check (truthy) skips the immediate fire and empty-string initialization cases.
     if (mountJudgeSyncDone && oldVal) await syncJudgesForGenre(newVal, oldVal)
+    // Re-read authoritative phase from backend after restoration. The WS LOCKED
+    // message from setBattlePair can race past the local phase assignment inside
+    // restoreAndBroadcastGenreBattle. Brief delay lets WS messages flush first.
+    if (oldVal) {
+      await new Promise(r => setTimeout(r, 150))
+      const confirmed = await getBattlePhase()
+      if (confirmed?.phase) battlePhase.value = confirmed.phase
+      // Defensive: if this genre has a champion locked, force DECIDED regardless
+      // of what the backend returned (WS messages can corrupt the phase mid-switch).
+      if (genreChampions.value[newVal] && battlePhase.value !== 'DECIDED') {
+        await setBattlePhase('DECIDED')
+        battlePhase.value = 'DECIDED'
+        saveGenreBattleState(newVal)
+      }
+    }
   } else {
     pickupCrews.value = []
   }
 }, { immediate: true })
 
 const sizeStateKey = (size) => `battleSizeState_${selectedEvent.value}_${selectedGenre.value}_${size}`
+const roundIdxKey = () => `battleRoundIdx_${selectedEvent.value}_${selectedGenre.value}_${topSize.value}`
+
+// Persist the active round tab selection so it survives refresh and genre switch.
+// Does NOT auto-broadcast to overlay — the overlay stays on the IDLE announcement
+// until the operator explicitly clicks "Start Round".
+watch(activeRoundIdx, (idx) => {
+  if (selectedEvent.value && selectedGenre.value) {
+    localStorage.setItem(roundIdxKey(), String(idx))
+  }
+})
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
-  // Reset to first round tab so the bracket is always visible after a size change
-  activeRoundIdx.value = 0
-  // Save last-selected pair for outgoing size so we can restore it on return
+  // Restore previously-selected round tab for this size; default to 0 (first round).
+  // Only when event+genre are known — during setup they're still null, defer to onMounted.
+  if (selectedEvent.value && selectedGenre.value) {
+    const savedIdx = localStorage.getItem(roundIdxKey())
+    activeRoundIdx.value = savedIdx !== null ? Math.min(Number(savedIdx), roundSizes.value.length - 1) : 0
+  }
+  // Save outgoing size's battle state so it can be restored on return (no overlay broadcast)
   if (oldVal && currentBattle.value.length > 0) {
     localStorage.setItem(sizeStateKey(oldVal), JSON.stringify({
       battle: toRaw(currentBattle.value),
       top: currentTop.value,
       round: currentRound.value,
+      phase: battlePhase.value,
     }))
   }
   localStorage.setItem("topSize", newVal)
+  // Also save per-genre so it survives refresh (not just genre switch)
+  if (selectedEvent.value && selectedGenre.value) {
+    localStorage.setItem(genreTopSizeKey(selectedGenre.value), String(newVal))
+  }
   const storedRounds = localStorage.getItem(`Top${newVal}${selectedGenre.value}Rounds`)
   rounds.value = JSON.parse(storedRounds) || initRounds()
   currentWinner.value = -2
+  // Only clear battle on user-initiated size change (not programmatic from
+  // genre switch or initial load). The onMounted recovery handles init.
+  if (oldVal && !skipSizeChangeClear) {
+    await clearBattlePair()
+    await setBattlePhase('IDLE')
+    battlePhase.value = 'IDLE'
+    currentBattle.value = []
+    currentTop.value = ''
+  }
+  skipSizeChangeClear = false
   broadcastBracket()
 
-  // Restore last pair for this size; if none, show the first filled pair in the bracket
+  // Restore the incoming size's battle state (pair + phase). Do NOT push to overlay —
+  // the overlay updates only when the operator clicks a round tab or "Start Round".
   const savedSizeState = localStorage.getItem(sizeStateKey(newVal))
   if (savedSizeState) {
-    const { battle, top, round } = JSON.parse(savedSizeState)
+    const { battle, top, round, phase: savedPhase } = JSON.parse(savedSizeState)
     currentBattle.value = battle ?? []
     currentTop.value = top ?? ''
     currentRound.value = round ?? 0
-    // Broadcast the restored pair so the overlay reflects this size immediately
-    const pair = currentBattlePair.value
-    if (!isSmoke.value && pair?.[0] && pair?.[1]) {
-      await setBattlePair(pair[0], pair[1], top === 'Top2', getMembersFor(pair[0]), getMembersFor(pair[1]))
-    }
+    // Restore phase locally — but don't broadcast. The overlay stays on whatever
+    // it was last showing. When the operator clicks a round tab, the activeRoundIdx
+    // watcher will find and broadcast the correct pair from the bracket data.
+    battlePhase.value = savedPhase && savedPhase !== 'IDLE' ? savedPhase : 'IDLE'
+    saveGenreBattleState(selectedGenre.value)
   } else {
     currentBattle.value = []
     currentTop.value = ''
     currentRound.value = 0
-    // Broadcast first filled pair so the overlay immediately reflects the new format
-    if (!isSmoke.value) {
-      const topKey = `Top${newVal}`
-      const pairList = rounds.value[topKey] ?? []
-      const firstFilledIdx = pairList.findIndex(m => Array.isArray(m) && m[0] && m[1])
-      if (firstFilledIdx >= 0) {
-        const [left, right] = pairList[firstFilledIdx]
-        currentBattle.value = [firstFilledIdx, pairList]
-        currentTop.value = topKey
-        currentRound.value = firstFilledIdx
-        await setBattlePair(left, right, false, getMembersFor(left), getMembersFor(right))
-      }
-    }
   }
 }, { immediate: true })
 
@@ -1373,6 +1588,19 @@ watch(rounds, () => {
 
 onMounted(async () => {
   initialiseDropdown()
+  // Restore per-genre bracket size (survives refresh)
+  if (selectedEvent.value && selectedGenre.value) {
+    const savedSize = localStorage.getItem(genreTopSizeKey(selectedGenre.value))
+    if (savedSize) {
+      topSize.value = Number(savedSize)
+      localStorage.setItem('topSize', savedSize)
+    }
+  }
+  // Now that event+genre are set, restore the saved round tab with correct keys
+  const savedRoundIdx = localStorage.getItem(roundIdxKey())
+  if (savedRoundIdx !== null) {
+    activeRoundIdx.value = Math.min(Number(savedRoundIdx), roundSizes.value.length - 1)
+  }
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
@@ -1526,14 +1754,14 @@ onUnmounted(() => {
           <button
             v-for="g in uniqueGenres"
             :key="g"
-            @click="selectedGenre = g"
+            @click="requestGenreChange(g)"
             class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
             :class="selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
           >
             {{ g }}
-            <i v-if="g === selectedGenre && (showFinalReveal || (genreChampions[g] && !currentGenreChampion))" class="pi pi-star-fill text-[9px] text-amber-400" title="Judges voted — ready to reveal champion"></i>
+            <i v-if="(g === selectedGenre && battlePhase === 'DECIDED') || genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" title="Champion locked — ready to reveal"></i>
           </button>
         </div>
         <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
@@ -1543,7 +1771,7 @@ onUnmounted(() => {
             <button
               v-for="s in sizes.filter(s => s !== 7)"
               :key="s"
-              @click="topSize = s"
+              @click="requestSizeChange(s)"
               class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
               :class="topSize === s
                 ? 'text-accent border-[color:var(--accent-muted)]'
@@ -1844,12 +2072,22 @@ onUnmounted(() => {
           <button
             v-for="(size, idx) in roundSizes"
             :key="idx"
-            @click="activeRoundIdx = idx"
-            class="para-chip-sm px-4 py-1.5 type-label transition-all duration-150"
-            :class="activeRoundIdx === idx
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >Top {{ size }}</button>
+            @click="requestRoundChange(idx)"
+            class="para-chip-sm px-4 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+            :class="{
+              'text-accent border-[color:var(--accent-muted)]': activeRoundIdx === idx,
+              'text-emerald-400/70 border-emerald-500/30': activeRoundIdx !== idx && roundTabStatus(idx) === 'done',
+              'text-content-muted/40 cursor-not-allowed': roundTabStatus(idx) === 'locked',
+              'text-content-muted hover:text-content-primary': activeRoundIdx !== idx && roundTabStatus(idx) !== 'done' && roundTabStatus(idx) !== 'locked',
+              'border-amber-400/40 text-amber-400': roundTabStatus(idx) === 'active',
+            }"
+            :title="roundTabStatus(idx) === 'locked' ? 'Waiting for previous round to complete' : ''"
+          >
+            <i v-if="roundTabStatus(idx) === 'active'" class="pi pi-circle-fill text-[6px] text-amber-400" title="Active battle"></i>
+            <i v-else-if="roundTabStatus(idx) === 'done'" class="pi pi-check text-[9px] text-emerald-400/70" title="Round complete"></i>
+            <i v-else-if="roundTabStatus(idx) === 'locked'" class="pi pi-lock text-[8px] text-content-muted/40" title="Waiting for previous round"></i>
+            Top {{ size }}
+          </button>
         </div>
 
         <!-- Active round matches -->
@@ -1955,9 +2193,9 @@ onUnmounted(() => {
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
-                <!-- Start from this match -->
+                <!-- Start from this match — only when round is idle and all slots filled -->
                 <button
-                  v-if="match[0] && match[1]"
+                  v-if="match[0] && match[1] && isActiveRoundFilled && effectivePhase === 'IDLE'"
                   @click="initiateBattlePairAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
                   class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
@@ -1966,12 +2204,19 @@ onUnmounted(() => {
             </div>
 
             <button
+              v-if="effectivePhase === 'IDLE'"
+              :disabled="!isActiveRoundFilled"
               @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
-              class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
+              class="w-full py-2 para-chip type-label transition-all duration-200"
+              :class="isActiveRoundFilled ? 'bg-accent' : 'bg-surface-700 text-content-muted cursor-not-allowed'"
+              :title="isActiveRoundFilled ? '' : 'All slots must be filled and the previous round must be completed'"
             >
               <i class="pi pi-play text-xs mr-1.5"></i>
               Start Round
             </button>
+            <div v-else class="w-full py-2 text-center type-label text-content-muted">
+              Active battle in {{ currentTop }}
+            </div>
           </div>
         </template>
       </div>
@@ -2057,6 +2302,48 @@ onUnmounted(() => {
       </div>
     </Transition>
 
+    <!-- Bracket size change confirmation modal -->
+    <Transition name="fade">
+      <div v-if="showSizeChangeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">Change Bracket Size?</div>
+          <p class="type-body text-content-muted mb-6">The current bracket has participants placed. Changing the size will reset all bracket data for this genre. Continue?</p>
+          <div class="flex gap-3 justify-end">
+            <button
+              @click="cancelSizeChange"
+              class="para-chip-sm px-4 py-2 type-label transition-all"
+            >Cancel</button>
+            <button
+              @click="confirmSizeChange"
+              class="para-chip-sm px-4 py-2 type-label bg-amber-600/20 text-amber-400 border-amber-500/40 hover:bg-amber-600/30 transition-all"
+            >Change Size</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Round change confirmation modal -->
+    <Transition name="fade">
+      <div v-if="showRoundChangeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">Switch Round?</div>
+          <p class="type-body text-content-muted mb-6">A battle is in progress. Switching rounds will not affect the active battle — you can continue viewing other rounds safely.</p>
+          <div class="flex gap-3 justify-end">
+            <button
+              @click="cancelRoundChange"
+              class="para-chip-sm px-4 py-2 type-label transition-all"
+            >Cancel</button>
+            <button
+              @click="confirmRoundChange"
+              class="para-chip-sm px-4 py-2 type-label text-accent border-[color:var(--accent-muted)] transition-all"
+            >Switch Round</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Live match tracker -->
     <div class="card p-5">
       <div class="section-rule mb-4">
@@ -2068,18 +2355,21 @@ onUnmounted(() => {
         <div
           class="inline-flex items-center gap-2 px-3 py-1.5"
           :class="{
-            'semantic-chip-success': battlePhase === 'REVEALED',
-            'semantic-chip-warning': battlePhase === 'LOCKED',
-            'semantic-chip-warning animate-pulse': battlePhase === 'VOTING',
-            'semantic-chip-warning opacity-50': battlePhase === 'IDLE',
+            'semantic-chip-success': effectivePhase === 'REVEALED',
+            'semantic-chip-warning': effectivePhase === 'LOCKED',
+            'semantic-chip-warning animate-pulse': effectivePhase === 'VOTING',
+            'semantic-chip-warning opacity-50': effectivePhase === 'IDLE',
           }"
         >
           <div
             class="w-2 h-2 rounded-full"
-            :style="battlePhase === 'REVEALED' ? 'background:#34d399;box-shadow:0 0 8px rgba(52,211,153,0.8)' : battlePhase === 'LOCKED' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : battlePhase === 'VOTING' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : 'background:#6b7280;box-shadow:0 0 8px rgba(107,114,128,0.5)'"
+            :style="effectivePhase === 'REVEALED' ? 'background:#34d399;box-shadow:0 0 8px rgba(52,211,153,0.8)' : effectivePhase === 'LOCKED' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : effectivePhase === 'VOTING' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : 'background:#6b7280;box-shadow:0 0 8px rgba(107,114,128,0.5)'"
           ></div>
-          <span class="type-body" :class="battlePhase === 'REVEALED' ? 'text-emerald-400' : battlePhase === 'LOCKED' ? 'text-amber-400' : battlePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ battlePhase }}</span>
+          <span class="type-body" :class="effectivePhase === 'REVEALED' ? 'text-emerald-400' : effectivePhase === 'LOCKED' ? 'text-amber-400' : effectivePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ effectivePhase }}</span>
         </div>
+        <span v-if="!isActiveBattleInThisRound && battlePhase !== 'IDLE'" class="type-label text-content-muted">
+          (active battle in {{ currentTop }})
+        </span>
         <!-- Save state indicator — next to phase badge so operator sees it -->
         <Transition name="recovery-fade" mode="out-in">
           <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.16em;background:rgba(255,255,255,0.04);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
@@ -2125,8 +2415,8 @@ onUnmounted(() => {
         <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
       </div>
 
-      <!-- Match pairs (standard) -->
-      <div v-if="!isSmoke" class="grid grid-cols-3 gap-3 mb-4">
+      <!-- Match pairs (standard) — only shown when viewing the active round -->
+      <div v-if="!isSmoke && isActiveBattleInThisRound" class="grid grid-cols-3 gap-3 mb-4">
         <div class="stat-card relative">
           <div class="corner-bar-tl"></div>
           <span class="type-label text-content-muted mb-1">Previous</span>
@@ -2162,7 +2452,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Match pairs (smoke) -->
-      <div v-else class="grid grid-cols-2 gap-3 mb-4">
+      <div v-if="isSmoke" class="grid grid-cols-2 gap-3 mb-4">
         <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
           <div class="corner-bar-tl"></div>
           <span class="type-label text-accent mb-1">Current Match</span>
@@ -2180,8 +2470,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Action buttons -->
-      <div class="flex flex-wrap gap-2">
+      <!-- Action buttons — only for the active round -->
+      <div v-if="isActiveBattleInThisRound" class="flex flex-wrap gap-2">
         <!-- LOCKED: open voting -->
         <button
           v-if="battlePhase === 'LOCKED'"
@@ -2202,6 +2492,49 @@ onUnmounted(() => {
           {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
         </button>
 
+        <!-- VOTING + final + all judges voted → Lock Champion.
+             Enabled when clear winner, disabled on tie (listens in real-time). -->
+        <button
+          v-if="battlePhase === 'VOTING' && isFinalInProgress && allJudgesVoted"
+          :disabled="!showFinalReveal"
+          @click="lockChampion"
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+          :class="showFinalReveal
+            ? 'border-amber-400/50 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
+            : 'border-gray-500/30 text-content-muted bg-surface-700/30 cursor-not-allowed'"
+          :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
+        >
+          <i class="pi pi-lock text-xs"></i>
+          Lock Champion
+        </button>
+
+        <!-- DECIDED: champion locked, ready to reveal or unlock for revote -->
+        <template v-if="battlePhase === 'DECIDED'">
+          <button
+            v-if="!revealActive"
+            @click="revealChampionForGenre"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
+          >
+            <i class="pi pi-star text-xs"></i>
+            Reveal Champion
+          </button>
+          <button
+            v-if="revealActive"
+            @click="dismissReveal"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+          >
+            <i class="pi pi-times text-xs"></i>
+            Dismiss Reveal
+          </button>
+          <button
+            @click="unlockChampion"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all"
+          >
+            <i class="pi pi-unlock text-xs"></i>
+            Unlock
+          </button>
+        </template>
+
         <!-- REVEALED: previous + next -->
         <template v-if="battlePhase === 'REVEALED'">
           <button
@@ -2220,14 +2553,11 @@ onUnmounted(() => {
           </button>
         </template>
 
-        <!-- Champion Reveal — only for the final (Top2).
-             showFinalReveal: judges voted live in the final.
-             currentGenreChampion: winner slot in rounds['Top2'][0][2] is set — only
-             possible after the actual final match is scored, not from Top4/etc propagation.
-             genreChampions[selectedGenre]: pending champion saved when organiser switched
-             genres before clicking Reveal — persists across genre switches. -->
+        <!-- Champion Reveal (re-reveal) — winner already scored or tracked.
+             Only shown when a champion was previously locked/revealed for this genre.
+             Not shown during DECIDED (has its own button above). -->
         <button
-          v-if="(showFinalReveal || currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
+          v-if="battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
           @click="revealChampionForGenre"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
@@ -2242,7 +2572,10 @@ onUnmounted(() => {
           <i class="pi pi-times text-xs"></i>
           Dismiss Reveal
         </button>
+      </div>
 
+      <!-- Always-visible actions -->
+      <div class="flex flex-wrap gap-2 mt-2">
         <button
           @click="showResetConfirm = true"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 transition-all"

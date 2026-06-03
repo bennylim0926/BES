@@ -117,6 +117,15 @@ public class BattleController {
         ));
     }
 
+    @DeleteMapping("/battle-pair")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> clearBattlePair(){
+        battleService.clearBattlePairService();
+        return ResponseEntity.ok(Map.of(
+            "message", "battle pair cleared"
+        ));
+    }
+
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){
