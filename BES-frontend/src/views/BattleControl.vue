@@ -537,6 +537,7 @@ const applyToFirstRound = () => {
       if (r?.name && guestNames.has(r.name)) return r // pinned guest
       return { name: filteredSeeds[si++] ?? null, score: r?.score ?? 0 }
     })
+    localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
     broadcastBracket()
     return
   }
@@ -1560,7 +1561,7 @@ watch(topSize, async (newVal, oldVal) => {
   if (selectedEvent.value && selectedGenre.value) {
     localStorage.setItem(genreTopSizeKey(selectedGenre.value), String(newVal))
   }
-  const storedRounds = localStorage.getItem(`Top${newVal}${selectedGenre.value}Rounds`)
+  const storedRounds = localStorage.getItem(`Top${newVal}${selectedEvent.value}${selectedGenre.value}Rounds`)
   rounds.value = JSON.parse(storedRounds) || initRounds()
   currentWinner.value = -2
   // Only clear battle on user-initiated size change (not programmatic from
@@ -1573,7 +1574,9 @@ watch(topSize, async (newVal, oldVal) => {
     currentTop.value = ''
   }
   skipSizeChangeClear = false
-  broadcastBracket()
+  // Guard against broadcasting before event/genre are known (initial load with null values
+  // would send empty initRounds() to DB, corrupting the stored bracket).
+  if (selectedEvent.value && selectedGenre.value) broadcastBracket()
 
   // Restore the incoming size's battle state (pair + phase). Do NOT push to overlay —
   // the overlay updates only when the operator clicks a round tab or "Start Round".
