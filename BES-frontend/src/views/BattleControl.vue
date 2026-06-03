@@ -21,7 +21,6 @@ const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
 const battlePhase = ref('IDLE')
-const showResetConfirm = ref(false)
 const showSizeChangeConfirm = ref(false)  // prompt before switching bracket size
 const showRoundChangeConfirm = ref(false) // prompt before switching round during battle
 const pendingSize = ref(null)            // the size user wants to switch to
@@ -1408,7 +1407,6 @@ const openVoting = async () => {
 }
 
 const confirmResetBracket = async () => {
-  showResetConfirm.value = false
   localStorage.removeItem(`Top${topSize.value}${selectedEvent.value}${selectedGenre.value}Rounds`)
   rounds.value = initRounds()
   placeGuestsInBracket()
@@ -2510,27 +2508,6 @@ onUnmounted(() => {
       </div> <!-- end collapsible content -->
     </div> <!-- end setup card -->
 
-    <!-- Reset bracket confirmation modal -->
-    <Transition name="fade">
-      <div v-if="showResetConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
-          <div class="corner-bar-tl"></div>
-          <div class="type-page-title text-lg mb-2">Reset Bracket?</div>
-          <p class="type-body text-content-muted mb-6">This will clear all bracket data and set the battle phase to IDLE. This cannot be undone.</p>
-          <div class="flex gap-3 justify-end">
-            <button
-              @click="showResetConfirm = false"
-              class="para-chip-sm px-4 py-2 type-label transition-all"
-            >Cancel</button>
-            <button
-              @click="confirmResetBracket"
-              class="para-chip-sm px-4 py-2 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all"
-            >Reset</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
     <!-- Bracket size change confirmation modal -->
     <Transition name="fade">
       <div v-if="showSizeChangeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -2951,13 +2928,34 @@ onUnmounted(() => {
 
       <!-- Always-visible actions -->
       <div class="flex flex-wrap gap-2 mt-2">
-        <button
-          @click="showResetConfirm = true"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 transition-all"
-        >
-          <i class="pi pi-refresh text-xs"></i>
-          Reset Bracket
-        </button>
+        <!-- Reset Bracket: two-step inline confirm -->
+        <template v-if="resetConfirmStep === 0">
+          <button
+            @click="resetConfirmStep = 1"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 hover:border-red-500/60 transition-all"
+          >
+            <i class="pi pi-refresh text-xs"></i>
+            Reset Bracket
+          </button>
+        </template>
+        <template v-else>
+          <div
+            class="flex flex-wrap items-center gap-3 px-4 py-3 w-full"
+            style="border-left:3px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.08)"
+          >
+            <span class="type-label text-red-400 flex-1" style="font-size:11px;letter-spacing:0.12em">
+              Clear all bracket data for {{ selectedGenre }}? Cannot be undone.
+            </span>
+            <button
+              @click="confirmResetBracket(); resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all whitespace-nowrap"
+            >Confirm Reset</button>
+            <button
+              @click="resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all"
+            >Cancel</button>
+          </div>
+        </template>
 
         <!-- File upload -->
         <label
