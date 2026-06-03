@@ -77,6 +77,16 @@ const genreNameIsSmoke = (name) =>
   typeof name === 'string' &&
   (name.toLowerCase().includes('7 to smoke') || name.toLowerCase().includes('7tosmoke'))
 
+const leftWeightTotal  = computed(() =>
+  (battleJudges.value?.judges ?? []).filter(j => j.vote === 0).reduce((s, j) => s + (j.weightage ?? 1), 0)
+)
+const rightWeightTotal = computed(() =>
+  (battleJudges.value?.judges ?? []).filter(j => j.vote === 1).reduce((s, j) => s + (j.weightage ?? 1), 0)
+)
+const hasCustomWeightage = computed(() =>
+  (battleJudges.value?.judges ?? []).some(j => (j.weightage ?? 1) > 1)
+)
+
 const judgePanelClass = computed(() => {
   if (isSmoke.value) return 'smoke-judge-always-on'
   return judgeAnim.value
@@ -616,6 +626,13 @@ onUnmounted(() => {
             <div v-if="votesVisible && j.vote === -1" class="tie-badge" aria-hidden="true">TIE</div>
           </div>
         </div>
+
+        <!-- Weight tally — only shown when at least one judge has custom weightage -->
+        <div v-if="votesVisible && hasCustomWeightage" class="weight-tally" aria-label="Weighted points tally">
+          <span class="weight-side weight-left" :style="{ color: `var(--left-color)` }">{{ leftWeightTotal }} PTS</span>
+          <span class="weight-divider">◈</span>
+          <span class="weight-side weight-right" :style="{ color: `var(--right-color)` }">{{ rightWeightTotal }} PTS</span>
+        </div>
       </div>
     </div>
 
@@ -937,6 +954,21 @@ body.transparent-page #app {
 }
 .judge-cards-row {
   display: flex; gap: 8px;
+}
+
+.weight-tally {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-top: 8px;
+  font-family: 'Anton SC', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  animation: cardBurst 280ms cubic-bezier(0.2, 0, 0.3, 1) both;
+}
+.weight-side { line-height: 1; }
+.weight-divider {
+  color: rgba(255,255,255,0.25);
+  font-size: 11px;
 }
 
 /* Judge card — sharp parallelogram */
