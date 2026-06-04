@@ -744,8 +744,11 @@ let _ptrUpHandler = null
 
 const _removePtrListeners = () => {
   if (_ptrMoveHandler) { document.removeEventListener('pointermove', _ptrMoveHandler); _ptrMoveHandler = null }
-  if (_ptrUpHandler)   { document.removeEventListener('pointerup',   _ptrUpHandler);   _ptrUpHandler   = null }
-  document.removeEventListener('pointercancel', _ptrUpHandler ?? (() => {}))
+  if (_ptrUpHandler) {
+    document.removeEventListener('pointerup',     _ptrUpHandler)
+    document.removeEventListener('pointercancel', _ptrUpHandler)
+    _ptrUpHandler = null
+  }
 }
 
 const _cleanupDrag = () => {
@@ -782,13 +785,15 @@ const onPointerDragStart = (type, payload, e) => {
     ghostName = rounds.value[payload]?.name ?? ''
   }
 
-  // Create ghost element
+  // Create ghost element — position above finger on touch, below-right of cursor on mouse
+  const _ghostOffX = e.pointerType === 'touch' ? -20 : 12
+  const _ghostOffY = e.pointerType === 'touch' ? -50 : 12
   _ghostEl = document.createElement('div')
   _ghostEl.textContent = ghostName
   Object.assign(_ghostEl.style, {
     position:      'fixed',
-    left:          `${e.clientX + 12}px`,
-    top:           `${e.clientY + 12}px`,
+    left:          `${e.clientX + _ghostOffX}px`,
+    top:           `${e.clientY + _ghostOffY}px`,
     padding:       '5px 14px',
     background:    '#1a1a1a',
     border:        `1.5px solid ${type === 'pool' ? 'rgba(255,255,255,0.25)' : 'rgba(248,113,113,0.65)'}`,
@@ -804,8 +809,10 @@ const onPointerDragStart = (type, payload, e) => {
   document.body.appendChild(_ghostEl)
 
   _ptrMoveHandler = (ev) => {
-    _ghostEl.style.left = `${ev.clientX + 12}px`
-    _ghostEl.style.top  = `${ev.clientY + 12}px`
+    const ox = ev.pointerType === 'touch' ? -20 : 12
+    const oy = ev.pointerType === 'touch' ? -50 : 12
+    _ghostEl.style.left = `${ev.clientX + ox}px`
+    _ghostEl.style.top  = `${ev.clientY + oy}px`
 
     // Find drop target under pointer (hide ghost first so it doesn't intercept)
     _ghostEl.style.display = 'none'
