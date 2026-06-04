@@ -1588,7 +1588,7 @@ onUnmounted(() => {
           :disabled="generatingRole === 'EMCEE'"
           class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
         >
-          <i class="pi text-xs" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          <i class="pi text-xs mr-1" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
           EMCEE
         </button>
         <button
@@ -1596,7 +1596,7 @@ onUnmounted(() => {
           :disabled="generatingRole === 'HELPER'"
           class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
         >
-          <i class="pi text-xs" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          <i class="pi text-xs mr-1" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
           HELPER
         </button>
         <select
@@ -1614,7 +1614,7 @@ onUnmounted(() => {
           :disabled="generatingRole === 'JUDGE' || !selectedJudgeId"
           class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
         >
-          <i class="pi text-xs" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          <i class="pi text-xs mr-1" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
           JUDGE
         </button>
       </div>
