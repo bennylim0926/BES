@@ -1050,6 +1050,11 @@ const saveGenreBattleState = (genre) => {
 }
 
 const restoreAndBroadcastGenreBattle = async (genre) => {
+  // Always reset bracket grid for the current event before restoring state — prevents
+  // stale rounds from a previous event persisting when the genre name is the same across events.
+  const storedRounds = localStorage.getItem(`Top${topSize.value}${selectedEvent.value}${genre}Rounds`)
+  rounds.value = storedRounds ? JSON.parse(storedRounds) : initRounds()
+
   // At this point, switchActiveGenreService has already loaded this genre's state from DB
   // and broadcast it to all connected clients (overlay, bracket, judge). We only need
   // to restore local BattleControl UI state — no backend calls needed here.
