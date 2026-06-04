@@ -104,7 +104,7 @@ const confirmReset = (title, message) => {
     }
     resetCodeChecking.value = true
     resetCodeError.value = ""
-    const activeEvent = getActiveEvent()
+    const activeEvent = authStore.activeEvent
     if (!activeEvent) {
       resetCodeError.value = "No active event found."
       resetCodeChecking.value = false
