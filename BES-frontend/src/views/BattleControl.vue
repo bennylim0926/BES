@@ -654,42 +654,6 @@ function initRounds() {
 
 const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
 
-const onDragStart = (roundKey, matchIdx, slotIdx, event) => {
-  dragSource.value = { roundKey, matchIdx, slotIdx }
-
-  const name = rounds.value[roundKey][matchIdx][slotIdx] || ''
-  const ghost = document.createElement('div')
-  ghost.textContent = name
-  Object.assign(ghost.style, {
-    position: 'fixed',
-    top: '-9999px',
-    left: '-9999px',
-    padding: '5px 14px',
-    background: '#1a1a1a',
-    border: '1.5px solid rgba(248,113,113,0.65)',
-    borderRadius: '8px',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#f0f0f0',
-    boxShadow: '0 10px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(229,57,53,0.15)',
-    whiteSpace: 'nowrap',
-    pointerEvents: 'none',
-  })
-  document.body.appendChild(ghost)
-  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-  requestAnimationFrame(() => document.body.removeChild(ghost))
-}
-
-const onDragOver = (roundKey, matchIdx, slotIdx) => {
-  if (!dragSource.value && !poolDragName.value) return
-  dragOverKey.value = `${roundKey}-${matchIdx}-${slotIdx}`
-}
-
-const onDragEnd = () => {
-  dragSource.value = null
-  dragOverKey.value = null
-}
-
 // Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
 // its slots. Called after onDrop / onSmokeDrop so currentBattlePair already reflects
 // the updated rounds.
@@ -742,58 +706,6 @@ const onDrop = (tgtRound, tgtMatch, tgtSlot) => {
   localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
   if (tgtIsCurrent || srcIsCurrent) reBroadcastCurrentPairIfActive()
-}
-
-const onPoolDragStart = (name, event) => {
-  poolDragName.value = name
-  const ghost = document.createElement('div')
-  ghost.textContent = name
-  Object.assign(ghost.style, {
-    position: 'fixed',
-    top: '-9999px',
-    left: '-9999px',
-    padding: '5px 14px',
-    background: '#1a1a1a',
-    border: '1.5px solid rgba(255,255,255,0.25)',
-    borderRadius: '8px',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#f0f0f0',
-    boxShadow: '0 10px 28px rgba(0,0,0,0.7)',
-    whiteSpace: 'nowrap',
-    pointerEvents: 'none',
-  })
-  document.body.appendChild(ghost)
-  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-  requestAnimationFrame(() => document.body.removeChild(ghost))
-}
-
-const onPoolDragEnd = () => {
-  poolDragName.value = null
-  dragOverKey.value = null
-}
-
-const onSmokeDragStart = (idx, event) => {
-  const name = rounds.value[idx]?.name
-  if (!name) return
-  dragSource.value = { smokeIdx: idx }
-  const ghost = document.createElement('div')
-  ghost.textContent = name
-  Object.assign(ghost.style, {
-    position: 'fixed', top: '-9999px', left: '-9999px',
-    padding: '5px 14px', background: '#1a1a1a',
-    border: '1.5px solid rgba(248,113,113,0.65)', borderRadius: '8px',
-    fontSize: '12px', fontWeight: '600', color: '#f0f0f0',
-    boxShadow: '0 10px 28px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', pointerEvents: 'none',
-  })
-  document.body.appendChild(ghost)
-  event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-  requestAnimationFrame(() => document.body.removeChild(ghost))
-}
-
-const onSmokeDragOver = (idx) => {
-  if (!dragSource.value && !poolDragName.value) return
-  dragOverKey.value = `smoke-${idx}`
 }
 
 const onSmokeDrop = (tgtIdx) => {
