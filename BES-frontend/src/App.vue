@@ -4,6 +4,7 @@ import { logout, whoami, getAppConfig } from './utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from './utils/websocket'
 import { useAuthStore } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
+import EventPanel from './components/EventPanel.vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -67,25 +68,34 @@ const logoutNow = async () => {
 }
 
 const activeEvent = computed(() => authStore.activeEvent)
-const eventMenuOpen = ref(false)
+const panelOpen = ref(false)
+
+function handleKeydown(e) {
+  if (e.key === 'Escape') panelOpen.value = false
+}
 
 function changeEvent() {
-  eventMenuOpen.value = false
+  panelOpen.value = false
   router.push({ name: 'EventSelector', query: { redirect: router.currentRoute.value.fullPath } })
 }
 
 function goToSection(routeName) {
-  eventMenuOpen.value = false
+  panelOpen.value = false
   router.push({ name: routeName })
 }
 
 function goToEventDetails() {
-  eventMenuOpen.value = false
+  panelOpen.value = false
   if (activeEvent.value) router.push({
     name: 'Event Details',
     params: { eventName: activeEvent.value.name },
     query: activeEvent.value.folderID ? { folderID: activeEvent.value.folderID } : {}
   })
+}
+
+function goToAllEvents() {
+  panelOpen.value = false
+  router.push({ name: 'Event' })
 }
 
 // ── Theme ───────────────────────────────────────────────────────────────────
@@ -112,7 +122,7 @@ function toggleTheme() {
 // ── Watchers ───────────────────────────────────────────────────────────────
 watch(route, () => {
   isOpen.value = false
-  eventMenuOpen.value = false
+  panelOpen.value = false
 })
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -135,10 +145,12 @@ onMounted(async () => {
   subscribeToChannel(c, '/topic/app-config', (msg) => {
     if (msg?.accentColor) applyAccent(msg.accentColor)
   })
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   deactivateClient(wsAccentClient.value)
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -173,14 +185,6 @@ onUnmounted(() => {
                 : 'text-content-muted hover:text-content-primary'"
             >Home</span>
           </router-link>
-          <router-link v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" to="/events" v-slot="{ isActive }">
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
-              :class="isActive
-                ? 'text-accent border-b-2 border-[color:var(--accent-color)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >Events</span>
-          </router-link>
           <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
             <span
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
@@ -191,110 +195,61 @@ onUnmounted(() => {
           </router-link>
         </div>
 
-        <!-- Right: event chip + role + theme + logout -->
-        <div class="hidden md:flex items-center gap-2">
+        <!-- Right: always-visible chip + desktop utilities + mobile hamburger -->
+        <div class="flex items-center gap-2">
 
-          <!-- Active event dropdown -->
-          <div v-if="isAuthenticated && activeEvent" class="relative">
+          <!-- Event chip — visible on all screen sizes -->
+          <div v-if="isAuthenticated" class="relative">
             <button
-              @click="eventMenuOpen = !eventMenuOpen"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px]"
+              v-if="activeEvent"
+              @click="panelOpen = !panelOpen"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[140px] md:max-w-[200px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
-              <i class="pi pi-chevron-down text-[10px] flex-shrink-0 opacity-50 transition-transform duration-200"
-                 :class="eventMenuOpen ? 'rotate-180' : ''"></i>
+              <i class="pi pi-chevron-right text-[10px] flex-shrink-0 opacity-50 transition-transform duration-200"
+                 :class="panelOpen ? 'rotate-90' : ''"></i>
             </button>
-
-            <Transition
-              enter-active-class="transition duration-150 ease-out"
-              enter-from-class="opacity-0 translate-y-1"
-              enter-to-class="opacity-100 translate-y-0"
-              leave-active-class="transition duration-100 ease-in"
-              leave-from-class="opacity-100 translate-y-0"
-              leave-to-class="opacity-0 translate-y-1"
+            <button
+              v-else
+              @click="router.push({ name: 'EventSelector' })"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-muted hover:text-content-primary border border-[color:var(--accent-muted)] transition-all duration-200"
             >
-              <div v-if="eventMenuOpen"
-                class="absolute right-0 top-full mt-2 w-52 z-50 bg-surface-800 border border-[rgba(255,255,255,0.07)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden"
-                style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
-                @click.stop>
-                <div class="corner-bar-tl"></div>
-                <div class="px-3 py-2.5 border-b border-[rgba(255,255,255,0.07)]">
-                  <p class="type-label text-content-muted mb-0.5">Current Event</p>
-                  <p class="type-body text-content-primary truncate">{{ activeEvent.name }}</p>
-                </div>
-                <div class="py-1">
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-                    @click="goToEventDetails"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Event Details
-                  </button>
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'"
-                    @click="goToSection('Audition List')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Audition
-                  </button>
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-                    @click="goToSection('Update Event Details')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Participants
-                  </button>
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE'"
-                    @click="goToSection('Score')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Scoreboard
-                  </button>
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-                    @click="goToSection('Battle Control')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Battle
-                  </button>
-                  <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
-                    @click="goToSection('Audition Adjust')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Adjust Numbers
-                  </button>
-                </div>
-                <div class="border-t border-[rgba(255,255,255,0.07)] py-1">
-                  <button @click="changeEvent"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                    Change Event
-                  </button>
-                </div>
-              </div>
-            </Transition>
-            <div v-if="eventMenuOpen" class="fixed inset-0 z-40 bg-black/20" @click="eventMenuOpen = false"></div>
+              Select Event →
+            </button>
           </div>
 
-          <div v-if="isAuthenticated" class="h-4 w-px bg-[rgba(255,255,255,0.12)]"></div>
+          <!-- Desktop-only utilities -->
+          <div class="hidden md:flex items-center gap-2">
+            <div v-if="isAuthenticated" class="h-4 w-px bg-[rgba(255,255,255,0.12)]"></div>
 
-          <!-- Role badge -->
-          <span v-if="isAuthenticated && roleDisplay"
-            class="badge-neutral type-label px-2 py-0.5">
-            {{ roleDisplay.label }}
-          </span>
+            <span v-if="isAuthenticated && roleDisplay"
+              class="badge-neutral type-label px-2 py-0.5">
+              {{ roleDisplay.label }}
+            </span>
 
-          <!-- Theme toggle -->
-          <button @click="toggleTheme"
-            class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-            <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+            <button @click="toggleTheme"
+              class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
+              <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+            </button>
+
+            <router-link v-if="!isAuthenticated" to="/login">
+              <span class="px-4 py-1.5 para-chip type-label text-surface-900 bg-accent cursor-pointer">Login</span>
+            </router-link>
+
+            <button v-if="isAuthenticated"
+              @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
+              class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200">
+              <i class="pi pi-sign-out text-sm"></i>
+            </button>
+          </div>
+
+          <!-- Mobile hamburger -->
+          <button @click="isOpen = !isOpen"
+            class="md:hidden inline-flex items-center justify-center w-9 h-9 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-colors focus:outline-none">
+            <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'"></i>
           </button>
 
-          <router-link v-if="!isAuthenticated" to="/login">
-            <span class="px-4 py-1.5 para-chip type-label text-surface-900 bg-accent cursor-pointer">Login</span>
-          </router-link>
-
-          <button v-if="isAuthenticated"
-            @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
-            class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200">
-            <i class="pi pi-sign-out text-sm"></i>
-          </button>
         </div>
-
-        <!-- Mobile Hamburger -->
-        <button @click="isOpen = !isOpen"
-          class="md:hidden inline-flex items-center justify-center w-9 h-9 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-colors focus:outline-none">
-          <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'"></i>
-        </button>
 
       </div>
     </div>
@@ -316,12 +271,6 @@ onUnmounted(() => {
               Home
             </span>
           </router-link>
-          <router-link v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" to="/events" v-slot="{ isActive }">
-            <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
-              :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
-              Events
-            </span>
-          </router-link>
           <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
             <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
               :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
@@ -329,40 +278,6 @@ onUnmounted(() => {
             </span>
           </router-link>
 
-          <template v-if="isAuthenticated && activeEvent">
-            <div class="px-4 pt-3 pb-1 section-rule">
-              <span class="section-rule-label">Current Event — {{ activeEvent.name }}</span>
-              <div class="section-rule-line"></div>
-            </div>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToEventDetails"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Event Details
-            </button>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE'" @click="goToSection('Audition List')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Audition
-            </button>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToSection('Update Event Details')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Participants
-            </button>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE'" @click="goToSection('Score')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Scoreboard
-            </button>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToSection('Battle Control')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Battle
-            </button>
-            <button v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'" @click="goToSection('Audition Adjust')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-secondary hover:text-content-primary transition-colors">
-              Adjust Numbers
-            </button>
-            <button @click="changeEvent"
-              class="w-full flex items-center gap-3 px-4 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors">
-              Change Event
-            </button>
-          </template>
         </div>
 
         <div class="px-3 py-3 border-t border-[rgba(255,255,255,0.07)]">
@@ -384,6 +299,47 @@ onUnmounted(() => {
             <span class="flex items-center justify-center px-4 py-2.5 type-label para-chip text-surface-900 bg-accent w-full cursor-pointer">Login</span>
           </router-link>
         </div>
+      </div>
+    </Transition>
+
+    <!-- Backdrop -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-150"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="panelOpen"
+        class="fixed inset-0 z-40 bg-black/50"
+        @click="panelOpen = false"
+      ></div>
+    </Transition>
+
+    <!-- Slide-over panel -->
+    <Transition
+      enter-active-class="transition-transform duration-200 ease-out"
+      enter-from-class="translate-x-full"
+      enter-to-class="translate-x-0"
+      leave-active-class="transition-transform duration-150 ease-in"
+      leave-from-class="translate-x-0"
+      leave-to-class="translate-x-full"
+    >
+      <div
+        v-if="panelOpen"
+        class="fixed top-0 right-0 h-full w-full md:w-[300px] z-50 bg-surface-800 border-l border-[rgba(255,255,255,0.07)] overflow-hidden flex flex-col"
+      >
+        <EventPanel
+          :role="role"
+          :activeEvent="activeEvent"
+          @close="panelOpen = false"
+          @navigate="goToSection"
+          @goToEventDetails="goToEventDetails"
+          @goToAllEvents="goToAllEvents"
+          @changeEvent="changeEvent"
+        />
       </div>
     </Transition>
 
