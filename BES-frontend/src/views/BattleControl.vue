@@ -2373,8 +2373,8 @@ onUnmounted(() => {
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
-                    <div class="flex items-center gap-1.5 flex-shrink-0">
-                      <span class="type-body">{{ match[0] }}</span>
+                    <div class="flex items-center gap-1 min-w-0 overflow-hidden">
+                      <span class="type-body truncate">{{ match[0] }}</span>
                       <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
                     <div v-if="getMembersFor(match[0]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
@@ -2391,7 +2391,7 @@ onUnmounted(() => {
                   <button
                     :disabled="!match[0]"
                     @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                    class="flex-shrink-0 w-11 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    class="flex-shrink-0 w-8 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
                 </div>
@@ -2419,8 +2419,8 @@ onUnmounted(() => {
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
-                    <div class="flex items-center gap-1.5 flex-shrink-0">
-                      <span class="type-body">{{ match[1] }}</span>
+                    <div class="flex items-center gap-1 min-w-0 overflow-hidden">
+                      <span class="type-body truncate">{{ match[1] }}</span>
                       <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
                     <div v-if="getMembersFor(match[1]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
@@ -2437,7 +2437,7 @@ onUnmounted(() => {
                   <button
                     :disabled="!match[1]"
                     @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                    class="flex-shrink-0 w-11 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    class="flex-shrink-0 w-8 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>

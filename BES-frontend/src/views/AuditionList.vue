@@ -7,15 +7,16 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
-import { getActiveEvent } from '@/utils/auth';
+import { useAuthStore } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import PairScoreCards from '@/components/PairScoreCards.vue';
 import EmceeRoundView from '@/components/EmceeRoundView.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 import 'primeicons/primeicons.css'
 
+const authStore = useAuthStore()
 const roles = ref(["Emcee", "Judge"])
-const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
+const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem("selectedEvent") || "")
 const selectedRole = ref(localStorage.getItem("selectedRole") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "")
 const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'

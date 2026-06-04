@@ -66,6 +66,7 @@ onMounted(async () => {
 
 function handleSwitchEvent(event) {
   setActiveEvent(event.id, event.name)
+  emit('close')
 }
 </script>
 

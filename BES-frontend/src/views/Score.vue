@@ -2,10 +2,10 @@
 import { ref, computed, watch } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria } from '@/utils/api';
 import DynamicTable from '@/components/DynamicTable.vue';
-import { getActiveEvent } from '@/utils/auth';
 import { useAuthStore } from '@/utils/auth';
 
-const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem("selectedEvent") || "")
+const authStore = useAuthStore()
+const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem("selectedEvent") || "")
 const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
 const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
 const selectedTopN = ref("All")
@@ -15,7 +15,6 @@ const tabulationMethod = ref(["By Total", "By Judge"])
 const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 
 // Auth
-const authStore = useAuthStore()
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
 
