@@ -44,3 +44,4 @@ BES-frontend/nginx/certs/*.key
 # Temp / scratch files
 *_body.txt
 test_output.txt
+docs/superpowers/plans/
