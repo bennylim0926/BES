@@ -2349,15 +2349,15 @@ onUnmounted(() => {
               <div
                 v-for="(match, mIdx) in rounds[`Top${size}`]"
                 :key="mIdx"
-                class="card-hover p-3 relative flex items-stretch min-h-[44px]"
+                class="card-hover p-3 relative flex flex-col sm:flex-row items-stretch"
                 :style="isActivePair(match) && effectivePhase !== 'IDLE'
                   ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
                   : ''"
               >
                 <div class="corner-bar-tl"></div>
-                <!-- Slot 0 — left -->
+                <!-- Slot 0 — full-width on mobile, left half on sm+ -->
                 <div
-                  class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
                   :data-drop-key="`bracket-Top${size}-${mIdx}-0`"
                   :class="[
                     match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
@@ -2366,19 +2366,19 @@ onUnmounted(() => {
                       : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
                 >
-                  <!-- Name + members (draggable) -->
+                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <!-- Name + members: stacked on mobile, inline on sm+ -->
                   <div v-if="match[0]"
                     @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 0 }, e)"
-                    class="flex-1 min-w-0 select-none"
+                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
                     <div class="flex items-center gap-1 min-w-0">
-                      <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
-                      <span class="type-body truncate">{{ match[0] }}</span>
+                      <span class="type-body break-words">{{ match[0] }}</span>
                       <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1 mt-1">
+                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
                       <span
                         v-for="m in getMembersFor(match[0])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
@@ -2387,30 +2387,29 @@ onUnmounted(() => {
                       >{{ m }}</span>
                     </div>
                   </div>
-                  <div v-else class="flex-1 flex items-center gap-1">
-                    <i class="pi pi-crown text-xs flex-shrink-0 text-surface-600"></i>
-                    <span class="type-body text-surface-600/60 italic">Drop here</span>
-                  </div>
-                  <!-- Action buttons -->
-                  <div class="flex items-center gap-1 justify-end sm:justify-start flex-shrink-0">
-                    <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                    <button
-                      :disabled="!match[0]"
-                      @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                      class="w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                      :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                    >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
-                  </div>
+                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button
+                    :disabled="!match[0]"
+                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
+                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+                  >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
                 </div>
 
-                <!-- VS badge (vertical divider) -->
-                <div class="flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
-                  <span class="text-[9px] font-black text-surface-600 tracking-widest rotate-0">VS</span>
+                <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
+                <div class="sm:hidden flex items-center gap-2 px-2 py-0.5">
+                  <div class="flex-1 h-px bg-surface-600/30"></div>
+                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
+                  <div class="flex-1 h-px bg-surface-600/30"></div>
+                </div>
+                <div class="hidden sm:flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
+                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
                 </div>
 
-                <!-- Slot 1 — right -->
+                <!-- Slot 1 — full-width on mobile, right half on sm+ -->
                 <div
-                  class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
                   :data-drop-key="`bracket-Top${size}-${mIdx}-1`"
                   :class="[
                     match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
@@ -2419,19 +2418,19 @@ onUnmounted(() => {
                       : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
                 >
-                  <!-- Name + members (draggable) -->
+                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <!-- Name + members: stacked on mobile, inline on sm+ -->
                   <div v-if="match[1]"
                     @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 1 }, e)"
-                    class="flex-1 min-w-0 select-none"
+                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
                     <div class="flex items-center gap-1 min-w-0">
-                      <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
-                      <span class="type-body truncate">{{ match[1] }}</span>
+                      <span class="type-body break-words">{{ match[1] }}</span>
                       <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1 mt-1">
+                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
                       <span
                         v-for="m in getMembersFor(match[1])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
@@ -2440,26 +2439,20 @@ onUnmounted(() => {
                       >{{ m }}</span>
                     </div>
                   </div>
-                  <div v-else class="flex-1 flex items-center gap-1">
-                    <i class="pi pi-crown text-xs flex-shrink-0 text-surface-600"></i>
-                    <span class="type-body text-surface-600/60 italic">Drop here</span>
-                  </div>
-                  <!-- Action buttons -->
-                  <div class="flex items-center gap-1 justify-end sm:justify-start flex-shrink-0">
-                    <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                    <button
-                      :disabled="!match[1]"
-                      @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                      class="w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                      :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                    >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
-                  </div>
+                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button
+                    :disabled="!match[1]"
+                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
+                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+                  >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
-                <!-- Start from this match — only when round is idle, all slots filled, and match has no winner yet -->
+                <!-- Start from this match — desktop only, mobile has the global Start Round button -->
                 <button
                   v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
                   @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
-                  class="flex-shrink-0 flex items-center justify-center w-10 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
+                  class="hidden sm:flex flex-shrink-0 items-center justify-center w-10 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
                 ><i class="pi pi-play text-[10px]"></i></button>
               </div>
