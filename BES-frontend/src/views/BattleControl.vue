@@ -1241,6 +1241,21 @@ const submitRemoveBattleJudge = async (name) => {
   saveGenreJudges(selectedGenre.value)
 }
 
+const sortedJudgesForToggle = computed(() => {
+  const activeMap = new Map((battleJudges.value?.judges ?? []).map(j => [j.name, j]))
+  const all = Object.values(allJudges.value).map(j => {
+    const active = activeMap.get(j.judgeName)
+    return { name: j.judgeName, active: !!active, id: active?.id ?? null, weightage: active?.weightage ?? 1 }
+  })
+  return all.sort((a, b) => Number(b.active) - Number(a.active))
+})
+
+const toggleBattleJudge = (judgeName) => {
+  const active = (battleJudges.value?.judges ?? []).some(j => j.name === judgeName)
+  if (active) submitRemoveBattleJudge(judgeName)
+  else submitAddBattleJudge(judgeName)
+}
+
 const fetchBattleGuests = async () => {
   if (!selectedEvent.value) return
   const res = await getBattleGuests(selectedEvent.value)
@@ -1471,6 +1486,7 @@ const effectivePhase = computed(() =>
 
 // Guard: prompt before switching round tab when battle is in progress
 const requestRoundChange = (idx) => {
+  if (roundTabStatus(idx) === 'locked') return
   if (battlePhase.value !== 'IDLE' && idx !== activeRoundIdx.value) {
     pendingRoundIdx.value = idx
     showRoundChangeConfirm.value = true
@@ -2032,61 +2048,63 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 mt-3">
-        <!-- Active judge slots -->
-        <div class="flex flex-wrap gap-3 flex-1 min-w-0">
-          <div
-            v-for="(j, index) in battleJudges?.judges || []"
-            :key="index"
-            class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
-          >
-            <div class="corner-bar-tl"></div>
-            <span class="type-body text-content-primary">{{ j.name }}</span>
-            <div class="flex items-center gap-1">
-              <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
-              <span v-if="setupLocked" class="type-body text-content-muted" style="font-size:12px;min-width:2.5rem;text-align:center">{{ j.weightage ?? 1 }}</span>
-              <input
-                v-else
-                type="number"
-                :value="j.weightage ?? 1"
-                min="1"
-                class="w-10 bg-surface-900 border border-surface-600 text-content-primary text-center type-body"
-                style="padding:2px 4px;font-size:12px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-                @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
-              />
-            </div>
-            <button
-              v-if="!setupLocked"
-              @click="submitRemoveBattleJudge(j.name)"
-              class="flex items-center justify-center hover:text-red-400 transition-colors"
+      <!-- Toggle buttons when unlocked; read-only cards when locked -->
+      <div class="mt-3">
+        <template v-if="!setupLocked">
+          <div class="flex flex-wrap gap-2">
+            <div
+              v-for="j in sortedJudgesForToggle"
+              :key="j.name"
+              @click="toggleBattleJudge(j.name)"
+              class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
+              :class="j.active
+                ? 'text-accent border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]'
+                : 'text-content-muted/40 hover:text-content-muted border-surface-600/30'"
             >
-              <i class="pi pi-times text-xs"></i>
-            </button>
+              <i v-if="j.active" class="pi pi-check text-[9px]"></i>
+              {{ j.name }}
+              <template v-if="j.active">
+                <span class="type-label text-content-muted ml-1" style="font-size:9px;letter-spacing:0.12em;opacity:0.7">WT</span>
+                <input
+                  type="number"
+                  :value="j.weightage"
+                  min="1"
+                  @click.stop
+                  @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
+                  class="w-8 bg-surface-900 border border-surface-600/60 text-accent text-center type-body"
+                  style="padding:1px 2px;font-size:11px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+                />
+              </template>
+            </div>
+            <span v-if="!sortedJudgesForToggle.length" class="type-label text-content-muted">No judges available</span>
           </div>
-          <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
-        </div>
-
-        <!-- Add control pushed to the right — hidden when locked -->
-        <div v-if="!setupLocked" class="ml-auto flex items-center gap-2">
-          <div class="w-44">
-            <ReusableDropdown v-model="selectedJudge" labelId="" :options="allJudgeOptions" />
+        </template>
+        <template v-else>
+          <div class="flex flex-wrap gap-3">
+            <div
+              v-for="(j, index) in battleJudges?.judges || []"
+              :key="index"
+              class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
+            >
+              <div class="corner-bar-tl"></div>
+              <span class="type-body text-content-primary">{{ j.name }}</span>
+              <div class="flex items-center gap-1">
+                <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
+                <span class="type-body text-content-muted" style="font-size:12px;min-width:2.5rem;text-align:center">{{ j.weightage ?? 1 }}</span>
+              </div>
+            </div>
+            <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
           </div>
-          <button
-            @click="submitAddBattleJudge(selectedJudge)"
-            class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all duration-200 whitespace-nowrap"
-          >
-            <i class="pi pi-plus text-xs"></i>
-            Add
-          </button>
-        </div>
+        </template>
       </div>
 
+      <template v-if="!setupLocked">
       <div class="section-rule">
         <span class="section-rule-label">Seeding</span>
         <div class="section-rule-line"></div>
       </div>
 
-      <div v-if="!setupLocked" class="flex flex-wrap items-center gap-2 mt-4 mb-5">
+      <div class="flex flex-wrap items-center gap-2 mt-4 mb-5">
         <!-- Pickup crew sort toggle (mixed bracket only) -->
         <template v-if="isMixedBracket">
           <div class="flex gap-1">
@@ -2151,6 +2169,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <template v-if="!setupLocked || guestsForCurrentGenre.length > 0">
       <div class="section-rule">
         <span class="section-rule-label">Battle Guests</span>
         <div class="section-rule-line"></div>
@@ -2231,6 +2250,7 @@ onUnmounted(() => {
           />
         </div>
       </div>
+      </template><!-- end v-if for Battle Guests -->
 
       <!-- ── Seeding Pool ──────────────────────────────── -->
       <div v-if="!setupLocked" class="mb-5">
@@ -2260,6 +2280,7 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
+      </template><!-- end v-if="!setupLocked" for Seeding block -->
 
       <div class="section-rule">
         <span class="section-rule-label">Bracket</span>
@@ -2397,9 +2418,9 @@ onUnmounted(() => {
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
-                <!-- Start from this match — only when round is idle and all slots filled -->
+                <!-- Start from this match — only when round is idle, all slots filled, and match has no winner yet -->
                 <button
-                  v-if="match[0] && match[1] && isActiveRoundFilled && effectivePhase === 'IDLE'"
+                  v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
                   @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
                   class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
@@ -2419,7 +2440,8 @@ onUnmounted(() => {
               Start Round
             </button>
             <div v-else class="w-full py-2 text-center type-label text-content-muted">
-              Active battle in {{ currentTop }}
+              <template v-if="currentTop === `Top${size}`">Active battle in Top{{ size }}</template>
+              <template v-else-if="rounds[`Top${size}`]?.every(m => Array.isArray(m) && m[2])">Round complete</template>
             </div>
           </div>
         </template>
