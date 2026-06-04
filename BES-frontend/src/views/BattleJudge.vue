@@ -506,7 +506,12 @@ onUnmounted(() => {
 .judge-chip-clear {
   background: none; border: none; cursor: pointer;
   font-size: 10px; color: rgba(255,255,255,0.3);
-  padding: 0 2px; line-height: 1; transition: color 0.15s;
+  padding: 10px 8px;
+  margin: -10px -8px;
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 .judge-chip-clear:hover { color: rgba(255,255,255,0.8); }
 
@@ -514,7 +519,7 @@ onUnmounted(() => {
   font-family: 'Inter', sans-serif;
   font-size: 9px; font-weight: 800;
   letter-spacing: 0.2em; text-transform: uppercase;
-  padding: 5px 12px; border-radius: 999px;
+  padding: 8px 16px; border-radius: 999px;
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.2);
   color: rgba(255,255,255,0.7);
@@ -787,13 +792,24 @@ onUnmounted(() => {
   50%       { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.18); }
 }
 
-/* ── Tablet: center at max 480px ────────────────────────────── */
+/* Tablet portrait — wider layout */
 @media (min-width: 600px) {
   .judge-root {
-    max-width: 480px;
+    max-width: 640px;
     margin: 0 auto;
     border-left:  1px solid rgba(255,255,255,0.05);
     border-right: 1px solid rgba(255,255,255,0.05);
+  }
+}
+
+/* Tablet landscape — shorter header, taller tie row for thumb reach */
+@media (min-width: 600px) and (orientation: landscape) {
+  .judge-header {
+    height: 44px;
+  }
+  .tie-row {
+    height: 26%;
+    min-height: 72px;
   }
 }
 </style>
