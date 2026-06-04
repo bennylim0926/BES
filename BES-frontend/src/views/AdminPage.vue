@@ -1,5 +1,5 @@
 <script setup>
-import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent } from '@/utils/adminApi';
+import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';

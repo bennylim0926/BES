@@ -5,6 +5,8 @@ import ActionDoneModal from './ActionDoneModal.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
+
+const authStore = useAuthStore()
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
@@ -668,7 +670,6 @@ watch(activeGenreTab, async (tabName) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Session Links ──────────────────────────────────────────────────────────
-const authStore = useAuthStore()
 const sessionLinksExpanded = ref(false)
 const sessionTokens = ref([])
 const sessionTokensLoading = ref(false)

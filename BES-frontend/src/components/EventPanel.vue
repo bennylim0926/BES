@@ -17,9 +17,9 @@ const emit = defineEmits([
 ])
 
 const ALL_TILES = [
-  { key: 'details',      icon: 'pi-cog',      label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
+  { key: 'details',      icon: 'pi-cog',      label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
   { key: 'audition',     icon: 'pi-list',      label: 'Audition',     roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
-  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
+  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
   { key: 'score',        icon: 'pi-chart-bar', label: 'Score',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'] },
   { key: 'battle',       icon: 'pi-bolt',      label: 'Battle',       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_JUDGE'] },
   { key: 'numbers',      icon: 'pi-hashtag',   label: 'Numbers',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
@@ -35,6 +35,10 @@ const TILE_ROUTES = {
 
 const isAdminOrOrganiser = computed(() =>
   props.role === 'ROLE_ADMIN' || props.role === 'ROLE_ORGANISER'
+)
+
+const isSessionRole = computed(() =>
+  ['ROLE_JUDGE', 'ROLE_EMCEE', 'ROLE_HELPER'].includes(props.role)
 )
 
 const visibleTiles = computed(() =>
@@ -134,7 +138,7 @@ function handleSwitchEvent(event) {
     </template>
 
     <template v-else>
-      <div class="mt-auto border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
+      <div v-if="!isSessionRole" class="mt-auto border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
         <button
           @click="emit('changeEvent'); emit('close')"
           class="w-full type-label text-content-muted hover:text-content-primary transition-colors text-center py-1"
