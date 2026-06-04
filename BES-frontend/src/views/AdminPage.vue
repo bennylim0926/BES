@@ -53,6 +53,33 @@ const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
 
 const organisers = ref([])
+const newOrganiserUsername = ref('')
+const newOrganiserPassword = ref('')
+
+const submitCreateOrganiser = async () => {
+  if (checkInputNull(newOrganiserUsername.value) || checkInputNull(newOrganiserPassword.value)) {
+    openModal("Validation Error", "Username and password cannot be empty.", "error")
+    return
+  }
+  const res = await createOrganiser(newOrganiserUsername.value, newOrganiserPassword.value)
+  if (res?.ok) {
+    organisers.value = await getOrganisers() ?? []
+    newOrganiserUsername.value = ''
+    newOrganiserPassword.value = ''
+  }
+}
+
+const confirmDeleteOrganiser = (id, username) => {
+  modalTitle.value = 'Delete Organiser?'
+  modalMessage.value = `Are you sure you want to delete ${username}?`
+  modalVariant.value = 'warning'
+  showModal.value = true
+  dynamicHandler.value = async () => {
+    const res = await deleteOrganiser(id)
+    if (res?.ok) organisers.value = organisers.value.filter(o => o.id !== id)
+    showModal.value = false
+  }
+}
 
 const toggleOrganiserEvent = async (accountId, eventId, isAssigned) => {
   if (isAssigned) {
@@ -387,6 +414,24 @@ onMounted(async () => {
           <div class="section-rule-line"></div>
         </div>
 
+        <div class="flex gap-3 mb-5">
+          <input
+            v-model="newOrganiserUsername"
+            type="text"
+            placeholder="Username…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitCreateOrganiser"
+          />
+          <input
+            v-model="newOrganiserPassword"
+            type="password"
+            placeholder="Password…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitCreateOrganiser"
+          />
+          <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Create Account</button>
+        </div>
+
         <p class="type-label text-content-muted mb-4">Assign or remove events for each organiser.</p>
 
         <div class="space-y-3">
@@ -398,6 +443,13 @@ onMounted(async () => {
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
               <span class="type-body text-content-primary">{{ org.username }}</span>
+              <button
+                @click="confirmDeleteOrganiser(org.id, org.username)"
+                class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                title="Delete organiser"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -414,7 +466,7 @@ onMounted(async () => {
           </div>
 
           <p v-if="organisers.length === 0" class="type-label text-content-muted py-4">
-            No organiser accounts found
+            No organiser accounts yet. Use the form above to create one.
           </p>
         </div>
       </div>

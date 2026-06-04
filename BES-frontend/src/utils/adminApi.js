@@ -201,6 +201,27 @@ export const addFeedbackTag = async (groupId, label) => {
     } catch (_err) { /* network error — caller handles undefined return */ }
 }
 
+export const createOrganiser = async (username, password) => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/organisers`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        })
+        return res
+    } catch (_err) { /* network error */ }
+}
+
+export const deleteOrganiser = async (accountId) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/organisers/${accountId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        })
+    } catch (_err) { /* network error */ }
+}
+
 export const getOrganisers = async () => {
     try {
         const res = await fetch(`${domain}/api/v1/admin/organisers`, { credentials: 'include' })
