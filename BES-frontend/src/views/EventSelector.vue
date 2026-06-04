@@ -64,7 +64,7 @@ const handleSubmit = async () => {
 <template>
   <div class="page-container flex items-start justify-center relative">
     <div class="color-bleed"></div>
-    <div class="relative z-10 w-full max-w-md mt-10">
+    <div class="relative z-10 w-full max-w-md mt-4 sm:mt-10">
       <div class="card p-8">
 
         <!-- Header -->
@@ -81,19 +81,19 @@ const handleSubmit = async () => {
               <span class="section-rule-label">Available Events</span>
               <div class="section-rule-line"></div>
             </div>
-            <div class="grid gap-2" :class="events.length > 4 ? 'grid-cols-2' : 'grid-cols-1'">
+            <div class="grid gap-2 event-grid" :class="events.length > 4 ? 'grid-cols-2' : 'grid-cols-1'">
               <button
                 v-for="event in events"
                 :key="event.id"
                 type="button"
                 @click="selectedEventId = event.id; accessCode = ''; error = ''"
                 :class="[
-                  'card-hover p-5 text-left relative group w-full',
+                  'card-hover p-4 sm:p-5 text-left relative group w-full',
                   selectedEventId === event.id ? 'border-[color:var(--accent-muted)]' : ''
                 ]"
               >
                 <div class="corner-bar-tl"></div>
-                <div class="type-body mb-1">{{ event.name }}</div>
+                <div class="type-body mb-1 event-card-name">{{ event.name }}</div>
                 <div
                   v-if="isAdmin && event.accessCode"
                   class="type-label text-content-muted"
@@ -151,3 +151,18 @@ const handleSubmit = async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Prevent long event names from clipping in the 2-col grid */
+.event-card-name {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* On very narrow phones fall back to 1-col to avoid squashed cards */
+@media (max-width: 360px) {
+  .event-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+</style>
