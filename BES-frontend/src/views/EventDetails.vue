@@ -100,7 +100,7 @@ const showCriteriaModal = ref(false)
 // Walk-in form
 const showWalkInForm = ref(false)
 const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
-const activeTab = ref('setup') // 'setup' | 'event-day'
+const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? 'event-day' : 'setup') // 'setup' | 'event-day'
 const activeGenreTab = ref(null)
 const poolTab = ref(null) // active division tab in number pool
 let refreshInterval = null
@@ -680,6 +680,8 @@ const isAdminOrOrganiser = computed(() => {
   return auth === 'ROLE_ADMIN' || auth === 'ROLE_ORGANISER'
 })
 
+const isHelper = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_HELPER')
+
 const allUniqueJudges = computed(() => {
   const seen = new Set()
   const result = []
@@ -1065,6 +1067,7 @@ onUnmounted(() => {
     <!-- Tab toggle -->
     <div class="flex gap-2 mb-6">
       <button
+        v-if="!isHelper"
         @click="activeTab = 'setup'"
         class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
         :class="activeTab === 'setup'

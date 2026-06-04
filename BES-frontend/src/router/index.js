@@ -43,7 +43,7 @@ const routes = [
             eventName: route.params.eventName,
             folderID: route.query.folderID
         }),
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] }
     },
     {
         path: '/event/audition-number',
@@ -55,7 +55,7 @@ const routes = [
         path: '/event/update-event-details',
         name: 'Update Event Details',
         component: UpdateEventDetails,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     },
     {
         path: '/event/audition-list',

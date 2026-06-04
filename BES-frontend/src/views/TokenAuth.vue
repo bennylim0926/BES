@@ -34,7 +34,7 @@ onMounted(async () => {
   } else if (authority === 'ROLE_EMCEE') {
     router.replace('/event/audition-list')
   } else if (authority === 'ROLE_HELPER') {
-    router.replace('/event/update-event-details')
+    router.replace(`/events/${encodeURIComponent(data.eventName)}`)
   } else {
     router.replace('/')
   }

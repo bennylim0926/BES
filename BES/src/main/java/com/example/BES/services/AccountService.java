@@ -30,6 +30,7 @@ public class AccountService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Transactional(readOnly = true)
     public List<GetOrganiserDto> getAllOrganisers() {
         return accountRepository.findByRole("ORGANISER")
             .stream()

@@ -61,11 +61,16 @@ const submitCreateOrganiser = async () => {
     openModal("Validation Error", "Username and password cannot be empty.", "error")
     return
   }
-  const res = await createOrganiser(newOrganiserUsername.value, newOrganiserPassword.value)
+  const username = newOrganiserUsername.value
+  const res = await createOrganiser(username, newOrganiserPassword.value)
   if (res?.ok) {
     organisers.value = await getOrganisers() ?? []
     newOrganiserUsername.value = ''
     newOrganiserPassword.value = ''
+    openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
+  } else {
+    const body = await res?.json().catch(() => null)
+    openModal("Error", body?.message || "Failed to create organiser. Username may already exist.", "warning")
   }
 }
 
@@ -458,7 +463,7 @@ onMounted(async () => {
                 :key="e.id"
                 @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
                 class="para-chip-sm type-label px-3 py-1 transition-all duration-150"
-                :class="isEventAssigned(org, e.id) ? 'bg-accent text-surface-900' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
+                :class="isEventAssigned(org, e.id) ? 'text-green-300 border-green-500/50 bg-green-500/15' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
               >{{ e.name }}</button>
             </div>
 

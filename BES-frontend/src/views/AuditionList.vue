@@ -51,6 +51,7 @@ const dynamicRole = async () => {
     const jName = authStore.judgeName
     if (jName) {
       currentJudge.value = jName
+      filteredJudge.value = jName
       localStorage.setItem('currentJudge', jName)
     }
   } else if (authority === "ROLE_ORGANISER") {
@@ -273,12 +274,18 @@ watch(selectedGenre, async (newVal) => {
     const judges = await getJudgesByDivision(selectedEvent.value, division.eventGenreId)
     const judgeNames = judges.map(j => j.judgeName)
     allJudges.value = ["", ...judgeNames]
+    const sessionJudge = authStore.judgeName
     if (!judgeNames.includes(currentJudge.value)) {
-      currentJudge.value = ""
-      localStorage.removeItem("currentJudge")
+      if (sessionJudge && judgeNames.includes(sessionJudge)) {
+        currentJudge.value = sessionJudge
+        localStorage.setItem('currentJudge', sessionJudge)
+      } else {
+        currentJudge.value = ""
+        localStorage.removeItem("currentJudge")
+      }
     }
     if (!judgeNames.includes(filteredJudge.value)) {
-      filteredJudge.value = ""
+      filteredJudge.value = (sessionJudge && judgeNames.includes(sessionJudge)) ? sessionJudge : ""
     }
     await loadScoresFromDb(selectedEvent.value, newVal, currentJudge.value)
   } else {
@@ -767,10 +774,10 @@ onMounted(async () => {
 
           <!-- Judge filter + identity dropdowns: full-width on mobile, right-aligned on sm+ -->
           <div class="flex flex-col sm:flex-row sm:ml-auto sm:items-center gap-3 w-full sm:w-auto">
-            <div v-if="hasJudge" class="w-full sm:w-48">
+            <div v-if="hasJudge && isAdmin" class="w-full sm:w-48">
               <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
             </div>
-            <div v-if="selectedRole === 'Judge'" class="w-full sm:min-w-[12rem] sm:max-w-[16rem]">
+            <div v-if="selectedRole === 'Judge' && isAdmin" class="w-full sm:min-w-[12rem] sm:max-w-[16rem]">
               <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
             </div>
           </div>
