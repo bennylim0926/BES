@@ -1,5 +1,4 @@
 <script setup>
-import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, getSmokeList, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
@@ -8,7 +7,7 @@ import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient } from '@/utils/websocket'
 
-const { selectedEvent, selectedGenre, initialiseDropdown, selectedJudge } = useDropdowns()
+const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
 
@@ -297,21 +296,6 @@ const initiateBattlePair = async (top, pairList) => {
   markSaved()
 }
 
-const prevPair = async () => {
-  if (currentBattle.value.length !== 0 && currentBattle.value[0] > 0) {
-    markSaving()
-    currentBattle.value = [currentBattle.value[0] - 1, currentBattle.value[1]]
-    const left = currentBattle?.value[1][currentBattle?.value[0]][0]
-    const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-    await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right))
-    await setBattlePhase('LOCKED')
-    battlePhase.value = 'LOCKED'
-    currentWinner.value = -2
-    currentRound.value -= 1
-    saveGenreBattleState(selectedGenre.value)
-    markSaved()
-  }
-}
 
 const nextPair = async () => {
   if (currentBattle.value.length === 0) return
@@ -1006,7 +990,6 @@ const voteWeightDisplay = computed(() => {
   }
 })
 
-const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
 // Per-genre battle state persistence — saves which round/match was in progress so
 // switching genres and back re-broadcasts the correct pair to the overlay automatically.
