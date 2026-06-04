@@ -2357,7 +2357,7 @@ onUnmounted(() => {
                 <div class="corner-bar-tl"></div>
                 <!-- Slot 0 — left -->
                 <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 px-2 py-1.5 transition-all duration-150"
                   :data-drop-key="`bracket-Top${size}-${mIdx}-0`"
                   :class="[
                     match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
@@ -2366,18 +2366,19 @@ onUnmounted(() => {
                       : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <!-- Name + members (draggable) -->
                   <div v-if="match[0]"
                     @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 0 }, e)"
-                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    class="flex-1 min-w-0 select-none"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
-                    <div class="flex items-center gap-1 min-w-0 overflow-hidden">
+                    <div class="flex items-center gap-1 min-w-0">
+                      <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
                       <span class="type-body truncate">{{ match[0] }}</span>
                       <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[0]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
+                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1 mt-1">
                       <span
                         v-for="m in getMembersFor(match[0])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
@@ -2386,14 +2387,20 @@ onUnmounted(() => {
                       >{{ m }}</span>
                     </div>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[0]"
-                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                    class="flex-shrink-0 w-8 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
+                  <div v-else class="flex-1 flex items-center gap-1">
+                    <i class="pi pi-crown text-xs flex-shrink-0 text-surface-600"></i>
+                    <span class="type-body text-surface-600/60 italic">Drop here</span>
+                  </div>
+                  <!-- Action buttons -->
+                  <div class="flex items-center gap-1 justify-end sm:justify-start flex-shrink-0">
+                    <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                    <button
+                      :disabled="!match[0]"
+                      @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
+                      class="w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                      :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+                    >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
+                  </div>
                 </div>
 
                 <!-- VS badge (vertical divider) -->
@@ -2403,7 +2410,7 @@ onUnmounted(() => {
 
                 <!-- Slot 1 — right -->
                 <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 px-2 py-1.5 transition-all duration-150"
                   :data-drop-key="`bracket-Top${size}-${mIdx}-1`"
                   :class="[
                     match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
@@ -2412,18 +2419,19 @@ onUnmounted(() => {
                       : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
+                  <!-- Name + members (draggable) -->
                   <div v-if="match[1]"
                     @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 1 }, e)"
-                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    class="flex-1 min-w-0 select-none"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
                     style="touch-action: none;"
                   >
-                    <div class="flex items-center gap-1 min-w-0 overflow-hidden">
+                    <div class="flex items-center gap-1 min-w-0">
+                      <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
                       <span class="type-body truncate">{{ match[1] }}</span>
                       <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[1]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
+                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1 mt-1">
                       <span
                         v-for="m in getMembersFor(match[1])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
@@ -2432,14 +2440,20 @@ onUnmounted(() => {
                       >{{ m }}</span>
                     </div>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[1]"
-                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                    class="flex-shrink-0 w-8 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
+                  <div v-else class="flex-1 flex items-center gap-1">
+                    <i class="pi pi-crown text-xs flex-shrink-0 text-surface-600"></i>
+                    <span class="type-body text-surface-600/60 italic">Drop here</span>
+                  </div>
+                  <!-- Action buttons -->
+                  <div class="flex items-center gap-1 justify-end sm:justify-start flex-shrink-0">
+                    <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                    <button
+                      :disabled="!match[1]"
+                      @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
+                      class="w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                      :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
+                    >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
+                  </div>
                 </div>
                 <!-- Start from this match — only when round is idle, all slots filled, and match has no winner yet -->
                 <button
