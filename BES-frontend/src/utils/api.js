@@ -1381,3 +1381,25 @@ export const releaseAuditionNumbers = async (eventId, participantId) => {
     })
   } catch (e) { console.log(e) }
 }
+
+export const redeemToken = async (tokenId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/auth/token`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId })
+    })
+    return res.ok ? await res.json() : null
+  } catch (err) { console.error(err); return null }
+}
+
+export const generateToken = async (role, eventId, judgeId, expiresInDays = 7) => {
+  try {
+    const params = new URLSearchParams({ role, eventId, expiresInDays })
+    if (judgeId) params.append('judgeId', judgeId)
+    const res = await fetch(`${domain}/api/v1/auth/generate-token?${params}`, {
+      method: 'POST', credentials: 'include'
+    })
+    return res.ok ? await res.json() : null
+  } catch (err) { console.error(err); return null }
+}

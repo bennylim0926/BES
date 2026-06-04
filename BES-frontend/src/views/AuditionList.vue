@@ -48,6 +48,11 @@ const dynamicRole = async () => {
   } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
+    const jName = authStore.judgeName
+    if (jName) {
+      currentJudge.value = jName
+      localStorage.setItem('currentJudge', jName)
+    }
   } else if (authority === "ROLE_ORGANISER") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
@@ -805,7 +810,7 @@ onMounted(async () => {
 
     <!-- Judge: no identity selected -->
     <div
-      v-else-if="selectedRole === 'Judge' && !currentJudge"
+      v-else-if="selectedRole === 'Judge' && !currentJudge && isAdmin"
       class="flex flex-col items-center justify-center py-16 text-center gap-6 px-4"
     >
       <div>

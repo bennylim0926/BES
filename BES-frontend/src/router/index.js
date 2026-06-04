@@ -19,6 +19,7 @@ import ResultsQR from "@/views/ResultsQR.vue";
 import CrewFormation from "@/views/CrewFormation.vue";
 import AuditionAdjust from "@/views/AuditionAdjust.vue";
 import BracketVisualization from "@/views/BracketVisualization.vue";
+import TokenAuth from "@/views/TokenAuth.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -54,7 +55,7 @@ const routes = [
         path: '/event/update-event-details',
         name: 'Update Event Details',
         component: UpdateEventDetails,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'], requiresEvent: true }
     },
     {
         path: '/event/audition-list',
@@ -86,13 +87,14 @@ const routes = [
     {
         path: '/battle/judge',
         name: "Battle Judge",
-        component: BattleJudge
+        component: BattleJudge,
+        meta: { allowedRoles: ['ROLE_JUDGE', 'ROLE_ADMIN'] }
     },
     {
         path: '/battle/control',
         name: "Battle Control",
         component: BattleControl,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'], requiresEvent: true }
     },
     {
         path: '/battle/chart',
@@ -136,6 +138,11 @@ const routes = [
         name: 'Audition Adjust',
         component: AuditionAdjust,
         meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+    },
+    {
+        path: '/auth/token',
+        name: 'TokenAuth',
+        component: TokenAuth
     }
 ]
 
@@ -144,7 +151,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true

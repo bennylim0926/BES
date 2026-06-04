@@ -2,6 +2,7 @@
 import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useAuthStore } from '@/utils/auth'
 
 // ── Overlay config ──────────────────────────────────────────────────────────
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
@@ -16,33 +17,16 @@ const battleJudges   = ref({ judges: [] })
 // ── Judge identity ──────────────────────────────────────────────────────────
 const judgeId         = ref(null)   // number | null
 const judgeName       = ref('')
-const showJudgePicker = ref(false)
+const notAssigned     = ref(false)
 
-const LS_JUDGE_ID   = 'battleJudgeId'
-const LS_JUDGE_NAME = 'battleJudgeName'
-
-function resolveJudgeIdentity(judges) {
-  const storedId = localStorage.getItem(LS_JUDGE_ID)
-  if (!storedId) { showJudgePicker.value = true; return }
-  const id = Number(storedId)
-  const match = judges.find(j => j.id === id)
-  if (!match) {
-    localStorage.removeItem(LS_JUDGE_ID)
-    localStorage.removeItem(LS_JUDGE_NAME)
-    showJudgePicker.value = true
-    return
-  }
-  judgeId.value   = id
+function loadJudgeIdentity(judges) {
+  const authStore = useAuthStore()
+  const sid = authStore.judgeId
+  if (!sid) { notAssigned.value = true; return }
+  const match = judges.find(j => j.id === Number(sid))
+  if (!match) { notAssigned.value = true; return }
+  judgeId.value   = match.id
   judgeName.value = match.name
-  setupVoteSubscription()
-}
-
-function selectJudge(j) {
-  judgeId.value   = j.id
-  judgeName.value = j.name
-  localStorage.setItem(LS_JUDGE_ID,   String(j.id))
-  localStorage.setItem(LS_JUDGE_NAME, j.name)
-  showJudgePicker.value = false
   setupVoteSubscription()
 }
 
@@ -50,9 +34,6 @@ function clearJudge() {
   clearVote()
   judgeId.value   = null
   judgeName.value = ''
-  localStorage.removeItem(LS_JUDGE_ID)
-  localStorage.removeItem(LS_JUDGE_NAME)
-  showJudgePicker.value = true
   if (voteClient) {
     deactivateClient(voteClient)
     const idx = wsClients.indexOf(voteClient)
@@ -149,7 +130,7 @@ onMounted(async () => {
 
   // 4. Judges + identity
   battleJudges.value = await getBattleJudges()
-  resolveJudgeIdentity(battleJudges.value?.judges ?? [])
+  loadJudgeIdentity(battleJudges.value?.judges ?? [])
 
   // 5. Restore vote from backend judges list if available, fall back to localStorage
   if (battlePhase.value === 'VOTING' && judgeId.value != null) {
@@ -204,13 +185,12 @@ onMounted(async () => {
         if (clearJudgeTimer == null) {
           clearJudgeTimer = setTimeout(() => {
             clearJudgeTimer = null
-            const storedName = localStorage.getItem(LS_JUDGE_NAME)
-            const byName = storedName
-              ? (battleJudges.value?.judges ?? []).find(j => j.name === storedName)
+            const authStore = useAuthStore()
+            const byName = authStore.judgeName
+              ? (battleJudges.value?.judges ?? []).find(j => j.name === authStore.judgeName)
               : null
             if (byName) {
               judgeId.value = byName.id
-              localStorage.setItem(LS_JUDGE_ID, String(byName.id))
             } else if (!(battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)) {
               clearJudge()
             }
@@ -255,11 +235,7 @@ onUnmounted(() => {
         <div v-if="judgeName" class="judge-chip">
           <span class="judge-chip-label">AS</span>
           <span class="judge-chip-name">{{ judgeName }}</span>
-          <button class="judge-chip-clear" @click="clearJudge" aria-label="Change judge">✕</button>
         </div>
-        <button v-else class="pick-judge-btn" @click="showJudgePicker = true">
-          SELECT JUDGE
-        </button>
       </div>
     </header>
 
@@ -395,30 +371,19 @@ onUnmounted(() => {
         </button>
       </div><!-- /tie-row -->
 
-    </div><!-- /panels-wrap -->
-
-    <!-- ── Judge picker bottom sheet ───────────────────────────── -->
-    <Transition name="sheet-slide">
-      <div
-        v-if="showJudgePicker"
-        class="sheet-backdrop"
-        role="dialog"
-        aria-label="Select your name"
-      >
-        <div class="bottom-sheet">
-          <div class="sheet-handle" aria-hidden="true"></div>
-          <p class="sheet-title">WHO ARE YOU?</p>
-          <div class="sheet-grid">
-            <button
-              v-for="j in (battleJudges?.judges ?? [])"
-              :key="j.id"
-              class="sheet-name-chip"
-              @click="selectJudge(j)"
-            >{{ j.name }}</button>
-          </div>
+      <!-- Not assigned overlay -->
+      <Transition name="phase-fade">
+        <div
+          v-if="notAssigned"
+          class="panels-blocker"
+          aria-live="polite"
+        >
+          <span class="blocker-icon">🚫</span>
+          <span class="blocker-text">NOT ASSIGNED TO THIS BATTLE</span>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+
+    </div><!-- /panels-wrap -->
 
   </div>
 </template>
