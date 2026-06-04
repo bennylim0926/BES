@@ -1226,85 +1226,89 @@ onUnmounted(() => {
                 : 'border-l-[3px] border-l-amber-500'
               : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
           >
-            <div class="flex items-center gap-2">
-              <!-- Division name (click to rename) -->
-              <template v-if="divRenameActive !== div.eventGenreId">
-                <button
-                  @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-                  class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
-                >{{ div.name }}</button>
-              </template>
-              <template v-else>
-                <input
-                  v-model="divRenameInput"
-                  type="text"
-                  class="input-base flex-1 min-w-0"
-                  placeholder="Division name"
-                  @keyup.enter="saveDivisionName(div)"
-                  @keyup.escape="divRenameActive = null"
-                  @blur="saveDivisionName(div)"
-                />
-              </template>
+            <!-- Mobile: stacked (name row, then actions row); Tablet+: single inline row -->
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
+              <!-- Name + count badges row -->
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <template v-if="divRenameActive !== div.eventGenreId">
+                  <button
+                    @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
+                    class="type-body text-content-secondary hover:text-accent text-left break-words min-w-0 flex-1 transition-colors"
+                    style="overflow-wrap:break-word;word-break:break-word"
+                  >{{ div.name }}</button>
+                </template>
+                <template v-else>
+                  <input
+                    v-model="divRenameInput"
+                    type="text"
+                    class="input-base flex-1 min-w-0"
+                    placeholder="Division name"
+                    @keyup.enter="saveDivisionName(div)"
+                    @keyup.escape="divRenameActive = null"
+                    @blur="saveDivisionName(div)"
+                  />
+                </template>
 
-              <!-- Match count badge: green = imported, amber = not yet imported -->
-              <div class="flex items-center gap-2 shrink-0">
-                <!-- Green: already in DB -->
-                <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
-                  <span class="type-label text-xs">{{ div.participantCount }}</span>
-                </div>
-                <!-- Amber: matched on sheet but not yet imported -->
-                <div
-                  v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0"
-                  class="flex items-center gap-1 text-amber-400"
-                >
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                  <span class="type-label text-xs">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
-                </div>
-                <!-- Amber with 0 when sheet connected but no matches at all -->
-                <div
-                  v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0"
-                  class="flex items-center gap-1 text-amber-400"
-                >
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                  <span class="type-label text-xs">0</span>
+                <!-- Match count badges -->
+                <div class="flex items-center gap-2 shrink-0">
+                  <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+                    <span class="type-label text-xs">{{ div.participantCount }}</span>
+                  </div>
+                  <div
+                    v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0"
+                    class="flex items-center gap-1 text-amber-400"
+                  >
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                    <span class="type-label text-xs">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
+                  </div>
+                  <div
+                    v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0"
+                    class="flex items-center gap-1 text-amber-400"
+                  >
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                    <span class="type-label text-xs">0</span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Format dropdown -->
-              <select
-                :value="div.format || ''"
-                @change="saveDivisionFormat(div, $event.target.value)"
-                class="shrink-0 text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
-              >
-                <option value="">No format</option>
-                <template v-for="opt in divFormatOptions" :key="opt">
-                  <option v-if="opt" :value="opt">{{ opt }}</option>
-                </template>
-              </select>
+              <!-- Actions row: format dropdown + icon buttons -->
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Format dropdown -->
+                <select
+                  :value="div.format || ''"
+                  @change="saveDivisionFormat(div, $event.target.value)"
+                  class="shrink-0 text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
+                >
+                  <option value="">No format</option>
+                  <template v-for="opt in divFormatOptions" :key="opt">
+                    <option v-if="opt" :value="opt">{{ opt }}</option>
+                  </template>
+                </select>
 
-              <!-- Alias toggle -->
-              <button
-                @click="divAliasExpanded = divAliasExpanded === div.eventGenreId ? null : div.eventGenreId"
-                class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors"
-                title="Sheet aliases"
-              ><i class="pi pi-tags text-xs"></i></button>
+                <!-- Alias toggle -->
+                <button
+                  @click="divAliasExpanded = divAliasExpanded === div.eventGenreId ? null : div.eventGenreId"
+                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-accent transition-colors"
+                  title="Sheet aliases"
+                ><i class="pi pi-tags text-xs"></i></button>
 
-              <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
-              <button
-                v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
-                @click="askToggleSolo(div)"
-                :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
-                class="para-chip-sm px-2 py-1 type-label transition-colors"
-                :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
-              >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
+                <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
+                <button
+                  v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
+                  @click="askToggleSolo(div)"
+                  :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
+                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label transition-colors"
+                  :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
+                >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
 
-              <!-- Remove -->
-              <button
-                @click="askRemoveDivision(div)"
-                class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors"
-                title="Remove division"
-              ><i class="pi pi-times text-xs"></i></button>
+                <!-- Remove -->
+                <button
+                  @click="askRemoveDivision(div)"
+                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-red-400 transition-colors"
+                  title="Remove division"
+                ><i class="pi pi-times text-xs"></i></button>
+              </div>
             </div>
 
             <!-- Alias chips (always visible if exist) -->
@@ -1325,10 +1329,10 @@ onUnmounted(() => {
                 v-model="divAliasInput"
                 type="text"
                 placeholder="Add alias…"
-                class="input-base flex-1 text-xs py-1"
+                class="input-base flex-1"
                 @keyup.enter="addAlias(div)"
               />
-              <button @click="addAlias(div)" class="para-chip-sm px-2 py-1 type-label text-accent"><i class="pi pi-plus text-xs"></i></button>
+              <button @click="addAlias(div)" class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-accent"><i class="pi pi-plus text-xs"></i></button>
             </div>
           </div>
         </div>
@@ -1336,7 +1340,7 @@ onUnmounted(() => {
         <!-- Add division to group -->
         <button
           @click="addDivisionToGroup(group.genreId, group.label)"
-          class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-accent transition-all"
+          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all"
         >+ Add {{ group.label }} division</button>
       </div>
     </div>

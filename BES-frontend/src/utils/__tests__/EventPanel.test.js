@@ -183,12 +183,12 @@ describe('EventPanel.vue — zones', () => {
     expect(setActiveEvent).toHaveBeenCalledWith(2, 'Street Jam Vol.3')
   })
 
-  it('panel stays open after switching event (no close emit)', async () => {
+  it('emits close after switching event', async () => {
     const w = mountPanel('ROLE_ADMIN')
     await new Promise(r => setTimeout(r, 0))
     await w.vm.$nextTick()
     const row = w.findAll('button').find(b => b.text().includes('Street Jam Vol.3'))
     await row.trigger('click')
-    expect(w.emitted('close')).toBeFalsy()
+    expect(w.emitted('close')).toBeTruthy()
   })
 })

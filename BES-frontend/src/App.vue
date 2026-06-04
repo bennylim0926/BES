@@ -203,7 +203,7 @@ onUnmounted(() => {
             <button
               v-if="activeEvent"
               @click="panelOpen = !panelOpen"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[140px] md:max-w-[200px]"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
               <i class="pi pi-chevron-right text-[10px] flex-shrink-0 opacity-50 transition-transform duration-200"

@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { getActiveEvent } from '@/utils/auth'
+import { useAuthStore } from '@/utils/auth'
 import { getParticipantScore } from '@/utils/api'
 import { getPickupCrews, createPickupCrew, deletePickupCrew } from '@/utils/api'
 import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import ActionDoneModal from '@/views/ActionDoneModal.vue'
 
-const selectedEvent = ref(getActiveEvent()?.name || localStorage.getItem('selectedEvent') || '')
+const authStore = useAuthStore()
+const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || '')
 const selectedGenre = ref('')
 const participants = ref([])   // raw score entries for the genre
 const crews = ref([])

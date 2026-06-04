@@ -48,9 +48,19 @@ const direction   = ref('left')
 const goNext = () => { if (currentRound.value < totalRounds.value)  { direction.value = 'left';  currentRound.value++ } }
 const goPrev = () => { if (currentRound.value > 1)                  { direction.value = 'right'; currentRound.value-- } }
 
-const onTouchStart = (e) => { touchStartX.value = e.touches[0].clientX; isDragging.value = true; dragOffset.value = 0 }
-const onTouchMove  = (e) => { if (!isDragging.value) return; dragOffset.value = e.touches[0].clientX - touchStartX.value }
-const onTouchEnd   = () => {
+const onPointerDown = (e) => {
+  e.currentTarget.setPointerCapture(e.pointerId)
+  touchStartX.value = e.clientX
+  isDragging.value  = true
+  dragOffset.value  = 0
+}
+
+const onPointerMove = (e) => {
+  if (!isDragging.value) return
+  dragOffset.value = e.clientX - touchStartX.value
+}
+
+const onPointerUp = () => {
   if (!isDragging.value) return
   isDragging.value = false
   if      (dragOffset.value < -60) goNext()
@@ -146,11 +156,12 @@ const swipeHint = computed(() => {
           <div
             :key="currentRound"
             :style="cardStyle"
-            @touchstart.passive="onTouchStart"
-            @touchmove.passive="onTouchMove"
-            @touchend="onTouchEnd"
-            class="card-hover p-0 relative select-none touch-pan-y"
-            style="box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.6);"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+            class="card-hover p-0 relative select-none"
+            style="box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.6); touch-action: none;"
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-white/8">
