@@ -1980,14 +1980,14 @@ onUnmounted(() => {
     </Transition>
 
     <!-- Genre switcher — page-level selector, above both panels -->
-    <div class="card px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
+    <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
       <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
       <div class="flex flex-wrap gap-2">
         <button
           v-for="g in uniqueGenres"
           :key="g"
           @click="requestGenreChange(g)"
-          class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
           :class="[
             selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
@@ -2062,7 +2062,7 @@ onUnmounted(() => {
               v-for="s in sizes.filter(s => s !== 7)"
               :key="s"
               @click="requestSizeChange(s)"
-              class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
+              class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150"
               :class="topSize === s
                 ? 'text-accent border-[color:var(--accent-muted)]'
                 : 'text-content-muted hover:text-content-primary'"
@@ -2085,7 +2085,7 @@ onUnmounted(() => {
               v-for="j in sortedJudgesForToggle"
               :key="j.name"
               @click="toggleBattleJudge(j.name)"
-              class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
+              class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
               :class="j.active
                 ? 'text-accent border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]'
                 : 'text-content-muted/40 hover:text-content-muted border-surface-600/30'"
@@ -2133,31 +2133,31 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 mt-4 mb-5">
+      <!-- Seeding controls: stacked on mobile, inline on sm+ -->
+      <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-2 mt-4 mb-5">
         <!-- Pickup crew sort toggle (mixed bracket only) -->
         <template v-if="isMixedBracket">
-          <div class="flex gap-1">
+          <div class="flex gap-2 sm:gap-1">
             <button
               @click="crewSortMode = 'leader'"
-              class="para-chip-sm px-2.5 py-1.5 type-label transition-all"
+              class="para-chip-sm px-3 sm:px-2.5 py-3 sm:py-1.5 type-label transition-all flex-1 sm:flex-none"
               :class="crewSortMode === 'leader' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by their leader's individual audition score"
             >Leader</button>
             <button
               @click="crewSortMode = 'avg'"
-              class="para-chip-sm px-2.5 py-1.5 type-label transition-all"
+              class="para-chip-sm px-3 sm:px-2.5 py-3 sm:py-1.5 type-label transition-all flex-1 sm:flex-none"
               :class="crewSortMode === 'avg' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by average score of all members"
             >Avg</button>
           </div>
-          <span class="text-surface-600 select-none">|</span>
+          <span class="text-surface-600 select-none hidden sm:inline">|</span>
         </template>
 
-        <div class="flex flex-wrap gap-1">
+        <div class="flex flex-wrap gap-2 sm:gap-1">
           <button
             @click="autoFillSeeds"
-            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 transition-all"
-            :class="rankAsc ? 'text-content-muted hover:text-content-primary' : 'text-content-muted hover:text-content-primary'"
+            class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1 transition-all text-content-muted hover:text-content-primary"
             :title="rankAsc ? 'Lowest score first' : 'Highest score first'"
           >
             <i :class="rankAsc ? 'pi pi-sort-amount-up' : 'pi pi-sort-amount-down'" class="text-xs"></i>
@@ -2171,7 +2171,7 @@ onUnmounted(() => {
           <button
             @click="highVsLowFill"
             :disabled="guestsForCurrentGenre.length > 0"
-            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 transition-all"
+            class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1 transition-all"
             :class="guestsForCurrentGenre.length > 0 ? 'opacity-30 cursor-not-allowed text-content-muted' : 'text-content-muted hover:text-content-primary'"
             :title="guestsForCurrentGenre.length > 0 ? 'Disabled: bracket has pinned guests' : 'Pair highest with lowest (1st vs last, 2nd vs 2nd-last...)'"
           >
@@ -2180,7 +2180,7 @@ onUnmounted(() => {
           </button>
           <button
             @click="randomFill"
-            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-primary transition-all"
+            class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1 text-content-muted hover:text-content-primary transition-all"
             title="Random shuffle"
           >
             <i class="pi pi-refresh text-xs"></i>
@@ -2189,7 +2189,7 @@ onUnmounted(() => {
           <button
             v-if="isMixedBracket"
             @click="splitBracketFill"
-            class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1 text-accent transition-all"
+            class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1 text-accent transition-all"
             title="Pre-formed teams on left half, pickup crews on right half"
           >
             <i class="pi pi-table text-xs"></i>
@@ -2291,21 +2291,22 @@ onUnmounted(() => {
           <div class="section-rule-line"></div>
         </div>
 
-        <div class="flex flex-wrap gap-1.5 mt-3 min-h-[28px]">
-          <span v-if="!poolParticipants.length" class="type-label text-content-muted">
+        <!-- Mobile: 2-col grid for easy tap; Tablet+: flex wrap -->
+        <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-1.5 mt-3 min-h-[28px]">
+          <span v-if="!poolParticipants.length" class="col-span-2 type-label text-content-muted">
             {{ isSmoke ? `All ${bracketSize - guestsForCurrentGenre.length} queue slots filled` : `All top ${bracketSize - guestsForCurrentGenre.length} participants placed in bracket` }}
           </span>
           <span
             v-for="p in poolParticipants" :key="p.name"
             :data-drag-name="p.name"
             @pointerdown="(e) => onPointerDragStart('pool', p.name, e)"
-            class="para-chip-sm px-2.5 py-1 type-label text-content-primary cursor-grab active:cursor-grabbing select-none inline-flex items-center gap-1.5"
+            class="para-chip-sm px-3 sm:px-2.5 py-3 sm:py-1 type-label text-content-primary cursor-grab active:cursor-grabbing select-none inline-flex items-center justify-between gap-1.5"
             :class="poolDragName === p.name ? 'opacity-40' : ''"
             :title="p.name"
-            style="touch-action: none; user-select: none;"
+            style="touch-action: none; user-select: none; min-height: 44px;"
           >
-            <span>{{ p.name }}</span>
-            <span class="text-content-muted" style="font-size:10px;letter-spacing:0.05em;opacity:0.7">{{ p.score % 1 === 0 ? p.score : p.score.toFixed(1) }}</span>
+            <span class="truncate">{{ p.name }}</span>
+            <span class="text-content-muted flex-shrink-0" style="font-size:11px;letter-spacing:0.05em;opacity:0.7">{{ p.score % 1 === 0 ? p.score : p.score.toFixed(1) }}</span>
           </span>
         </div>
       </div>
@@ -2319,12 +2320,12 @@ onUnmounted(() => {
       <!-- ── Standard bracket ──────────────────────────── -->
       <div v-if="Number(topSize) !== 7" class="mt-3">
         <!-- Round tabs -->
-        <div class="flex flex-wrap gap-1 mb-4">
+        <div class="flex flex-wrap gap-2 sm:gap-1 mb-4">
           <button
             v-for="(size, idx) in roundSizes"
             :key="idx"
             @click="requestRoundChange(idx)"
-            class="para-chip-sm px-4 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+            class="para-chip-sm px-4 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5 flex-1 sm:flex-none justify-center sm:justify-start"
             :class="{
               'text-accent border-[color:var(--accent-muted)]': activeRoundIdx === idx,
               'text-emerald-400/70 border-emerald-500/30': activeRoundIdx !== idx && roundTabStatus(idx) === 'done',
@@ -2462,14 +2463,14 @@ onUnmounted(() => {
               v-if="effectivePhase === 'IDLE' && !setupLocked"
               :disabled="!isActiveRoundFilled"
               @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
-              class="w-full py-2 para-chip type-label transition-all duration-200"
+              class="w-full py-4 sm:py-2 para-chip type-label transition-all duration-200"
               :class="isActiveRoundFilled ? 'bg-accent' : 'bg-surface-700 text-content-muted cursor-not-allowed'"
               :title="isActiveRoundFilled ? '' : 'All slots must be filled and the previous round must be completed'"
             >
               <i class="pi pi-play text-xs mr-1.5"></i>
               Start Round
             </button>
-            <div v-else class="w-full py-2 text-center type-label text-content-muted">
+            <div v-else class="w-full py-4 sm:py-2 text-center type-label text-content-muted">
               <template v-if="currentTop === `Top${size}`">Active battle in Top{{ size }}</template>
               <template v-else-if="rounds[`Top${size}`]?.every(m => Array.isArray(m) && m[2])">Round complete</template>
             </div>
@@ -2905,12 +2906,12 @@ onUnmounted(() => {
       </div>
 
       <!-- Action buttons — only for the active round -->
-      <div v-if="isActiveBattleInThisRound" class="flex flex-wrap gap-2">
+      <div v-if="isActiveBattleInThisRound" class="flex flex-wrap gap-3 sm:gap-2">
         <!-- LOCKED: open voting -->
         <button
           v-if="battlePhase === 'LOCKED'"
           @click="openVoting"
-          class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+          class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
           <i class="pi pi-lock-open text-xs"></i>
           Open Voting
@@ -2922,21 +2923,20 @@ onUnmounted(() => {
           :disabled="!allJudgesVoted"
           @click="submitGetScore"
           :class="allJudgesVoted
-            ? 'bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all'
-            : 'bg-surface-700/30 para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50'"
+            ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
+            : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
           :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
         >
           <i class="pi pi-bolt text-xs"></i>
           {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
         </button>
 
-        <!-- VOTING + final + all judges voted → Lock Champion.
-             Enabled when clear winner, disabled on tie (listens in real-time). -->
+        <!-- VOTING + final + all judges voted → Lock Champion. -->
         <button
           v-if="battlePhase === 'VOTING' && isFinalInProgress && allJudgesVoted"
           :disabled="!showFinalReveal"
           @click="lockChampion"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+          class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
           :class="showFinalReveal
             ? 'border-amber-400/50 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
             : 'border-gray-500/30 text-content-muted bg-surface-700/30 cursor-not-allowed'"
@@ -2951,7 +2951,7 @@ onUnmounted(() => {
           <button
             v-if="!revealActive"
             @click="revealChampionForGenre"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
+            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all flex-1 sm:flex-none justify-center"
           >
             <i class="pi pi-star text-xs"></i>
             Reveal Champion
@@ -2959,14 +2959,14 @@ onUnmounted(() => {
           <button
             v-if="revealActive"
             @click="dismissReveal"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
           >
             <i class="pi pi-times text-xs"></i>
             Dismiss Reveal
           </button>
           <button
             @click="unlockChampion"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all"
+            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all flex-1 sm:flex-none justify-center"
           >
             <i class="pi pi-unlock text-xs"></i>
             Unlock
@@ -2977,7 +2977,7 @@ onUnmounted(() => {
         <template v-if="battlePhase === 'REVEALED'">
           <button
             @click="nextPair"
-            class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
+            class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
           >
             Next
             <i class="pi pi-chevron-right text-xs"></i>

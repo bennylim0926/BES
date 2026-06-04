@@ -906,6 +906,49 @@ html.theme-transition *::after {
 }
 
 /* ─────────────────────────────────────────
+   Mobile Touch Targets (< 640px)
+   All interactive chip elements meet 44px minimum height on small screens.
+   Span-based chips (draggable pool items) are handled per-component.
+───────────────────────────────────────── */
+@media (max-width: 639px) {
+  button.para-chip,
+  button.para-chip-sm,
+  a.para-chip,
+  a.para-chip-sm {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  select.para-chip-sm {
+    min-height: 44px;
+  }
+  /* Ensure type-label font stays legible on mobile — bump to 13px */
+  button.para-chip .type-label,
+  button.para-chip-sm .type-label,
+  button.para-chip,
+  button.para-chip-sm {
+    font-size: 13px;
+  }
+}
+
+/* Tablet (640px–1023px): 36px touch targets, slightly larger than desktop */
+@media (min-width: 640px) and (max-width: 1023px) {
+  button.para-chip,
+  button.para-chip-sm,
+  a.para-chip,
+  a.para-chip-sm {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  select.para-chip-sm {
+    min-height: 36px;
+  }
+}
+
+/* ─────────────────────────────────────────
    Reduced Motion
 ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

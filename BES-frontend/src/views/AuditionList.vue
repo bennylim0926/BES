@@ -649,9 +649,10 @@ onMounted(async () => {
       </div>
       <button
         @click="showFilters = !showFilters"
-        class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-all"
+        class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all flex-shrink-0"
+        style="min-width:44px"
       >
-        <i class="pi pi-sliders-h text-xs"></i>
+        <i class="pi pi-sliders-h text-sm sm:text-xs"></i>
       </button>
     </div>
 
@@ -682,76 +683,89 @@ onMounted(async () => {
       leave-to-class="opacity-0 -translate-y-2"
     >
       <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.12)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.9)', clipPath: 'none' } : { clipPath: 'none' }">
-        <div class="flex flex-wrap items-center gap-3">
+        <!-- Mobile: vertical stack; Tablet+: horizontal wrap -->
+        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 sm:gap-3">
           <!-- Event name -->
           <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-          <span class="text-surface-600 select-none">|</span>
+          <span class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Role toggle -->
-          <div class="flex gap-1">
-            <button
-              v-for="r in roles"
-              :key="r"
-              @click="selectedRole = r"
-              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
-              :class="selectedRole === r
-                ? 'text-accent border-[color:var(--accent-muted)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >{{ r }}</button>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+            <span class="section-rule-label sm:hidden">Role</span>
+            <div class="flex flex-wrap gap-2 sm:gap-1">
+              <button
+                v-for="r in roles"
+                :key="r"
+                @click="selectedRole = r"
+                class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
+                :class="selectedRole === r
+                  ? 'text-accent border-[color:var(--accent-muted)]'
+                  : 'text-content-muted hover:text-content-primary'"
+              >{{ r }}</button>
+            </div>
           </div>
-          <span class="text-surface-600 select-none">|</span>
+          <span class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Genre toggle -->
-          <div class="flex gap-1">
-            <button
-              v-for="g in uniqueGenres"
-              :key="g"
-              @click="switchGenre(g)"
-              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
-              :class="selectedGenre === g
-                ? 'text-accent border-[color:var(--accent-muted)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >{{ g }}</button>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+            <span class="section-rule-label sm:hidden">Genre</span>
+            <div class="flex flex-wrap gap-2 sm:gap-1">
+              <button
+                v-for="g in uniqueGenres"
+                :key="g"
+                @click="switchGenre(g)"
+                class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
+                :class="selectedGenre === g
+                  ? 'text-accent border-[color:var(--accent-muted)]'
+                  : 'text-content-muted hover:text-content-primary'"
+              >{{ g }}</button>
+            </div>
           </div>
 
           <!-- Type toggle (conditional) -->
           <template v-if="hasTeamAndSoloMix">
-            <span class="text-surface-600 select-none">|</span>
-            <div class="flex gap-1">
-              <button
-                v-for="t in ['Teams', 'Solo']"
-                :key="t"
-                @click="selectedEntryType = t"
-                class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
-                :class="selectedEntryType === t
-                  ? 'text-accent border-[color:var(--accent-muted)]'
-                  : 'text-content-muted hover:text-content-primary'"
-              >{{ t }}</button>
+            <span class="text-surface-600 select-none hidden sm:inline">|</span>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+              <span class="section-rule-label sm:hidden">Type</span>
+              <div class="flex gap-2 sm:gap-1">
+                <button
+                  v-for="t in ['Teams', 'Solo']"
+                  :key="t"
+                  @click="selectedEntryType = t"
+                  class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
+                  :class="selectedEntryType === t
+                    ? 'text-accent border-[color:var(--accent-muted)]'
+                    : 'text-content-muted hover:text-content-primary'"
+                >{{ t }}</button>
+              </div>
             </div>
           </template>
 
           <!-- Judging mode toggle (admin only) -->
           <template v-if="isAdmin && selectedEvent">
-            <span class="text-surface-600 select-none">|</span>
-            <div class="flex gap-1">
-              <button
-                v-for="m in ['SOLO', 'PAIR']"
-                :key="m"
-                @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
-                class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
-                :class="judgingMode === m
-                  ? 'text-accent border-[color:var(--accent-muted)]'
-                  : 'text-content-muted hover:text-content-primary'"
-              >{{ m }}</button>
+            <span class="text-surface-600 select-none hidden sm:inline">|</span>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+              <span class="section-rule-label sm:hidden">Mode</span>
+              <div class="flex gap-2 sm:gap-1">
+                <button
+                  v-for="m in ['SOLO', 'PAIR']"
+                  :key="m"
+                  @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
+                  class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
+                  :class="judgingMode === m
+                    ? 'text-accent border-[color:var(--accent-muted)]'
+                    : 'text-content-muted hover:text-content-primary'"
+                >{{ m }}</button>
+              </div>
             </div>
           </template>
 
-          <!-- Judge filter + identity dropdowns pushed to the right -->
-          <div class="ml-auto flex items-center gap-3">
-            <div v-if="hasJudge" class="w-48">
+          <!-- Judge filter + identity dropdowns: full-width on mobile, right-aligned on sm+ -->
+          <div class="flex flex-col sm:flex-row sm:ml-auto sm:items-center gap-3 w-full sm:w-auto">
+            <div v-if="hasJudge" class="w-full sm:w-48">
               <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
             </div>
-            <div v-if="selectedRole === 'Judge'" class="min-w-[12rem] max-w-[16rem]">
+            <div v-if="selectedRole === 'Judge'" class="w-full sm:min-w-[12rem] sm:max-w-[16rem]">
               <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
             </div>
           </div>
