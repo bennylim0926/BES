@@ -2,7 +2,9 @@ package com.example.BES.controllers;
 import jakarta.validation.Valid;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +18,9 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.config.SecurityConfig;
+import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
 import com.example.BES.models.SessionToken;
@@ -176,5 +181,30 @@ public class AuthController {
         return ResponseEntity.ok(Map.of(
             "tokenId", tokenId,
             "url", "/auth/token?t=" + tokenId));
+    }
+
+    @Operation(summary = "List Tokens", description = "Returns all non-revoked, non-expired session tokens for an event")
+    @GetMapping("/tokens")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetSessionTokenDto>> listTokens(@RequestParam Long eventId) {
+        List<SessionToken> tokens = sessionTokenService.getActiveTokens(eventId);
+        List<GetSessionTokenDto> dtos = tokens.stream().map(t -> {
+            GetSessionTokenDto dto = new GetSessionTokenDto();
+            dto.tokenId = t.getTokenId();
+            dto.role = t.getRole();
+            dto.judgeName = t.getJudge() != null ? t.getJudge().getName() : null;
+            dto.expiresAt = t.getExpiresAt().toString();
+            dto.url = "/auth/token?t=" + t.getTokenId();
+            return dto;
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
+
+    @Operation(summary = "Revoke Token", description = "Revokes a session token")
+    @DeleteMapping("/tokens/{tokenId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> revokeToken(@PathVariable String tokenId) {
+        sessionTokenService.revoke(tokenId);
+        return ResponseEntity.ok(Map.of("message", "Token revoked"));
     }
 }

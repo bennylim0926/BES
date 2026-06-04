@@ -1403,3 +1403,18 @@ export const generateToken = async (role, eventId, judgeId, expiresInDays = 7) =
     return res.ok ? await res.json() : null
   } catch (err) { console.error(err); return null }
 }
+
+export const getSessionTokens = async (eventId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/auth/tokens?eventId=${eventId}`, { credentials: 'include' })
+    return res.ok ? await res.json() : []
+  } catch (err) { console.error(err); return [] }
+}
+
+export const revokeSessionToken = async (tokenId) => {
+  try {
+    return await fetch(`${domain}/api/v1/auth/tokens/${tokenId}`, {
+      method: 'DELETE', credentials: 'include'
+    })
+  } catch (err) { console.error(err) }
+}

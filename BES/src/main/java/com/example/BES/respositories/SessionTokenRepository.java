@@ -12,4 +12,6 @@ import com.example.BES.models.SessionToken;
 public interface SessionTokenRepository extends JpaRepository<SessionToken, String> {
     List<SessionToken> findByEvent_EventIdAndRoleAndRevokedFalseAndExpiresAtAfter(
         Long eventId, String role, LocalDateTime now);
+
+    List<SessionToken> findByEvent_EventIdAndRevokedFalse(Long eventId);
 }

@@ -2,8 +2,8 @@
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
-import { setActiveEvent } from '@/utils/auth';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
+import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
@@ -664,6 +664,73 @@ watch(activeGenreTab, async (tabName) => {
     const genre = eventGenres.value.find(g => g.name === tabName)
     if (genre) await loadJudgesForDivision(genre)
   }
+})
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── Session Links ──────────────────────────────────────────────────────────
+const authStore = useAuthStore()
+const sessionLinksExpanded = ref(false)
+const sessionTokens = ref([])
+const sessionTokensLoading = ref(false)
+const selectedJudgeId = ref('')
+const generatingRole = ref(null)
+
+const isAdminOrOrganiser = computed(() => {
+  const auth = authStore.user?.role?.[0]?.authority
+  return auth === 'ROLE_ADMIN' || auth === 'ROLE_ORGANISER'
+})
+
+const allUniqueJudges = computed(() => {
+  const seen = new Set()
+  const result = []
+  for (const judges of Object.values(divisionJudges.value)) {
+    for (const j of judges) {
+      if (!seen.has(j.judgeId)) {
+        seen.add(j.judgeId)
+        result.push(j)
+      }
+    }
+  }
+  return result
+})
+
+const loadSessionTokens = async () => {
+  if (!dbEventId.value) return
+  sessionTokensLoading.value = true
+  sessionTokens.value = await getSessionTokens(dbEventId.value)
+  sessionTokensLoading.value = false
+}
+
+const handleGenerateToken = async (role) => {
+  if (!dbEventId.value) return
+  let judgeId = null
+  if (role === 'JUDGE') {
+    judgeId = Number(selectedJudgeId.value)
+    if (!judgeId) return
+  }
+  generatingRole.value = role
+  await generateToken(role, dbEventId.value, judgeId)
+  generatingRole.value = null
+  selectedJudgeId.value = ''
+  await loadSessionTokens()
+}
+
+const handleRevokeToken = async (tokenId) => {
+  await revokeSessionToken(tokenId)
+  await loadSessionTokens()
+}
+
+const copyTokenLink = (url) => {
+  navigator.clipboard.writeText(window.location.origin + url)
+}
+
+const formatExpiry = (expiresAt) => {
+  const d = new Date(expiresAt)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+watch(sessionLinksExpanded, async (val) => {
+  if (val) await loadSessionTokens()
 })
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -1495,6 +1562,95 @@ onUnmounted(() => {
 
       </div>
     </template>
+  </div>
+
+  <!-- Session Links -->
+  <div v-if="isAdminOrOrganiser && tableExist" class="card-hover p-4 relative mt-6">
+    <div class="corner-bar-tl"></div>
+    <button
+      @click="sessionLinksExpanded = !sessionLinksExpanded"
+      :aria-expanded="sessionLinksExpanded"
+      class="w-full flex items-center justify-between text-left"
+    >
+      <div class="flex items-center gap-3">
+        <i class="pi pi-link text-xs" style="color:var(--accent-color)"></i>
+        <span class="type-body text-content-secondary">Session Links</span>
+        <span class="badge-accent">{{ sessionTokens.length }}</span>
+      </div>
+      <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
+         :class="{ 'rotate-180': sessionLinksExpanded }"></i>
+    </button>
+    <div v-if="sessionLinksExpanded" class="mt-4 pt-4 border-t border-surface-600/30">
+      <!-- Generate row -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <button
+          @click="handleGenerateToken('EMCEE')"
+          :disabled="generatingRole === 'EMCEE'"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          EMCEE
+        </button>
+        <button
+          @click="handleGenerateToken('HELPER')"
+          :disabled="generatingRole === 'HELPER'"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          HELPER
+        </button>
+        <select
+          v-model="selectedJudgeId"
+          class="input-base type-label"
+          style="width:auto;min-width:7rem"
+        >
+          <option value="">Select judge…</option>
+          <option v-for="j in allUniqueJudges" :key="j.judgeId" :value="j.judgeId">
+            {{ j.judgeName }}
+          </option>
+        </select>
+        <button
+          @click="handleGenerateToken('JUDGE')"
+          :disabled="generatingRole === 'JUDGE' || !selectedJudgeId"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'" class="mr-1"></i>
+          JUDGE
+        </button>
+      </div>
+
+      <!-- Token list -->
+      <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
+        <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
+      </div>
+      <div v-else-if="sessionTokens.length === 0" class="type-label text-content-muted py-4">
+        No active session links
+      </div>
+      <div v-else class="space-y-2">
+        <div
+          v-for="t in sessionTokens"
+          :key="t.tokenId"
+          class="para-chip px-3 py-2 flex items-center gap-3"
+        >
+          <span
+            class="badge-neutral text-xs shrink-0"
+            :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
+          >{{ t.role }}</span>
+          <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
+          <span class="type-label text-content-muted text-xs shrink-0 ml-auto">{{ formatExpiry(t.expiresAt) }}</span>
+          <button
+            @click="copyTokenLink(t.url)"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
+            title="Copy link"
+          ><i class="pi pi-copy text-xs"></i></button>
+          <button
+            @click="handleRevokeToken(t.tokenId)"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors shrink-0"
+            title="Revoke"
+          ><i class="pi pi-trash text-xs"></i></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   </template>
