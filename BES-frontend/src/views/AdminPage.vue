@@ -1,5 +1,5 @@
 <script setup>
-import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
+import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -52,9 +52,24 @@ const addGroupInput = ref('')
 const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
 
+const organisers = ref([])
+
+const toggleOrganiserEvent = async (accountId, eventId, isAssigned) => {
+  if (isAssigned) {
+    await removeOrganiserFromEvent(accountId, eventId)
+  } else {
+    await assignOrganiserToEvent(accountId, eventId)
+  }
+  organisers.value = await getOrganisers() ?? []
+}
+
+const isEventAssigned = (organiser, eventId) => {
+  return organiser.assignedEventIds?.includes(eventId) ?? false
+}
+
 const accentInput = ref('#ffffff')
 const activeTab = ref('genres')
-const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme'])
+const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme', 'organisers'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -153,6 +168,7 @@ onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
+  organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
 })
@@ -360,6 +376,46 @@ onMounted(async () => {
           <div v-if="images.length === 0" class="col-span-full type-label text-content-muted py-4">
             No images uploaded
           </div>
+        </div>
+      </div>
+
+      <!-- ── Organisers ────────────────────────────────────── -->
+      <div v-if="activeTab === 'organisers'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Organisers</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ organisers.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <p class="type-label text-content-muted mb-4">Assign or remove events for each organiser.</p>
+
+        <div class="space-y-3">
+          <div
+            v-for="org in organisers"
+            :key="org.id"
+            class="card-hover p-4 relative"
+          >
+            <div class="corner-bar-tl"></div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="type-body text-content-primary">{{ org.username }}</span>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="e in events"
+                :key="e.id"
+                @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
+                class="para-chip-sm type-label px-3 py-1 transition-all duration-150"
+                :class="isEventAssigned(org, e.id) ? 'bg-accent text-surface-900' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
+              >{{ e.name }}</button>
+            </div>
+
+            <p v-if="events.length === 0" class="type-label text-content-muted py-1">No events available</p>
+          </div>
+
+          <p v-if="organisers.length === 0" class="type-label text-content-muted py-4">
+            No organiser accounts found
+          </p>
         </div>
       </div>
 

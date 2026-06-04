@@ -201,6 +201,36 @@ export const addFeedbackTag = async (groupId, label) => {
     } catch (_err) { /* network error — caller handles undefined return */ }
 }
 
+export const getOrganisers = async () => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/organisers`, { credentials: 'include' })
+        if (res.ok) return await res.json()
+        return []
+    } catch (_err) { return [] }
+}
+
+export const assignOrganiserToEvent = async (accountId, eventId) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/organisers/assign`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId, eventId })
+        })
+    } catch (_err) { /* network error — caller handles undefined return */ }
+}
+
+export const removeOrganiserFromEvent = async (accountId, eventId) => {
+    try {
+        return await fetch(`${domain}/api/v1/admin/organisers/assign`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId, eventId })
+        })
+    } catch (_err) { /* network error — caller handles undefined return */ }
+}
+
 export const deleteFeedbackTag = async (id) => {
     try {
         return await fetch(`${domain}/api/v1/admin/feedback-tag`, {
