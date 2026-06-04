@@ -1,5 +1,4 @@
 <script setup>
-import ReusableDropdown from '@/components/ReusableDropdown.vue'
 import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, getSmokeList, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
@@ -8,7 +7,7 @@ import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient } from '@/utils/websocket'
 
-const { selectedEvent, selectedGenre, initialiseDropdown, selectedJudge } = useDropdowns()
+const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
 
@@ -21,7 +20,6 @@ const currentWinner = ref(-2)
 const currentRound = ref(0)
 const currentTop = ref('')
 const battlePhase = ref('IDLE')
-const showResetConfirm = ref(false)
 const showSizeChangeConfirm = ref(false)  // prompt before switching bracket size
 const showRoundChangeConfirm = ref(false) // prompt before switching round during battle
 const pendingSize = ref(null)            // the size user wants to switch to
@@ -43,6 +41,87 @@ const markSaved  = () => {
   saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2200)
 }
 const _markSaveError = () => { saveStatus.value = 'error' }
+
+// ── Setup panel state ──────────────────────────────────────────
+const setupExpanded = ref(true)
+
+const setupLocked = computed(() =>
+  battlePhase.value !== 'IDLE' ||
+  (currentBattle.value?.length ?? 0) > 0 ||
+  (!isSmoke.value && Object.values(rounds.value).some(
+    list => Array.isArray(list) && list.some(m => Array.isArray(m) && m[2])
+  )) ||
+  (isSmoke.value && Array.isArray(rounds.value) && rounds.value.some(r => (r?.score ?? 0) > 0))
+)
+
+// Auto-collapse setup panel the first time a battle starts
+watch(setupLocked, (locked) => {
+  if (locked) setupExpanded.value = false
+}, { once: true })
+
+// ── Reset bracket inline two-step ─────────────────────────────
+const resetConfirmStep = ref(0) // 0 = idle, 1 = awaiting confirm
+
+// ── WIN button confirmation ────────────────────────────────────
+// { roundKey, matchIdx, slotIdx, name, replacing } — null when no pending confirm
+const pendingWin = ref(null)
+
+const requestWin = (roundKey, matchIdx, slotIdx, name) => {
+  const currentWinnerName = rounds.value[roundKey]?.[matchIdx]?.[2] ?? null
+  pendingWin.value = { roundKey, matchIdx, slotIdx, name, replacing: currentWinnerName }
+}
+
+const confirmWin = () => {
+  if (!pendingWin.value) return
+  const { roundKey, matchIdx, slotIdx } = pendingWin.value
+  setWinner(roundKey, matchIdx, slotIdx)
+  pendingWin.value = null
+}
+
+const cancelWin = () => { pendingWin.value = null }
+
+// ── Start-from-here confirmation ──────────────────────────────
+// { top, pairList, matchIdx } — null when no pending confirm
+const pendingStartAt = ref(null)
+
+const requestStartAt = (top, pairList, matchIdx) => {
+  pendingStartAt.value = { top, pairList, matchIdx }
+}
+
+const confirmStartAt = async () => {
+  if (!pendingStartAt.value) return
+  const { top, pairList, matchIdx } = pendingStartAt.value
+  pendingStartAt.value = null
+  await initiateBattlePairAt(top, pairList, matchIdx)
+}
+
+const cancelStartAt = () => { pendingStartAt.value = null }
+
+// ── Genre switcher — per-genre status dot ─────────────────────
+// Returns 'champion' | 'active' | 'idle'
+const _genreStatusDotMap = computed(() => {
+  const map = {}
+  for (const genre of uniqueGenres.value) {
+    if (genreChampions.value[genre]) { map[genre] = 'champion'; continue }
+    const phase = genre === selectedGenre.value
+      ? battlePhase.value
+      : (JSON.parse(localStorage.getItem(genreBattleStateKey(genre)) ?? '{}').phase ?? 'IDLE')
+    map[genre] = ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
+  }
+  return map
+})
+
+const genreStatusDot = (genre) => _genreStatusDotMap.value[genre] ?? 'idle'
+
+const canSwitchGenre = computed(() =>
+  battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
+)
+
+const genreSwitchBlockReason = computed(() => {
+  if (battlePhase.value === 'LOCKED' || battlePhase.value === 'VOTING') return 'Finish this match first'
+  if (battlePhase.value === 'REVEALED') return 'Click Next to advance, then switch genres'
+  return ''
+})
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
@@ -217,21 +296,6 @@ const initiateBattlePair = async (top, pairList) => {
   markSaved()
 }
 
-const prevPair = async () => {
-  if (currentBattle.value.length !== 0 && currentBattle.value[0] > 0) {
-    markSaving()
-    currentBattle.value = [currentBattle.value[0] - 1, currentBattle.value[1]]
-    const left = currentBattle?.value[1][currentBattle?.value[0]][0]
-    const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-    await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right))
-    await setBattlePhase('LOCKED')
-    battlePhase.value = 'LOCKED'
-    currentWinner.value = -2
-    currentRound.value -= 1
-    saveGenreBattleState(selectedGenre.value)
-    markSaved()
-  }
-}
 
 const nextPair = async () => {
   if (currentBattle.value.length === 0) return
@@ -926,7 +990,6 @@ const voteWeightDisplay = computed(() => {
   }
 })
 
-const allJudgeOptions = computed(() => ["", ...Object.values(allJudges.value).map(j => j.judgeName)])
 
 // Per-genre battle state persistence — saves which round/match was in progress so
 // switching genres and back re-broadcasts the correct pair to the overlay automatically.
@@ -1161,6 +1224,21 @@ const submitRemoveBattleJudge = async (name) => {
   saveGenreJudges(selectedGenre.value)
 }
 
+const sortedJudgesForToggle = computed(() => {
+  const activeMap = new Map((battleJudges.value?.judges ?? []).map(j => [j.name, j]))
+  const all = Object.values(allJudges.value).map(j => {
+    const active = activeMap.get(j.judgeName)
+    return { name: j.judgeName, active: !!active, id: active?.id ?? null, weightage: active?.weightage ?? 1 }
+  })
+  return all.sort((a, b) => Number(b.active) - Number(a.active))
+})
+
+const toggleBattleJudge = (judgeName) => {
+  const active = (battleJudges.value?.judges ?? []).some(j => j.name === judgeName)
+  if (active) submitRemoveBattleJudge(judgeName)
+  else submitAddBattleJudge(judgeName)
+}
+
 const fetchBattleGuests = async () => {
   if (!selectedEvent.value) return
   const res = await getBattleGuests(selectedEvent.value)
@@ -1327,7 +1405,6 @@ const openVoting = async () => {
 }
 
 const confirmResetBracket = async () => {
-  showResetConfirm.value = false
   localStorage.removeItem(`Top${topSize.value}${selectedEvent.value}${selectedGenre.value}Rounds`)
   rounds.value = initRounds()
   placeGuestsInBracket()
@@ -1392,6 +1469,7 @@ const effectivePhase = computed(() =>
 
 // Guard: prompt before switching round tab when battle is in progress
 const requestRoundChange = (idx) => {
+  if (roundTabStatus(idx) === 'locked') return
   if (battlePhase.value !== 'IDLE' && idx !== activeRoundIdx.value) {
     pendingRoundIdx.value = idx
     showRoundChangeConfirm.value = true
@@ -1411,15 +1489,11 @@ const cancelRoundChange = () => {
   pendingRoundIdx.value = null
 }
 
-// Guard: prompt before switching genre when battle is in progress
+// Guard: block genre switch when battle is in progress
 const requestGenreChange = (genre) => {
-  if (battlePhase.value !== 'IDLE' && battlePhase.value !== 'DECIDED' && genre !== selectedGenre.value) {
-    if (confirm(`A battle is in progress for "${selectedGenre.value}". Switching to "${genre}" will save the current state. Continue?`)) {
-      selectedGenre.value = genre
-    }
-  } else {
-    selectedGenre.value = genre
-  }
+  if (genre === selectedGenre.value) return
+  if (!canSwitchGenre.value) return  // hard block — tooltip on button explains why
+  selectedGenre.value = genre
 }
 
 watch(selectedEvent, async (newVal, oldVal) => {
@@ -1859,30 +1933,83 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Config bar + Bracket (merged) -->
-    <div class="card p-5">
+    <!-- Genre switcher — page-level selector, above both panels -->
+    <div class="card px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
+      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-for="g in uniqueGenres"
+          :key="g"
+          @click="requestGenreChange(g)"
+          class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+          :class="[
+            selectedGenre === g
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : !canSwitchGenre && g !== selectedGenre
+                ? 'text-content-muted/40 cursor-not-allowed'
+                : 'text-content-muted hover:text-content-primary'
+          ]"
+          :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
+          :disabled="g !== selectedGenre && !canSwitchGenre"
+        >
+          <template v-if="genreStatusDot(g) === 'champion'">
+            <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
+          </template>
+          <template v-else-if="genreStatusDot(g) === 'active'">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
+          </template>
+          <template v-else>
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
+          </template>
+          {{ g }}
+        </button>
+      </div>
+      <span
+        v-if="uniqueGenres.length > 1 && !canSwitchGenre"
+        class="type-label text-amber-400/70"
+        style="font-size:10px;letter-spacing:0.12em"
+      >{{ genreSwitchBlockReason }}</span>
+    </div>
+
+    <!-- Setup panel (collapsible, locks once battle starts) -->
+    <div class="card overflow-hidden">
+      <!-- Header — always visible, click to expand/collapse -->
+      <div
+        class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+        :class="setupLocked ? 'border-b border-surface-600/40' : (setupExpanded ? 'border-b border-surface-600/40' : '')"
+        @click="setupExpanded = !setupExpanded"
+      >
+        <div class="flex items-center gap-3">
+          <span class="type-label text-content-secondary" style="letter-spacing:0.18em">SETUP</span>
+          <span
+            v-if="setupLocked"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label"
+            style="font-size:10px;letter-spacing:0.14em;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+          >
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
+            <span class="text-amber-400">LOCKED · BATTLE IN PROGRESS</span>
+          </span>
+        </div>
+        <i class="pi text-content-muted transition-transform duration-200" :class="setupExpanded ? 'pi-chevron-up' : 'pi-chevron-down'" style="font-size:11px"></i>
+      </div>
+
+      <!-- Collapsible content -->
+      <div v-show="setupExpanded" class="p-5">
+
+      <!-- Locked banner -->
+      <div
+        v-if="setupLocked"
+        class="mb-4 px-4 py-3 flex items-center gap-3"
+        style="border-left:3px solid rgba(245,158,11,0.6);background:rgba(245,158,11,0.06)"
+      >
+        <span class="type-label text-amber-400" style="font-size:11px;letter-spacing:0.16em">Setup locked — Reset Bracket to modify</span>
+      </div>
+
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <!-- Event name -->
         <span class="font-heading font-bold text-base text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-        <span class="text-surface-600 select-none">|</span>
-
-        <!-- Genre toggle -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="g in uniqueGenres"
-            :key="g"
-            @click="requestGenreChange(g)"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
-            :class="selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >
-            {{ g }}
-            <i v-if="(g === selectedGenre && battlePhase === 'DECIDED') || genreChampions[g]" class="pi pi-star-fill text-[9px] text-amber-400" title="Champion locked — ready to reveal"></i>
-          </button>
-        </div>
-        <!-- Format toggle — hidden for smoke genres (format auto-detected from genre name) -->
-        <template v-if="!isGenreSmoke">
+        <!-- Format toggle — hidden for smoke genres and when locked -->
+        <template v-if="!isGenreSmoke && !setupLocked">
           <span class="text-surface-600 select-none">|</span>
           <div class="flex flex-wrap gap-2">
             <button
@@ -1904,111 +2031,57 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 mt-3">
-        <!-- Active judge slots -->
-        <div class="flex flex-wrap gap-3 flex-1 min-w-0">
-          <div
-            v-for="(j, index) in battleJudges?.judges || []"
-            :key="index"
-            class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
-          >
-            <div class="corner-bar-tl"></div>
-            <span class="type-body text-content-primary">{{ j.name }}</span>
-            <div class="flex items-center gap-1">
-              <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
-              <input
-                type="number"
-                :value="j.weightage ?? 1"
-                min="1"
-                class="w-10 bg-surface-900 border border-surface-600 text-content-primary text-center type-body"
-                style="padding:2px 4px;font-size:12px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-                @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
-              />
-            </div>
-            <button
-              @click="submitRemoveBattleJudge(j.name)"
-              class="flex items-center justify-center hover:text-red-400 transition-colors"
+      <!-- Toggle buttons when unlocked; read-only cards when locked -->
+      <div class="mt-3">
+        <template v-if="!setupLocked">
+          <div class="flex flex-wrap gap-2">
+            <div
+              v-for="j in sortedJudgesForToggle"
+              :key="j.name"
+              @click="toggleBattleJudge(j.name)"
+              class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
+              :class="j.active
+                ? 'text-accent border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]'
+                : 'text-content-muted/40 hover:text-content-muted border-surface-600/30'"
             >
-              <i class="pi pi-times text-xs"></i>
-            </button>
+              <i v-if="j.active" class="pi pi-check text-[9px]"></i>
+              {{ j.name }}
+              <template v-if="j.active">
+                <span class="type-label text-content-muted ml-1" style="font-size:9px;letter-spacing:0.12em;opacity:0.7">WT</span>
+                <input
+                  type="number"
+                  :value="j.weightage"
+                  min="1"
+                  @click.stop
+                  @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
+                  class="w-8 bg-surface-900 border border-surface-600/60 text-accent text-center type-body"
+                  style="padding:1px 2px;font-size:11px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+                />
+              </template>
+            </div>
+            <span v-if="!sortedJudgesForToggle.length" class="type-label text-content-muted">No judges available</span>
           </div>
-          <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
-        </div>
-
-        <!-- Add control pushed to the right -->
-        <div class="ml-auto flex items-center gap-2">
-          <div class="w-44">
-            <ReusableDropdown v-model="selectedJudge" labelId="" :options="allJudgeOptions" />
+        </template>
+        <template v-else>
+          <div class="flex flex-wrap gap-3">
+            <div
+              v-for="(j, index) in battleJudges?.judges || []"
+              :key="index"
+              class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
+            >
+              <div class="corner-bar-tl"></div>
+              <span class="type-body text-content-primary">{{ j.name }}</span>
+              <div class="flex items-center gap-1">
+                <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
+                <span class="type-body text-content-muted" style="font-size:12px;min-width:2.5rem;text-align:center">{{ j.weightage ?? 1 }}</span>
+              </div>
+            </div>
+            <span v-if="!battleJudges?.judges?.length" class="type-label text-content-muted">None added</span>
           </div>
-          <button
-            @click="submitAddBattleJudge(selectedJudge)"
-            class="bg-accent para-chip-sm px-3 py-1.5 type-label transition-all duration-200 whitespace-nowrap"
-          >
-            <i class="pi pi-plus text-xs"></i>
-            Add
-          </button>
-        </div>
+        </template>
       </div>
 
-      <!-- Overlay Settings -->
-      <details class="overlay-settings-panel">
-        <summary class="overlay-settings-summary">Overlay Settings</summary>
-        <div class="overlay-settings-body">
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Left Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Left team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#dc2626"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Right Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Right team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#2563eb"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Show Images</span>
-            <label class="overlay-toggle">
-              <input
-                type="checkbox"
-                v-model="overlayConfig.showImages"
-                @change="pushOverlayConfig"
-              />
-              <span class="overlay-toggle-track"></span>
-            </label>
-          </div>
-        </div>
-    <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
-      </details>
-
+      <template v-if="!setupLocked">
       <div class="section-rule">
         <span class="section-rule-label">Seeding</span>
         <div class="section-rule-line"></div>
@@ -2079,6 +2152,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <template v-if="!setupLocked || guestsForCurrentGenre.length > 0">
       <div class="section-rule">
         <span class="section-rule-label">Battle Guests</span>
         <div class="section-rule-line"></div>
@@ -2109,8 +2183,9 @@ onUnmounted(() => {
                 >{{ g.memberNames.join(' · ') }}</div>
               </div>
             </div>
-            <!-- remove button — visually separated strip -->
+            <!-- remove button — hidden when locked -->
             <button
+              v-if="!setupLocked"
               @click="submitRemoveBattleGuest(g)"
               class="flex items-center justify-center px-2.5 flex-shrink-0 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Remove guest"
@@ -2121,8 +2196,8 @@ onUnmounted(() => {
           <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
 
-        <!-- Add guest form pushed to the right -->
-        <div class="ml-auto flex flex-col gap-2 flex-shrink-0">
+        <!-- Add guest form — hidden when locked -->
+        <div v-if="!setupLocked" class="ml-auto flex flex-col gap-2 flex-shrink-0">
           <div class="flex items-center gap-2">
             <input
               v-model="newGuestName"
@@ -2158,9 +2233,10 @@ onUnmounted(() => {
           />
         </div>
       </div>
+      </template><!-- end v-if for Battle Guests -->
 
       <!-- ── Seeding Pool ──────────────────────────────── -->
-      <div class="mb-5">
+      <div v-if="!setupLocked" class="mb-5">
         <div class="section-rule">
           <span class="section-rule-label">Seeding Pool</span>
           <span v-if="guestsForCurrentGenre.length" class="type-label text-content-muted ml-2">
@@ -2187,6 +2263,7 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
+      </template><!-- end v-if="!setupLocked" for Seeding block -->
 
       <div class="section-rule">
         <span class="section-rule-label">Bracket</span>
@@ -2241,17 +2318,17 @@ onUnmounted(() => {
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 0)"
+                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 0)"
                   @dragleave="dragOverKey = null"
-                  @drop.prevent="onDrop(`Top${size}`, mIdx, 0)"
+                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 0)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[0]"
-                    draggable="true"
-                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 0, e)"
-                    @dragend="onDragEnd"
-                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
-                    :class="match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary'"
+                    :draggable="!setupLocked"
+                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 0, $event)"
+                    @dragend="!setupLocked && onDragEnd()"
+                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[0] }}</span>
@@ -2267,10 +2344,10 @@ onUnmounted(() => {
                     </div>
                   </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[0]"
-                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 0)"
+                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
                     class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
@@ -2290,17 +2367,17 @@ onUnmounted(() => {
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="onDragOver(`Top${size}`, mIdx, 1)"
+                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 1)"
                   @dragleave="dragOverKey = null"
-                  @drop.prevent="onDrop(`Top${size}`, mIdx, 1)"
+                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 1)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[1]"
-                    draggable="true"
-                    @dragstart="(e) => onDragStart(`Top${size}`, mIdx, 1, e)"
-                    @dragend="onDragEnd"
-                    class="flex-1 min-w-0 select-none cursor-grab active:cursor-grabbing flex items-center gap-3"
-                    :class="match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary'"
+                    :draggable="!setupLocked"
+                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 1, $event)"
+                    @dragend="!setupLocked && onDragEnd()"
+                    class="flex-1 min-w-0 select-none flex items-center gap-3"
+                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[1] }}</span>
@@ -2316,18 +2393,18 @@ onUnmounted(() => {
                     </div>
                   </div>
                   <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
                   <button
                     :disabled="!match[1]"
-                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : setWinner(`Top${size}`, mIdx, 1)"
+                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
                     class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
-                <!-- Start from this match — only when round is idle and all slots filled -->
+                <!-- Start from this match — only when round is idle, all slots filled, and match has no winner yet -->
                 <button
-                  v-if="match[0] && match[1] && isActiveRoundFilled && effectivePhase === 'IDLE'"
-                  @click="initiateBattlePairAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
+                  v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
+                  @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
                   class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
                 ><i class="pi pi-play text-[10px]"></i></button>
@@ -2335,7 +2412,7 @@ onUnmounted(() => {
             </div>
 
             <button
-              v-if="effectivePhase === 'IDLE'"
+              v-if="effectivePhase === 'IDLE' && !setupLocked"
               :disabled="!isActiveRoundFilled"
               @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
               class="w-full py-2 para-chip type-label transition-all duration-200"
@@ -2346,7 +2423,8 @@ onUnmounted(() => {
               Start Round
             </button>
             <div v-else class="w-full py-2 text-center type-label text-content-muted">
-              Active battle in {{ currentTop }}
+              <template v-if="currentTop === `Top${size}`">Active battle in Top{{ size }}</template>
+              <template v-else-if="rounds[`Top${size}`]?.every(m => Array.isArray(m) && m[2])">Round complete</template>
             </div>
           </div>
         </template>
@@ -2364,12 +2442,12 @@ onUnmounted(() => {
           <div
             v-for="(match, mIdx) in rounds"
             :key="mIdx"
-            :draggable="!!match.name"
-            @dragstart="(e) => onSmokeDragStart(mIdx, e)"
+            :draggable="!!match.name && !setupLocked"
+            @dragstart="!setupLocked && onSmokeDragStart(mIdx, $event)"
             @dragend="onDragEnd"
-            @dragover.prevent="onSmokeDragOver(mIdx)"
+            @dragover.prevent="!setupLocked && onSmokeDragOver(mIdx)"
             @dragleave="dragOverKey = null"
-            @drop.prevent="onSmokeDrop(mIdx)"
+            @drop.prevent="!setupLocked && onSmokeDrop(mIdx)"
             class="card-hover relative flex items-stretch overflow-hidden transition-all duration-150"
             :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-primary-500/70 bg-primary-500/10' :
                     (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-primary-400/80 bg-primary-400/12' : '')"
@@ -2394,7 +2472,7 @@ onUnmounted(() => {
             </div>
             <!-- clear button — only for filled non-guest slots -->
             <button
-              v-if="match.name && !isGuestSlot(match.name)"
+              v-if="!setupLocked && match.name && !isGuestSlot(match.name)"
               @click.stop="clearSmokeSlot(mIdx)"
               class="flex items-center justify-center px-2 flex-shrink-0 border-l border-surface-600/30 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Clear slot"
@@ -2403,6 +2481,7 @@ onUnmounted(() => {
         </div>
 
         <button
+          v-if="!setupLocked || currentBattle.length === 0"
           @click="initiateBattlePair(0, 0)"
           class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
         >
@@ -2410,28 +2489,113 @@ onUnmounted(() => {
           Start Round
         </button>
       </div>
-    </div> <!-- end merged card -->
 
-    <!-- Reset bracket confirmation modal -->
-    <Transition name="fade">
-      <div v-if="showResetConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
-          <div class="corner-bar-tl"></div>
-          <div class="type-page-title text-lg mb-2">Reset Bracket?</div>
-          <p class="type-body text-content-muted mb-6">This will clear all bracket data and set the battle phase to IDLE. This cannot be undone.</p>
-          <div class="flex gap-3 justify-end">
+      <!-- ── Setup actions ──────────────────────────────── -->
+      <div class="section-rule mt-5 mb-4">
+        <span class="section-rule-label">Actions</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <!-- Reset Bracket: two-step inline confirm -->
+        <template v-if="resetConfirmStep === 0">
+          <button
+            @click="resetConfirmStep = 1"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 hover:border-red-500/60 transition-all"
+          >
+            <i class="pi pi-refresh text-xs"></i>
+            Reset Bracket
+          </button>
+        </template>
+        <template v-else>
+          <div
+            class="flex flex-wrap items-center gap-3 px-4 py-3 w-full"
+            style="border-left:3px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.08)"
+          >
+            <span class="type-label text-red-400 flex-1" style="font-size:11px;letter-spacing:0.12em">
+              Clear all bracket data for {{ selectedGenre }}? Cannot be undone.
+            </span>
             <button
-              @click="showResetConfirm = false"
-              class="para-chip-sm px-4 py-2 type-label transition-all"
+              @click="confirmResetBracket(); resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all whitespace-nowrap"
+            >Confirm Reset</button>
+            <button
+              @click="resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all"
             >Cancel</button>
-            <button
-              @click="confirmResetBracket"
-              class="para-chip-sm px-4 py-2 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all"
-            >Reset</button>
+          </div>
+        </template>
+
+        <!-- File upload -->
+        <label
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 cursor-pointer transition-all"
+        >
+          <i class="pi pi-upload text-xs"></i>
+          Upload Images
+          <input type="file" multiple @change="onFileChange" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Overlay Settings -->
+      <details class="overlay-settings-panel mt-2">
+        <summary class="overlay-settings-summary">Overlay Settings</summary>
+        <div class="overlay-settings-body">
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Left Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Left team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#dc2626"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Right Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Right team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#2563eb"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Show Images</span>
+            <label class="overlay-toggle">
+              <input
+                type="checkbox"
+                v-model="overlayConfig.showImages"
+                @change="pushOverlayConfig"
+              />
+              <span class="overlay-toggle-track"></span>
+            </label>
           </div>
         </div>
-      </div>
-    </Transition>
+        <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
+      </details>
+
+      </div> <!-- end collapsible content -->
+    </div> <!-- end setup card -->
 
     <!-- Bracket size change confirmation modal -->
     <Transition name="fade">
@@ -2766,15 +2930,8 @@ onUnmounted(() => {
           </button>
         </template>
 
-        <!-- REVEALED: previous + next -->
+        <!-- REVEALED: next only -->
         <template v-if="battlePhase === 'REVEALED'">
-          <button
-            @click="prevPair"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
-          >
-            <i class="pi pi-chevron-left text-xs"></i>
-            Previous
-          </button>
           <button
             @click="nextPair"
             class="bg-accent para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
@@ -2805,26 +2962,6 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Always-visible actions -->
-      <div class="flex flex-wrap gap-2 mt-2">
-        <button
-          @click="showResetConfirm = true"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 transition-all"
-        >
-          <i class="pi pi-refresh text-xs"></i>
-          Reset Bracket
-        </button>
-
-        <!-- File upload -->
-        <label
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 cursor-pointer transition-all"
-        >
-          <i class="pi pi-upload text-xs"></i>
-          Upload Images
-          <input type="file" multiple @change="onFileChange" class="hidden" />
-        </label>
-      </div>
-
       <!-- Uploaded images list -->
       <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
         <div class="section-rule mb-3">
@@ -2852,6 +2989,61 @@ onUnmounted(() => {
 
     </div>
   </div>
+
+    <!-- WIN confirmation modal -->
+    <Transition name="fade">
+      <div v-if="pendingWin" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">
+            {{ pendingWin.replacing ? 'Replace Winner?' : 'Set Winner?' }}
+          </div>
+          <p class="type-body text-content-muted mb-1">
+            <template v-if="pendingWin.replacing">
+              Replace <span class="text-content-primary">{{ pendingWin.replacing }}</span> with <span class="text-content-primary">{{ pendingWin.name }}</span>?
+              The next round slot will be updated.
+            </template>
+            <template v-else>
+              Set <span class="text-content-primary">{{ pendingWin.name }}</span> as winner?
+              They will be placed in the next round slot.
+            </template>
+          </p>
+          <p v-if="pendingWin.replacing" class="type-label text-content-muted mb-6" style="font-size:10px;letter-spacing:0.12em">
+            If {{ pendingWin.name }} has already played in a later round, correct those results manually.
+          </p>
+          <p v-else class="mb-6"></p>
+          <div class="flex gap-3 justify-end">
+            <button @click="cancelWin" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
+            <button @click="confirmWin" class="para-chip-sm px-4 py-2 type-label bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 transition-all">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Start-from-here confirmation modal -->
+    <Transition name="fade">
+      <div v-if="pendingStartAt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+          <div class="corner-bar-tl"></div>
+          <div class="type-page-title text-lg mb-2">Start from this match?</div>
+          <p class="type-body text-content-muted mb-1">
+            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
+            vs
+            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
+          </p>
+          <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-content-muted mb-6" style="font-size:10px;letter-spacing:0.12em">
+            Matches before this one will be skipped.
+          </p>
+          <p v-else class="mb-6"></p>
+          <div class="flex gap-3 justify-end">
+            <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
+            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all">
+              <i class="pi pi-play text-xs mr-1.5"></i>Start
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 </template>
 
 <style scoped>
