@@ -2373,6 +2373,7 @@ onUnmounted(() => {
           </span>
           <span
             v-for="p in poolParticipants" :key="p.name"
+            :data-drag-name="p.name"
             @pointerdown="(e) => onPointerDragStart('pool', p.name, e)"
             class="para-chip-sm px-2.5 py-1 type-label text-content-primary cursor-grab active:cursor-grabbing select-none inline-flex items-center gap-1.5"
             :class="poolDragName === p.name ? 'opacity-40' : ''"
