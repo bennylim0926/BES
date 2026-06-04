@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { redeemToken } from '@/utils/api'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,6 +25,9 @@ onMounted(async () => {
     return
   }
   authStore.login(data)
+  if (data.eventId && data.eventName) {
+    setActiveEvent(data.eventId, data.eventName)
+  }
   const authority = data.role?.[0]?.authority
   if (authority === 'ROLE_JUDGE') {
     router.replace('/battle/judge')

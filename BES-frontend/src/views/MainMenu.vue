@@ -11,7 +11,7 @@ const role = computed(() =>
 const activeEvent = computed(() => authStore.activeEvent)
 
 const roleDisplay = computed(() => {
-  const labels = { ROLE_ADMIN: 'Admin', ROLE_ORGANISER: 'Organiser', ROLE_JUDGE: 'Judge', ROLE_EMCEE: 'Emcee' }
+  const labels = { ROLE_ADMIN: 'Admin', ROLE_ORGANISER: 'Organiser', ROLE_JUDGE: 'Judge', ROLE_EMCEE: 'Emcee', ROLE_HELPER: 'Helper' }
   const label = labels[role.value]
   return label ? { label } : null
 })

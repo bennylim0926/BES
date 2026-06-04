@@ -43,6 +43,7 @@ const roleDisplay = computed(() => {
     ROLE_ORGANISER: 'Organiser',
     ROLE_JUDGE:     'Judge',
     ROLE_EMCEE:     'Emcee',
+    ROLE_HELPER:    'Helper',
   }
   const label = labels[role.value]
   return label ? { label } : null

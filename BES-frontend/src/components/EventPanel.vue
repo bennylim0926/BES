@@ -19,7 +19,7 @@ const emit = defineEmits([
 const ALL_TILES = [
   { key: 'details',      icon: 'pi-cog',      label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
   { key: 'audition',     icon: 'pi-list',      label: 'Audition',     roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
-  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
+  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
   { key: 'score',        icon: 'pi-chart-bar', label: 'Score',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'] },
   { key: 'battle',       icon: 'pi-bolt',      label: 'Battle',       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_JUDGE'] },
   { key: 'numbers',      icon: 'pi-hashtag',   label: 'Numbers',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },

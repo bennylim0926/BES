@@ -140,12 +140,14 @@ public class AuthController {
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
 
             Long eventId = token.getEvent().getEventId();
+            String eventName = token.getEvent().getEventName();
             session.setAttribute("eventId", eventId);
 
             Map<String, Object> response = new HashMap<>();
             response.put("authenticated", true);
             response.put("role", authToken.getAuthorities());
             response.put("eventId", eventId);
+            response.put("eventName", eventName);
 
             if (token.getJudge() != null) {
                 Long judgeId = token.getJudge().getJudgeId();
