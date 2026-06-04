@@ -6,6 +6,7 @@ import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient } from '@/utils/websocket'
+import { parseDropKey } from '@/utils/pointerDnd'
 
 const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
@@ -821,6 +822,126 @@ const onSmokeDrop = (tgtIdx) => {
   if (rounds.value[tgtIdx]) rounds.value[tgtIdx] = { ...rounds.value[tgtIdx], name: srcName ?? null }
   localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${selectedGenre.value}Rounds`, JSON.stringify(toRaw(rounds.value)))
   broadcastBracket()
+}
+
+// ── Pointer-events DnD (replaces HTML5 drag API — works on touch + desktop) ──
+
+let _ghostEl = null
+let _ptrMoveHandler = null
+let _ptrUpHandler = null
+
+const _removePtrListeners = () => {
+  if (_ptrMoveHandler) { document.removeEventListener('pointermove', _ptrMoveHandler); _ptrMoveHandler = null }
+  if (_ptrUpHandler)   { document.removeEventListener('pointerup',   _ptrUpHandler);   _ptrUpHandler   = null }
+  document.removeEventListener('pointercancel', _ptrUpHandler ?? (() => {}))
+}
+
+const _cleanupDrag = () => {
+  if (_ghostEl) { document.body.removeChild(_ghostEl); _ghostEl = null }
+  _removePtrListeners()
+  dragSource.value  = null
+  poolDragName.value = null
+  dragOverKey.value  = null
+}
+
+const onPointerDragStart = (type, payload, e) => {
+  if (setupLocked.value) return
+  e.preventDefault()
+
+  // Set existing drag-state refs (drives existing highlight CSS — no template class changes)
+  if (type === 'pool') {
+    poolDragName.value = payload          // payload = name string
+    dragSource.value   = null
+  } else if (type === 'bracket') {
+    dragSource.value   = payload          // payload = { roundKey, matchIdx, slotIdx }
+    poolDragName.value = null
+  } else if (type === 'smoke') {
+    dragSource.value   = { smokeIdx: payload }   // payload = mIdx (number)
+    poolDragName.value = null
+  }
+
+  // Resolve display name for ghost label
+  let ghostName = ''
+  if (type === 'pool') {
+    ghostName = payload
+  } else if (type === 'bracket') {
+    ghostName = rounds.value[payload.roundKey]?.[payload.matchIdx]?.[payload.slotIdx] ?? ''
+  } else if (type === 'smoke') {
+    ghostName = rounds.value[payload]?.name ?? ''
+  }
+
+  // Create ghost element
+  _ghostEl = document.createElement('div')
+  _ghostEl.textContent = ghostName
+  Object.assign(_ghostEl.style, {
+    position:      'fixed',
+    left:          `${e.clientX + 12}px`,
+    top:           `${e.clientY + 12}px`,
+    padding:       '5px 14px',
+    background:    '#1a1a1a',
+    border:        `1.5px solid ${type === 'pool' ? 'rgba(255,255,255,0.25)' : 'rgba(248,113,113,0.65)'}`,
+    borderRadius:  '8px',
+    fontSize:      '12px',
+    fontWeight:    '600',
+    color:         '#f0f0f0',
+    boxShadow:     '0 10px 28px rgba(0,0,0,0.7)',
+    whiteSpace:    'nowrap',
+    pointerEvents: 'none',
+    zIndex:        '9999',
+  })
+  document.body.appendChild(_ghostEl)
+
+  _ptrMoveHandler = (ev) => {
+    _ghostEl.style.left = `${ev.clientX + 12}px`
+    _ghostEl.style.top  = `${ev.clientY + 12}px`
+
+    // Find drop target under pointer (hide ghost first so it doesn't intercept)
+    _ghostEl.style.display = 'none'
+    const el = document.elementFromPoint(ev.clientX, ev.clientY)
+    _ghostEl.style.display = ''
+    const dropEl = el?.closest('[data-drop-key]')
+    if (dropEl) {
+      const parsed = parseDropKey(dropEl.dataset.dropKey)
+      if (parsed?.type === 'bracket') {
+        dragOverKey.value = `${parsed.roundKey}-${parsed.matchIdx}-${parsed.slotIdx}`
+      } else if (parsed?.type === 'smoke') {
+        dragOverKey.value = `smoke-${parsed.idx}`
+      } else {
+        dragOverKey.value = null
+      }
+    } else {
+      dragOverKey.value = null
+    }
+  }
+
+  _ptrUpHandler = (ev) => {
+    _removePtrListeners()
+
+    // Hide ghost before elementFromPoint so it doesn't intercept the hit test
+    if (_ghostEl) _ghostEl.style.display = 'none'
+    const el = document.elementFromPoint(ev.clientX, ev.clientY)
+    if (_ghostEl) { document.body.removeChild(_ghostEl); _ghostEl = null }
+
+    const dropKeyEl = el?.closest('[data-drop-key]')
+    const parsed = dropKeyEl ? parseDropKey(dropKeyEl.dataset.dropKey) : null
+
+    if (parsed && !setupLocked.value) {
+      if (parsed.type === 'bracket') {
+        onDrop(parsed.roundKey, parsed.matchIdx, parsed.slotIdx)
+      } else if (parsed.type === 'smoke') {
+        onSmokeDrop(parsed.idx)
+      }
+    } else {
+      // No valid drop — clear state manually (onDrop/onSmokeDrop would have done this)
+      dragSource.value   = null
+      poolDragName.value = null
+      dragOverKey.value  = null
+    }
+  }
+
+  document.addEventListener('pointermove',  _ptrMoveHandler)
+  document.addEventListener('pointerup',    _ptrUpHandler)
+  document.addEventListener('pointercancel', _ptrUpHandler)
 }
 
 const clearSmokeSlot = (idx) => {
@@ -1850,6 +1971,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  _cleanupDrag()
   for (const sub of Object.values(judgeVoteSubscriptions)) sub.unsubscribe?.()
   deactivateClient(wsClient.value)
 })
@@ -2251,12 +2373,11 @@ onUnmounted(() => {
           </span>
           <span
             v-for="p in poolParticipants" :key="p.name"
-            draggable="true"
-            @dragstart="(e) => onPoolDragStart(p.name, e)"
-            @dragend="onPoolDragEnd"
+            @pointerdown="(e) => onPointerDragStart('pool', p.name, e)"
             class="para-chip-sm px-2.5 py-1 type-label text-content-primary cursor-grab active:cursor-grabbing select-none inline-flex items-center gap-1.5"
             :class="poolDragName === p.name ? 'opacity-40' : ''"
             :title="p.name"
+            style="touch-action: none; user-select: none;"
           >
             <span>{{ p.name }}</span>
             <span class="text-content-muted" style="font-size:10px;letter-spacing:0.05em;opacity:0.7">{{ p.score % 1 === 0 ? p.score : p.score.toFixed(1) }}</span>
@@ -2312,23 +2433,20 @@ onUnmounted(() => {
                 <!-- Slot 0 — left -->
                 <div
                   class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  :data-drop-key="`bracket-Top${size}-${mIdx}-0`"
                   :class="[
                     match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
                     dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 0)"
-                  @dragleave="dragOverKey = null"
-                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 0)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[0]"
-                    :draggable="!setupLocked"
-                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 0, $event)"
-                    @dragend="!setupLocked && onDragEnd()"
+                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 0 }, e)"
                     class="flex-1 min-w-0 select-none flex items-center gap-3"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
+                    style="touch-action: none;"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[0] }}</span>
@@ -2348,7 +2466,7 @@ onUnmounted(() => {
                   <button
                     :disabled="!match[0]"
                     @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                    class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    class="flex-shrink-0 w-11 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
                 </div>
@@ -2361,23 +2479,20 @@ onUnmounted(() => {
                 <!-- Slot 1 — right -->
                 <div
                   class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 transition-all duration-150"
+                  :data-drop-key="`bracket-Top${size}-${mIdx}-1`"
                   :class="[
                     match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
                     dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
                       ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
                       : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
                   ]"
-                  @dragover.prevent="!setupLocked && onDragOver(`Top${size}`, mIdx, 1)"
-                  @dragleave="dragOverKey = null"
-                  @drop.prevent="!setupLocked && onDrop(`Top${size}`, mIdx, 1)"
                 >
                   <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
                   <div v-if="match[1]"
-                    :draggable="!setupLocked"
-                    @dragstart="!setupLocked && onDragStart(`Top${size}`, mIdx, 1, $event)"
-                    @dragend="!setupLocked && onDragEnd()"
+                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 1 }, e)"
                     class="flex-1 min-w-0 select-none flex items-center gap-3"
                     :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
+                    style="touch-action: none;"
                   >
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                       <span class="type-body">{{ match[1] }}</span>
@@ -2397,7 +2512,7 @@ onUnmounted(() => {
                   <button
                     :disabled="!match[1]"
                     @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                    class="flex-shrink-0 w-9 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
+                    class="flex-shrink-0 w-11 text-center rounded text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
                     :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
                   >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
                 </div>
@@ -2405,7 +2520,7 @@ onUnmounted(() => {
                 <button
                   v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
                   @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
-                  class="flex-shrink-0 flex items-center justify-center w-8 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
+                  class="flex-shrink-0 flex items-center justify-center w-10 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
                   title="Start round from this match"
                 ><i class="pi pi-play text-[10px]"></i></button>
               </div>
@@ -2442,16 +2557,12 @@ onUnmounted(() => {
           <div
             v-for="(match, mIdx) in rounds"
             :key="mIdx"
-            :draggable="!!match.name && !setupLocked"
-            @dragstart="!setupLocked && onSmokeDragStart(mIdx, $event)"
-            @dragend="onDragEnd"
-            @dragover.prevent="!setupLocked && onSmokeDragOver(mIdx)"
-            @dragleave="dragOverKey = null"
-            @drop.prevent="!setupLocked && onSmokeDrop(mIdx)"
+            :data-drop-key="`smoke-${mIdx}`"
+            @pointerdown="(e) => !!match.name && onPointerDragStart('smoke', mIdx, e)"
             class="card-hover relative flex items-stretch overflow-hidden transition-all duration-150"
             :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-primary-500/70 bg-primary-500/10' :
                     (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-primary-400/80 bg-primary-400/12' : '')"
-            style="padding:0"
+            style="padding:0; touch-action: none;"
           >
             <div class="corner-bar-tl"></div>
             <!-- position number -->
