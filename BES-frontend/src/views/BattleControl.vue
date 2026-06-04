@@ -1934,6 +1934,44 @@ onUnmounted(() => {
       </div>
     </Transition>
 
+    <!-- Genre switcher — page-level selector, above both panels -->
+    <div class="card px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
+      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-for="g in uniqueGenres"
+          :key="g"
+          @click="requestGenreChange(g)"
+          class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+          :class="[
+            selectedGenre === g
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : !canSwitchGenre && g !== selectedGenre
+                ? 'text-content-muted/40 cursor-not-allowed'
+                : 'text-content-muted hover:text-content-primary'
+          ]"
+          :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
+          :disabled="g !== selectedGenre && !canSwitchGenre"
+        >
+          <template v-if="genreStatusDot(g) === 'champion'">
+            <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
+          </template>
+          <template v-else-if="genreStatusDot(g) === 'active'">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
+          </template>
+          <template v-else>
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
+          </template>
+          {{ g }}
+        </button>
+      </div>
+      <span
+        v-if="uniqueGenres.length > 1 && !canSwitchGenre"
+        class="type-label text-amber-400/70"
+        style="font-size:10px;letter-spacing:0.12em"
+      >{{ genreSwitchBlockReason }}</span>
+    </div>
+
     <!-- Setup panel (collapsible, locks once battle starts) -->
     <div class="card overflow-hidden">
       <!-- Header — always visible, click to expand/collapse -->
@@ -2446,6 +2484,111 @@ onUnmounted(() => {
           Start Round
         </button>
       </div>
+
+      <!-- ── Setup actions ──────────────────────────────── -->
+      <div class="section-rule mt-5 mb-4">
+        <span class="section-rule-label">Actions</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <!-- Reset Bracket: two-step inline confirm -->
+        <template v-if="resetConfirmStep === 0">
+          <button
+            @click="resetConfirmStep = 1"
+            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 hover:border-red-500/60 transition-all"
+          >
+            <i class="pi pi-refresh text-xs"></i>
+            Reset Bracket
+          </button>
+        </template>
+        <template v-else>
+          <div
+            class="flex flex-wrap items-center gap-3 px-4 py-3 w-full"
+            style="border-left:3px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.08)"
+          >
+            <span class="type-label text-red-400 flex-1" style="font-size:11px;letter-spacing:0.12em">
+              Clear all bracket data for {{ selectedGenre }}? Cannot be undone.
+            </span>
+            <button
+              @click="confirmResetBracket(); resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all whitespace-nowrap"
+            >Confirm Reset</button>
+            <button
+              @click="resetConfirmStep = 0"
+              class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all"
+            >Cancel</button>
+          </div>
+        </template>
+
+        <!-- File upload -->
+        <label
+          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 cursor-pointer transition-all"
+        >
+          <i class="pi pi-upload text-xs"></i>
+          Upload Images
+          <input type="file" multiple @change="onFileChange" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Overlay Settings -->
+      <details class="overlay-settings-panel mt-2">
+        <summary class="overlay-settings-summary">Overlay Settings</summary>
+        <div class="overlay-settings-body">
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Left Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Left team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.leftColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#dc2626"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Right Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Right team color"
+              />
+              <input
+                type="text"
+                v-model="overlayConfig.rightColor"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#2563eb"
+                class="overlay-hex-input"
+              />
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Show Images</span>
+            <label class="overlay-toggle">
+              <input
+                type="checkbox"
+                v-model="overlayConfig.showImages"
+                @change="pushOverlayConfig"
+              />
+              <span class="overlay-toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
+      </details>
+
       </div> <!-- end collapsible content -->
     </div> <!-- end setup card -->
 
@@ -2493,49 +2636,6 @@ onUnmounted(() => {
 
     <!-- Live match tracker -->
     <div class="card p-5">
-      <!-- Genre switcher with per-genre status dots -->
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="g in uniqueGenres"
-            :key="g"
-            @click="requestGenreChange(g)"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
-            :class="[
-              selectedGenre === g
-                ? 'text-accent border-[color:var(--accent-muted)]'
-                : !canSwitchGenre && g !== selectedGenre
-                  ? 'text-content-muted/40 cursor-not-allowed'
-                  : 'text-content-muted hover:text-content-primary'
-            ]"
-            :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
-            :disabled="g !== selectedGenre && !canSwitchGenre"
-          >
-            <!-- Status dot -->
-            <template v-if="genreStatusDot(g) === 'champion'">
-              <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
-            </template>
-            <template v-else-if="genreStatusDot(g) === 'active'">
-              <span
-                class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
-                style="box-shadow:0 0 6px rgba(245,158,11,0.7)"
-              ></span>
-            </template>
-            <template v-else>
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
-            </template>
-            {{ g }}
-          </button>
-        </div>
-        <!-- Block reason inline hint when switch is blocked -->
-        <span
-          v-if="uniqueGenres.length > 1 && !canSwitchGenre"
-          class="type-label text-amber-400/70"
-          style="font-size:10px;letter-spacing:0.12em"
-        >{{ genreSwitchBlockReason }}</span>
-      </div>
-
       <div class="section-rule mb-4">
         <span class="section-rule-label">Live Match</span>
         <div class="section-rule-line"></div>
@@ -2866,106 +2966,6 @@ onUnmounted(() => {
           Dismiss Reveal
         </button>
       </div>
-
-      <!-- Always-visible actions -->
-      <div class="flex flex-wrap gap-2 mt-2">
-        <!-- Reset Bracket: two-step inline confirm -->
-        <template v-if="resetConfirmStep === 0">
-          <button
-            @click="resetConfirmStep = 1"
-            class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 text-red-400 border-red-500/30 hover:border-red-500/60 transition-all"
-          >
-            <i class="pi pi-refresh text-xs"></i>
-            Reset Bracket
-          </button>
-        </template>
-        <template v-else>
-          <div
-            class="flex flex-wrap items-center gap-3 px-4 py-3 w-full"
-            style="border-left:3px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.08)"
-          >
-            <span class="type-label text-red-400 flex-1" style="font-size:11px;letter-spacing:0.12em">
-              Clear all bracket data for {{ selectedGenre }}? Cannot be undone.
-            </span>
-            <button
-              @click="confirmResetBracket(); resetConfirmStep = 0"
-              class="para-chip-sm px-3 py-1.5 type-label bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 transition-all whitespace-nowrap"
-            >Confirm Reset</button>
-            <button
-              @click="resetConfirmStep = 0"
-              class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all"
-            >Cancel</button>
-          </div>
-        </template>
-
-        <!-- File upload -->
-        <label
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 cursor-pointer transition-all"
-        >
-          <i class="pi pi-upload text-xs"></i>
-          Upload Images
-          <input type="file" multiple @change="onFileChange" class="hidden" />
-        </label>
-      </div>
-
-      <!-- Overlay Settings -->
-      <details class="overlay-settings-panel mt-2">
-        <summary class="overlay-settings-summary">Overlay Settings</summary>
-        <div class="overlay-settings-body">
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Left Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Left team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.leftColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#dc2626"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Right Color</span>
-            <div class="overlay-color-group">
-              <input
-                type="color"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                class="overlay-color-swatch"
-                title="Right team color"
-              />
-              <input
-                type="text"
-                v-model="overlayConfig.rightColor"
-                @change="pushOverlayConfig"
-                maxlength="7"
-                placeholder="#2563eb"
-                class="overlay-hex-input"
-              />
-            </div>
-          </div>
-          <div class="overlay-setting-row">
-            <span class="overlay-setting-label">Show Images</span>
-            <label class="overlay-toggle">
-              <input
-                type="checkbox"
-                v-model="overlayConfig.showImages"
-                @change="pushOverlayConfig"
-              />
-              <span class="overlay-toggle-track"></span>
-            </label>
-          </div>
-        </div>
-        <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
-      </details>
 
       <!-- Uploaded images list -->
       <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
