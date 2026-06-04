@@ -2372,7 +2372,7 @@ onUnmounted(() => {
                       <span class="type-body">{{ match[0] }}</span>
                       <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1 flex-1 min-w-0">
+                    <div v-if="getMembersFor(match[0]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
                       <span
                         v-for="m in getMembersFor(match[0])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
@@ -2418,7 +2418,7 @@ onUnmounted(() => {
                       <span class="type-body">{{ match[1] }}</span>
                       <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                     </div>
-                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1 flex-1 min-w-0">
+                    <div v-if="getMembersFor(match[1]).length" class="hidden sm:flex flex-wrap gap-1 flex-1 min-w-0">
                       <span
                         v-for="m in getMembersFor(match[1])" :key="m"
                         class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
