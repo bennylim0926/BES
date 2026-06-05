@@ -124,17 +124,17 @@ describe('EventPanel.vue — zones', () => {
     expect(w.text()).toContain('Manage Events')
   })
 
-  it('Emcee sees Change Event link, not Manage Events zone', async () => {
+  it('Emcee sees neither Change Event nor Manage Events (session role — locked event)', async () => {
     const w = mountPanel('ROLE_EMCEE')
     await w.vm.$nextTick()
-    expect(w.text()).toContain('Change Event')
+    expect(w.text()).not.toContain('Change Event')
     expect(w.text()).not.toContain('Manage Events')
   })
 
-  it('Judge sees Change Event link, not Manage Events zone', async () => {
+  it('Judge sees neither Change Event nor Manage Events (session role — locked event)', async () => {
     const w = mountPanel('ROLE_JUDGE')
     await w.vm.$nextTick()
-    expect(w.text()).toContain('Change Event')
+    expect(w.text()).not.toContain('Change Event')
     expect(w.text()).not.toContain('Manage Events')
   })
 
@@ -154,13 +154,11 @@ describe('EventPanel.vue — zones', () => {
     expect(activeRow?.classes()).toContain('text-accent')
   })
 
-  it('emits changeEvent when Change Event clicked (Emcee)', async () => {
+  it('does not show Change Event for session roles (locked identity)', async () => {
     const w = mountPanel('ROLE_EMCEE')
     await w.vm.$nextTick()
     const btn = w.findAll('button').find(b => b.text().includes('Change Event'))
-    await btn.trigger('click')
-    expect(w.emitted('changeEvent')).toBeTruthy()
-    expect(w.emitted('close')).toBeTruthy()
+    expect(btn).toBeUndefined()
   })
 
   it('emits goToAllEvents and close when All Events clicked', async () => {

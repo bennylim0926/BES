@@ -645,16 +645,6 @@ const loadJudgesForDivision = async (genre) => {
   if (!genre) return
   divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
 }
-
-const refreshAllJudges = async () => {
-  allEventJudges.value = await getJudgesByEvent(props.eventName) ?? []
-  // refresh visible division's judge list too
-  if (activeGenreTab.value) {
-    const genre = eventGenres.value.find(g => g.name === activeGenreTab.value)
-    if (genre) await loadJudgesForDivision(genre)
-  }
-}
-
 // Judges not yet assigned to a specific division
 const openAssignDropdown = ref(null)
 

@@ -150,8 +150,11 @@ class JudgeServiceTest {
     @Test
     void addJudgeToDivision_savesAndAddsJudge() {
         Judge j = judge(1L, "Mike");
+        Event e = new Event();
+        e.setEventId(1L);
         EventGenre eg = new EventGenre();
         eg.setId(10L);
+        eg.setEvent(e);
         eg.setJudges(new ArrayList<>());
         when(eventGenreRepo.findById(10L)).thenReturn(Optional.of(eg));
         when(judgeRepo.save(any())).thenReturn(j);

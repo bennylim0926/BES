@@ -10,8 +10,6 @@ const authStore = useAuthStore()
 const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
 const eventName = computed(() => authStore.activeEvent?.name || '')
 const judgeName = computed(() => authStore.judgeName || '')
-const judgeId = computed(() => authStore.judgeId)
-
 const divisions = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -23,7 +21,7 @@ async function loadDivisions() {
   try {
     const data = await getJudgeDivisions(authStore.activeEvent.name, authStore.judgeId)
     divisions.value = data ?? []
-  } catch (e) {
+  } catch {
     error.value = 'Failed to load divisions.'
   } finally {
     loading.value = false

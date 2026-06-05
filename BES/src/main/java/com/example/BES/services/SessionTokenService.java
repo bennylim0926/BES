@@ -43,9 +43,12 @@ public class SessionTokenService {
         if (judgeId != null) {
             judge = judgeRepo.findById(judgeId)
                 .orElseThrow(() -> new IllegalArgumentException("Judge not found: " + judgeId));
-            // Validate judge belongs to the event
-            List<Judge> eventJudges = judgeRepo.findJudgesByEventId(eventId);
-            if (eventJudges.stream().noneMatch(j -> j.getJudgeId().equals(judgeId))) {
+            // Validate judge belongs to the event via division assignment (JPA relationship)
+            boolean belongsToEvent = judge.getEventGenres() != null
+                && judge.getEventGenres().stream()
+                    .anyMatch(eg -> eg.getEvent() != null
+                        && eg.getEvent().getEventId().equals(eventId));
+            if (!belongsToEvent) {
                 throw new IllegalArgumentException("Judge " + judgeId
                     + " does not belong to event " + eventId);
             }
