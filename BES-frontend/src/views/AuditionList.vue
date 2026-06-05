@@ -847,6 +847,7 @@ onMounted(async () => {
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView
+        :key="selectedGenre"
         :participants="filteredParticipantsForEmceeView"
         :mode="judgingMode"
       />
@@ -912,6 +913,7 @@ onMounted(async () => {
       />
       <SwipeableCardsV2
         v-else
+        :key="selectedGenre"
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
         :criteria="criteria"
