@@ -189,11 +189,15 @@ const toggleWinner = (name) => {
 
 const confirmTieBreaker = async () => {
   if (tieBreakerWinners.value.size === spotsFromTie.value) {
-    tieBreakerConfirmed.value = true
-    saveTieBreaker()
-    // Save resolved names server-side so BattleControl reads them from DB
+    // Save resolved names server-side FIRST so BattleControl can read them from DB.
+    // Only confirm locally after the API succeeds — prevents false-positive UI state
+    // when the server call fails silently.
     const resolved = finalRows.value.map(r => r.participantName)
-    await setResolvedParticipants(selectedEvent.value, selectedGenre.value, resolved)
+    const res = await setResolvedParticipants(selectedEvent.value, selectedGenre.value, resolved)
+    if (res && res.ok) {
+      tieBreakerConfirmed.value = true
+      saveTieBreaker()
+    }
   }
 }
 

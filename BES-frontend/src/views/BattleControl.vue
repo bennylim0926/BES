@@ -1,5 +1,5 @@
 <script setup>
-import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, getSmokeList, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
@@ -1584,14 +1584,13 @@ watch(selectedGenre, async (newVal, oldVal) => {
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
     placeGuestsInBracket()
     if (oldVal) {
+      // Switch backend to new genre FIRST — persistActiveState() saves outgoing genre's state,
+      // loadGenreStateIntoMemory() loads incoming genre's state, broadcastStateSnapshot() pushes
+      // the full snapshot to all clients.
       await setActiveGenre(selectedEvent.value, newVal)
-    }
-    // Broadcast local rounds on a genre SWITCH (oldVal truthy).
-    // On initial load (oldVal falsy), setActiveGenre in onMounted hasn't completed yet so the
-    // backend still points at the previous event — broadcasting here would corrupt that event's
-    // DB row. onMounted handles state restoration after setActiveGenre confirms the correct event.
-    if (oldVal) broadcastBracket()
-    if (oldVal) {
+      // Restore local BattleControl UI from the backend state just loaded.
+      // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
+      // from the last mutation, and pushing initRounds() would overwrite it.
       await restoreAndBroadcastGenreBattle(newVal)
     }
     // Sync per-genre judges on genre switch.
@@ -1760,11 +1759,10 @@ onMounted(async () => {
     syncJudgeVoteSubscriptions()
   }
   wsClient.value.activate()
-  // After WS activation, hydrate from REST to cover the gap before subscription went live.
-  // The WS /topic/battle/state subscription above was registered in onConnect BEFORE activate().
-  // This REST call ensures we have state even before the first WS message arrives.
+  // After WS activation, hydrate from the same battleState already fetched above.
+  // The WS /topic/battle/state subscription was registered in onConnect BEFORE activate().
+  // This reuses the existing REST response to cover the gap before the first WS message arrives.
   if (selectedEvent.value && selectedGenre.value) {
-    const battleState = await getBattleState()
     if (battleState) hydrateFromState(battleState)
   }
 })

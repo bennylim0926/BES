@@ -370,6 +370,12 @@ public class BattleService {
                 participants != null ? objectMapper.writeValueAsString(participants) : null);
             s.setUpdatedAt(LocalDateTime.now());
             battleGenreStateRepository.save(s);
+            // Broadcast updated full state so BattleControl in other tabs sees the change.
+            // Only broadcast if the update was for the currently active genre.
+            if (eventName != null && eventName.equals(activeEventName)
+                && genreName != null && genreName.equals(activeGenreName)) {
+                broadcastStateSnapshot();
+            }
         } catch (Exception e) {
             System.err.println("Failed to save resolved participants: " + e.getMessage());
         }

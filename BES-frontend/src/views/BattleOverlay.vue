@@ -36,32 +36,43 @@ const hydrateOverlayFromState = async (state) => {
   if (snapshot === lastOverlayState.value) return
   lastOverlayState.value = snapshot
 
-  // Genre — update if changed
-  if (state.genreName !== undefined && !isSmoke.value) {
+  // Derived mode — update isSmoke FIRST so subsequent guards are correct
+  if (state.genreName !== undefined) {
+    isSmoke.value = genreNameIsSmoke(state.genreName)
     activeGenreName.value = state.genreName
   }
 
-  // Pair — only update if changed (prevents re-triggering entrance animation)
-  if (state.currentPair?.left && !isSmoke.value) {
-    const pairChanged = leftName.value !== state.currentPair.left ||
-                        rightName.value !== state.currentPair.right
-    if (pairChanged) {
-      await updateBattlePair(state.currentPair)
+  // Standard-mode updates (guarded by !isSmoke to prevent corrupting smoke display)
+  if (!isSmoke.value) {
+    // Pair — only update if changed (prevents re-triggering entrance animation)
+    if (state.currentPair?.left) {
+      const pairChanged = leftName.value !== state.currentPair.left ||
+                          rightName.value !== state.currentPair.right
+      if (pairChanged) {
+        try {
+          await updateBattlePair(state.currentPair)
+        } catch (_) { /* animation interrupted — state is still consistent */ }
+      }
     }
-  }
 
-  // Phase — only update if changed
-  if (state.battlePhase && state.battlePhase !== battlePhase.value) {
-    battlePhase.value = state.battlePhase
-    showVotingIndicator.value = state.battlePhase === 'VOTING'
-  }
+    // Phase — only update if changed
+    if (state.battlePhase && state.battlePhase !== battlePhase.value) {
+      battlePhase.value = state.battlePhase
+      showVotingIndicator.value = state.battlePhase === 'VOTING'
+    }
 
-  // Judges — only if list actually changed
-  if (state.judges?.length) {
-    const newJudgeIds = state.judges.map(j => j.id).sort().join(',')
-    const oldJudgeIds = (battleJudges.value?.judges ?? []).map(j => j.id).sort().join(',')
-    if (newJudgeIds !== oldJudgeIds) {
-      battleJudges.value = { judges: state.judges }
+    // Judges — only if list actually changed
+    if (state.judges?.length) {
+      const newJudgeIds = state.judges.map(j => j.id).sort().join(',')
+      const oldJudgeIds = (battleJudges.value?.judges ?? []).map(j => j.id).sort().join(',')
+      if (newJudgeIds !== oldJudgeIds) {
+        battleJudges.value = { judges: state.judges }
+      }
+    }
+
+    // Restore winner visual state for completed battles without replaying animation
+    if ((state.battlePhase === 'REVEALED' || state.battlePhase === 'DECIDED') && state.bracket?.rounds) {
+      restoreRevealedState(state.bracket.rounds)
     }
   }
 }

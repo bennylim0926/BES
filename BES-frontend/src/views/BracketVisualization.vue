@@ -312,11 +312,11 @@ onMounted(async () => {
   wsClient.onConnect = () => {
 
     wsClient.subscribe('/topic/battle/state', (msg) => {
+      // Diff guard: compare raw body string to skip no-op updates.
+      // Avoids unnecessary JSON.parse + JSON.stringify round-trip on every message.
+      if (msg.body === lastBracketSnapshot.value) return
+      lastBracketSnapshot.value = msg.body
       const data = JSON.parse(msg.body)
-      // Diff guard: skip if snapshot hasn't changed
-      const snapshot = JSON.stringify(data)
-      if (snapshot === lastBracketSnapshot.value) return
-      lastBracketSnapshot.value = snapshot
       if (data?.bracket && (data.bracket.topSize || data.bracket.rounds)) {
         if (animRunning) {
           pendingBracket.value = data.bracket
