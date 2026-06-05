@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
 import com.example.BES.models.Event;
+import com.example.BES.models.EventGenre;
 import com.example.BES.models.Judge;
+import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.services.SessionTokenService;
@@ -45,6 +47,9 @@ public class AuthControllerIntegrationTest {
     private JudgeRepo judgeRepo;
 
     @Autowired
+    private EventGenreRepo eventGenreRepo;
+
+    @Autowired
     private SessionTokenService sessionTokenService;
 
     private Event testEvent;
@@ -60,6 +65,13 @@ public class AuthControllerIntegrationTest {
         testJudge = new Judge();
         testJudge.setName("Test Judge");
         testJudge = judgeRepo.save(testJudge);
+
+        // Create a division and assign judge so JPA relationship check passes
+        EventGenre eg = new EventGenre();
+        eg.setName("Test Division");
+        eg.setEvent(testEvent);
+        eg.setJudges(new java.util.ArrayList<>(java.util.List.of(testJudge)));
+        eventGenreRepo.save(eg);
     }
 
     @Test
