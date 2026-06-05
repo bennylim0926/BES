@@ -36,6 +36,9 @@ const hydrateOverlayFromState = async (state) => {
   if (snapshot === lastOverlayState.value) return
   lastOverlayState.value = snapshot
 
+  // Capture old genre BEFORE updating — needed for pair-changed check below
+  const prevGenre = activeGenreName.value
+
   // Derived mode — update isSmoke FIRST so subsequent guards are correct
   if (state.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
@@ -44,11 +47,13 @@ const hydrateOverlayFromState = async (state) => {
 
   // Standard-mode updates (guarded by !isSmoke to prevent corrupting smoke display)
   if (!isSmoke.value) {
-    // Pair — only take action if the pair actually changed
+    // Pair — only take action if the pair or genre actually changed.
+    // Same names in a different genre is still a different battle.
     if (state.currentPair?.left) {
+      const genreChanged = state.genreName !== undefined && state.genreName !== prevGenre
       const pairChanged = leftName.value !== state.currentPair.left ||
                           rightName.value !== state.currentPair.right
-      if (pairChanged) {
+      if (pairChanged || genreChanged) {
         // New pair (genre switch, recovery) → run entrance animation
         try {
           await updateBattlePair(state.currentPair)
