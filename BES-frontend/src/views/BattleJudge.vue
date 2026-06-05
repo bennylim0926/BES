@@ -183,23 +183,20 @@ onMounted(async () => {
       const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
       if (still) {
         clearTimeout(clearJudgeTimer)
+        clearJudgeTimer = null
         notAssigned.value = false
       } else {
-        // Judge absent — may be a temporary genre-sync remove+re-add. Debounce before clearing
-        // so the re-add has time to arrive. If still gone after 2.5s, clear for real.
-        if (clearJudgeTimer == null) {
-          clearJudgeTimer = setTimeout(() => {
-            clearJudgeTimer = null
-            const authStore = useAuthStore()
-            const byName = authStore.judgeName
-              ? (battleJudges.value?.judges ?? []).find(j => j.name === authStore.judgeName)
-              : null
-            if (byName) {
-              judgeId.value = byName.id
-            } else if (!(battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)) {
-              clearJudge()
-            }
-          }, 2500)
+        // Judge not in list — check by name (organiser may have re-created the judge
+        // with a new ID during genre sync). If not found by name either, clear immediately.
+        const authStore = useAuthStore()
+        const byName = authStore.judgeName
+          ? (battleJudges.value?.judges ?? []).find(j => j.name === authStore.judgeName)
+          : null
+        if (byName) {
+          judgeId.value = byName.id
+          notAssigned.value = false
+        } else {
+          clearJudge()
         }
       }
     }
