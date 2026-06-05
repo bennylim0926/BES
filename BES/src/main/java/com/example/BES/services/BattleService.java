@@ -370,6 +370,11 @@ public class BattleService {
         activeGenreName = dto.getGenreName();
         loadGenreStateIntoMemory(activeEventName, activeGenreName);
         broadcastStateSnapshot();
+        // Broadcast judges so BattleJudge clients can re-check assignment immediately
+        synchronized (judges) {
+            messagingTemplate.convertAndSend("/topic/battle/judges",
+                Map.of("judges", new ArrayList<>(judges)));
+        }
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
             "phase", battlePhase,
             "genre", activeGenreName != null ? activeGenreName : ""

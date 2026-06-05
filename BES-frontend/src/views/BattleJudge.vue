@@ -37,6 +37,7 @@ function clearJudge() {
   clearVote()
   judgeId.value   = null
   judgeName.value = ''
+  notAssigned.value = true
   if (voteClient) {
     deactivateClient(voteClient)
     const idx = wsClients.indexOf(voteClient)
@@ -182,6 +183,7 @@ onMounted(async () => {
       const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
       if (still) {
         clearTimeout(clearJudgeTimer)
+        notAssigned.value = false
       } else {
         // Judge absent — may be a temporary genre-sync remove+re-add. Debounce before clearing
         // so the re-add has time to arrive. If still gone after 2.5s, clear for real.
