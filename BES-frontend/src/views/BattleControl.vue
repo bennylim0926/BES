@@ -187,9 +187,8 @@ const _genreStatusDotMap = computed(() => {
   const map = {}
   for (const genre of uniqueGenres.value) {
     if (genreChampions.value[genre]) { map[genre] = 'champion'; continue }
-    const phase = genre === selectedGenre.value
-      ? battlePhase.value
-      : (JSON.parse(localStorage.getItem(genreBattleStateKey(genre)) ?? '{}').phase ?? 'IDLE')
+    // Only the active genre has a known phase; other genres show as idle
+    const phase = genre === selectedGenre.value ? battlePhase.value : 'IDLE'
     map[genre] = ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
   }
   return map
@@ -346,7 +345,7 @@ const initiateBattlePairAt = async (top, pairList, startIdx) => {
   currentRound.value = startIdx
   currentTop.value = top
   broadcastBracket()  // syncs currentRoundIndex to backend so recovery finds the right pair
-  saveGenreBattleState(selectedGenre.value)
+
   markSaved()
 }
 
@@ -380,7 +379,7 @@ const initiateBattlePair = async (top, pairList) => {
   battlePhase.value = 'LOCKED'
   currentRound.value = 0
   currentTop.value = top
-  saveGenreBattleState(selectedGenre.value)
+
   markSaved()
 }
 
@@ -405,7 +404,7 @@ const nextPair = async () => {
       battlePhase.value = 'LOCKED'
       currentWinner.value = -2
       currentRound.value += 1
-      saveGenreBattleState(selectedGenre.value)
+    
     } else {
       await clearBattlePair()
       await setBattlePhase('IDLE')
@@ -413,7 +412,7 @@ const nextPair = async () => {
       currentWinner.value = -2
       currentBattle.value = []
       currentTop.value = ''
-      saveGenreBattleState(selectedGenre.value)
+    
     }
   }
   markSaved()
@@ -530,14 +529,8 @@ const poolParticipants = computed(() => {
 // Bracket seeding
 const bracketSize = computed(() => Number(topSize.value) === 7 ? 8 : Number(topSize.value))
 
-// Load resolved tie-breaker list from Score.vue if one exists for this event+genre+bracketSize
+// Resolved tie-breaker participants loaded from backend via getBattleState() / hydrateFromState.
 const resolvedParticipants = ref(null)
-const loadResolvedParticipants = () => {
-  const key = `tbResolved_${selectedEvent.value}_${selectedGenre.value}_${bracketSize.value}`
-  const saved = localStorage.getItem(key)
-  resolvedParticipants.value = saved ? JSON.parse(saved) : null
-}
-watch([selectedEvent, selectedGenre, bracketSize], loadResolvedParticipants, { immediate: true })
 
 const topNParticipants = computed(() => {
   if (resolvedParticipants.value) return resolvedParticipants.value.slice(0, bracketSize.value)
@@ -1105,91 +1098,23 @@ const voteWeightDisplay = computed(() => {
 })
 
 
-// Per-genre battle state persistence — saves which round/match was in progress so
-// switching genres and back re-broadcasts the correct pair to the overlay automatically.
-const genreBattleStateKey = (genre) => `battleState_${selectedEvent.value}_${genre}`
-
-const saveGenreBattleState = (genre) => {
-  if (!genre) return
-  if (currentBattle.value.length === 0) {
-    localStorage.removeItem(genreBattleStateKey(genre))
-    return
-  }
-  localStorage.setItem(genreBattleStateKey(genre), JSON.stringify({
-    battle: toRaw(currentBattle.value),
-    top: currentTop.value,
-    round: currentRound.value,
-    phase: battlePhase.value,
-  }))
-}
 
 const restoreAndBroadcastGenreBattle = async (genre) => {
-  // Always reset bracket grid for the current event before restoring state — prevents
-  // stale rounds from a previous event persisting when the genre name is the same across events.
-  const storedRounds = localStorage.getItem(`Top${topSize.value}${selectedEvent.value}${genre}Rounds`)
-  rounds.value = storedRounds ? JSON.parse(storedRounds) : initRounds()
-
-  // At this point, switchActiveGenreService has already loaded this genre's state from DB
-  // and broadcast it to all connected clients (overlay, bracket, judge). We only need
-  // to restore local BattleControl UI state — no backend calls needed here.
-  const saved = localStorage.getItem(genreBattleStateKey(genre))
-  if (saved) {
-    const { battle, top, round, phase } = JSON.parse(saved)
-    currentBattle.value = battle ?? []
-    currentTop.value = top ?? ''
-    currentRound.value = round ?? 0
-    currentWinner.value = -2
-    battlePhase.value = phase ?? 'IDLE'
-    return
-  }
-  // No localStorage: reconstruct local state from backend (already loaded by switchActiveGenreService).
-  // Do NOT clear or re-push to backend — it already has the correct state.
-  const state = await getBattleState()
-  if (!state?.currentPair?.left || state.battlePhase === 'IDLE') {
-    currentBattle.value = []
-    currentTop.value = ''
-    currentRound.value = 0
-    currentWinner.value = -2
-    return
-  }
-  battlePhase.value = state.battlePhase ?? 'IDLE'
+  // Reset local state, then wait for /topic/battle/state WS to deliver the
+  // real state from the backend. switchActiveGenreService already broadcast it.
+  currentBattle.value = []
+  currentTop.value = ''
+  currentRound.value = 0
   currentWinner.value = -2
-  if (!isSmoke.value && state.bracket?.rounds) {
-    // Populate rounds.value from DB so the bracket UI is visible, then cache to localStorage
-    // so future genre switches don't need to fall back to DB again.
-    rounds.value = state.bracket.rounds
-    localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${genre}Rounds`, JSON.stringify(state.bracket.rounds))
-    const bRounds = state.bracket.rounds
-    let topKey = state.currentPair.isFinal ? 'Top2' : null
-    if (!topKey) {
-      for (const key of Object.keys(bRounds)) {
-        const matchList = bRounds[key]
-        if (!Array.isArray(matchList)) continue
-        if (matchList.some(m => m[0] === state.currentPair.left && m[1] === state.currentPair.right)) {
-          topKey = key; break
-        }
-      }
-    }
-    if (topKey) {
-      currentTop.value = topKey
-      const pairList = bRounds[topKey] ?? []
-      const nameIdx = pairList.findIndex(m => m[0] === state.currentPair.left && m[1] === state.currentPair.right)
-      const resolvedIdx = nameIdx >= 0 ? nameIdx : (state.currentRoundIndex ?? 0)
-      currentRound.value = resolvedIdx
-      currentBattle.value = [resolvedIdx, pairList]
-      saveGenreBattleState(genre)
-    }
-  } else if (isSmoke.value) {
-    const smokeRes = await getSmokeList()
-    if (smokeRes?.list && Array.isArray(smokeRes.list)) {
-      rounds.value = smokeRes.list.map(b => ({ name: b.name, score: b.score }))
-      localStorage.setItem(`Top${topSize.value}${selectedEvent.value}${genre}Rounds`, JSON.stringify(toRaw(rounds.value)))
-    }
-    if (state?.champion) {
-      genreChampions.value = { ...genreChampions.value, [genre]: state.champion }
-    }
-    saveGenreBattleState(genre)
-  }
+  battlePhase.value = 'IDLE'
+
+  // Fetch state from REST as immediate source; WS will keep it in sync thereafter
+  const state = await getBattleState()
+  if (state) hydrateFromState(state)
+
+  // Also re-fetch judges
+  const judges = await getBattleJudges()
+  if (judges) battleJudges.value = judges
 }
 
 const jumpToRecoveredPair = async () => {
@@ -1197,13 +1122,11 @@ const jumpToRecoveredPair = async () => {
   markSaving()
   const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket, champion: restoredChampion } = recoveryState.value
 
-  // Restore topSize from DB bracket state — browser localStorage may be stale if
-  // the operator switched sizes on another session or after clearing storage.
+  // Restore topSize from DB bracket state
   if (bracket?.topSize !== undefined) {
     const restored = Number(bracket.topSize)
     if (!isNaN(restored) && restored !== Number(topSize.value)) {
       topSize.value = restored
-      localStorage.setItem('topSize', String(restored))
     }
   }
 
@@ -1228,7 +1151,6 @@ const jumpToRecoveredPair = async () => {
       }
     }
     currentTop.value = topKey
-    localStorage.setItem('currentTop', topKey)
     const pairList = bracket.rounds[topKey] ?? []
     // Find pair by name — currentRoundIndex can be stale if broadcastBracket wasn't called
     const nameIdx = pairList.findIndex(m => m[0] === currentPair.left && m[1] === currentPair.right)
@@ -1245,7 +1167,6 @@ const jumpToRecoveredPair = async () => {
     if (match?.[2]) {
       currentWinner.value = match[2] === currentBattlePair.value?.[0] ? 0 : 1
     }
-    saveGenreBattleState(selectedGenre.value)
     markSaved()
     return
   }
@@ -1266,54 +1187,18 @@ const jumpToRecoveredPair = async () => {
   const phase = restoredPhase && restoredPhase !== 'IDLE' ? restoredPhase : 'LOCKED'
   await setBattlePhase(phase)
   battlePhase.value = phase
-  saveGenreBattleState(selectedGenre.value)
   markSaved()
 }
 
-// Per-genre judge persistence helpers — stores { id, vote } so votes survive genre switches
-const genreJudgeKey = (genre) => `battleJudges_${selectedEvent.value}_${genre}`
 let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
 
-const saveGenreJudges = (genre) => {
-  const judges = (battleJudges.value?.judges ?? []).map(j => ({ id: j.id, vote: j.vote, weightage: j.weightage ?? 1 }))
-  localStorage.setItem(genreJudgeKey(genre), JSON.stringify(judges))
-}
-
-// Called when genre switches: removes current backend judges, restores saved judges + votes for new genre
+// Called when genre switches: loads the new genre's judges from backend.
+// Judges are persisted per-genre in the DB via battle_genre_state; setActiveGenre
+// already loaded the correct set on the backend. No localStorage needed.
 const syncJudgesForGenre = async (newGenre, prevGenre) => {
   if (judgeSyncing) return
   judgeSyncing = true
   try {
-    // Save outgoing genre's judges from UI cache BEFORE fetching from backend.
-    // setActiveGenre already switched the backend to newGenre, so getBattleJudges()
-    // would return newGenre's judges — overwriting prevGenre's localStorage with the
-    // wrong list and permanently losing the outgoing genre's judge assignment.
-    if (prevGenre) saveGenreJudges(prevGenre)
-    // Now fetch backend to find out which judges are currently loaded (newGenre's) so
-    // we can remove them before installing prevGenre→newGenre's saved set.
-    battleJudges.value = await getBattleJudges()
-    const toRemove = battleJudges.value?.judges ?? []
-    // Remove sequentially — parallel DELETEs cause ConcurrentModificationException on the
-    // backend's ArrayList, silently leaving judges behind and contaminating the next genre.
-    for (const j of toRemove) {
-      await removeBattleJudge(j.id)
-    }
-    const raw = JSON.parse(localStorage.getItem(genreJudgeKey(newGenre)) ?? '[]')
-    if (raw.length > 0) {
-      // Support both old format (array of ids) and new format (array of { id, vote })
-      const entries = raw.map(s => (typeof s === 'object' ? s : { id: s, vote: -3, weightage: 1 }))
-      // Add sequentially for the same reason as removes above
-      for (const { id, weightage } of entries) {
-        await addBattleJudge(id, weightage ?? 1)
-      }
-      // Restore non-default votes — addBattleJudge sets vote=-3 ("not voted"), so skip those.
-      // -1 is a real tie vote and must be restored; only -3 means "hasn't voted this round".
-      await Promise.all(
-        entries
-          .filter(({ vote }) => vote !== undefined && vote !== -3)
-          .map(({ id, vote }) => battleJudgeVote(id, vote))
-      )
-    }
     battleJudges.value = await getBattleJudges()
     syncJudgeVoteSubscriptions()
   } finally {
@@ -1326,21 +1211,21 @@ const submitAddBattleJudge = async (name) => {
   const res = await addBattleJudge(j?.judgeId)
   if (res.status === 404) console.log("No judge in database")
   battleJudges.value = await getBattleJudges()
-  saveGenreJudges(selectedGenre.value)
+
 }
 
 const submitUpdateJudgeWeightage = async (id, value) => {
   const weightage = Math.max(1, parseInt(value) || 1)
   await updateJudgeWeightage(id, weightage)
   battleJudges.value = await getBattleJudges()
-  saveGenreJudges(selectedGenre.value)
+
 }
 
 const submitRemoveBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   await removeBattleJudge(j?.judgeId)
   battleJudges.value = await getBattleJudges()
-  saveGenreJudges(selectedGenre.value)
+
 }
 
 const sortedJudgesForToggle = computed(() => {
@@ -1462,7 +1347,7 @@ const lockChampion = async () => {
   genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
   await setBattlePhase('DECIDED')
   battlePhase.value = 'DECIDED'
-  saveGenreBattleState(selectedGenre.value)
+
 }
 
 const unlockChampion = async () => {
@@ -1470,7 +1355,7 @@ const unlockChampion = async () => {
   genreChampions.value = rest
   await setBattlePhase('VOTING')
   battlePhase.value = 'VOTING'
-  saveGenreBattleState(selectedGenre.value)
+
 }
 
 const revealChampionForGenre = async () => {
@@ -1490,7 +1375,7 @@ const revealChampionForGenre = async () => {
     // Stay in DECIDED so the genre remains re-revealable forever
     await setBattlePhase('DECIDED')
     battlePhase.value = 'DECIDED'
-    saveGenreBattleState(selectedGenre.value)
+  
     revealActive.value = true
     return
   }
@@ -1516,7 +1401,7 @@ const openVoting = async () => {
   markSaving()
   await setBattlePhase('VOTING')
   battlePhase.value = 'VOTING'
-  saveGenreBattleState(selectedGenre.value)
+
   markSaved()
 }
 
@@ -1533,8 +1418,8 @@ const confirmResetBracket = async () => {
   currentRound.value = 0
   activeRoundIdx.value = 0
   finalTieBlocked.value = false
-  saveGenreBattleState(selectedGenre.value)
-  // Clear champion tracking — both backend (DB) and local (ref + localStorage)
+
+  // Clear champion tracking — both backend (DB) and local ref
   await dismissChampionReveal()
   revealActive.value = false
   const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
@@ -1634,26 +1519,16 @@ watch(selectedEvent, async (newVal, oldVal) => {
     // across events), watch(selectedGenre) never fires so setActiveGenre is never called.
     // Re-register with the backend here so state is loaded from the correct event's row.
     if (oldVal && selectedGenre.value) {
-      saveGenreBattleState(selectedGenre.value)
+    
       await setActiveGenre(newVal, selectedGenre.value)
       await restoreAndBroadcastGenreBattle(selectedGenre.value)
     }
   }
 }, { immediate: true })
 
-const genreTopSizeKey = (genre) => `battleTopSize_${selectedEvent.value}_${genre}`
-const genreChampionLocalKey = (genre) => `battleChampion_${selectedEvent.value}_${genre}`
-
-// Load pending champions from localStorage for all genres as they become known
 watch(uniqueGenres, (genres) => {
   if (!selectedEvent.value || !genres?.length) return
-  const locals = {}
-  for (const g of genres) {
-    const p = localStorage.getItem(genreChampionLocalKey(g))
-    if (p) locals[g] = p
-  }
-  // Merge: backend confirmed data (already in genreChampions) takes precedence
-  genreChampions.value = { ...locals, ...genreChampions.value }
+  // Champions are loaded from backend via getBattleChampions() in onMounted
 }, { immediate: true })
 
 // When all judges revote to a tie in the final, clear any previously locked
@@ -1663,7 +1538,6 @@ watch(showFinalReveal, (newVal) => {
   if (!newVal && isFinalInProgress.value && allJudgesVoted.value && tentativeWinner.value === -1) {
     const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
     genreChampions.value = rest
-    localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
   }
 })
 
@@ -1675,7 +1549,6 @@ watch([allJudgesVoted, tentativeWinner], ([voted, winner]) => {
   if (voted && winner === -1 && isFinalInProgress.value && genreChampions.value[selectedGenre.value]) {
     const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
     genreChampions.value = rest
-    localStorage.removeItem(genreChampionLocalKey(selectedGenre.value))
   }
 })
 
@@ -1684,48 +1557,40 @@ watch(selectedGenre, async (newVal, oldVal) => {
   if (oldVal && revealActive.value) await dismissChampionReveal()
   revealActive.value = false
   if (newVal) {
-    // Persist outgoing genre's topSize before switching
-    if (oldVal) localStorage.setItem(genreTopSizeKey(oldVal), String(topSize.value))
-
     // Restore per-genre topSize — smoke auto-detection takes priority, otherwise
-    // use the saved size for this genre.  When no saved size exists, default to 16
-    // for a genre switch (don't inherit the outgoing genre's size), but keep the
-    // global localStorage value on first/immediate load so a refresh is stable.
+    // fetch from DB-backed state. Default to 16 on genre switch.
     const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
     if (genreNeedsSmoke) {
       if (Number(topSize.value) !== 7) {
         topSize.value = 7
-        localStorage.setItem('topSize', '7')
       }
     } else {
-      const savedSize = localStorage.getItem(genreTopSizeKey(newVal))
-      const restoredSize = savedSize ? Number(savedSize) : (oldVal ? 16 : Number(topSize.value))
-      if (restoredSize !== Number(topSize.value)) {
-        skipSizeChangeClear = true
-        topSize.value = restoredSize
-        localStorage.setItem('topSize', String(restoredSize))
+      // Restore per-genre topSize from DB-backed state. Default to 16 on genre switch.
+      if (oldVal) {
+        const state = await getBattleState()
+        if (state?.bracket?.topSize !== undefined) {
+          const dbSize = Number(state.bracket.topSize)
+          if (!isNaN(dbSize) && dbSize !== Number(topSize.value)) {
+            skipSizeChangeClear = true
+            topSize.value = dbSize
+          }
+        } else {
+          topSize.value = 16
+        }
       }
     }
-
-    // Restore pending champion for incoming genre from localStorage
-    if (newVal && !genreChampions.value[newVal]) {
-      const pending = localStorage.getItem(genreChampionLocalKey(newVal))
-      if (pending) genreChampions.value = { ...genreChampions.value, [newVal]: pending }
-    }
     localStorage.setItem("selectedGenre", newVal)
-    const storedRounds = localStorage.getItem(`Top${topSize.value}${selectedEvent.value}${newVal}Rounds`)
-    rounds.value = JSON.parse(storedRounds) || initRounds()
+    rounds.value = initRounds()
     pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
     placeGuestsInBracket()
     if (oldVal) {
-      saveGenreBattleState(oldVal)
       await setActiveGenre(selectedEvent.value, newVal)
     }
-    // Only broadcast local rounds on a genre SWITCH (oldVal truthy) when localStorage has data.
+    // Broadcast local rounds on a genre SWITCH (oldVal truthy).
     // On initial load (oldVal falsy), setActiveGenre in onMounted hasn't completed yet so the
     // backend still points at the previous event — broadcasting here would corrupt that event's
     // DB row. onMounted handles state restoration after setActiveGenre confirms the correct event.
-    if (storedRounds && oldVal) broadcastBracket()
+    if (oldVal) broadcastBracket()
     if (oldVal) {
       await restoreAndBroadcastGenreBattle(newVal)
     }
@@ -1745,7 +1610,6 @@ watch(selectedGenre, async (newVal, oldVal) => {
       if (genreChampions.value[newVal] && battlePhase.value !== 'DECIDED') {
         await setBattlePhase('DECIDED')
         battlePhase.value = 'DECIDED'
-        saveGenreBattleState(newVal)
       }
     }
   } else {
@@ -1753,42 +1617,15 @@ watch(selectedGenre, async (newVal, oldVal) => {
   }
 }, { immediate: true })
 
-const sizeStateKey = (size) => `battleSizeState_${selectedEvent.value}_${selectedGenre.value}_${size}`
-const roundIdxKey = () => `battleRoundIdx_${selectedEvent.value}_${selectedGenre.value}_${topSize.value}`
-
-// Persist the active round tab selection so it survives refresh and genre switch.
-// Does NOT auto-broadcast to overlay — the overlay stays on the IDLE announcement
-// until the operator explicitly clicks "Start Round".
-watch(activeRoundIdx, (idx) => {
-  if (selectedEvent.value && selectedGenre.value) {
-    localStorage.setItem(roundIdxKey(), String(idx))
-  }
-})
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
   // Restore previously-selected round tab for this size; default to 0 (first round).
   // Only when event+genre are known — during setup they're still null, defer to onMounted.
   if (selectedEvent.value && selectedGenre.value) {
-    const savedIdx = localStorage.getItem(roundIdxKey())
-    activeRoundIdx.value = savedIdx !== null ? Math.min(Number(savedIdx), roundSizes.value.length - 1) : 0
+    activeRoundIdx.value = 0
   }
-  // Save outgoing size's battle state so it can be restored on return (no overlay broadcast)
-  if (oldVal && currentBattle.value.length > 0) {
-    localStorage.setItem(sizeStateKey(oldVal), JSON.stringify({
-      battle: toRaw(currentBattle.value),
-      top: currentTop.value,
-      round: currentRound.value,
-      phase: battlePhase.value,
-    }))
-  }
-  localStorage.setItem("topSize", newVal)
-  // Also save per-genre so it survives refresh (not just genre switch)
-  if (selectedEvent.value && selectedGenre.value) {
-    localStorage.setItem(genreTopSizeKey(selectedGenre.value), String(newVal))
-  }
-  const storedRounds = localStorage.getItem(`Top${newVal}${selectedEvent.value}${selectedGenre.value}Rounds`)
-  rounds.value = JSON.parse(storedRounds) || initRounds()
+  rounds.value = initRounds()
   currentWinner.value = -2
   // Only clear battle on user-initiated size change (not programmatic from
   // genre switch or initial load). The onMounted recovery handles init.
@@ -1804,24 +1641,10 @@ watch(topSize, async (newVal, oldVal) => {
   // would send empty initRounds() to DB, corrupting the stored bracket).
   if (selectedEvent.value && selectedGenre.value) broadcastBracket()
 
-  // Restore the incoming size's battle state (pair + phase). Do NOT push to overlay —
-  // the overlay updates only when the operator clicks a round tab or "Start Round".
-  const savedSizeState = localStorage.getItem(sizeStateKey(newVal))
-  if (savedSizeState) {
-    const { battle, top, round, phase: savedPhase } = JSON.parse(savedSizeState)
-    currentBattle.value = battle ?? []
-    currentTop.value = top ?? ''
-    currentRound.value = round ?? 0
-    // Restore phase locally — but don't broadcast. The overlay stays on whatever
-    // it was last showing. When the operator clicks a round tab, the activeRoundIdx
-    // watcher will find and broadcast the correct pair from the bracket data.
-    battlePhase.value = savedPhase && savedPhase !== 'IDLE' ? savedPhase : 'IDLE'
-    saveGenreBattleState(selectedGenre.value)
-  } else {
-    currentBattle.value = []
-    currentTop.value = ''
-    currentRound.value = 0
-  }
+  // State is restored from /topic/battle/state via hydrateFromState
+  currentBattle.value = []
+  currentTop.value = ''
+  currentRound.value = 0
 }, { immediate: true })
 
 const wsClient = ref(null)
@@ -1882,38 +1705,17 @@ onMounted(async () => {
   if (selectedEvent.value && selectedGenre.value) {
     await setActiveGenre(selectedEvent.value, selectedGenre.value)
   }
-  // Restore per-genre bracket size (survives refresh)
-  if (selectedEvent.value && selectedGenre.value) {
-    const savedSize = localStorage.getItem(genreTopSizeKey(selectedGenre.value))
-    if (savedSize) {
-      topSize.value = Number(savedSize)
-      localStorage.setItem('topSize', savedSize)
-    }
-  }
-  // Now that event+genre are set, restore the saved round tab with correct keys
-  const savedRoundIdx = localStorage.getItem(roundIdxKey())
-  if (savedRoundIdx !== null) {
-    activeRoundIdx.value = Math.min(Number(savedRoundIdx), roundSizes.value.length - 1)
-  }
+  // Round tab starts at 0 on mount
+  activeRoundIdx.value = 0
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
-  // Backend DB is now authoritative for judges (persisted on every change).
-  // On refresh, don't call syncJudgesForGenre — that removes all judges and re-adds
-  // from localStorage, which broadcasts an empty list and makes BattleJudge ask "who are you?".
-  // Just seed localStorage if it's empty so future genre switches have a value to restore.
-  if (selectedGenre.value) {
-    const savedRaw = localStorage.getItem(genreJudgeKey(selectedGenre.value))
-    if (savedRaw === null) {
-      saveGenreJudges(selectedGenre.value)
-    }
-  }
   mountJudgeSyncDone = true
   const savedConfig = await getOverlayConfig()
   if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
   if (selectedEvent.value) {
     const champions = await getBattleChampions(selectedEvent.value)
-    // Merge: localStorage pending (already loaded by watch(uniqueGenres)) +
+    // Merge: backend confirmed data takes precedence over initial ref value
     // backend confirmed. Backend wins on conflict (official record).
     if (champions && typeof champions === 'object') {
       genreChampions.value = { ...genreChampions.value, ...champions }
@@ -1921,12 +1723,6 @@ onMounted(async () => {
   }
   const phaseData = await getBattlePhase()
   battlePhase.value = phaseData?.phase ?? 'IDLE'
-  // Restore currentTop from localStorage only if a battle is genuinely in progress
-  // (avoids stale 'Top2' from a previous session bleeding into non-final rounds)
-  if (battlePhase.value !== 'IDLE') {
-    const storedTop = localStorage.getItem('currentTop')
-    if (storedTop) currentTop.value = storedTop
-  }
   // Auto-restore from backend state on refresh — always check regardless of local state
   const battleState = await getBattleState()
   if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
