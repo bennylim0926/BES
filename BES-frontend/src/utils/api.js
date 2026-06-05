@@ -1452,3 +1452,14 @@ export const revokeSessionToken = async (tokenId) => {
     })
   } catch (err) { console.error(err) }
 }
+
+export const setResolvedParticipants = async (eventName, genreName, participants) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/resolved-participants`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, genreName, participants })
+    })
+  } catch (e) { console.error(e) }
+}
