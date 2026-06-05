@@ -1099,7 +1099,7 @@ const voteWeightDisplay = computed(() => {
 
 
 
-const restoreAndBroadcastGenreBattle = async (genre) => {
+const restoreAndBroadcastGenreBattle = async (_genre) => {
   // Reset local state, then fetch the real state from the backend.
   // switchActiveGenreService already broadcast /topic/battle/state — if the WS
   // message arrived before we reset refs, the diff guard would block re-hydration.
@@ -1203,7 +1203,7 @@ let judgeSyncing = false  // prevents concurrent syncJudgesForGenre calls
 // Called when genre switches: loads the new genre's judges from backend.
 // Judges are persisted per-genre in the DB via battle_genre_state; setActiveGenre
 // already loaded the correct set on the backend. No localStorage needed.
-const syncJudgesForGenre = async (newGenre, prevGenre) => {
+const syncJudgesForGenre = async (_newGenre, _prevGenre) => {
   if (judgeSyncing) return
   judgeSyncing = true
   try {
