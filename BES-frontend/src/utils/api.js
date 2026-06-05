@@ -1416,8 +1416,15 @@ export const redeemToken = async (tokenId) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tokenId })
     })
-    return res.ok ? await res.json() : null
-  } catch (err) { console.error(err); return null }
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      return { authenticated: false, error: body?.error || 'Invalid or expired link.' }
+    }
+    return await res.json()
+  } catch (err) {
+    console.error(err)
+    return { authenticated: false, error: 'Unable to reach server. Check your connection and try again.' }
+  }
 }
 
 export const generateToken = async (role, eventId, judgeId, expiresInDays = 7) => {

@@ -2,6 +2,7 @@ package com.example.BES.services;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,7 +28,14 @@ public class SessionTokenService {
     @Autowired
     private JudgeRepo judgeRepo;
 
+    private static final Set<String> ALLOWED_ROLES = Set.of("JUDGE", "EMCEE", "HELPER");
+
     public String generateToken(String role, Long eventId, Long judgeId, int expiresInDays) {
+        if (!ALLOWED_ROLES.contains(role)) {
+            throw new IllegalArgumentException("Invalid role: " + role
+                + ". Allowed session roles: JUDGE, EMCEE, HELPER.");
+        }
+
         Event event = eventRepo.findById(eventId)
             .orElseThrow(() -> new IllegalArgumentException("Event not found: " + eventId));
 
@@ -35,6 +43,12 @@ public class SessionTokenService {
         if (judgeId != null) {
             judge = judgeRepo.findById(judgeId)
                 .orElseThrow(() -> new IllegalArgumentException("Judge not found: " + judgeId));
+            // Validate judge belongs to the event
+            List<Judge> eventJudges = judgeRepo.findJudgesByEventId(eventId);
+            if (eventJudges.stream().noneMatch(j -> j.getJudgeId().equals(judgeId))) {
+                throw new IllegalArgumentException("Judge " + judgeId
+                    + " does not belong to event " + eventId);
+            }
         }
 
         SessionToken token = new SessionToken();

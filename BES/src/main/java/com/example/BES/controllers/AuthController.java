@@ -71,8 +71,13 @@ public class AuthController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("authenticated", isAuthenticated);
-        response.put("username", auth.getName());
-        response.put("role", auth.getAuthorities());
+        if (auth != null) {
+            response.put("username", auth.getName());
+            response.put("role", auth.getAuthorities());
+        } else {
+            response.put("username", null);
+            response.put("role", java.util.List.of());
+        }
 
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -169,6 +174,9 @@ public class AuthController {
         }
     }
 
+    private static final java.util.Set<String> ALLOWED_SESSION_ROLES =
+        java.util.Set.of("JUDGE", "EMCEE", "HELPER");
+
     @Operation(summary = "Generate Token", description = "Generates a session token for a given role, event, and optional judge")
     @PostMapping("/generate-token")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
@@ -177,7 +185,11 @@ public class AuthController {
             @RequestParam Long eventId,
             @RequestParam(required = false) Long judgeId,
             @RequestParam(required = false, defaultValue = "7") int expiresInDays) {
-        String tokenId = sessionTokenService.generateToken(role, eventId, judgeId, expiresInDays);
+        if (!ALLOWED_SESSION_ROLES.contains(role.toUpperCase())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid role: " + role
+                + ". Allowed session roles: JUDGE, EMCEE, HELPER."));
+        }
+        String tokenId = sessionTokenService.generateToken(role.toUpperCase(), eventId, judgeId, expiresInDays);
         return ResponseEntity.ok(Map.of(
             "tokenId", tokenId,
             "url", "/auth/token?t=" + tokenId));

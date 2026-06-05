@@ -19,7 +19,7 @@ onMounted(async () => {
     return
   }
   const data = await redeemToken(token)
-  if (!data || !data.authenticated) {
+  if (!data?.authenticated) {
     error.value = data?.error || 'Invalid or expired link.'
     loading.value = false
     return
