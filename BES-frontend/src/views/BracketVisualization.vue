@@ -4,6 +4,7 @@ import { getBattleState, getBracketState, getOverlayConfig } from '@/utils/api'
 import { createClient } from '@/utils/websocket'
 
 const bracketState   = ref(null)
+const lastBracketSnapshot = ref('')  // JSON diff guard
 const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
 const championReveal = ref(null)   // null = hidden; { genreName, championName } = showing
 const activePair     = ref(null)
@@ -312,6 +313,10 @@ onMounted(async () => {
 
     wsClient.subscribe('/topic/battle/state', (msg) => {
       const data = JSON.parse(msg.body)
+      // Diff guard: skip if snapshot hasn't changed
+      const snapshot = JSON.stringify(data)
+      if (snapshot === lastBracketSnapshot.value) return
+      lastBracketSnapshot.value = snapshot
       if (data?.bracket && (data.bracket.topSize || data.bracket.rounds)) {
         if (animRunning) {
           pendingBracket.value = data.bracket
@@ -412,6 +417,25 @@ onMounted(async () => {
         await runWinnerAnimation(winKey, pending)
       })()
     })
+
+    // Re-hydrate on reconnect — REST covers gap while WS was disconnected
+    getBattleState().then(state => {
+      if (state && (state.bracket?.topSize || state.bracket?.rounds)) {
+        const snapshot = JSON.stringify(state)
+        if (snapshot !== lastBracketSnapshot.value) {
+          lastBracketSnapshot.value = snapshot
+          if (state.bracket && !animRunning) {
+            bracketState.value = state.bracket
+          }
+          if (state.currentPair?.left) {
+            activePair.value = { left: state.currentPair.left, right: state.currentPair.right }
+          }
+          if (state.genreName) {
+            currentGenre.value = state.genreName
+          }
+        }
+      }
+    }).catch(() => {})
   }
   wsClient.activate()
 })
