@@ -1100,8 +1100,12 @@ const voteWeightDisplay = computed(() => {
 
 
 const restoreAndBroadcastGenreBattle = async (genre) => {
-  // Reset local state, then wait for /topic/battle/state WS to deliver the
-  // real state from the backend. switchActiveGenreService already broadcast it.
+  // Reset local state, then fetch the real state from the backend.
+  // switchActiveGenreService already broadcast /topic/battle/state — if the WS
+  // message arrived before we reset refs, the diff guard would block re-hydration.
+  // Clear lastAppliedState so hydrateFromState always applies on genre switch.
+  lastAppliedState.value = ''
+
   currentBattle.value = []
   currentTop.value = ''
   currentRound.value = 0
