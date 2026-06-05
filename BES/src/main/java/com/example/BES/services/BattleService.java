@@ -303,6 +303,10 @@ public class BattleService {
     public boolean isCurrentFinal() { return currentIsFinal; }
 
     public void setBattlePhaseService(String phase) {
+        setBattlePhaseService(phase, null);
+    }
+
+    public void setBattlePhaseService(String phase, String championName) {
         if ("REVEALED".equals(phase)) return;
         // Prevent starting a round with zero judges
         if ("LOCKED".equals(phase)) {
@@ -314,9 +318,13 @@ public class BattleService {
             }
         }
         battlePhase = phase;
+        if (championName != null) {
+            champion = championName;
+        }
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
             "phase", battlePhase,
-            "genre", activeGenreName != null ? activeGenreName : ""
+            "genre", activeGenreName != null ? activeGenreName : "",
+            "champion", champion != null ? champion : ""
         ));
         persistActiveState();
     }

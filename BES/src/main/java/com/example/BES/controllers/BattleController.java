@@ -327,7 +327,7 @@ public class BattleController {
     @PostMapping("/phase")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
-        battleService.setBattlePhaseService(dto.getPhase());
+        battleService.setBattlePhaseService(dto.getPhase(), dto.getChampion());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
 

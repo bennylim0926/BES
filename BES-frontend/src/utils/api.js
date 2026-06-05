@@ -715,13 +715,13 @@ export const getBattlePhase = async () => {
   } catch (_e) { return { phase: 'IDLE' } }
 }
 
-export const setBattlePhase = async (phase) => {
+export const setBattlePhase = async (phase, champion) => {
   try {
     return await fetch(`${domain}/api/v1/battle/phase`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phase })
+      body: JSON.stringify({ phase, ...(champion ? { champion } : {}) })
     })
   } catch (e) { console.log(e) }
 }

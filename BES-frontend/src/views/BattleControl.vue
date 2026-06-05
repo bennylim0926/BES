@@ -1353,7 +1353,7 @@ const lockChampion = async () => {
     : currentBattlePair.value?.[1]
   if (!winner) return
   genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
-  await setBattlePhase('DECIDED')
+  await setBattlePhase('DECIDED', winner)
   battlePhase.value = 'DECIDED'
 
 }

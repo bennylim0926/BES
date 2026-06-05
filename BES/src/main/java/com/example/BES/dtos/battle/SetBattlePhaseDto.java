@@ -7,7 +7,17 @@ public class SetBattlePhaseDto {
     @NotBlank @Size(max = 50)
     private String phase;
 
+    private String champion;
+
     public String getPhase() {
         return phase;
+    }
+
+    public String getChampion() {
+        return champion;
+    }
+
+    public void setChampion(String champion) {
+        this.champion = champion;
     }
 }
