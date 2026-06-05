@@ -1,7 +1,7 @@
 <!-- BES-frontend/src/views/Chart.vue -->
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { getSmokeList, getOverlayConfig, getBattleJudges } from '@/utils/api'
+import { getSmokeList, getOverlayConfig, getBattleJudges, getBattleState } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 import { useDelay } from '@/utils/utils'
 import { barHeightPct, findScoreGainers } from '@/utils/smokeChartHelpers'
@@ -33,6 +33,7 @@ const scorePopNames = ref(new Set())
 const clients = []
 const subscribedVoteTopics = new Set()
 let unmounted = false
+const lastChartState = ref('')  // JSON diff guard
 
 // ── Computed ────────────────────────────────────────────────────────────────
 const activeLeft  = computed(() => smokeParticipants.value[0] ?? null)
@@ -155,6 +156,26 @@ const updateScore = async (msg) => {
   showResult.value = false
 }
 
+// ── State hydration (used on WS connect + reconnect) ────────────────────────
+const hydrateChartFromState = (state) => {
+  if (!state) return
+  const snapshot = JSON.stringify(state)
+  if (snapshot === lastChartState.value) return
+  lastChartState.value = snapshot
+
+  // Phase — only update if changed
+  if (state.battlePhase && state.battlePhase !== battlePhase.value) {
+    battlePhase.value = state.battlePhase
+    if (state.battlePhase === 'LOCKED') showResult.value = false
+  }
+
+  // Judges — only if list actually changed
+  if (state.judges?.length) {
+    battleJudges.value = { judges: state.judges }
+    updateBattleJudge({ judges: state.judges })
+  }
+}
+
 // ── Mount ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
   document.documentElement.classList.add('transparent-page')
@@ -189,6 +210,15 @@ onMounted(async () => {
     // When phase resets to LOCKED (Next was clicked), dismiss any visible result overlay
     if (msg.phase === 'LOCKED') showResult.value = false
   })
+
+  const cState = createClient(); clients.push(cState)
+  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+    hydrateChartFromState(msg)
+  })
+
+  // Initial hydration + reconnect recovery
+  const initialState = await getBattleState()
+  if (initialState) hydrateChartFromState(initialState)
 })
 
 onBeforeUnmount(() => {
