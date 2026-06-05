@@ -475,7 +475,11 @@ onMounted(async () => {
   const cPair2   = createClient(); clients.push(cPair2)
   const cScore2  = createClient(); clients.push(cScore2)
   const cJudges2 = createClient(); clients.push(cJudges2)
-  subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => { if (!isSmoke.value) updateBattlePair(msg) })
+  subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => {
+    if (!isSmoke.value && (msg.left !== leftName.value || msg.right !== rightName.value)) {
+      updateBattlePair(msg)
+    }
+  })
   subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => { if (!isSmoke.value) updateScore(msg) })
   subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => { if (!isSmoke.value) updateBattleJudge(msg) })
 
