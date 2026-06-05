@@ -61,6 +61,10 @@ const submitCreateOrganiser = async () => {
     openModal("Validation Error", "Username and password cannot be empty.", "error")
     return
   }
+  if (newOrganiserPassword.value.length < 6) {
+    openModal("Validation Error", "Password must be at least 6 characters.", "error")
+    return
+  }
   const username = newOrganiserUsername.value
   const res = await createOrganiser(username, newOrganiserPassword.value)
   if (res?.ok) {
