@@ -512,12 +512,31 @@ onMounted(async () => {
     const champion = msg.championName
     if (!champion) return
     // Check if the champion matches the current overlay pair. If not (e.g. stale pair
-    // from before a genre switch), fetch the authoritative pair from the backend.
+    // from before a genre switch), silently update the pair refs WITHOUT entrance
+    // animation — updateBattlePair would reset all visuals and race with the winner
+    // animation below.
     let side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
     if (side === -1) {
       const freshState = await getBattleState()
       if (freshState?.currentPair?.left) {
-        await updateBattlePair(freshState.currentPair)
+        // Silent pair update: set refs directly, no entrance animation
+        leftName.value    = freshState.currentPair.left
+        rightName.value   = freshState.currentPair.right
+        leftMembers.value  = freshState.currentPair.leftMembers  ?? []
+        rightMembers.value = freshState.currentPair.rightMembers ?? []
+        isFinal.value     = !!freshState.currentPair.isFinal
+        leftScore.value   = 0
+        rightScore.value  = 0
+        currentWinner.value = -2
+        leftWin.value     = false
+        rightWin.value    = false
+        leftReset.value   = false
+        rightReset.value  = false
+        vsAnim.value      = ''
+        winnerTagVisible.value = false
+        hideJudgeDecision.value = true
+        if (freshState.currentPair.left)  imageLeft.value  = await getImage(`${freshState.currentPair.left}.png`).catch(() => null)
+        if (freshState.currentPair.right) imageRight.value = await getImage(`${freshState.currentPair.right}.png`).catch(() => null)
         side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
       }
     }
@@ -525,8 +544,8 @@ onMounted(async () => {
     animToken++
     const myToken = animToken
     const ok = () => !unmounted && animToken === myToken
-    // Brief pause before reveal so entrance animation can complete if pair was just loaded
-    await useDelay().wait(350)
+    // Brief pause so panels are in DOM before winner animation
+    await useDelay().wait(150)
     if (!ok()) return
     hideJudgeDecision.value = true
     judgeAnim.value = ''
