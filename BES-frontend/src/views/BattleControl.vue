@@ -84,7 +84,7 @@ const confirmWin = () => {
 const cancelWin = () => { pendingWin.value = null }
 
 // ── Start-from-here confirmation ──────────────────────────────
-// { top, pairList, matchIdx } — null when no pending confirm
+// { top, pairList, matchIdx, startAll } — null when no pending confirm
 const pendingStartAt = ref(null)
 
 const roundLabel = (top) => {
@@ -93,14 +93,22 @@ const roundLabel = (top) => {
 }
 
 const requestStartAt = (top, pairList, matchIdx) => {
-  pendingStartAt.value = { top, pairList, matchIdx }
+  pendingStartAt.value = { top, pairList, matchIdx, startAll: false }
+}
+
+const requestStartAll = (top, pairList) => {
+  pendingStartAt.value = { top, pairList, matchIdx: 0, startAll: true }
 }
 
 const confirmStartAt = async () => {
   if (!pendingStartAt.value) return
-  const { top, pairList, matchIdx } = pendingStartAt.value
+  const { top, pairList, matchIdx, startAll } = pendingStartAt.value
   pendingStartAt.value = null
-  await initiateBattlePairAt(top, pairList, matchIdx)
+  if (startAll) {
+    await initiateBattlePair(top, pairList)
+  } else {
+    await initiateBattlePairAt(top, pairList, matchIdx)
+  }
 }
 
 const cancelStartAt = () => { pendingStartAt.value = null }
@@ -277,6 +285,10 @@ const initiateBattlePairAt = async (top, pairList, startIdx) => {
 }
 
 const initiateBattlePair = async (top, pairList) => {
+  if (!hasJudges.value) {
+    alert('Cannot start round: no judges assigned. Add at least one judge first.')
+    return
+  }
   markSaving()
   currentWinner.value = -2
   revealActive.value = false
@@ -2473,7 +2485,7 @@ onUnmounted(() => {
             <button
               v-if="effectivePhase === 'IDLE' && !setupLocked"
               :disabled="!isActiveRoundFilled"
-              @click="initiateBattlePair(`Top${size}`, rounds[`Top${size}`])"
+              @click="requestStartAll(`Top${size}`, rounds[`Top${size}`])"
               class="w-full py-4 sm:py-2 para-chip type-label transition-all duration-200"
               :class="isActiveRoundFilled ? 'bg-accent' : 'bg-surface-700 text-content-muted cursor-not-allowed'"
               :title="isActiveRoundFilled ? '' : 'All slots must be filled and the previous round must be completed'"
@@ -3110,19 +3122,22 @@ onUnmounted(() => {
           <p v-else class="type-label text-red-400 mb-3">⚠ No judges assigned — add judges before starting</p>
 
           <!-- Starting match -->
-          <div class="section-rule mb-3">
+          <div v-if="!pendingStartAt?.startAll" class="section-rule mb-3">
             <span class="section-rule-label">Starting Match</span>
             <div class="section-rule-line"></div>
           </div>
-          <p class="type-body mb-1">
-            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
-            <span class="text-content-muted mx-2">vs</span>
-            <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
-          </p>
-          <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
-            {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
-          </p>
-          <p v-else class="mb-4"></p>
+          <template v-if="!pendingStartAt?.startAll">
+            <p class="type-body mb-1">
+              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
+              <span class="text-content-muted mx-2">vs</span>
+              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
+            </p>
+            <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
+              {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
+            </p>
+            <p v-else class="mb-4"></p>
+          </template>
+          <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
 
           <div class="flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>

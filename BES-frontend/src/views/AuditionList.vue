@@ -188,6 +188,12 @@ const filteredParticipantsForJudge = computed({
 // aspect == "" → single score mode; aspect != "" → criteria mode (one row per criterion).
 const loadScoresFromDb = async (event, genre, judge) => {
   if (!event || !genre || !judge) return
+  // Guard: don't apply scores if participants for this genre haven't loaded yet.
+  // The selectedGenre watcher (immediate) can fire before the selectedEvent watcher
+  // finishes fetching participants. Without this check, scores are applied to an
+  // empty array via .map(), then participants load with score:0 overwriting everything.
+  // The selectedEvent watcher will call loadScoresFromDb again after participants arrive.
+  if (!participants.value.some(p => p.genreName === genre)) return
   const allScores = await getParticipantScore(event)
   if (!allScores || !Array.isArray(allScores)) return
 

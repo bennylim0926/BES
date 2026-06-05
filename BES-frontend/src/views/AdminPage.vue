@@ -61,6 +61,10 @@ const submitCreateOrganiser = async () => {
     openModal("Validation Error", "Username and password cannot be empty.", "error")
     return
   }
+  if (newOrganiserPassword.value.length < 6) {
+    openModal("Validation Error", "Password must be at least 6 characters.", "error")
+    return
+  }
   const username = newOrganiserUsername.value
   const res = await createOrganiser(username, newOrganiserPassword.value)
   if (res?.ok) {
@@ -69,14 +73,7 @@ const submitCreateOrganiser = async () => {
     newOrganiserPassword.value = ''
     openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
   } else {
-    const body = await res?.json().catch(() => null)
-    // Spring validation errors: { errors: [{ defaultMessage }] }
-    // Custom errors from backend: { message: "..." }
-    const msg = body?.errors?.[0]?.defaultMessage
-      || body?.message
-      || body?.detail
-      || "Failed to create organiser. Username may already exist."
-    openModal("Error", msg, "warning")
+    openModal("Error", res?.error || "Failed to create organiser.", "warning")
   }
 }
 

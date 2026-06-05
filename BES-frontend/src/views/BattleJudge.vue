@@ -179,27 +179,38 @@ onMounted(async () => {
 
   subscribeToChannel(cJudges, '/topic/battle/judges', (msg) => {
     battleJudges.value = msg
+    const authStore = useAuthStore()
+    const judges = msg?.judges ?? []
+
+    // If currently blocked (notAssigned), check if judge re-appeared
+    if (notAssigned.value && authStore.judgeName) {
+      const match = judges.find(j => j.name === authStore.judgeName)
+      if (match) {
+        judgeId.value = match.id
+        judgeName.value = match.name
+        notAssigned.value = false
+        setupVoteSubscription()
+        return
+      }
+    }
+
     if (judgeId.value != null) {
-      const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
+      const still = judges.find(j => j.id === judgeId.value)
       if (still) {
         clearTimeout(clearJudgeTimer)
+        clearJudgeTimer = null
         notAssigned.value = false
       } else {
-        // Judge absent — may be a temporary genre-sync remove+re-add. Debounce before clearing
-        // so the re-add has time to arrive. If still gone after 2.5s, clear for real.
-        if (clearJudgeTimer == null) {
-          clearJudgeTimer = setTimeout(() => {
-            clearJudgeTimer = null
-            const authStore = useAuthStore()
-            const byName = authStore.judgeName
-              ? (battleJudges.value?.judges ?? []).find(j => j.name === authStore.judgeName)
-              : null
-            if (byName) {
-              judgeId.value = byName.id
-            } else if (!(battleJudges.value?.judges ?? []).find(j => j.id === judgeId.value)) {
-              clearJudge()
-            }
-          }, 2500)
+        // Judge not in list — check by name first (organiser may have re-created
+        // the judge with a new ID during genre sync). If not found, clear immediately.
+        const byName = authStore.judgeName
+          ? judges.find(j => j.name === authStore.judgeName)
+          : null
+        if (byName) {
+          judgeId.value = byName.id
+          notAssigned.value = false
+        } else {
+          clearJudge()
         }
       }
     }
