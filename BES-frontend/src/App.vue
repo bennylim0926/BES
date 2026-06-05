@@ -28,8 +28,10 @@ const role = computed(() =>
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 const isJudgeRole = computed(() => role.value === 'ROLE_JUDGE')
+const isEmceeRole = computed(() => role.value === 'ROLE_EMCEE')
 const isHelperRole = computed(() => role.value === 'ROLE_HELPER')
 const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
+const isEmceeSession = computed(() => isEmceeRole.value && !!authStore.activeEvent)
 const isHelperSession = computed(() => isHelperRole.value && !!authStore.activeEvent)
 
 /** Hide the navbar on full-screen / immersive routes */
@@ -178,14 +180,14 @@ onUnmounted(() => {
       <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
 
         <!-- Left: BES wordmark + glowing dot -->
-        <router-link :to="isJudgeRole ? '/judge/session' : isHelperRole && activeEvent ? `/events/${activeEvent.name}` : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
+        <router-link :to="isJudgeRole ? '/judge/session' : isEmceeRole ? '/emcee/session' : isHelperRole ? '/helper/session' : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
           <div class="glow-dot"></div>
           <span class="type-body text-[18px] tracking-[0.12em] text-content-primary">BES</span>
         </router-link>
 
         <!-- Center: Primary nav as parallelogram chips -->
         <div class="hidden md:flex items-center justify-center gap-2">
-          <router-link v-if="!isJudgeRole && !isHelperRole" to="/" v-slot="{ isActive }">
+          <router-link v-if="!isJudgeRole && !isEmceeRole && !isHelperRole" to="/" v-slot="{ isActive }">
             <span
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
               :class="isActive
@@ -208,16 +210,16 @@ onUnmounted(() => {
 
           <!-- Event chip — visible on all screen sizes -->
           <div v-if="isAuthenticated" class="relative">
-            <!-- Session judge/helper: event name is locked, displayed as static chip -->
+            <!-- Session roles (judge/emcee/helper): event name is locked, displayed as static chip -->
             <span
-              v-if="activeEvent && (isJudgeSession || isHelperSession)"
+              v-if="activeEvent && (isJudgeSession || isEmceeSession || isHelperSession)"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary max-w-[200px] md:max-w-[240px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
             </span>
             <!-- Normal user: interactive event chip -->
             <button
-              v-else-if="activeEvent && !isHelperSession"
+              v-else-if="activeEvent && !isEmceeSession && !isHelperSession"
               @click="panelOpen = !panelOpen"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
             >
@@ -282,7 +284,7 @@ onUnmounted(() => {
     >
       <div v-show="isOpen" class="md:hidden border-t border-[rgba(255,255,255,0.07)] bg-surface-900/98">
         <div class="px-3 py-3 space-y-0.5">
-          <router-link v-if="!isJudgeRole && !isHelperRole" to="/" v-slot="{ isActive }">
+          <router-link v-if="!isJudgeRole && !isEmceeRole && !isHelperRole" to="/" v-slot="{ isActive }">
             <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
               :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
               Home

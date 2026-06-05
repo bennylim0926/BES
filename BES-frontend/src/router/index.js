@@ -21,6 +21,8 @@ import AuditionAdjust from "@/views/AuditionAdjust.vue";
 import BracketVisualization from "@/views/BracketVisualization.vue";
 import TokenAuth from "@/views/TokenAuth.vue";
 import JudgeSessionView from "@/views/JudgeSessionView.vue";
+import EmceeSessionView from "@/views/EmceeSessionView.vue";
+import HelperSessionView from "@/views/HelperSessionView.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -149,6 +151,16 @@ const routes = [
         path: '/judge/session',
         name: 'JudgeSession',
         component: JudgeSessionView
+    },
+    {
+        path: '/emcee/session',
+        name: 'EmceeSession',
+        component: EmceeSessionView
+    },
+    {
+        path: '/helper/session',
+        name: 'HelperSession',
+        component: HelperSessionView
     }
 ]
 
@@ -157,7 +169,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
@@ -175,16 +187,15 @@ router.beforeEach(async (to) => {
             return { name: 'Forbidden' }
         }
 
-        // Judges and Helpers land on their session hub, not the generic home
+        // Session roles land on their hub, not the generic home
         if (userRole === 'ROLE_JUDGE' && to.name === 'Main') {
             return { name: 'JudgeSession' }
         }
+        if (userRole === 'ROLE_EMCEE' && to.name === 'Main') {
+            return { name: 'EmceeSession' }
+        }
         if (userRole === 'ROLE_HELPER' && to.name === 'Main') {
-            const activeEvent = getActiveEvent()
-            if (activeEvent) {
-                return { name: 'Event Details', params: { eventName: activeEvent.name } }
-            }
-            return { name: 'Forbidden' }
+            return { name: 'HelperSession' }
         }
 
         if (to.meta?.requiresEvent && !getActiveEvent()) {

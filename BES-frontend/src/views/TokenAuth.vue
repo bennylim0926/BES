@@ -32,9 +32,9 @@ onMounted(async () => {
   if (authority === 'ROLE_JUDGE') {
     router.replace('/judge/session')
   } else if (authority === 'ROLE_EMCEE') {
-    router.replace('/event/audition-list')
+    router.replace('/emcee/session')
   } else if (authority === 'ROLE_HELPER') {
-    router.replace(`/events/${encodeURIComponent(data.eventName)}`)
+    router.replace('/helper/session')
   } else {
     router.replace('/')
   }
