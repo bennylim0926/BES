@@ -359,6 +359,23 @@ public class BattleService {
     }
 
     @Transactional
+    public void setResolvedParticipants(String eventName, String genreName, List<String> participants) {
+        try {
+            BattleGenreState s = battleGenreStateRepository
+                .findByEventNameAndGenreName(eventName, genreName)
+                .orElse(new BattleGenreState());
+            s.setEventName(eventName);
+            s.setGenreName(genreName);
+            s.setResolvedParticipantsJson(
+                participants != null ? objectMapper.writeValueAsString(participants) : null);
+            s.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(s);
+        } catch (Exception e) {
+            System.err.println("Failed to save resolved participants: " + e.getMessage());
+        }
+    }
+
+    @Transactional
     public void switchActiveGenreService(SetActiveGenreDto dto) {
         persistActiveState();
         BattleActiveGenre active = battleActiveGenreRepository.findById(1)
@@ -397,6 +414,14 @@ public class BattleService {
         state.put("currentPair", pair);
         state.put("battlePhase", battlePhase);
         state.put("champion", champion);
+        // Restore tie-breaker resolved list from DB if present
+        String resolvedJson = null;
+        if (activeEventName != null && activeGenreName != null) {
+            var st = battleGenreStateRepository
+                .findByEventNameAndGenreName(activeEventName, activeGenreName).orElse(null);
+            if (st != null) resolvedJson = st.getResolvedParticipantsJson();
+        }
+        state.put("resolvedParticipants", resolvedJson != null ? resolvedJson : "");
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
         }
