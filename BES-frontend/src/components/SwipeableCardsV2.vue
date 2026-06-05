@@ -53,9 +53,11 @@ function computeAggregate(card) {
 const getCardIndexFromScroll = () => {
   const container = scrollRef.value
   if (!container) return 0
-  const snapPoint = container.clientWidth + 8
-  const biased = container.scrollLeft + snapPoint * 0.25
-  const idx = Math.round(biased / snapPoint)
+  // px-2 (8px padding each side) + gap-2 (8px gap)
+  // card width = 100% of content = clientWidth - 16
+  // snapPoint = cardWidth + gap = clientWidth - 16 + 8 = clientWidth - 8
+  const snapPoint = container.clientWidth - 8
+  const idx = Math.round(container.scrollLeft / snapPoint)
   return Math.max(0, Math.min(idx, props.cards.length - 1))
 }
 
@@ -67,9 +69,14 @@ const observeCards = async () => {
   container.addEventListener('scroll', () => {
     currentIndex.value = getCardIndexFromScroll()
   }, { passive: true })
-  container.addEventListener('touchend', () => {
-    currentIndex.value = getCardIndexFromScroll()
-  })
+
+  const finalizeIndex = () => {
+    // After snap animation settles, lock in the correct index
+    setTimeout(() => {
+      currentIndex.value = getCardIndexFromScroll()
+    }, 100)
+  }
+  container.addEventListener('touchend', finalizeIndex)
   container.addEventListener('scrollend', () => {
     currentIndex.value = getCardIndexFromScroll()
   })
@@ -112,7 +119,7 @@ onMounted(observeCards)
       >
         <!-- Score card -->
         <div
-          class="card-hover p-3 relative transition-all duration-200"
+          class="card-hover p-3 relative transition-[border-color,box-shadow] duration-200"
           :class="[idx === currentIndex ? (card.submitted ? 'border-emerald-500/50' : card.saving ? 'border-accent/40' : 'border-[color:var(--accent-muted)]') : 'border-white/5 opacity-40']"
           :style="idx === currentIndex
             ? { boxShadow: card.submitted ? '0 0 0 1px rgba(16,185,129,0.4), 0 8px 32px rgba(0,0,0,0.7)' : card.saving ? '0 0 0 1px var(--accent-muted), 0 0 24px var(--accent-subtle), 0 8px 32px rgba(0,0,0,0.7)' : '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
