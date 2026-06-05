@@ -66,12 +66,16 @@ public class AuthControllerIntegrationTest {
         testJudge.setName("Test Judge");
         testJudge = judgeRepo.save(testJudge);
 
-        // Create a division and assign judge so JPA relationship check passes
+        // Create a division and assign judge to it so the JPA relationship
+        // (judge.eventGenres → EventGenre.event) resolves for SessionTokenService validation
         EventGenre eg = new EventGenre();
         eg.setName("Test Division");
         eg.setEvent(testEvent);
         eg.setJudges(new java.util.ArrayList<>(java.util.List.of(testJudge)));
-        eventGenreRepo.save(eg);
+        eg = eventGenreRepo.save(eg);
+        // Ensure the judge entity has the division in its collection
+        testJudge.setEventGenres(new java.util.ArrayList<>(java.util.List.of(eg)));
+        testJudge = judgeRepo.save(testJudge);
     }
 
     @Test
