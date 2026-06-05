@@ -87,6 +87,11 @@ const cancelWin = () => { pendingWin.value = null }
 // { top, pairList, matchIdx } — null when no pending confirm
 const pendingStartAt = ref(null)
 
+const roundLabel = (top) => {
+  const labels = { Top16: 'Top 16', Top8: 'Quarterfinals', Top4: 'Semifinals', Top2: 'Finals' }
+  return labels[top] || top || ''
+}
+
 const requestStartAt = (top, pairList, matchIdx) => {
   pendingStartAt.value = { top, pairList, matchIdx }
 }
@@ -3072,22 +3077,57 @@ onUnmounted(() => {
     <!-- Start-from-here confirmation modal -->
     <Transition name="fade">
       <div v-if="pendingStartAt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+        <div class="card-hover p-6 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
           <div class="corner-bar-tl"></div>
-          <div class="type-page-title text-lg mb-2">Start from this match?</div>
-          <p class="type-body text-content-muted mb-1">
+          <div class="type-page-title text-lg mb-4">Confirm Battle Round</div>
+
+          <!-- Genre / Division -->
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Division</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <p class="type-body text-content-primary mb-3">{{ selectedGenre }}</p>
+
+          <!-- Round -->
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Round</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <p class="type-body text-content-primary mb-3">
+            {{ roundLabel(pendingStartAt?.top) }}
+            <span class="type-label text-content-muted ml-2">({{ pendingStartAt?.pairList?.length || 0 }} match{{ pendingStartAt?.pairList?.length !== 1 ? 'es' : '' }})</span>
+          </p>
+
+          <!-- Judges -->
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Judges</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <div v-if="(battleJudges?.judges ?? []).length" class="flex flex-wrap gap-1.5 mb-3">
+            <span v-for="j in battleJudges.judges" :key="j.id"
+              class="badge-neutral type-label px-2 py-0.5 text-xs">{{ j.name }}</span>
+          </div>
+          <p v-else class="type-label text-red-400 mb-3">⚠ No judges assigned — add judges before starting</p>
+
+          <!-- Starting match -->
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Starting Match</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <p class="type-body mb-1">
             <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
-            vs
+            <span class="text-content-muted mx-2">vs</span>
             <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
           </p>
-          <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-content-muted mb-6" style="font-size:10px;letter-spacing:0.12em">
-            Matches before this one will be skipped.
+          <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
+            {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
           </p>
-          <p v-else class="mb-6"></p>
+          <p v-else class="mb-4"></p>
+
           <div class="flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
-            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all">
-              <i class="pi pi-play text-xs mr-1.5"></i>Start
+            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all" :disabled="!(battleJudges?.judges ?? []).length">
+              <i class="pi pi-play text-xs mr-1.5"></i>Start Round
             </button>
           </div>
         </div>
