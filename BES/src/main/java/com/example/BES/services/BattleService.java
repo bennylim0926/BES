@@ -304,6 +304,15 @@ public class BattleService {
 
     public void setBattlePhaseService(String phase) {
         if ("REVEALED".equals(phase)) return;
+        // Prevent starting a round with zero judges
+        if ("LOCKED".equals(phase)) {
+            synchronized (judges) {
+                if (judges.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Cannot start round: no judges assigned. Add at least one judge first.");
+                }
+            }
+        }
         battlePhase = phase;
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
             "phase", battlePhase,

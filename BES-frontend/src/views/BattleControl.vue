@@ -55,6 +55,8 @@ const setupLocked = computed(() =>
   (isSmoke.value && Array.isArray(rounds.value) && rounds.value.some(r => (r?.score ?? 0) > 0))
 )
 
+const hasJudges = computed(() => (battleJudges.value?.judges ?? []).length > 0)
+
 // Auto-collapse setup panel the first time a battle starts
 watch(setupLocked, (locked) => {
   if (locked) setupExpanded.value = false
@@ -242,6 +244,10 @@ const updateSmokePair = async () => {
 }
 
 const initiateBattlePairAt = async (top, pairList, startIdx) => {
+  if (!hasJudges.value) {
+    alert('Cannot start round: no judges assigned. Add at least one judge first.')
+    return
+  }
   markSaving()
   currentWinner.value = -2
   revealActive.value = false
