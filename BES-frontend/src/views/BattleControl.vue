@@ -5,7 +5,7 @@ import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
-import { createClient, deactivateClient } from '@/utils/websocket'
+import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { parseDropKey } from '@/utils/pointerDnd'
 
 const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
@@ -32,6 +32,74 @@ const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: 
 const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
 const genreChampions     = ref({})
+const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
+
+// Single entry point for full-state hydration from /topic/battle/state or REST API.
+// Diffs against lastAppliedState to skip no-op updates and prevent animation disruption.
+const hydrateFromState = (state) => {
+  if (!state) return
+  const snapshot = JSON.stringify(state)
+  if (snapshot === lastAppliedState.value) return
+  lastAppliedState.value = snapshot
+
+  if (state.bracket) {
+    if (state.bracket.topSize !== undefined) {
+      const size = Number(state.bracket.topSize)
+      if (!isNaN(size) && size !== Number(topSize.value)) {
+        skipSizeChangeClear = true
+        topSize.value = size
+      }
+    }
+    if (state.bracket.rounds) {
+      rounds.value = state.bracket.rounds
+    }
+  }
+  if (state.currentRoundIndex !== undefined) {
+    currentRound.value = state.currentRoundIndex
+  }
+  if (state.currentPair) {
+    const pair = state.currentPair
+    if (pair.left || pair.right) {
+      const bracketRounds = state.bracket?.rounds ?? rounds.value
+      let topKey = pair.isFinal ? 'Top2' : null
+      if (!topKey && bracketRounds) {
+        for (const key of Object.keys(bracketRounds)) {
+          const matchList = bracketRounds[key]
+          if (!Array.isArray(matchList)) continue
+          if (matchList.some(m => Array.isArray(m) && m[0] === pair.left && m[1] === pair.right)) {
+            topKey = key; break
+          }
+        }
+      }
+      if (topKey) {
+        currentTop.value = topKey
+        const pairList = bracketRounds[topKey] ?? []
+        const pairIdx = pairList.findIndex(
+          m => Array.isArray(m) && m[0] === pair.left && m[1] === pair.right
+        )
+        if (pairIdx >= 0) currentRound.value = pairIdx
+        currentBattle.value = [pairIdx >= 0 ? pairIdx : 0, pairList]
+      }
+    } else {
+      currentBattle.value = []
+      currentTop.value = ''
+    }
+  }
+  if (state.battlePhase) {
+    battlePhase.value = state.battlePhase
+  }
+  if (state.champion) {
+    genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: state.champion }
+  }
+  if (state.judges?.length) {
+    battleJudges.value = { judges: state.judges }
+  }
+  if (state.resolvedParticipants && state.resolvedParticipants !== '') {
+    try {
+      resolvedParticipants.value = JSON.parse(state.resolvedParticipants)
+    } catch (_) { resolvedParticipants.value = null }
+  }
+}
 
 const saveStatus = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
 let saveTimer = null
@@ -1893,19 +1961,26 @@ onMounted(async () => {
     showRecoveryBanner.value = true  // then notify the operator
   }
   wsClient.value = createClient()
-  // Single onConnect handler — multiple subscribeToChannel calls before connection
-  // overwrite each other's onConnect, so we wire everything here directly.
   wsClient.value.onConnect = () => {
+    // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
+    // Diff logic prevents re-rendering already-current state.
+    subscribeToChannel(wsClient.value, '/topic/battle/state', (msg) => {
+      // Guard: ignore state broadcasts for a different genre (stale WS from genre switch)
+      if (msg.genreName && msg.genreName !== selectedGenre.value) return
+      hydrateFromState(msg)
+      syncJudgeVoteSubscriptions()
+    })
+
+    // Phase subscription — keep for real-time phase transitions
     wsClient.value.subscribe('/topic/battle/phase', (raw) => {
       const msg = JSON.parse(raw.body)
-      // Ignore phase messages intended for a different genre — stale WS from a genre
-      // switch can arrive after we've already switched back and set the correct phase.
       if (msg.genre && msg.genre !== selectedGenre.value) return
       battlePhase.value = msg.phase
       if (msg.phase === 'DECIDED' && msg.champion) {
         genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: msg.champion }
       }
     })
+
     // NOTE: /topic/battle/judges is intentionally NOT subscribed here.
     // syncJudgesForGenre does multiple remove+add operations in sequence; each
     // triggers a WS broadcast with an intermediate state. These late-arriving
@@ -1915,6 +1990,13 @@ onMounted(async () => {
     syncJudgeVoteSubscriptions()
   }
   wsClient.value.activate()
+  // After WS activation, hydrate from REST to cover the gap before subscription went live.
+  // The WS /topic/battle/state subscription above was registered in onConnect BEFORE activate().
+  // This REST call ensures we have state even before the first WS message arrives.
+  if (selectedEvent.value && selectedGenre.value) {
+    const battleState = await getBattleState()
+    if (battleState) hydrateFromState(battleState)
+  }
 })
 
 onUnmounted(() => {
