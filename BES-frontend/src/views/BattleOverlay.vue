@@ -26,8 +26,45 @@ const leftScore  = ref(0)
 const rightScore = ref(0)
 const currentWinner = ref(-2)
 const battleJudges  = ref([])
+const lastOverlayState = ref('')  // JSON diff guard for /topic/battle/state
 
 const isFinal = ref(false)
+
+const hydrateOverlayFromState = async (state) => {
+  if (!state) return
+  const snapshot = JSON.stringify(state)
+  if (snapshot === lastOverlayState.value) return
+  lastOverlayState.value = snapshot
+
+  // Genre — update if changed
+  if (state.genreName !== undefined && !isSmoke.value) {
+    activeGenreName.value = state.genreName
+  }
+
+  // Pair — only update if changed (prevents re-triggering entrance animation)
+  if (state.currentPair?.left && !isSmoke.value) {
+    const pairChanged = leftName.value !== state.currentPair.left ||
+                        rightName.value !== state.currentPair.right
+    if (pairChanged) {
+      await updateBattlePair(state.currentPair)
+    }
+  }
+
+  // Phase — only update if changed
+  if (state.battlePhase && state.battlePhase !== battlePhase.value) {
+    battlePhase.value = state.battlePhase
+    showVotingIndicator.value = state.battlePhase === 'VOTING'
+  }
+
+  // Judges — only if list actually changed
+  if (state.judges?.length) {
+    const newJudgeIds = state.judges.map(j => j.id).sort().join(',')
+    const oldJudgeIds = (battleJudges.value?.judges ?? []).map(j => j.id).sort().join(',')
+    if (newJudgeIds !== oldJudgeIds) {
+      battleJudges.value = { judges: state.judges }
+    }
+  }
+}
 
 // Tracks the currently active genre name so stale phase WS messages from a
 // recently-deactivated genre can be discarded (same filter applied in BattleControl).
@@ -489,42 +526,10 @@ onMounted(async () => {
     currentWinner.value = side
   })
 
-  // Always subscribe to /topic/battle/state — detects genre switches in real-time
+  // Full-state snapshot — hydrates on mount, genre switch, and reconnect recovery
   const cState = createClient(); clients.push(cState)
-  subscribeToChannel(cState, '/topic/battle/state', async (msg) => {
-    if (!msg) return
-    const wasSmoke = isSmoke.value
-    if (msg.genreName !== undefined) {
-      isSmoke.value = genreNameIsSmoke(msg.genreName)
-      activeGenreName.value = msg.genreName
-    }
-    if (!isSmoke.value) {
-      if (msg.battlePhase !== undefined) battlePhase.value = msg.battlePhase
-      if (msg.judges?.length) updateBattleJudge({ judges: msg.judges })
-      // On format switch from smoke → standard, restore the pair from state
-      if (wasSmoke && !isSmoke.value && msg.currentPair?.left) {
-        await updateBattlePair(msg.currentPair)
-      } else if (!wasSmoke && msg.currentPair?.left) {
-        const pairChanged = msg.currentPair.left !== leftName.value || msg.currentPair.right !== rightName.value
-        const needsWinnerRestore = msg.battlePhase === 'REVEALED' || msg.battlePhase === 'DECIDED'
-        if (pairChanged) {
-          if (needsWinnerRestore && msg.bracket?.rounds) {
-            // Await so winner state is applied after entrance animation completes.
-            // Applies to both REVEALED and DECIDED (genre switch back to a completed genre).
-            await updateBattlePair(msg.currentPair)
-            restoreRevealedState(msg.bracket.rounds)
-          } else {
-            // Only animate if the pair actually changed; prevents re-animation on every bracket drag
-            updateBattlePair(msg.currentPair)
-          }
-        } else if (needsWinnerRestore && !leftWin.value && !rightWin.value) {
-          // Same pair but no winner shown — re-trigger entrance animation so panels reappear
-          // after a WAITING state caused by a genre switch through an IDLE genre.
-          await updateBattlePair(msg.currentPair)
-          if (msg.bracket?.rounds) restoreRevealedState(msg.bracket.rounds)
-        }
-      }
-    }
+  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+    hydrateOverlayFromState(msg)
   })
 })
 
