@@ -206,11 +206,23 @@ export const createOrganiser = async (username, password) => {
         const res = await fetch(`${domain}/api/v1/admin/organisers`, {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ username, password })
         })
-        return res
-    } catch (_err) { /* network error */ }
+        if (res.ok) return { ok: true }
+        // Extract error from response body — try multiple Spring Boot formats
+        const body = await res.json().catch(() => ({}))
+        const msg = body?.properties
+            ? Object.values(body.properties)[0]           // ProblemDetail (Spring Boot 3.x)
+            : body?.errors?.[0]?.defaultMessage           // BindingResult (Spring Boot 2.x)
+            || body?.message                               // custom { message: "..." }
+            || body?.detail                                // ProblemDetail fallback
+            || body?.error                                 // BasicErrorController
+            || 'Failed to create organiser.'
+        return { ok: false, error: typeof msg === 'string' ? msg : 'Failed to create organiser.' }
+    } catch (_err) {
+        return { ok: false, error: 'Unable to reach server. Check your connection.' }
+    }
 }
 
 export const deleteOrganiser = async (accountId) => {

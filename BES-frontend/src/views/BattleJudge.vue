@@ -179,18 +179,32 @@ onMounted(async () => {
 
   subscribeToChannel(cJudges, '/topic/battle/judges', (msg) => {
     battleJudges.value = msg
+    const authStore = useAuthStore()
+    const judges = msg?.judges ?? []
+
+    // If currently blocked (notAssigned), check if judge re-appeared
+    if (notAssigned.value && authStore.judgeName) {
+      const match = judges.find(j => j.name === authStore.judgeName)
+      if (match) {
+        judgeId.value = match.id
+        judgeName.value = match.name
+        notAssigned.value = false
+        setupVoteSubscription()
+        return
+      }
+    }
+
     if (judgeId.value != null) {
-      const still = (msg?.judges ?? []).find(j => j.id === judgeId.value)
+      const still = judges.find(j => j.id === judgeId.value)
       if (still) {
         clearTimeout(clearJudgeTimer)
         clearJudgeTimer = null
         notAssigned.value = false
       } else {
-        // Judge not in list — check by name (organiser may have re-created the judge
-        // with a new ID during genre sync). If not found by name either, clear immediately.
-        const authStore = useAuthStore()
+        // Judge not in list — check by name first (organiser may have re-created
+        // the judge with a new ID during genre sync). If not found, clear immediately.
         const byName = authStore.judgeName
-          ? (battleJudges.value?.judges ?? []).find(j => j.name === authStore.judgeName)
+          ? judges.find(j => j.name === authStore.judgeName)
           : null
         if (byName) {
           judgeId.value = byName.id

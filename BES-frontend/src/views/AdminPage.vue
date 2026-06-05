@@ -69,18 +69,7 @@ const submitCreateOrganiser = async () => {
     newOrganiserPassword.value = ''
     openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
   } else {
-    const body = await res?.json().catch(() => null)
-    // Spring Boot 3.x ProblemDetail format: { properties: { password: "..." } }
-    // Spring Boot 2.x format: { errors: [{ defaultMessage: "..." }] }
-    // Custom backend errors: { message: "..." }
-    const props = body?.properties
-    const firstProp = props ? Object.values(props)[0] : null
-    const msg = firstProp
-      || body?.errors?.[0]?.defaultMessage
-      || body?.message
-      || body?.detail
-      || "Failed to create organiser. Username may already exist."
-    openModal("Error", msg, "warning")
+    openModal("Error", res?.error || "Failed to create organiser.", "warning")
   }
 }
 
