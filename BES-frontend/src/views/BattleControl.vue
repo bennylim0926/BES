@@ -1157,6 +1157,10 @@ const jumpToRecoveredPair = async () => {
     const resolvedIdx = nameIdx >= 0 ? nameIdx : (currentRoundIndex ?? 0)
     currentRound.value = resolvedIdx
     currentBattle.value = [resolvedIdx, pairList]
+    // Restore the round tab to match the recovered currentTop
+    const recoveredSize = parseInt(topKey.replace('Top', ''))
+    const recoveredIdx = roundSizes.value.indexOf(recoveredSize)
+    if (recoveredIdx >= 0) activeRoundIdx.value = recoveredIdx
   }
 
   // REVEALED: backend already has the correct state loaded from DB on startup.
@@ -1462,10 +1466,13 @@ const effectivePhase = computed(() =>
   isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
 )
 
-// Guard: prompt before switching round tab when battle is in progress
+// Guard: only prompt when switching AWAY from a round with an active battle.
+// Completed rounds and future rounds switch freely without prompting.
 const requestRoundChange = (idx) => {
   if (roundTabStatus(idx) === 'locked') return
-  if (battlePhase.value !== 'IDLE' && idx !== activeRoundIdx.value) {
+  if (idx === activeRoundIdx.value) return
+  // Only prompt if the CURRENT round has an active battle in progress
+  if (roundTabStatus(activeRoundIdx.value) === 'active' && battlePhase.value !== 'IDLE') {
     pendingRoundIdx.value = idx
     showRoundChangeConfirm.value = true
   } else {
