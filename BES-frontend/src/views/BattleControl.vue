@@ -2339,7 +2339,7 @@ onUnmounted(() => {
             </div>
 
             <button
-              v-if="effectivePhase === 'IDLE' && !setupLocked"
+              v-if="effectivePhase === 'IDLE'"
               :disabled="!isActiveRoundFilled"
               @click="requestStartAll(`Top${size}`, rounds[`Top${size}`])"
               class="w-full py-4 sm:py-2 para-chip type-label transition-all duration-200"
