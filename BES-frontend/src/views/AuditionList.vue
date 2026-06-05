@@ -4,7 +4,7 @@ import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipan
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import { useAuthStore } from '@/utils/auth';
@@ -27,6 +27,7 @@ const participants = ref([])
 const judgingMode = ref("SOLO")
 const eventDivisions = ref([]) // { eventGenreId, name } for current event — used to map division name → ID
 const isAdmin = ref(false)
+const isOrganiser = ref(false)
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -48,15 +49,16 @@ const dynamicRole = async () => {
   } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
-    const jName = authStore.judgeName
+    const jName = res.judgeName || authStore.judgeName
     if (jName) {
       currentJudge.value = jName
       filteredJudge.value = jName
       localStorage.setItem('currentJudge', jName)
     }
   } else if (authority === "ROLE_ORGANISER") {
-    roles.value = ["Emcee"]
-    selectedRole.value = "Emcee"
+    roles.value = ["Emcee", "Judge"]
+    selectedRole.value = localStorage.getItem("selectedRole") || "Emcee"
+    isOrganiser.value = true
   } else if (authority === "ROLE_ADMIN") {
     roles.value = ["Emcee", "Judge"]
     selectedRole.value = localStorage.getItem("selectedRole") || ""
@@ -155,13 +157,21 @@ const confirmSubmit = async (title, message) => {
 
 const filteredParticipantsForJudge = computed({
   get() {
+    // For pure judges (not admin/organiser), the filter identity is always the current judge.
+    // Admin/organiser can set filteredJudge independently via a dropdown.
+    const effectiveJudge = (!isAdmin.value && !isOrganiser.value && currentJudge.value)
+      ? currentJudge.value
+      : filteredJudge.value
     return participants.value
-      .filter(p =>
-        p.genreName === selectedGenre.value &&
-        p.judgeName === (filteredJudge.value === "" ? null : filteredJudge.value) &&
-        p.auditionNumber !== null &&
-        matchesEntryType(p)
-      )
+      .filter(p => {
+        if (p.genreName !== selectedGenre.value) return false
+        if (p.auditionNumber === null) return false
+        if (!matchesEntryType(p)) return false
+        // If no participants have per-participant judge assignments, use event-genre scope
+        if (!hasJudge.value) return true
+        // Otherwise, filter by per-participant judgeName
+        return p.judgeName === (effectiveJudge === "" ? null : effectiveJudge)
+      })
       .sort((a, b) => a.auditionNumber - b.auditionNumber)
   },
   set(updatedList) {
@@ -209,7 +219,9 @@ const loadScoresFromDb = async (event, genre, judge) => {
 }
 
 const filteredParticipantsForEmceeView = computed(() => {
-  const base = filteredJudge.value === ""
+  // If no participants have per-participant judge assignments, use event-genre scope.
+  // Otherwise, respect the admin/org's judge filter dropdown.
+  const base = (!hasJudge.value || filteredJudge.value === "")
     ? participants.value.filter(p => p.genreName === selectedGenre.value && p.auditionNumber !== null && matchesEntryType(p))
     : participants.value.filter(p => p.genreName === selectedGenre.value && p.judgeName === filteredJudge.value && p.auditionNumber !== null && matchesEntryType(p))
   return base.sort((a, b) => a.auditionNumber - b.auditionNumber)
@@ -253,9 +265,20 @@ watch(selectedEvent, async (newVal, oldVal) => {
       currentJudge.value = ""
       localStorage.removeItem("currentJudge")
     }
-    filteredJudge.value = ""
+    if (!authStore.judgeName) filteredJudge.value = ""
     if (selectedEvent.value !== newVal) return
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
+    // Auto-select the first genre assigned to a session-link judge who has no genre selected yet
+    if (!selectedGenre.value && authStore.judgeName) {
+      const myGenre = res.find(p => p.judgeName === authStore.judgeName)?.genreName
+      if (myGenre) selectedGenre.value = myGenre
+    }
+    // Fallback: if still no genre selected, pick the first genre from participants or event divisions
+    if (!selectedGenre.value) {
+      const firstGenre = res.find(p => p.genreName)?.genreName
+        || (divRes && divRes.length > 0 ? divRes[0].name : null)
+      if (firstGenre) selectedGenre.value = firstGenre
+    }
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
     await loadScoresFromDb(newVal, selectedGenre.value, currentJudge.value)
   }
@@ -279,13 +302,19 @@ watch(selectedGenre, async (newVal) => {
       if (sessionJudge && judgeNames.includes(sessionJudge)) {
         currentJudge.value = sessionJudge
         localStorage.setItem('currentJudge', sessionJudge)
-      } else {
+      } else if (!sessionJudge || currentJudge.value !== sessionJudge) {
+        // Only clear if currentJudge doesn't match a session-linked judge identity.
+        // Session-linked judges keep their identity even if not in this division's explicit judge list.
         currentJudge.value = ""
         localStorage.removeItem("currentJudge")
       }
     }
     if (!judgeNames.includes(filteredJudge.value)) {
-      filteredJudge.value = (sessionJudge && judgeNames.includes(sessionJudge)) ? sessionJudge : ""
+      if (sessionJudge && judgeNames.includes(sessionJudge)) {
+        filteredJudge.value = sessionJudge
+      } else if (!sessionJudge || filteredJudge.value !== sessionJudge) {
+        filteredJudge.value = ""
+      }
     }
     await loadScoresFromDb(selectedEvent.value, newVal, currentJudge.value)
   } else {
@@ -530,6 +559,8 @@ watch([currentJudge, selectedGenre], loadFeedbackGiven)
 
 const showFilters = ref(false)
 const hasActiveSession = computed(() => !!selectedGenre.value && !!selectedRole.value)
+const router = useRouter()
+const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
 
 const wsClients = []
 
@@ -651,13 +682,19 @@ onMounted(async () => {
       class="para-chip px-4 py-2.5 mb-4 flex-shrink-0 flex items-center justify-between"
     >
       <div class="flex items-center gap-2 type-label text-content-muted flex-wrap">
+        <button
+          v-if="isJudgeSession"
+          @click="router.push({ name: 'JudgeSession' })"
+          class="text-accent hover:text-content-primary transition-colors whitespace-nowrap"
+        >← SESSION</button>
+        <span v-if="isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span class="text-accent">{{ selectedEvent }}</span>
         <span class="text-content-muted opacity-30">·</span>
         <span>{{ selectedGenre }}</span>
         <span class="text-content-muted opacity-30">·</span>
         <span class="uppercase tracking-widest">{{ judgingMode }}</span>
-        <span class="text-content-muted opacity-30">·</span>
-        <span>{{ selectedRole }}</span>
+        <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
+        <span v-if="!isJudgeSession">{{ selectedRole }}</span>
       </div>
       <button
         @click="showFilters = !showFilters"
@@ -697,12 +734,12 @@ onMounted(async () => {
       <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.12)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.9)', clipPath: 'none' } : { clipPath: 'none' }">
         <!-- Mobile: vertical stack; Tablet+: horizontal wrap -->
         <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 sm:gap-3">
-          <!-- Event name -->
-          <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-          <span class="text-surface-600 select-none hidden sm:inline">|</span>
+          <!-- Event name (hidden for session judges — locked) -->
+          <span v-if="!isJudgeSession" class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+          <span v-if="!isJudgeSession" class="text-surface-600 select-none hidden sm:inline">|</span>
 
-          <!-- Role toggle -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <!-- Role toggle (hidden for session judges — locked to Judge) -->
+          <div v-if="!isJudgeSession" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Role</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
@@ -716,7 +753,7 @@ onMounted(async () => {
               >{{ r }}</button>
             </div>
           </div>
-          <span class="text-surface-600 select-none hidden sm:inline">|</span>
+          <span v-if="!isJudgeSession" class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Genre toggle -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
@@ -774,10 +811,10 @@ onMounted(async () => {
 
           <!-- Judge filter + identity dropdowns: full-width on mobile, right-aligned on sm+ -->
           <div class="flex flex-col sm:flex-row sm:ml-auto sm:items-center gap-3 w-full sm:w-auto">
-            <div v-if="hasJudge && isAdmin" class="w-full sm:w-48">
+            <div v-if="hasJudge && (isAdmin || isOrganiser)" class="w-full sm:w-48">
               <ReusableDropdown v-model="filteredJudge" labelId="Judge" :options="allJudges" />
             </div>
-            <div v-if="selectedRole === 'Judge' && isAdmin" class="w-full sm:min-w-[12rem] sm:max-w-[16rem]">
+            <div v-if="selectedRole === 'Judge' && (isAdmin || isOrganiser)" class="w-full sm:min-w-[12rem] sm:max-w-[16rem]">
               <ReusableDropdown v-model="currentJudge" labelId="You are judging as" :options="allJudges" />
             </div>
           </div>
@@ -817,7 +854,7 @@ onMounted(async () => {
 
     <!-- Judge: no identity selected -->
     <div
-      v-else-if="selectedRole === 'Judge' && !currentJudge && isAdmin"
+      v-else-if="selectedRole === 'Judge' && !currentJudge"
       class="flex flex-col items-center justify-center py-16 text-center gap-6 px-4"
     >
       <div>
@@ -887,9 +924,34 @@ onMounted(async () => {
       />
     </template>
 
-    <!-- Empty state -->
+    <!-- Empty state: no participants in this genre -->
     <div
-      v-else-if="selectedRole && selectedGenre && currentJudge && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
+      v-else-if="selectedRole === 'Judge' && selectedGenre && currentJudge && filteredParticipantsForJudge.length === 0"
+      class="flex flex-col items-center justify-center h-full text-center"
+    >
+      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
+        <i class="pi pi-user text-content-muted text-xl"></i>
+      </div>
+      <p class="type-body text-content-secondary">No participants in {{ selectedGenre }}</p>
+      <p class="type-label text-content-muted mt-1">
+        {{ currentJudge }} — {{ selectedGenre }}
+      </p>
+      <div class="mt-4 px-5 py-3 flex flex-col items-center gap-1" style="border-left:3px solid rgba(245,158,11,0.8);background:rgba(245,158,11,0.07);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+        <p class="type-label text-amber-300/80">
+          {{ participants.filter(p => p.genreName === selectedGenre).length }} total participants in {{ selectedGenre }}
+        </p>
+        <p class="type-label text-amber-300/80">
+          {{ participants.filter(p => p.genreName === selectedGenre && p.auditionNumber !== null).length }} have audition numbers
+        </p>
+      </div>
+      <p class="type-label text-content-muted mt-3 max-w-xs">
+        No participants found in this division. Try a different genre or ask an organiser to add participants.
+      </p>
+    </div>
+
+    <!-- Empty state: no participants in this genre (general) -->
+    <div
+      v-else-if="selectedRole && selectedGenre && filteredParticipantsForEmceeView.length === 0 && filteredParticipantsForJudge.length === 0"
       class="flex flex-col items-center justify-center h-full text-center"
     >
       <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
@@ -909,6 +971,18 @@ onMounted(async () => {
       </div>
       <p class="type-body text-content-secondary">Select your role to begin</p>
       <p class="type-label text-content-muted mt-1">Choose Emcee or Judge in the filter panel above</p>
+    </div>
+
+    <!-- Catch-all fallback: prevent blank page while data is loading -->
+    <div
+      v-else
+      class="flex flex-col items-center justify-center h-full text-center"
+    >
+      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
+        <i class="pi pi-spinner pi-spin text-accent text-xl"></i>
+      </div>
+      <p class="type-body text-content-secondary">Loading…</p>
+      <p class="type-label text-content-muted mt-1">Fetching audition data for {{ selectedEvent }}</p>
     </div>
 
     </div>
@@ -955,7 +1029,7 @@ onMounted(async () => {
     :show="showJudgeConfirm"
     title="Confirm Identity"
     variant="info"
-    @accept="() => { currentJudge = pendingJudge; showJudgeConfirm = false; pendingJudge = null }"
+    @accept="() => { currentJudge = pendingJudge; filteredJudge = pendingJudge; showJudgeConfirm = false; pendingJudge = null }"
     @close="() => { showJudgeConfirm = false; pendingJudge = null }"
   >
     <p class="type-body text-content-secondary">

@@ -144,13 +144,10 @@ export const getVerifiedParticipantsByEvent = async(eventName) =>{
     const res = await fetch(`${domain}/api/v1/event/verified-participant/${eventName}`,{
       credentials: 'include'
     })
-    if(res.ok){
-        return await res.json()
-    }else if (res.status === 404) {
-        return []
-    }
+    return res.ok ? await res.json() : []
   }catch(e){
       console.log(e)
+      return []
   }
 }
 
@@ -159,13 +156,10 @@ export const getRegisteredParticipantsByEvent = async(eventName) =>{
     const res = await fetch(`${domain}/api/v1/event/participants/${eventName}`,{
       credentials: 'include',
     })
-    if(res.ok){
-        return await res.json()
-    }else if (res.status === 404) {
-        return []
-    }
+    return res.ok ? await res.json() : []
   }catch(e){
       console.log(e)
+      return []
   }
 }
 
@@ -206,6 +200,39 @@ export const removeEventJudge = async(eventName, judgeId) => {
       credentials: 'include'
     })
   } catch(err) { console.log(err) }
+}
+
+export const getJudgesByEvent = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judges`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    return res.ok ? await res.json() : []
+  } catch { return [] }
+}
+
+export const getJudgeDivisions = async (eventName, judgeId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge/${judgeId}/divisions`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    return res.ok ? await res.json() : []
+  } catch { return [] }
+}
+
+export const addJudgeToEvent = async (eventName, judgeName) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/judge`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeName })
+    })
+  } catch { return null }
+}
+
+export const assignJudgeToDivision = async (eventName, divisionId, judgeId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions/${divisionId}/assign-judge/${judgeId}`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+  } catch { return null }
 }
 
 export const getJudgesByDivision = async (eventName, divisionId) => {

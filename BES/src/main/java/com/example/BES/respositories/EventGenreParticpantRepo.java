@@ -16,6 +16,9 @@ import com.example.BES.models.EventGenreParticipantId;
 public interface EventGenreParticpantRepo extends JpaRepository<EventGenreParticipant, EventGenreParticipantId> {
     List<EventGenreParticipant> findByEvent(Event event);
 
+    @Query("SELECT DISTINCT e FROM EventGenreParticipant e LEFT JOIN FETCH e.judge WHERE e.event = :event")
+    List<EventGenreParticipant> findByEventWithJudge(@Param("event") Event event);
+
     @Query(value = """
        SELECT e
        FROM EventGenreParticipant e

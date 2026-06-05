@@ -48,6 +48,8 @@ const visibleTiles = computed(() =>
 function handleTile(tile) {
   if (tile.key === 'details') {
     emit('goToEventDetails')
+  } else if (tile.key === 'battle' && props.role === 'ROLE_JUDGE') {
+    emit('navigate', 'Battle Judge')
   } else {
     emit('navigate', TILE_ROUTES[tile.key])
   }

@@ -1,27 +1,20 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { fetchAllEvents, verifyEventAccessCode } from '@/utils/api'
-import { whoami } from '@/utils/api'
-import { isEventVerified, markEventVerified, setActiveEvent } from '@/utils/auth'
+import { fetchAllEvents } from '@/utils/api'
+import { markEventVerified, setActiveEvent } from '@/utils/auth'
 
 const router = useRouter()
 const route = useRoute()
 
 const events = ref([])
 const selectedEventId = ref(null)
-const accessCode = ref('')
 const isLoading = ref(false)
 const error = ref('')
-const userRole = ref('')
 
 const selectedEvent = computed(() => events.value.find(e => e.id === selectedEventId.value) ?? null)
-const alreadyVerified = computed(() => selectedEventId.value !== null && isEventVerified(selectedEventId.value))
-const isAdmin = computed(() => userRole.value === 'ROLE_ADMIN')
 
 onMounted(async () => {
-  const user = await whoami()
-  userRole.value = user?.role?.[0]?.authority ?? ''
   events.value = await fetchAllEvents() ?? []
 })
 
@@ -33,28 +26,10 @@ const handleSubmit = async () => {
   error.value = ''
   isLoading.value = true
   try {
-    if (isAdmin.value || alreadyVerified.value) {
-      setActiveEvent(selectedEventId.value, selectedEvent.value.name)
-      markEventVerified(selectedEventId.value)
-      const redirect = String(route.query.redirect || '/')
-      // If coming from an EventDetails page, go to new event's details instead
-      router.push(redirect.startsWith('/events/') ? `/events/${selectedEvent.value.name}` : redirect)
-      return
-    }
-    if (!accessCode.value || accessCode.value.length !== 4) {
-      error.value = 'Please enter the 4-digit access code.'
-      return
-    }
-    const res = await verifyEventAccessCode(selectedEventId.value, accessCode.value)
-    if (res?.valid) {
-      setActiveEvent(selectedEventId.value, selectedEvent.value.name)
-      markEventVerified(selectedEventId.value)
-      const redirect = String(route.query.redirect || '/')
-      router.push(redirect.startsWith('/events/') ? `/events/${selectedEvent.value.name}` : redirect)
-    } else {
-      error.value = 'Incorrect access code. Please try again.'
-      accessCode.value = ''
-    }
+    setActiveEvent(selectedEventId.value, selectedEvent.value.name)
+    markEventVerified(selectedEventId.value)
+    const redirect = String(route.query.redirect || '/')
+    router.push(redirect.startsWith('/events/') ? `/events/${selectedEvent.value.name}` : redirect)
   } finally {
     isLoading.value = false
   }
@@ -86,7 +61,7 @@ const handleSubmit = async () => {
                 v-for="event in events"
                 :key="event.id"
                 type="button"
-                @click="selectedEventId = event.id; accessCode = ''; error = ''"
+                @click="selectedEventId = event.id; error = ''"
                 :class="[
                   'card-hover p-4 sm:p-5 text-left relative group w-full',
                   selectedEventId === event.id ? 'border-[color:var(--accent-muted)]' : ''
@@ -94,38 +69,9 @@ const handleSubmit = async () => {
               >
                 <div class="corner-bar-tl"></div>
                 <div class="type-body mb-1 event-card-name">{{ event.name }}</div>
-                <div
-                  v-if="isAdmin && event.accessCode"
-                  class="type-label text-content-muted"
-                >
-                  {{ event.accessCode }}
-                </div>
               </button>
             </div>
             <p v-if="events.length === 0" class="type-label text-content-muted mt-2">No events found.</p>
-          </div>
-
-          <!-- Already verified chip -->
-          <div
-            v-if="alreadyVerified && !isAdmin"
-            class="semantic-chip-success flex items-center gap-2 px-3 py-2"
-          >
-            <div class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(52,211,153,0.8)"></div>
-            <span class="type-label text-emerald-400">Already verified — you can proceed directly</span>
-          </div>
-
-          <!-- Access code input (non-admin, not yet verified) -->
-          <div v-if="selectedEventId !== null && !isAdmin && !alreadyVerified">
-            <label class="type-label text-content-muted block mb-2">Access Code</label>
-            <input
-              v-model="accessCode"
-              type="text"
-              inputmode="numeric"
-              maxlength="4"
-              placeholder="0000"
-              class="input-base text-2xl tracking-widest text-center"
-              autocomplete="off"
-            />
           </div>
 
           <!-- Error -->
@@ -139,11 +85,9 @@ const handleSubmit = async () => {
             style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
           >
             <span v-if="isLoading">
-              <i class="pi pi-spin pi-spinner mr-2"></i>Verifying…
+              <i class="pi pi-spin pi-spinner mr-2"></i>Loading…
             </span>
-            <span v-else>
-              {{ alreadyVerified || isAdmin ? 'Enter Event' : 'Verify & Enter' }}
-            </span>
+            <span v-else>Enter Event</span>
           </button>
 
         </form>

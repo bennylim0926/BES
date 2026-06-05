@@ -20,6 +20,7 @@ import CrewFormation from "@/views/CrewFormation.vue";
 import AuditionAdjust from "@/views/AuditionAdjust.vue";
 import BracketVisualization from "@/views/BracketVisualization.vue";
 import TokenAuth from "@/views/TokenAuth.vue";
+import JudgeSessionView from "@/views/JudgeSessionView.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -49,7 +50,7 @@ const routes = [
         path: '/event/audition-number',
         name: 'Audition Number',
         component: AuditionNumber,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] }
     },
     {
         path: '/event/update-event-details',
@@ -143,6 +144,11 @@ const routes = [
         path: '/auth/token',
         name: 'TokenAuth',
         component: TokenAuth
+    },
+    {
+        path: '/judge/session',
+        name: 'JudgeSession',
+        component: JudgeSessionView
     }
 ]
 
@@ -151,7 +157,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
@@ -166,6 +172,18 @@ router.beforeEach(async (to) => {
 
         const userRole = user.role?.[0]?.authority
         if (to.meta?.allowedRoles && !to.meta.allowedRoles.includes(userRole)) {
+            return { name: 'Forbidden' }
+        }
+
+        // Judges and Helpers land on their session hub, not the generic home
+        if (userRole === 'ROLE_JUDGE' && to.name === 'Main') {
+            return { name: 'JudgeSession' }
+        }
+        if (userRole === 'ROLE_HELPER' && to.name === 'Main') {
+            const activeEvent = getActiveEvent()
+            if (activeEvent) {
+                return { name: 'Event Details', params: { eventName: activeEvent.name } }
+            }
             return { name: 'Forbidden' }
         }
 

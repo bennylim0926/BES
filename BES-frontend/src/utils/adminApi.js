@@ -162,7 +162,7 @@ export const deleteImage = async(name)=>{
 
 export const getFeedbackGroups = async () => {
     try {
-        const res = await fetch(`${domain}/api/v1/admin/feedback-groups`, { credentials: 'include' })
+        const res = await fetch(`${domain}/api/v1/event/feedback-groups`, { credentials: 'include' })
         if (res.ok) return await res.json()
         return []
     } catch (_err) { return [] }

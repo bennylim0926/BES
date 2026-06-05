@@ -79,7 +79,7 @@ onMounted(async () => {
         <p class="type-label text-content-muted">Select an event to manage participants and scores</p>
       </div>
       <span class="badge-neutral type-label self-start sm:self-auto px-3 py-1">
-        {{ events.length }} event{{ events.length !== 1 ? 's' : '' }}
+        {{ filtered.length }} event{{ filtered.length !== 1 ? 's' : '' }}
       </span>
     </div>
 

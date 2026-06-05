@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.GetJudgeDto;
+import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.models.Event;
@@ -77,20 +78,13 @@ public class JudgeService {
     public List<GetJudgeDto> getJudgesByEvent(String eventName) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
-        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
+        List<Judge> judges = judgeRepo.findJudgesByEventId(event.getEventId());
         List<GetJudgeDto> dtos = new ArrayList<>();
-        Set<Long> seen = new HashSet<>();
-        for (EventGenre eg : genres) {
-            if (eg.getJudges() != null) {
-                for (Judge j : eg.getJudges()) {
-                    if (seen.add(j.getJudgeId())) {
-                        GetJudgeDto dto = new GetJudgeDto();
-                        dto.judgeName = j.getName();
-                        dto.judgeId = j.getJudgeId();
-                        dtos.add(dto);
-                    }
-                }
-            }
+        for (Judge j : judges) {
+            GetJudgeDto dto = new GetJudgeDto();
+            dto.judgeName = j.getName();
+            dto.judgeId = j.getJudgeId();
+            dtos.add(dto);
         }
         return dtos;
     }
@@ -99,17 +93,15 @@ public class JudgeService {
     public Judge addJudgeToEvent(String eventName, String judgeName) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return null;
-        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
-        if (genres.isEmpty()) return null;
-        Judge j = judgeRepo.findFirstByName(judgeName).orElseGet(() -> {
+        String trimmed = judgeName != null ? judgeName.trim() : "";
+        if (trimmed.isEmpty()) return null;
+        Judge j = judgeRepo.findFirstByName(trimmed).orElseGet(() -> {
             Judge newJ = new Judge();
-            newJ.setName(judgeName);
+            newJ.setName(trimmed);
             return judgeRepo.save(newJ);
         });
-        EventGenre eg = genres.get(0);
-        if (eg.getJudges() == null) eg.setJudges(new ArrayList<>());
-        eg.getJudges().add(j);
-        eventGenreRepo.save(eg);
+        // Add to event-level pool only — no division assignment
+        judgeRepo.insertEventJudge(event.getEventId(), j.getJudgeId());
         return j;
     }
 
@@ -117,6 +109,7 @@ public class JudgeService {
     public void removeJudgeFromEvent(String eventName, Long judgeId) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return;
+        // Remove from all divisions
         List<EventGenre> genres = eventGenreRepo.findByEvent(event);
         for (EventGenre eg : genres) {
             if (eg.getJudges() != null) {
@@ -124,6 +117,8 @@ public class JudgeService {
             }
         }
         eventGenreRepo.saveAll(genres);
+        // Remove from event pool
+        judgeRepo.deleteEventJudge(event.getEventId(), judgeId);
     }
 
     @Transactional
@@ -141,14 +136,47 @@ public class JudgeService {
     @Transactional
     public List<GetJudgeDto> addJudgeToDivision(Long divisionId, String judgeName) {
         EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
-        Judge j = judgeRepo.findFirstByName(judgeName).orElseGet(() -> {
+        String trimmed = judgeName != null ? judgeName.trim() : "";
+        if (trimmed.isEmpty()) return getJudgesByDivision(divisionId);
+
+        Judge j = judgeRepo.findFirstByName(trimmed).orElseGet(() -> {
             Judge newJ = new Judge();
-            newJ.setName(judgeName);
+            newJ.setName(trimmed);
             return judgeRepo.save(newJ);
         });
+
+        // Also ensure in event-level pool
+        judgeRepo.insertEventJudge(eg.getEvent().getEventId(), j.getJudgeId());
+
         if (eg.getJudges() == null) eg.setJudges(new ArrayList<>());
-        eg.getJudges().add(j);
-        eventGenreRepo.save(eg);
+
+        // Prevent duplicate in same division
+        boolean alreadyInDivision = eg.getJudges().stream()
+            .anyMatch(existing -> existing.getJudgeId().equals(j.getJudgeId()));
+        if (!alreadyInDivision) {
+            eg.getJudges().add(j);
+            eventGenreRepo.save(eg);
+        }
+
+        return getJudgesByDivision(divisionId);
+    }
+
+    @Transactional
+    public List<GetJudgeDto> assignJudgeToDivision(Long divisionId, Long judgeId) {
+        EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
+        Judge j = judgeRepo.findById(judgeId).orElse(null);
+        if (j == null) return getJudgesByDivision(divisionId);
+
+        // Also ensure in event-level pool
+        judgeRepo.insertEventJudge(eg.getEvent().getEventId(), judgeId);
+
+        if (eg.getJudges() == null) eg.setJudges(new ArrayList<>());
+        boolean alreadyInDivision = eg.getJudges().stream()
+            .anyMatch(existing -> existing.getJudgeId().equals(judgeId));
+        if (!alreadyInDivision) {
+            eg.getJudges().add(j);
+            eventGenreRepo.save(eg);
+        }
         return getJudgesByDivision(divisionId);
     }
 
@@ -159,4 +187,23 @@ public class JudgeService {
         eventGenreRepo.save(eg);
         return getJudgesByDivision(divisionId);
     }
+
+    public List<JudgeDivisionDto> getDivisionsByJudge(String eventName, Long judgeId) {
+        Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (event == null) return new ArrayList<>();
+        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
+        List<JudgeDivisionDto> result = new ArrayList<>();
+        for (EventGenre eg : genres) {
+            if (eg.getJudges() != null) {
+                for (Judge j : eg.getJudges()) {
+                    if (j.getJudgeId().equals(judgeId)) {
+                        result.add(new JudgeDivisionDto(eg.getName(), eg.getFormat()));
+                        break;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
 }

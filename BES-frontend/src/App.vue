@@ -27,6 +27,11 @@ const role = computed(() =>
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
+const isJudgeRole = computed(() => role.value === 'ROLE_JUDGE')
+const isHelperRole = computed(() => role.value === 'ROLE_HELPER')
+const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
+const isHelperSession = computed(() => isHelperRole.value && !!authStore.activeEvent)
+
 /** Hide the navbar on full-screen / immersive routes */
 const hideNav = computed(() =>
   ['Login', 'StreamOverlay', 'Battle Judge', 'BracketVisualization'].includes(route.name)
@@ -46,7 +51,9 @@ const roleDisplay = computed(() => {
     ROLE_HELPER:    'Helper',
   }
   const label = labels[role.value]
-  return label ? { label } : null
+  if (!label) return null
+  const name = (role.value === 'ROLE_JUDGE' && authStore.judgeName) ? authStore.judgeName : null
+  return { label, name }
 })
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -171,14 +178,14 @@ onUnmounted(() => {
       <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
 
         <!-- Left: BES wordmark + glowing dot -->
-        <router-link to="/" class="flex items-center gap-2.5 group flex-shrink-0">
+        <router-link :to="isJudgeRole ? '/judge/session' : isHelperRole && activeEvent ? `/events/${activeEvent.name}` : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
           <div class="glow-dot"></div>
           <span class="type-body text-[18px] tracking-[0.12em] text-content-primary">BES</span>
         </router-link>
 
         <!-- Center: Primary nav as parallelogram chips -->
         <div class="hidden md:flex items-center justify-center gap-2">
-          <router-link to="/" v-slot="{ isActive }">
+          <router-link v-if="!isJudgeRole && !isHelperRole" to="/" v-slot="{ isActive }">
             <span
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
               :class="isActive
@@ -201,8 +208,16 @@ onUnmounted(() => {
 
           <!-- Event chip — visible on all screen sizes -->
           <div v-if="isAuthenticated" class="relative">
+            <!-- Session judge/helper: event name is locked, displayed as static chip -->
+            <span
+              v-if="activeEvent && (isJudgeSession || isHelperSession)"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary max-w-[200px] md:max-w-[240px]"
+            >
+              <span class="truncate">{{ activeEvent.name }}</span>
+            </span>
+            <!-- Normal user: interactive event chip -->
             <button
-              v-if="activeEvent"
+              v-else-if="activeEvent && !isHelperSession"
               @click="panelOpen = !panelOpen"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
             >
@@ -224,8 +239,9 @@ onUnmounted(() => {
             <div v-if="isAuthenticated" class="h-4 w-px bg-[rgba(255,255,255,0.12)]"></div>
 
             <span v-if="isAuthenticated && roleDisplay"
-              class="badge-neutral type-label px-2 py-0.5">
-              {{ roleDisplay.label }}
+              class="badge-neutral type-label px-2 py-0.5 inline-flex items-center gap-1.5">
+              <span class="opacity-50">{{ roleDisplay.label }}</span>
+              <span v-if="roleDisplay.name" class="text-content-primary">{{ roleDisplay.name }}</span>
             </span>
 
             <button @click="toggleTheme"
@@ -266,7 +282,7 @@ onUnmounted(() => {
     >
       <div v-show="isOpen" class="md:hidden border-t border-[rgba(255,255,255,0.07)] bg-surface-900/98">
         <div class="px-3 py-3 space-y-0.5">
-          <router-link to="/" v-slot="{ isActive }">
+          <router-link v-if="!isJudgeRole && !isHelperRole" to="/" v-slot="{ isActive }">
             <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
               :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
               Home
@@ -284,7 +300,10 @@ onUnmounted(() => {
         <div class="px-3 py-3 border-t border-[rgba(255,255,255,0.07)]">
           <div v-if="isAuthenticated" class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span v-if="roleDisplay" class="badge-neutral type-label">{{ roleDisplay.label }}</span>
+              <span v-if="roleDisplay" class="badge-neutral type-label inline-flex items-center gap-1.5">
+                <span class="opacity-50">{{ roleDisplay.label }}</span>
+                <span v-if="roleDisplay.name" class="text-content-primary">{{ roleDisplay.name }}</span>
+              </span>
               <button @click="toggleTheme"
                 class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
                 <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>

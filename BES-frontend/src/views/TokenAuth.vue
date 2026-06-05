@@ -30,7 +30,7 @@ onMounted(async () => {
   }
   const authority = data.role?.[0]?.authority
   if (authority === 'ROLE_JUDGE') {
-    router.replace('/battle/judge')
+    router.replace('/judge/session')
   } else if (authority === 'ROLE_EMCEE') {
     router.replace('/event/audition-list')
   } else if (authority === 'ROLE_HELPER') {

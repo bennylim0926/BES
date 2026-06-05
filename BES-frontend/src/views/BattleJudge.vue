@@ -3,6 +3,9 @@ import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair,
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/utils/auth'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 // ── Overlay config ──────────────────────────────────────────────────────────
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
@@ -231,7 +234,13 @@ onUnmounted(() => {
         >{{ battlePhase }}</span>
       </div>
 
-      <div class="header-right">
+      <div class="header-right" style="display:flex;align-items:center;gap:8px;">
+        <button
+          v-if="judgeId"
+          @click="router.push('/judge/session')"
+          class="audition-nav-btn"
+          title="Go to Session Hub"
+        >HUB</button>
         <div v-if="judgeName" class="judge-chip">
           <span class="judge-chip-label">AS</span>
           <span class="judge-chip-name">{{ judgeName }}</span>
@@ -492,6 +501,20 @@ onUnmounted(() => {
   transition: background 0.15s, color 0.15s;
 }
 .pick-judge-btn:active { background: rgba(255,255,255,0.15); color: white; }
+
+.audition-nav-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.audition-nav-btn:active { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); }
 
 /* ── (names bar removed — names shown on panels) ───────────── */
 
