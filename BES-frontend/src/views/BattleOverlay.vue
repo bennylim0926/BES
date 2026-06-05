@@ -424,9 +424,13 @@ onMounted(async () => {
     // Ignore phase messages from a different (inactive) genre — stale WS from a
     // genre switch can arrive late and corrupt the current genre's phase display.
     if (msg.genre && activeGenreName.value && msg.genre !== activeGenreName.value) return
+    const prevPhase = battlePhase.value
     battlePhase.value = msg.phase
     showVotingIndicator.value = msg.phase === 'VOTING'
-    if (msg.phase === 'LOCKED') {
+    // Only run LOCKED reset on an actual phase transition — prevents re-broadcasts
+    // (e.g. BattleControl refresh → switchActiveGenreService) from re-triggering
+    // visual resets and entrance animations on the current pair.
+    if (msg.phase === 'LOCKED' && prevPhase !== 'LOCKED') {
       // Next was clicked — abort any in-progress score animation and reset overlay
       animToken++
       hideJudgeDecision.value = true
