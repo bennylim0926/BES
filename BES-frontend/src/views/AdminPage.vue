@@ -70,7 +70,13 @@ const submitCreateOrganiser = async () => {
     openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
   } else {
     const body = await res?.json().catch(() => null)
-    openModal("Error", body?.message || "Failed to create organiser. Username may already exist.", "warning")
+    // Spring validation errors: { errors: [{ defaultMessage }] }
+    // Custom errors from backend: { message: "..." }
+    const msg = body?.errors?.[0]?.defaultMessage
+      || body?.message
+      || body?.detail
+      || "Failed to create organiser. Username may already exist."
+    openModal("Error", msg, "warning")
   }
 }
 
