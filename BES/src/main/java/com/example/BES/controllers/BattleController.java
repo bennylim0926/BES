@@ -41,6 +41,7 @@ import com.example.BES.dtos.battle.SetBracketStateDto;
 import com.example.BES.dtos.battle.SetJudgeDto;
 import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattleScoreDto;
+import com.example.BES.dtos.battle.SetResolvedParticipantsDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
@@ -326,7 +327,7 @@ public class BattleController {
     @PostMapping("/phase")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
-        battleService.setBattlePhaseService(dto.getPhase());
+        battleService.setBattlePhaseService(dto.getPhase(), dto.getChampion());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
 
@@ -374,5 +375,13 @@ public class BattleController {
     @GetMapping("/state")
     public ResponseEntity<?> getBattleState() {
         return ResponseEntity.ok(battleService.getBattleStateService());
+    }
+
+    @PostMapping("/resolved-participants")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setResolvedParticipants(@Valid @RequestBody SetResolvedParticipantsDto dto) {
+        battleService.setResolvedParticipants(
+            dto.getEventName(), dto.getGenreName(), dto.getParticipants());
+        return ResponseEntity.ok(Map.of("message", "Resolved participants saved"));
     }
 }

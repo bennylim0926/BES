@@ -303,6 +303,10 @@ public class BattleService {
     public boolean isCurrentFinal() { return currentIsFinal; }
 
     public void setBattlePhaseService(String phase) {
+        setBattlePhaseService(phase, null);
+    }
+
+    public void setBattlePhaseService(String phase, String championName) {
         if ("REVEALED".equals(phase)) return;
         // Prevent starting a round with zero judges
         if ("LOCKED".equals(phase)) {
@@ -314,9 +318,13 @@ public class BattleService {
             }
         }
         battlePhase = phase;
+        if (championName != null) {
+            champion = championName;
+        }
         messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
             "phase", battlePhase,
-            "genre", activeGenreName != null ? activeGenreName : ""
+            "genre", activeGenreName != null ? activeGenreName : "",
+            "champion", champion != null ? champion : ""
         ));
         persistActiveState();
     }
@@ -359,6 +367,29 @@ public class BattleService {
     }
 
     @Transactional
+    public void setResolvedParticipants(String eventName, String genreName, List<String> participants) {
+        try {
+            BattleGenreState s = battleGenreStateRepository
+                .findByEventNameAndGenreName(eventName, genreName)
+                .orElse(new BattleGenreState());
+            s.setEventName(eventName);
+            s.setGenreName(genreName);
+            s.setResolvedParticipantsJson(
+                participants != null ? objectMapper.writeValueAsString(participants) : null);
+            s.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(s);
+            // Broadcast updated full state so BattleControl in other tabs sees the change.
+            // Only broadcast if the update was for the currently active genre.
+            if (eventName != null && eventName.equals(activeEventName)
+                && genreName != null && genreName.equals(activeGenreName)) {
+                broadcastStateSnapshot();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to save resolved participants: " + e.getMessage());
+        }
+    }
+
+    @Transactional
     public void switchActiveGenreService(SetActiveGenreDto dto) {
         persistActiveState();
         BattleActiveGenre active = battleActiveGenreRepository.findById(1)
@@ -397,6 +428,14 @@ public class BattleService {
         state.put("currentPair", pair);
         state.put("battlePhase", battlePhase);
         state.put("champion", champion);
+        // Restore tie-breaker resolved list from DB if present
+        String resolvedJson = null;
+        if (activeEventName != null && activeGenreName != null) {
+            var st = battleGenreStateRepository
+                .findByEventNameAndGenreName(activeEventName, activeGenreName).orElse(null);
+            if (st != null) resolvedJson = st.getResolvedParticipantsJson();
+        }
+        state.put("resolvedParticipants", resolvedJson != null ? resolvedJson : "");
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
         }

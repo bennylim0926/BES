@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants } from '@/utils/api';
 import DynamicTable from '@/components/DynamicTable.vue';
 import { useAuthStore } from '@/utils/auth';
 
@@ -43,11 +43,6 @@ const tieBreakerConfirmed = ref(false)
 const tbKey = computed(() =>
   `tb_${selectedEvent.value}_${selectedGenre.value}_${selectedTabulation.value}_${selectedTopN.value}`
 )
-const tbResolvedKey = computed(() => {
-  const n = selectedTopN.value === 'All' ? 0 : parseInt(selectedTopN.value.replace('Top ', ''))
-  return `tbResolved_${selectedEvent.value}_${selectedGenre.value}_${n}`
-})
-
 const saveTieBreaker = () => {
   localStorage.setItem(tbKey.value, JSON.stringify({
     winners: [...tieBreakerWinners.value],
@@ -69,7 +64,6 @@ const resetTieBreaker = () => {
   tieBreakerWinners.value = new Set()
   tieBreakerConfirmed.value = false
   localStorage.removeItem(tbKey.value)
-  localStorage.removeItem(tbResolvedKey.value)
 }
 
 const uniqueGenres = computed(() => {
@@ -193,13 +187,17 @@ const toggleWinner = (name) => {
   saveTieBreaker()
 }
 
-const confirmTieBreaker = () => {
+const confirmTieBreaker = async () => {
   if (tieBreakerWinners.value.size === spotsFromTie.value) {
-    tieBreakerConfirmed.value = true
-    saveTieBreaker()
-    // Save resolved names for BattleControl to consume
+    // Save resolved names server-side FIRST so BattleControl can read them from DB.
+    // Only confirm locally after the API succeeds — prevents false-positive UI state
+    // when the server call fails silently.
     const resolved = finalRows.value.map(r => r.participantName)
-    localStorage.setItem(tbResolvedKey.value, JSON.stringify(resolved))
+    const res = await setResolvedParticipants(selectedEvent.value, selectedGenre.value, resolved)
+    if (res && res.ok) {
+      tieBreakerConfirmed.value = true
+      saveTieBreaker()
+    }
   }
 }
 

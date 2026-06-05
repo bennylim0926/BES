@@ -1,5 +1,5 @@
 <script setup>
-import { battleJudgeVote, getBattleJudges, getBattlePhase, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
+import { battleJudgeVote, getBattleJudges, getBattlePhase, getBattleState, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/utils/auth'
@@ -21,6 +21,38 @@ const battleJudges   = ref({ judges: [] })
 const judgeId         = ref(null)   // number | null
 const judgeName       = ref('')
 const notAssigned     = ref(false)
+
+const lastJudgeState = ref('')  // JSON diff guard
+
+const hydrateJudgeFromState = (state) => {
+  if (!state) return
+  const snapshot = JSON.stringify(state)
+  if (snapshot === lastJudgeState.value) return
+  lastJudgeState.value = snapshot
+
+  // Phase — only update if changed
+  if (state.battlePhase && state.battlePhase !== battlePhase.value) {
+    battlePhase.value = state.battlePhase
+    if (state.battlePhase === 'LOCKED') {
+      clearVote()
+      revealedWinner.value = -2
+    }
+  }
+
+  // Pair — only update if changed (prevents unnecessary clearVote)
+  if (state.currentPair?.left) {
+    if (leftName.value !== state.currentPair.left || rightName.value !== state.currentPair.right) {
+      leftName.value = state.currentPair.left || ''
+      rightName.value = state.currentPair.right || ''
+      clearVote()
+    }
+  }
+
+  // Judges — check if current judge was re-added after block
+  if (state.judges?.length) {
+    battleJudges.value = { judges: state.judges }
+  }
+}
 
 function loadJudgeIdentity(judges) {
   const authStore = useAuthStore()
@@ -215,6 +247,16 @@ onMounted(async () => {
       }
     }
   })
+
+  // Full-state snapshot for initial hydration and reconnect recovery
+  const cState = createClient(); wsClients.push(cState)
+  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+    hydrateJudgeFromState(msg)
+  })
+
+  // Initial hydration + reconnect recovery
+  const initialState = await getBattleState()
+  if (initialState) hydrateJudgeFromState(initialState)
 })
 
 onUnmounted(() => {
