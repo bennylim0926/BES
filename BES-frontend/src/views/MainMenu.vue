@@ -11,7 +11,7 @@ const role = computed(() =>
 const activeEvent = computed(() => authStore.activeEvent)
 
 const roleDisplay = computed(() => {
-  const labels = { ROLE_ADMIN: 'Admin', ROLE_ORGANISER: 'Organiser', ROLE_JUDGE: 'Judge', ROLE_EMCEE: 'Emcee' }
+  const labels = { ROLE_ADMIN: 'Admin', ROLE_ORGANISER: 'Organiser', ROLE_JUDGE: 'Judge', ROLE_EMCEE: 'Emcee', ROLE_HELPER: 'Helper' }
   const label = labels[role.value]
   return label ? { label } : null
 })
@@ -49,9 +49,21 @@ const roleDisplay = computed(() => {
           <p class="type-label text-content-muted">Manage and browse events</p>
         </router-link>
 
+        <!-- Event Day (Helper) -->
+        <router-link
+          v-if="activeEvent && role === 'ROLE_HELPER'"
+          :to="{ name: 'Event Details', params: { eventName: activeEvent.name } }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-calendar-clock text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Event Day</div>
+          <p class="type-label text-content-muted">Walk-ins, check-in, audition screen</p>
+        </router-link>
+
         <!-- Audition List -->
         <router-link
-          v-if="activeEvent"
+          v-if="activeEvent && role !== 'ROLE_HELPER'"
           :to="{ name: 'Audition List' }"
           class="card-hover p-6 relative cursor-pointer group"
         >
@@ -112,7 +124,7 @@ const roleDisplay = computed(() => {
       </div>
 
       <!-- No event selected hint -->
-      <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE')"
+      <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE' || role === 'ROLE_HELPER')"
         class="mt-8 p-4 semantic-chip-warning flex items-start gap-3">
         <div class="w-2 h-2 rounded-full bg-amber-400 box-shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0"></div>
         <div>

@@ -1,10 +1,11 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
-import { RouterLink } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByDivision, addJudgeToDivision, removeJudgeFromDivision, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories } from '@/utils/api';
-import { setActiveEvent } from '@/utils/auth';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
+import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
+
+const authStore = useAuthStore()
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
@@ -86,6 +87,11 @@ const askRemoveJudge = (g, j) => askConfirm(
   `Remove ${j.judgeName} from ${g.name}?`,
   () => submitRemoveJudge(g.eventGenreId, j.judgeId)
 )
+const askRemoveJudgeGlobal = (j) => askConfirm(
+  'Remove Judge from Event?',
+  `Remove ${j.judgeName} from all divisions?`,
+  () => submitRemoveJudgeGlobal(j.judgeId)
+)
 const askToggleSolo = (div) => askConfirm(
   div.soloAllowed ? 'Block Solo Entries?' : 'Allow Solo Entries?',
   div.soloAllowed
@@ -100,7 +106,7 @@ const showCriteriaModal = ref(false)
 // Walk-in form
 const showWalkInForm = ref(false)
 const revealingRef = ref(null) // name of participant whose ref code is being held/revealed
-const activeTab = ref('setup') // 'setup' | 'event-day'
+const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? 'event-day' : 'setup') // 'setup' | 'event-day'
 const activeGenreTab = ref(null)
 const poolTab = ref(null) // active division tab in number pool
 let refreshInterval = null
@@ -630,24 +636,56 @@ const removeDivisionFromSection = async (divId) => {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-// ── Judges (per division) ──────────────────────────────────────────────────
+// ── Judges (global + per division) ───────────────────────────────────────
 const divisionJudges = ref({})
-const addJudgeInput = ref('')
+const allEventJudges = ref([])
+const globalJudgeInput = ref('')
 
 const loadJudgesForDivision = async (genre) => {
   if (!genre) return
   divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
 }
+// Judges not yet assigned to a specific division
+const openAssignDropdown = ref(null)
 
-const submitAddJudge = async (divisionId) => {
-  if (!addJudgeInput.value.trim()) return
-  const res = await addJudgeToDivision(props.eventName, divisionId, addJudgeInput.value.trim())
+const toggleAssignDropdown = (id) => {
+  openAssignDropdown.value = openAssignDropdown.value === id ? null : id
+}
+
+const unassignedJudges = (genreName) => {
+  const assigned = divisionJudges.value[genreName] || []
+  const assignedIds = new Set(assigned.map(j => j.judgeId))
+  return allEventJudges.value.filter(j => !assignedIds.has(j.judgeId))
+}
+
+const submitAddJudgeGlobal = async () => {
+  if (!globalJudgeInput.value.trim()) return
+  const res = await addJudgeToEvent(props.eventName, globalJudgeInput.value.trim())
+  if (res?.ok) {
+    allEventJudges.value = await res.json()
+  }
+  globalJudgeInput.value = ''
+}
+
+const submitRemoveJudgeGlobal = async (judgeId) => {
+  const res = await removeEventJudge(props.eventName, judgeId)
+  if (res?.ok) {
+    allEventJudges.value = await res.json()
+    for (const genre of eventGenres.value) {
+      if (divisionJudges.value[genre.name]) {
+        divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
+      }
+    }
+  }
+}
+
+const submitAssignJudge = async (divisionId, judgeId) => {
+  const res = await assignJudgeToDivision(props.eventName, divisionId, judgeId)
   if (res?.ok) {
     const judges = await res.json()
     const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
     if (genre) divisionJudges.value[genre.name] = judges
   }
-  addJudgeInput.value = ''
 }
 
 const submitRemoveJudge = async (divisionId, judgeId) => {
@@ -656,6 +694,7 @@ const submitRemoveJudge = async (divisionId, judgeId) => {
     const judges = await res.json()
     const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
     if (genre) divisionJudges.value[genre.name] = judges
+    allEventJudges.value = await getJudgesByEvent(props.eventName) ?? []
   }
 }
 
@@ -664,6 +703,102 @@ watch(activeGenreTab, async (tabName) => {
     const genre = eventGenres.value.find(g => g.name === tabName)
     if (genre) await loadJudgesForDivision(genre)
   }
+})
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── Session Links ──────────────────────────────────────────────────────────
+const sessionLinksExpanded = ref(false)
+const sessionTokens = ref([])
+const sessionTokensLoading = ref(false)
+const selectedJudgeId = ref('')
+const generatingRole = ref(null)
+
+const isAdminOrOrganiser = computed(() => {
+  const auth = authStore.user?.role?.[0]?.authority
+  return auth === 'ROLE_ADMIN' || auth === 'ROLE_ORGANISER'
+})
+
+const isHelper = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_HELPER')
+
+const allUniqueJudges = computed(() => {
+  const seen = new Set()
+  const result = []
+  for (const j of allEventJudges.value) {
+    if (!seen.has(j.judgeId)) {
+      seen.add(j.judgeId)
+      result.push(j)
+    }
+  }
+  for (const judges of Object.values(divisionJudges.value)) {
+    for (const j of judges) {
+      if (!seen.has(j.judgeId)) {
+        seen.add(j.judgeId)
+        result.push(j)
+      }
+    }
+  }
+  return result
+})
+
+const loadSessionTokens = async () => {
+  if (!dbEventId.value) return
+  sessionTokensLoading.value = true
+  sessionTokens.value = await getSessionTokens(dbEventId.value)
+  sessionTokensLoading.value = false
+}
+
+const handleGenerateToken = async (role) => {
+  if (!dbEventId.value) return
+  let judgeId = null
+  if (role === 'JUDGE') {
+    judgeId = Number(selectedJudgeId.value)
+    if (!judgeId) return
+  }
+  generatingRole.value = role
+  await generateToken(role, dbEventId.value, judgeId)
+  generatingRole.value = null
+  selectedJudgeId.value = ''
+  await loadSessionTokens()
+}
+
+const handleRevokeToken = async (tokenId) => {
+  await revokeSessionToken(tokenId)
+  await loadSessionTokens()
+}
+
+function copyToClipboard(text) {
+  // Fallback path using execCommand — works on all browsers including mobile
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '-9999px'
+  ta.setAttribute('readonly', '')
+  document.body.appendChild(ta)
+  ta.select()
+  ta.setSelectionRange(0, text.length)
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
+
+const copyTokenLink = (url) => {
+  copyToClipboard(window.location.origin + url)
+}
+
+const auditionLinkCopied = ref(false)
+function copyAuditionScreenLink() {
+  copyToClipboard(window.location.origin + '/event/audition-number')
+  auditionLinkCopied.value = true
+  setTimeout(() => { auditionLinkCopied.value = false }, 2000)
+}
+
+const formatExpiry = (expiresAt) => {
+  const d = new Date(expiresAt)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+watch(sessionLinksExpanded, async (val) => {
+  if (val) await loadSessionTokens()
 })
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -876,34 +1011,40 @@ watch(
 
 onMounted(async () => {
   onStartLoading.value = true
-  tableExist.value = checkTableExist(eventName, tableExist)
-  // folderID may be absent when navigating from the navbar dropdown or EventSelector redirect
-  let resolvedFolderID = props.folderID
-  if (!resolvedFolderID) {
-    const folderEvents = await fetchAllFolderEvents()
-    const match = folderEvents?.find(e => e.folderName === props.eventName)
-    resolvedFolderID = match?.folderID ?? null
-  }
-  activeFolderID.value = resolvedFolderID
-  fileId.value = await getFileId(resolvedFolderID)
-  const dbEvents = await fetchAllEvents() ?? []
-  const dbEvent = dbEvents.find(e => e.name === props.eventName)
-  if (dbEvent) {
-    dbEventId.value = dbEvent.id
-    setActiveEvent(dbEvent.id, dbEvent.name, resolvedFolderID)
-  }
-  genreOptions.value = await fetchAllGenres()
-  eventGenres.value = await getGenresByEvent(props.eventName)
-  if (eventGenres.value.length > 0) {
-    activeGenreTab.value = eventGenres.value[0].name
-    await loadJudgesForDivision(eventGenres.value[0])
-  }
-  await loadCriteriaForAllGenres(eventGenres.value)
-  if (tableExist.value) {
-    verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
-    verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
-    unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
-    await fetchCheckinList()
+  try {
+    await checkTableExist(eventName, tableExist)
+    // folderID may be absent when navigating from the navbar dropdown or EventSelector redirect
+    let resolvedFolderID = props.folderID
+    if (!resolvedFolderID) {
+      const folderEvents = await fetchAllFolderEvents()
+      const match = folderEvents?.find(e => e.folderName === props.eventName)
+      resolvedFolderID = match?.folderID ?? null
+    }
+    activeFolderID.value = resolvedFolderID
+    fileId.value = await getFileId(resolvedFolderID)
+    const dbEvents = await fetchAllEvents() ?? []
+    const dbEvent = dbEvents.find(e => e.name === props.eventName)
+    if (dbEvent) {
+      dbEventId.value = dbEvent.id
+      setActiveEvent(dbEvent.id, dbEvent.name, resolvedFolderID)
+    }
+    genreOptions.value = await fetchAllGenres()
+    eventGenres.value = await getGenresByEvent(props.eventName) ?? []
+    allEventJudges.value = await getJudgesByEvent(props.eventName) ?? []
+    if (eventGenres.value.length > 0) {
+      activeGenreTab.value = eventGenres.value[0].name
+      await loadJudgesForDivision(eventGenres.value[0])
+    }
+    await loadCriteriaForAllGenres(eventGenres.value)
+    if (tableExist.value) {
+      verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+      verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+      unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+      await fetchCheckinList()
+      loadSessionTokens()
+    }
+  } catch (e) {
+    console.error('EventDetails mount error:', e)
   }
   await useDelay().wait(2500)
   onStartLoading.value = false
@@ -977,14 +1118,16 @@ onUnmounted(() => {
           <i class="pi pi-sliders-h text-sm"></i>
           Genre Entries
         </button>
-        <RouterLink
-          to="/event/audition-number"
-          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
-        >
-          <i class="pi pi-hashtag text-sm"></i>
-          Audition Screen
-        </RouterLink>
         <button
+          @click="copyAuditionScreenLink"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent transition-all duration-200"
+          :class="auditionLinkCopied ? 'text-emerald-400 border-emerald-400/40' : ''"
+        >
+          <i class="pi text-sm" :class="auditionLinkCopied ? 'pi-check' : 'pi-hashtag'"></i>
+          {{ auditionLinkCopied ? 'Link Copied!' : 'Audition Screen' }}
+        </button>
+        <button
+          v-if="!isHelper"
           @click="refreshParticipant"
           :disabled="loading"
           class="flex items-center gap-2 px-4 py-2 bg-accent para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed"
@@ -998,6 +1141,7 @@ onUnmounted(() => {
     <!-- Tab toggle -->
     <div class="flex gap-2 mb-6">
       <button
+        v-if="!isHelper"
         @click="activeTab = 'setup'"
         class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
         :class="activeTab === 'setup'
@@ -1365,12 +1509,48 @@ onUnmounted(() => {
   </div>
 
   <!-- Genre Configuration — unified per-genre tabs (participants, format, criteria, judges) -->
-  <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">
+  <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6" style="overflow: visible">
     <div class="corner-bar-tl"></div>
 
     <div class="section-rule mb-4">
       <span class="section-rule-label">Genre Configuration</span>
       <div class="section-rule-line"></div>
+    </div>
+
+    <!-- Global Judges -->
+    <div class="mb-5 p-4 para-chip">
+      <p class="type-label text-content-muted mb-3">Event Judges</p>
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <div
+          v-for="j in allEventJudges"
+          :key="j.judgeId"
+          class="flex items-center gap-2 para-chip px-2.5 py-1"
+        >
+          <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
+          <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
+          <button
+            @click="askRemoveJudgeGlobal(j)"
+            class="type-label text-content-muted hover:text-primary-400 transition-colors"
+            title="Remove from event"
+          ><i class="pi pi-times text-xs"></i></button>
+        </div>
+        <span v-if="allEventJudges.length === 0" class="type-body text-content-muted text-xs">No judges added yet.</span>
+      </div>
+      <div class="flex items-center gap-1.5 para-chip px-2.5 py-1 w-fit">
+        <input
+          v-model="globalJudgeInput"
+          type="text"
+          placeholder="Add judge to event…"
+          autocomplete="off"
+          class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-56"
+          @keyup.enter="submitAddJudgeGlobal()"
+        />
+        <button
+          @click="submitAddJudgeGlobal()"
+          class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+          title="Add to all divisions"
+        ><i class="pi pi-plus text-xs"></i></button>
+      </div>
     </div>
 
     <!-- Genre tab bar -->
@@ -1472,29 +1652,123 @@ onUnmounted(() => {
               <button
                 @click="askRemoveJudge(g, j)"
                 class="type-label text-content-muted hover:text-content-primary transition-colors"
-                title="Remove"
+                title="Remove from division"
               ><i class="pi pi-times text-xs"></i></button>
             </div>
-            <div class="flex items-center gap-1.5 para-chip px-2.5 py-1">
-              <input
-                v-model="addJudgeInput"
-                type="text"
-                placeholder="Add judge…"
-                autocomplete="off"
-                class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-28"
-                @keyup.enter="submitAddJudge(g.eventGenreId)"
-              />
+
+            <!-- Assign from pool dropdown -->
+            <div v-if="unassignedJudges(g.name).length > 0" class="relative">
               <button
-                @click="submitAddJudge(g.eventGenreId)"
-                class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
-                title="Add"
-              ><i class="pi pi-plus text-xs"></i></button>
+                @click="toggleAssignDropdown(g.name)"
+                class="para-chip px-2 py-1 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all"
+                title="Assign judge from pool"
+              ><i class="pi pi-plus text-xs"></i> Assign</button>
+              <div
+                v-if="openAssignDropdown === g.name"
+                class="absolute bottom-full left-0 mb-1 bg-surface-800 border border-surface-600 para-chip p-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto"
+              >
+                <button
+                  v-for="j in unassignedJudges(g.name)"
+                  :key="j.judgeId"
+                  @click="submitAssignJudge(g.eventGenreId, j.judgeId); openAssignDropdown = null"
+                  class="block w-full text-left px-3 py-1.5 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
+                >+ {{ j.judgeName }}</button>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
     </template>
+  </div>
+
+  <!-- Session Links -->
+  <div v-if="isAdminOrOrganiser && tableExist" class="card-hover p-4 relative mt-6">
+    <div class="corner-bar-tl"></div>
+    <button
+      @click="sessionLinksExpanded = !sessionLinksExpanded"
+      :aria-expanded="sessionLinksExpanded"
+      class="w-full flex items-center justify-between text-left"
+    >
+      <div class="flex items-center gap-3">
+        <i class="pi pi-link text-xs" style="color:var(--accent-color)"></i>
+        <span class="type-body text-content-secondary">Session Links</span>
+        <span class="badge-accent">{{ sessionTokens.length }}</span>
+      </div>
+      <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
+         :class="{ 'rotate-180': sessionLinksExpanded }"></i>
+    </button>
+    <div v-if="sessionLinksExpanded" class="mt-4 pt-4 border-t border-surface-600/30">
+      <!-- Generate row -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <button
+          @click="handleGenerateToken('EMCEE')"
+          :disabled="generatingRole === 'EMCEE'"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs mr-1" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
+          EMCEE
+        </button>
+        <button
+          @click="handleGenerateToken('HELPER')"
+          :disabled="generatingRole === 'HELPER'"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs mr-1" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
+          HELPER
+        </button>
+        <select
+          v-model="selectedJudgeId"
+          class="input-base type-label"
+          style="width:auto;min-width:7rem"
+        >
+          <option value="">Select judge…</option>
+          <option v-for="j in allUniqueJudges" :key="j.judgeId" :value="j.judgeId">
+            {{ j.judgeName }}
+          </option>
+        </select>
+        <button
+          @click="handleGenerateToken('JUDGE')"
+          :disabled="generatingRole === 'JUDGE' || !selectedJudgeId"
+          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
+        >
+          <i class="pi text-xs mr-1" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
+          JUDGE
+        </button>
+      </div>
+
+      <!-- Token list -->
+      <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
+        <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
+      </div>
+      <div v-else-if="sessionTokens.length === 0" class="type-label text-content-muted py-4">
+        No active session links
+      </div>
+      <div v-else class="space-y-2">
+        <div
+          v-for="t in sessionTokens"
+          :key="t.tokenId"
+          class="para-chip px-3 py-2 flex items-center gap-3"
+        >
+          <span
+            class="badge-neutral text-xs shrink-0"
+            :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
+          >{{ t.role }}</span>
+          <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
+          <span class="type-label text-content-muted text-xs shrink-0 ml-auto">{{ formatExpiry(t.expiresAt) }}</span>
+          <button
+            @click="copyTokenLink(t.url)"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
+            title="Copy link"
+          ><i class="pi pi-copy text-xs"></i></button>
+          <button
+            @click="handleRevokeToken(t.tokenId)"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors shrink-0"
+            title="Revoke"
+          ><i class="pi pi-trash text-xs"></i></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   </template>

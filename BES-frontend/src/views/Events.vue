@@ -19,11 +19,12 @@ const closeExpanded = () => { expandedId.value = null }
 onMounted(()  => document.addEventListener('click', closeExpanded))
 onUnmounted(() => document.removeEventListener('click', closeExpanded))
 
-const filtered = computed(() =>
-  events.value.filter(e =>
-    e.folderName.toLowerCase().includes(search.value.toLowerCase())
-  )
-)
+const filtered = computed(() => {
+  const base = isAdmin.value
+    ? events.value
+    : events.value.filter(e => dbEvents.value.some(db => db.name === e.folderName))
+  return base.filter(e => e.folderName.toLowerCase().includes(search.value.toLowerCase()))
+})
 
 function getAccessCode(folderName) {
   if (!isAdmin.value) return null
@@ -78,7 +79,7 @@ onMounted(async () => {
         <p class="type-label text-content-muted">Select an event to manage participants and scores</p>
       </div>
       <span class="badge-neutral type-label self-start sm:self-auto px-3 py-1">
-        {{ events.length }} event{{ events.length !== 1 ? 's' : '' }}
+        {{ filtered.length }} event{{ filtered.length !== 1 ? 's' : '' }}
       </span>
     </div>
 

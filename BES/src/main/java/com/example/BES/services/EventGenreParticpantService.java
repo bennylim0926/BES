@@ -224,11 +224,12 @@ public class EventGenreParticpantService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<GetEventGenreParticipantDto> getAllEventGenreParticipantByEventService(String eventName){
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
         LinkedHashMap<com.example.BES.models.EventGenreParticipantId, EventGenreParticipant> seen = new LinkedHashMap<>();
-        for (EventGenreParticipant egp : repo.findByEvent(event)) {
+        for (EventGenreParticipant egp : repo.findByEventWithJudge(event)) {
             seen.putIfAbsent(egp.getId(), egp);
         }
         List<EventGenreParticipant> results = new ArrayList<>(seen.values());

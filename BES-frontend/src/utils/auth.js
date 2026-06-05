@@ -47,17 +47,23 @@ export const useAuthStore = defineStore('auth',{
     state: ()=>({
         user: null,
         isAuthenticated: false,
-        activeEvent: getActiveEvent()
+        activeEvent: getActiveEvent(),
+        judgeId: null,
+        judgeName: null
     }),
     actions:{
         login(userData){
             this.user = userData
             this.isAuthenticated = userData["authenticated"]
+            this.judgeId = userData.judgeId ?? null
+            this.judgeName = userData.judgeName ?? null
         },
         logout(){
             this.user = null;
             this.isAuthenticated = false;
             this.activeEvent = null;
+            this.judgeId = null;
+            this.judgeName = null;
             clearVerifiedEvents();
             localStorage.removeItem('selectedEvent');
             localStorage.removeItem('selectedRole');

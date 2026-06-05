@@ -41,6 +41,9 @@ BES-frontend/nginx/certs/*.key
 # Superpowers runtime
 .superpowers/
 
+# Codegraph index (local only)
+.codegraph/
+
 # Temp / scratch files
 *_body.txt
 test_output.txt

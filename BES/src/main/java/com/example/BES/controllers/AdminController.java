@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,8 @@ import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.AddFeedbackGroupDto;
 import com.example.BES.dtos.admin.AddFeedbackTagDto;
+import com.example.BES.dtos.admin.AssignOrganiserDto;
+import com.example.BES.dtos.admin.CreateOrganiserDto;
 import com.example.BES.dtos.admin.DeleteFeedbackGroupDto;
 import com.example.BES.dtos.admin.DeleteFeedbackTagDto;
 import com.example.BES.dtos.admin.GetFeedbackGroupDto;
@@ -27,10 +30,12 @@ import com.example.BES.dtos.admin.AddGenreDto;
 import com.example.BES.dtos.admin.DeleteGenreDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.DeleteScoreByEventDto;
+import com.example.BES.dtos.admin.GetOrganiserDto;
 import com.example.BES.dtos.admin.UpdateGenreDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
+import com.example.BES.services.AccountService;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
@@ -53,6 +58,9 @@ public class AdminController {
 
     @Autowired
     AuditionFeedbackService feedbackService;
+
+    @Autowired
+    AccountService accountService;
 
     // ── Feedback Tag Groups ──────────────────────────────────────────────────
 
@@ -158,6 +166,37 @@ public class AdminController {
             "message", "deleted",
             "judge", deletedJudge
         ));
+    }
+
+    // ── Organisers ────────────────────────────────────────────────────────────
+
+    @GetMapping("/organisers")
+    public ResponseEntity<List<GetOrganiserDto>> getOrganisers() {
+        return ResponseEntity.ok(accountService.getAllOrganisers());
+    }
+
+    @PostMapping("/organisers/assign")
+    public ResponseEntity<?> assignOrganiser(@Valid @RequestBody AssignOrganiserDto dto) {
+        accountService.assignEvent(dto.getAccountId(), dto.getEventId());
+        return ResponseEntity.ok(Map.of("message", "assigned"));
+    }
+
+    @PostMapping("/organisers")
+    public ResponseEntity<?> createOrganiser(@Valid @RequestBody CreateOrganiserDto dto) {
+        accountService.createOrganiser(dto.getUsername(), dto.getPassword());
+        return ResponseEntity.ok(Map.of("message", "created"));
+    }
+
+    @DeleteMapping("/organisers/{accountId}")
+    public ResponseEntity<?> deleteOrganiser(@PathVariable Long accountId) {
+        accountService.deleteOrganiser(accountId);
+        return ResponseEntity.ok(Map.of("message", "deleted"));
+    }
+
+    @DeleteMapping("/organisers/assign")
+    public ResponseEntity<?> removeOrganiser(@Valid @RequestBody AssignOrganiserDto dto) {
+        accountService.removeEvent(dto.getAccountId(), dto.getEventId());
+        return ResponseEntity.ok(Map.of("message", "removed"));
     }
 
     // Delete Score by Event

@@ -1,5 +1,5 @@
 <script setup>
-import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag } from '@/utils/adminApi';
+import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -52,9 +52,56 @@ const addGroupInput = ref('')
 const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
 
+const organisers = ref([])
+const newOrganiserUsername = ref('')
+const newOrganiserPassword = ref('')
+
+const submitCreateOrganiser = async () => {
+  if (checkInputNull(newOrganiserUsername.value) || checkInputNull(newOrganiserPassword.value)) {
+    openModal("Validation Error", "Username and password cannot be empty.", "error")
+    return
+  }
+  const username = newOrganiserUsername.value
+  const res = await createOrganiser(username, newOrganiserPassword.value)
+  if (res?.ok) {
+    organisers.value = await getOrganisers() ?? []
+    newOrganiserUsername.value = ''
+    newOrganiserPassword.value = ''
+    openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
+  } else {
+    const body = await res?.json().catch(() => null)
+    openModal("Error", body?.message || "Failed to create organiser. Username may already exist.", "warning")
+  }
+}
+
+const confirmDeleteOrganiser = (id, username) => {
+  modalTitle.value = 'Delete Organiser?'
+  modalMessage.value = `Are you sure you want to delete ${username}?`
+  modalVariant.value = 'warning'
+  showModal.value = true
+  dynamicHandler.value = async () => {
+    const res = await deleteOrganiser(id)
+    if (res?.ok) organisers.value = organisers.value.filter(o => o.id !== id)
+    showModal.value = false
+  }
+}
+
+const toggleOrganiserEvent = async (accountId, eventId, isAssigned) => {
+  if (isAssigned) {
+    await removeOrganiserFromEvent(accountId, eventId)
+  } else {
+    await assignOrganiserToEvent(accountId, eventId)
+  }
+  organisers.value = await getOrganisers() ?? []
+}
+
+const isEventAssigned = (organiser, eventId) => {
+  return organiser.assignedEventIds?.includes(eventId) ?? false
+}
+
 const accentInput = ref('#ffffff')
 const activeTab = ref('genres')
-const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme'])
+const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme', 'organisers'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -153,6 +200,7 @@ onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
+  organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
 })
@@ -360,6 +408,71 @@ onMounted(async () => {
           <div v-if="images.length === 0" class="col-span-full type-label text-content-muted py-4">
             No images uploaded
           </div>
+        </div>
+      </div>
+
+      <!-- ── Organisers ────────────────────────────────────── -->
+      <div v-if="activeTab === 'organisers'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Organisers</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ organisers.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="flex gap-3 mb-5">
+          <input
+            v-model="newOrganiserUsername"
+            type="text"
+            placeholder="Username…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitCreateOrganiser"
+          />
+          <input
+            v-model="newOrganiserPassword"
+            type="password"
+            placeholder="Password…"
+            class="input-base flex-1 max-w-xs"
+            @keyup.enter="submitCreateOrganiser"
+          />
+          <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Create Account</button>
+        </div>
+
+        <p class="type-label text-content-muted mb-4">Assign or remove events for each organiser.</p>
+
+        <div class="space-y-3">
+          <div
+            v-for="org in organisers"
+            :key="org.id"
+            class="card-hover p-4 relative"
+          >
+            <div class="corner-bar-tl"></div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="type-body text-content-primary">{{ org.username }}</span>
+              <button
+                @click="confirmDeleteOrganiser(org.id, org.username)"
+                class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                title="Delete organiser"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="e in events"
+                :key="e.id"
+                @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
+                class="para-chip-sm type-label px-3 py-1 transition-all duration-150"
+                :class="isEventAssigned(org, e.id) ? 'text-green-300 border-green-500/50 bg-green-500/15' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
+              >{{ e.name }}</button>
+            </div>
+
+            <p v-if="events.length === 0" class="type-label text-content-muted py-1">No events available</p>
+          </div>
+
+          <p v-if="organisers.length === 0" class="type-label text-content-muted py-4">
+            No organiser accounts yet. Use the form above to create one.
+          </p>
         </div>
       </div>
 

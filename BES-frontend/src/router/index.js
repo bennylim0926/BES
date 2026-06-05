@@ -19,6 +19,10 @@ import ResultsQR from "@/views/ResultsQR.vue";
 import CrewFormation from "@/views/CrewFormation.vue";
 import AuditionAdjust from "@/views/AuditionAdjust.vue";
 import BracketVisualization from "@/views/BracketVisualization.vue";
+import TokenAuth from "@/views/TokenAuth.vue";
+import JudgeSessionView from "@/views/JudgeSessionView.vue";
+import EmceeSessionView from "@/views/EmceeSessionView.vue";
+import HelperSessionView from "@/views/HelperSessionView.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
 
@@ -42,13 +46,13 @@ const routes = [
             eventName: route.params.eventName,
             folderID: route.query.folderID
         }),
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] }
     },
     {
         path: '/event/audition-number',
         name: 'Audition Number',
         component: AuditionNumber,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] }
     },
     {
         path: '/event/update-event-details',
@@ -86,13 +90,14 @@ const routes = [
     {
         path: '/battle/judge',
         name: "Battle Judge",
-        component: BattleJudge
+        component: BattleJudge,
+        meta: { allowedRoles: ['ROLE_JUDGE', 'ROLE_ADMIN'] }
     },
     {
         path: '/battle/control',
         name: "Battle Control",
         component: BattleControl,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'], requiresEvent: true }
     },
     {
         path: '/battle/chart',
@@ -136,6 +141,26 @@ const routes = [
         name: 'Audition Adjust',
         component: AuditionAdjust,
         meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+    },
+    {
+        path: '/auth/token',
+        name: 'TokenAuth',
+        component: TokenAuth
+    },
+    {
+        path: '/judge/session',
+        name: 'JudgeSession',
+        component: JudgeSessionView
+    },
+    {
+        path: '/emcee/session',
+        name: 'EmceeSession',
+        component: EmceeSessionView
+    },
+    {
+        path: '/helper/session',
+        name: 'HelperSession',
+        component: HelperSessionView
     }
 ]
 
@@ -144,7 +169,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Battle Judge', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
@@ -160,6 +185,17 @@ router.beforeEach(async (to) => {
         const userRole = user.role?.[0]?.authority
         if (to.meta?.allowedRoles && !to.meta.allowedRoles.includes(userRole)) {
             return { name: 'Forbidden' }
+        }
+
+        // Session roles land on their hub, not the generic home
+        if (userRole === 'ROLE_JUDGE' && to.name === 'Main') {
+            return { name: 'JudgeSession' }
+        }
+        if (userRole === 'ROLE_EMCEE' && to.name === 'Main') {
+            return { name: 'EmceeSession' }
+        }
+        if (userRole === 'ROLE_HELPER' && to.name === 'Main') {
+            return { name: 'HelperSession' }
         }
 
         if (to.meta?.requiresEvent && !getActiveEvent()) {

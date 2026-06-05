@@ -7,13 +7,18 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.example.BES.models.Account;
 import com.example.BES.models.Event;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetJudgingModeDto;
+import com.example.BES.respositories.AccountRepository;
 import com.example.BES.respositories.EventRepo;
 
 @Service
@@ -26,6 +31,9 @@ public class EventService {
 
     @Autowired
     SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    AccountRepository accountRepository;
 
     public void createEventService(AddEventDto dto){
         if (repo.findByEventName(dto.eventName).isPresent()) return;
@@ -57,8 +65,24 @@ public class EventService {
         return null;
     }
 
+    @Transactional(readOnly = true)
     public List<GetEventDto> getAllEvents(boolean includeAccessCode){
-        List<Event> events = repo.findAll();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        List<Event> events;
+
+        if (auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            events = repo.findAll();
+        } else if (auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ORGANISER"))) {
+            Account account = accountRepository.findByUsername(auth.getName()).orElse(null);
+            events = account != null && account.getAssignedEvents() != null
+                ? account.getAssignedEvents()
+                : List.of();
+        } else {
+            events = repo.findAll();
+        }
+
         List<GetEventDto> dtos = new ArrayList<>();
         for(Event event: events){
             GetEventDto dto = new GetEventDto();

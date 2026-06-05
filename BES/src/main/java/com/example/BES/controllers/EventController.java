@@ -47,6 +47,7 @@ import com.example.BES.dtos.GetEventGenreParticipantDto;
 import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
+import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
@@ -297,11 +298,18 @@ public class EventController {
         return ResponseEntity.ok(judgeService.getJudgesByEvent(eventName));
     }
 
+    @Operation(summary = "Get Divisions by Judge", description = "Returns divisions a judge belongs to within an event")
+    @GetMapping("/{eventName}/judge/{judgeId}/divisions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE', 'EMCEE', 'HELPER')")
+    public ResponseEntity<List<JudgeDivisionDto>> getDivisionsByJudge(@PathVariable String eventName, @PathVariable Long judgeId) {
+        return ResponseEntity.ok(judgeService.getDivisionsByJudge(eventName, judgeId));
+    }
+
     // ── Per-division judge endpoints ─────────────────────────────────────
 
     @Operation(summary = "Get Judges by Division", description = "Returns judges assigned to a specific division")
     @GetMapping("/{eventName}/divisions/{divisionId}/judges")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE', 'EMCEE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE', 'EMCEE', 'HELPER')")
     public ResponseEntity<List<GetJudgeDto>> getJudgesByDivision(@PathVariable String eventName, @PathVariable Long divisionId) {
         return ResponseEntity.ok(judgeService.getJudgesByDivision(divisionId));
     }
@@ -313,6 +321,13 @@ public class EventController {
         return ResponseEntity.ok(judgeService.addJudgeToDivision(divisionId, dto.judgeName));
     }
 
+    @Operation(summary = "Assign Judge to Division", description = "Assigns an existing event-level judge to a specific division")
+    @PostMapping("/{eventName}/divisions/{divisionId}/assign-judge/{judgeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<List<GetJudgeDto>> assignJudgeToDivision(@PathVariable String eventName, @PathVariable Long divisionId, @PathVariable Long judgeId) {
+        return ResponseEntity.ok(judgeService.assignJudgeToDivision(divisionId, judgeId));
+    }
+
     @Operation(summary = "Remove Judge from Division", description = "Removes a judge from a division")
     @DeleteMapping("/{eventName}/divisions/{divisionId}/judge/{judgeId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
@@ -322,7 +337,7 @@ public class EventController {
 
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<String> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
             Participant p = participantService.addWalkInService(dto);
@@ -369,7 +384,7 @@ public class EventController {
 
     @Operation(summary = "Get Check-in List", description = "Returns all participants for the event with their genre audition status")
     @GetMapping("/{eventName}/checkin-list")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<List<GetCheckinListDto>> getCheckinList(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(registerService.getCheckinList(eventName), HttpStatus.OK);
@@ -405,7 +420,7 @@ public class EventController {
 
     @Operation(summary = "Get Participants by Event Genre", description = "Retrieves a list of participants for a specific event based on their genre")
     @GetMapping("/participants/{eventName}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE', 'HELPER')")
     public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(
             @PathVariable String eventName) throws IOException, MessagingException, WriterException {
         try {
@@ -433,14 +448,14 @@ public class EventController {
 
     @Operation(summary = "Get Active Check-In Previews", description = "Returns the set of participant IDs currently being previewed (check-in dialog open) for an event")
     @GetMapping("/{eventName}/checkin-preview")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<Set<Long>> getCheckinPreviews(@PathVariable String eventName) {
         return ResponseEntity.ok(checkinPreviewService.getActivePreviews(eventName));
     }
 
     @Operation(summary = "Send Check-In Preview", description = "Broadcasts participant details to AuditionNumber display before generating numbers")
     @PostMapping("/{eventName}/checkin-preview")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<String> sendCheckinPreview(
             @PathVariable String eventName,
             @RequestBody CheckinPreviewDto dto) {
@@ -643,6 +658,12 @@ public class EventController {
             @RequestParam String judgeName,
             @RequestParam Integer auditionNumber) {
         return ResponseEntity.ok(feedbackService.getFeedback(eventName, genreName, judgeName, auditionNumber));
+    }
+
+    @Operation(summary = "Get Feedback Tag Groups", description = "Returns all feedback tag groups with their tags (used by judges/emcees for audition feedback)")
+    @GetMapping("/feedback-groups")
+    public ResponseEntity<List<com.example.BES.dtos.admin.GetFeedbackGroupDto>> getFeedbackGroups() {
+        return ResponseEntity.ok(feedbackService.getAllFeedbackGroups());
     }
 
     @Operation(summary = "Get All Judge Feedback for Participant", description = "Returns feedback from all judges for a given participant in a specific event genre")
