@@ -1750,12 +1750,18 @@ onMounted(async () => {
       }
     })
 
-    // NOTE: /topic/battle/judges is intentionally NOT subscribed here.
-    // syncJudgesForGenre does multiple remove+add operations in sequence; each
-    // triggers a WS broadcast with an intermediate state. These late-arriving
-    // messages would race against the explicit getBattleJudges() call at the end
-    // of syncJudgesForGenre and corrupt battleJudges.value.
-    // We update battleJudges.value only via explicit getBattleJudges() calls.
+    // Sync judge list from WS broadcasts — safe now that syncJudgesForGenre is a
+    // single atomic getBattleJudges() call (no more remove+add loop causing
+    // intermediate states). judgeSyncing guard prevents WS from racing with
+    // the explicit fetch during genre switch.
+    wsClient.value.subscribe('/topic/battle/judges', (raw) => {
+      if (judgeSyncing) return
+      const msg = JSON.parse(raw.body)
+      if (msg?.judges) {
+        battleJudges.value = { judges: msg.judges }
+        syncJudgeVoteSubscriptions()
+      }
+    })
     syncJudgeVoteSubscriptions()
   }
   wsClient.value.activate()

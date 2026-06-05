@@ -44,15 +44,18 @@ const hydrateOverlayFromState = async (state) => {
 
   // Standard-mode updates (guarded by !isSmoke to prevent corrupting smoke display)
   if (!isSmoke.value) {
-    // Pair — only update if changed (prevents re-triggering entrance animation)
+    // Pair — sync refs directly without triggering entrance animation.
+    // updateBattlePair is reserved for new-pair events via /topic/battle/battle-pair.
+    // State sync (init, reconnect, genre switch) silently updates the display.
     if (state.currentPair?.left) {
-      const pairChanged = leftName.value !== state.currentPair.left ||
-                          rightName.value !== state.currentPair.right
-      if (pairChanged) {
-        try {
-          await updateBattlePair(state.currentPair)
-        } catch (_) { /* animation interrupted — state is still consistent */ }
-      }
+      leftName.value    = state.currentPair.left
+      rightName.value   = state.currentPair.right
+      leftMembers.value  = state.currentPair.leftMembers  ?? []
+      rightMembers.value = state.currentPair.rightMembers ?? []
+      isFinal.value     = !!state.currentPair.isFinal
+      // Load images if names changed (images are cached by browser)
+      if (state.currentPair.left)  imageLeft.value  = await getImage(`${state.currentPair.left}.png`).catch(() => null)
+      if (state.currentPair.right) imageRight.value = await getImage(`${state.currentPair.right}.png`).catch(() => null)
     }
 
     // Phase — only update if changed
