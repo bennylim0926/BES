@@ -54,7 +54,9 @@ const roleDisplay = computed(() => {
   }
   const label = labels[role.value]
   if (!label) return null
-  const name = (role.value === 'ROLE_JUDGE' && authStore.judgeName) ? authStore.judgeName : null
+  const name = (role.value === 'ROLE_JUDGE' && authStore.judgeName) ? authStore.judgeName
+    : (role.value === 'ROLE_ORGANISER' && authStore.user?.username) ? authStore.user.username
+    : null
   return { label, name }
 })
 
