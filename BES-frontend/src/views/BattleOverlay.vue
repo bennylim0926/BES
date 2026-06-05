@@ -44,18 +44,22 @@ const hydrateOverlayFromState = async (state) => {
 
   // Standard-mode updates (guarded by !isSmoke to prevent corrupting smoke display)
   if (!isSmoke.value) {
-    // Pair — sync refs directly without triggering entrance animation.
-    // updateBattlePair is reserved for new-pair events via /topic/battle/battle-pair.
-    // State sync (init, reconnect, genre switch) silently updates the display.
+    // Pair — only take action if the pair actually changed
     if (state.currentPair?.left) {
-      leftName.value    = state.currentPair.left
-      rightName.value   = state.currentPair.right
-      leftMembers.value  = state.currentPair.leftMembers  ?? []
-      rightMembers.value = state.currentPair.rightMembers ?? []
-      isFinal.value     = !!state.currentPair.isFinal
-      // Load images if names changed (images are cached by browser)
-      if (state.currentPair.left)  imageLeft.value  = await getImage(`${state.currentPair.left}.png`).catch(() => null)
-      if (state.currentPair.right) imageRight.value = await getImage(`${state.currentPair.right}.png`).catch(() => null)
+      const pairChanged = leftName.value !== state.currentPair.left ||
+                          rightName.value !== state.currentPair.right
+      if (pairChanged) {
+        // New pair (genre switch, recovery) → run entrance animation
+        try {
+          await updateBattlePair(state.currentPair)
+        } catch (_) { /* animation interrupted */ }
+        // If this is a completed battle, restore winner visual after entrance
+        if ((state.battlePhase === 'REVEALED' || state.battlePhase === 'DECIDED') && state.bracket?.rounds) {
+          restoreRevealedState(state.bracket.rounds)
+        }
+      }
+      // Same pair — just update metadata silently (members, scores, etc.)
+      // No animation needed; the pair is already on screen.
     }
 
     // Phase — only update if changed
@@ -73,10 +77,6 @@ const hydrateOverlayFromState = async (state) => {
       }
     }
 
-    // Restore winner visual state for completed battles without replaying animation
-    if ((state.battlePhase === 'REVEALED' || state.battlePhase === 'DECIDED') && state.bracket?.rounds) {
-      restoreRevealedState(state.bracket.rounds)
-    }
   }
 }
 
