@@ -7,10 +7,18 @@ import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { parseDropKey } from '@/utils/pointerDnd'
+import LiveMatchPanel from '@/components/LiveMatchPanel.vue'
+import { useAuthStore } from '@/utils/auth'
 
 const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
+
+const authStore = useAuthStore()
+const isAdminOrOrganiser = computed(() => {
+  const role = authStore.user?.['role']?.[0]?.authority
+  return role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'
+})
 
 const battleJudges = ref([])
 const memberLookup = ref({}) // participantName → all member names (including rep)
@@ -218,6 +226,17 @@ const pushOverlayConfig = async () => {
 }
 
 const activeRoundIdx = ref(0)
+
+const roundNames = computed(() => {
+  if (isSmoke.value) return []
+  const sizes = []
+  let s = topSize.value
+  while (s >= 2) {
+    if (s < topSize.value) sizes.push(`Top${s}`)
+    s = Math.floor(s / 2)
+  }
+  return sizes
+})
 
 const pickupCrews = ref([])
 const crewSortMode = ref('leader')  // 'leader' | 'avg'
@@ -1413,6 +1432,15 @@ const openVoting = async () => {
   markSaved()
 }
 
+const handleTimerUnlock = async () => {
+  if (battlePhase.value !== 'LOCKED') return
+  try {
+    await setBattlePhase('VOTING')
+  } catch (err) {
+    console.error('Auto-unlock failed:', err)
+  }
+}
+
 const confirmResetBracket = async () => {
   rounds.value = initRounds()
   placeGuestsInBracket()
@@ -1869,46 +1897,10 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Genre switcher — page-level selector, above both panels -->
-    <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
-      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="g in uniqueGenres"
-          :key="g"
-          @click="requestGenreChange(g)"
-          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
-          :class="[
-            selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : !canSwitchGenre && g !== selectedGenre
-                ? 'text-content-muted/40 cursor-not-allowed'
-                : 'text-content-muted hover:text-content-primary'
-          ]"
-          :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
-          :disabled="g !== selectedGenre && !canSwitchGenre"
-        >
-          <template v-if="genreStatusDot(g) === 'champion'">
-            <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
-          </template>
-          <template v-else-if="genreStatusDot(g) === 'active'">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
-          </template>
-          <template v-else>
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
-          </template>
-          {{ g }}
-        </button>
-      </div>
-      <span
-        v-if="uniqueGenres.length > 1 && !canSwitchGenre"
-        class="type-label text-amber-400/70"
-        style="font-size:10px;letter-spacing:0.12em"
-      >{{ genreSwitchBlockReason }}</span>
-    </div>
+    <!-- NOTE: Genre switcher is rendered inside LiveMatchPanel below -->
 
-    <!-- Setup panel (collapsible, locks once battle starts) -->
-    <div class="card overflow-hidden">
+    <!-- Setup panel — visible only to Admin/Organiser -->
+    <div v-if="isAdminOrOrganiser" class="card overflow-hidden">
       <!-- Header — always visible, click to expand/collapse -->
       <div
         class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
@@ -2209,29 +2201,6 @@ onUnmounted(() => {
 
       <!-- ── Standard bracket ──────────────────────────── -->
       <div v-if="Number(topSize) !== 7" class="mt-3">
-        <!-- Round tabs -->
-        <div class="flex flex-wrap gap-2 sm:gap-1 mb-4">
-          <button
-            v-for="(size, idx) in roundSizes"
-            :key="idx"
-            @click="requestRoundChange(idx)"
-            class="para-chip-sm px-4 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5 flex-1 sm:flex-none justify-center sm:justify-start"
-            :class="{
-              'text-accent border-[color:var(--accent-muted)]': activeRoundIdx === idx,
-              'text-emerald-400/70 border-emerald-500/30': activeRoundIdx !== idx && roundTabStatus(idx) === 'done',
-              'text-content-muted/40 cursor-not-allowed': roundTabStatus(idx) === 'locked',
-              'text-content-muted hover:text-content-primary': activeRoundIdx !== idx && roundTabStatus(idx) !== 'done' && roundTabStatus(idx) !== 'locked',
-              'border-amber-400/40 text-amber-400': roundTabStatus(idx) === 'active',
-            }"
-            :title="roundTabStatus(idx) === 'locked' ? 'Waiting for previous round to complete' : ''"
-          >
-            <i v-if="roundTabStatus(idx) === 'active'" class="pi pi-circle-fill text-[6px] text-amber-400" title="Active battle"></i>
-            <i v-else-if="roundTabStatus(idx) === 'done'" class="pi pi-check text-[9px] text-emerald-400/70" title="Round complete"></i>
-            <i v-else-if="roundTabStatus(idx) === 'locked'" class="pi pi-lock text-[8px] text-content-muted/40" title="Waiting for previous round"></i>
-            Top {{ size }}
-          </button>
-        </div>
-
         <!-- Active round matches -->
         <template v-for="(size, idx) in roundSizes" :key="idx">
           <div v-if="activeRoundIdx === idx" class="card p-4">
@@ -2573,352 +2542,44 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Live match tracker -->
-    <div class="card p-5">
-      <div class="section-rule mb-4">
-        <span class="section-rule-label">Live Match</span>
-        <div class="section-rule-line"></div>
-      </div>
-
-      <div class="flex items-center gap-3 mb-4">
-        <div
-          class="inline-flex items-center gap-2 px-3 py-1.5"
-          :class="{
-            'semantic-chip-success': effectivePhase === 'REVEALED',
-            'semantic-chip-warning': effectivePhase === 'LOCKED',
-            'semantic-chip-warning animate-pulse': effectivePhase === 'VOTING',
-            'semantic-chip-warning opacity-50': effectivePhase === 'IDLE',
-          }"
-        >
-          <div
-            class="w-2 h-2 rounded-full"
-            :style="effectivePhase === 'REVEALED' ? 'background:#34d399;box-shadow:0 0 8px rgba(52,211,153,0.8)' : effectivePhase === 'LOCKED' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : effectivePhase === 'VOTING' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : 'background:#6b7280;box-shadow:0 0 8px rgba(107,114,128,0.5)'"
-          ></div>
-          <span class="type-body" :class="effectivePhase === 'REVEALED' ? 'text-emerald-400' : effectivePhase === 'LOCKED' ? 'text-amber-400' : effectivePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ effectivePhase }}</span>
-        </div>
-        <span v-if="!isActiveBattleInThisRound && battlePhase !== 'IDLE'" class="type-label text-content-muted">
-          (active battle in {{ currentTop }})
-        </span>
-        <!-- Save state indicator — next to phase badge so operator sees it -->
-        <Transition name="recovery-fade" mode="out-in">
-          <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.16em;background:rgba(255,255,255,0.04);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <i class="pi pi-spin pi-spinner" style="font-size:9px"></i> SAVING
-          </span>
-          <span v-else-if="saveStatus === 'saved'" key="saved" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-emerald-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(52,211,153,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,0.7)"></span> SAVED
-          </span>
-          <span v-else-if="saveStatus === 'error'" key="error" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-amber-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(245,158,11,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span> SAVE FAILED
-          </span>
-        </Transition>
-      </div>
-
-      <!-- Final tie warning -->
-      <div
-        v-if="finalTieBlocked"
-        class="semantic-chip-warning px-4 py-3 flex items-center justify-between gap-3 mb-4"
-      >
-        <div class="w-2 h-2 rounded-full" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)"></div>
-        <span class="type-body flex-1 text-amber-400"><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
-        <button
-          @click="startRevote"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent transition-all"
-        >START REVOTE</button>
-      </div>
-
-      <!-- WINNER ANNOUNCEMENT -->
-      <!-- DECIDED: champion locked — show glowing champion name -->
-      <div
-        v-if="battlePhase === 'DECIDED'"
-        class="px-4 py-3 mb-4"
-        style="border-left:4px solid #34d399;background:rgba(52,211,153,0.08)"
-      >
-        <span class="type-label text-emerald-400" style="font-size:9px;letter-spacing:0.22em">⭐ CHAMPION LOCKED</span>
-        <span class="type-body text-emerald-400 block mt-1" style="font-size:18px;font-weight:bold;text-shadow:0 0 12px rgba(52,211,153,0.4)">
-          {{ genreChampions[selectedGenre] ?? currentGenreChampion ?? '—' }}
-        </span>
-        <span v-if="!revealActive" class="type-label text-content-muted block mt-1" style="font-size:9px;letter-spacing:0.22em">
-          FINAL · ORGANISER ONLY — NOT REVEALED YET
-        </span>
-      </div>
-      <!-- All other phases: ongoing/wait/winner/tie announcement -->
-      <div
-        v-else
-        class="px-4 py-3 mb-4"
-        :class="{
-          'semantic-chip-warning': winnerVariant === 'ongoing',
-          'semantic-chip-warning': winnerVariant === 'wait',
-          'semantic-chip-success': winnerVariant === 'winner',
-          'border-l-3 border-gray-400 bg-gray-500/10': winnerVariant === 'tie',
-        }"
-      >
-        <div
-          class="w-2 h-2 rounded-full mb-1"
-          :class="winnerVariant === 'winner' ? 'bg-emerald-400' : winnerVariant === 'tie' ? 'bg-gray-400' : 'bg-amber-400'"
-          :style="winnerVariant === 'winner' ? 'box-shadow:0 0 8px rgba(52,211,153,0.8)' : winnerVariant === 'tie' ? '' : 'box-shadow:0 0 8px rgba(245,158,11,0.8)'"
-        ></div>
-        <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
-      </div>
-
-      <!-- Judge vote panel — live per-judge votes, visible in all phases -->
-      <div v-if="battleJudges?.judges?.length" class="mb-4">
-        <div class="section-rule mb-3">
-          <span class="section-rule-label">JUDGES</span>
-          <div class="section-rule-line"></div>
-        </div>
-        <div
-          class="grid gap-2 mb-3"
-          :style="{ gridTemplateColumns: `repeat(${battleJudges.judges.length}, 1fr)` }"
-        >
-          <div
-            v-for="judge in battleJudges.judges"
-            :key="judge.id"
-            class="px-3 py-3 text-center"
-            :style="{
-              clipPath: 'polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)',
-              border: judge.vote === -3
-                ? '1px solid rgba(245,158,11,0.3)'
-                : judge.vote === 0
-                  ? `1px solid ${overlayConfig.leftColor}99`
-                  : `1px solid ${overlayConfig.rightColor}99`,
-              background: judge.vote === -3
-                ? 'rgba(245,158,11,0.06)'
-                : judge.vote === 0
-                  ? `${overlayConfig.leftColor}18`
-                  : `${overlayConfig.rightColor}18`,
-            }"
-          >
-            <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:2px">{{ judge.name }}</div>
-            <div style="font-size:11px;color:#93c5fd;letter-spacing:0.12em;margin-bottom:4px;font-weight:700">WT {{ judge.weightage ?? 1 }}</div>
-            <div
-              v-if="judge.vote === -3"
-              class="type-body text-amber-400"
-              style="font-size:13px"
-            >⏳ WAITING</div>
-            <div
-              v-else-if="judge.vote === 0"
-              class="type-body"
-              :style="{ fontSize: '13px', color: overlayConfig.leftColor }"
-            >{{ currentBattlePairNames?.[0] ?? 'LEFT' }}</div>
-            <div
-              v-else-if="judge.vote === 1"
-              class="type-body"
-              :style="{ fontSize: '13px', color: overlayConfig.rightColor }"
-            >{{ currentBattlePairNames?.[1] ?? 'RIGHT' }}</div>
-          </div>
-        </div>
-        <!-- Winner preview banner when all judges have voted -->
-        <div
-          v-if="allJudgesVoted && tentativeWinner !== -1"
-          class="px-4 py-3"
-          :style="{
-            borderLeft: `4px solid ${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}`,
-            background: `${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}18`,
-          }"
-        >
-          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">WINNER PREVIEW (ORGANISER ONLY)</div>
-          <div class="type-body" style="font-size:20px;letter-spacing:0.08em;font-weight:bold" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">
-            {{ tentativeWinner === 0 ? (currentBattlePairNames?.[0] ?? 'LEFT') : (currentBattlePairNames?.[1] ?? 'RIGHT') }}
-          </div>
-          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
-        </div>
-        <div
-          v-else-if="allJudgesVoted && tentativeWinner === -1"
-          class="px-4 py-3"
-          style="border-left:3px solid #6b7280;background:rgba(107,114,128,0.08)"
-        >
-          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
-          <div class="type-body" style="font-size:20px;letter-spacing:0.06em;font-weight:bold;color:#9ca3af">TIE — {{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
-          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">Rematch required</div>
-        </div>
-      </div>
-      <div
-        v-else-if="!battleJudges?.judges?.length"
-        class="mb-4 px-3 py-2"
-        style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.04)"
-      >
-        <span class="type-label text-content-muted">No judges assigned for this battle</span>
-      </div>
-
-      <!-- Match pairs (standard) — only shown when viewing the active round -->
-      <div v-if="!isSmoke && isActiveBattleInThisRound" class="grid grid-cols-3 gap-3 mb-4">
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Previous</span>
-          <template v-if="previousBattlePair">
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[0] }}</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[1] }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-accent mb-1">Current</span>
-          <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0] }}</span>
-            <span v-if="getMembersFor(currentBattlePair[0]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[0]).join(' · ') }}</span>
-            <span class="type-label text-content-muted my-0.5 block">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1] }}</span>
-            <span v-if="getMembersFor(currentBattlePair[1]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[1]).join(' · ') }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Next</span>
-          <template v-if="nextBattlePair">
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[0] }}</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[1] }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-      </div>
-
-      <!-- Match pairs (smoke) -->
-      <div v-if="isSmoke" class="grid grid-cols-2 gap-3 mb-4">
-        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-accent mb-1">Current Match</span>
-          <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
-          </template>
-        </div>
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Queue</span>
-          <span v-if="nextBattlePair" class="type-body text-content-secondary block">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-      </div>
-
-      <!-- Action buttons — only for the active round -->
-      <div v-if="isActiveBattleInThisRound" class="flex flex-wrap gap-3 sm:gap-2">
-        <!-- LOCKED: open voting -->
-        <button
-          v-if="battlePhase === 'LOCKED'"
-          @click="openVoting"
-          class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-        >
-          <i class="pi pi-lock-open text-xs"></i>
-          Open Voting
-        </button>
-
-        <!-- VOTING: non-final, not all voted, or tie → Get Score / Rematch -->
-        <button
-          v-if="battlePhase === 'VOTING' && !showFinalReveal"
-          :disabled="!allJudgesVoted"
-          @click="submitGetScore"
-          :class="allJudgesVoted
-            ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
-            : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
-          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
-        >
-          <i class="pi pi-bolt text-xs"></i>
-          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
-        </button>
-
-        <!-- VOTING + final + all judges voted → Lock Champion. -->
-        <button
-          v-if="battlePhase === 'VOTING' && isFinalInProgress && allJudgesVoted"
-          :disabled="!showFinalReveal"
-          @click="lockChampion"
-          class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          :class="showFinalReveal
-            ? 'border-amber-400/50 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
-            : 'border-gray-500/30 text-content-muted bg-surface-700/30 cursor-not-allowed'"
-          :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
-        >
-          <i class="pi pi-lock text-xs"></i>
-          Lock Champion
-        </button>
-
-        <!-- DECIDED: champion locked, ready to reveal or unlock for revote -->
-        <template v-if="battlePhase === 'DECIDED'">
-          <button
-            v-if="!revealActive"
-            @click="revealChampionForGenre"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-star text-xs"></i>
-            Reveal Champion
-          </button>
-          <button
-            v-if="revealActive"
-            @click="dismissReveal"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-times text-xs"></i>
-            Dismiss Reveal
-          </button>
-          <button
-            @click="unlockChampion"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-unlock text-xs"></i>
-            Unlock
-          </button>
-        </template>
-
-        <!-- REVEALED: next only -->
-        <template v-if="battlePhase === 'REVEALED'">
-          <button
-            @click="nextPair"
-            class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          >
-            Next
-            <i class="pi pi-chevron-right text-xs"></i>
-          </button>
-        </template>
-
-        <!-- Champion Reveal (re-reveal) — winner already scored or tracked.
-             Only shown when a champion was previously locked/revealed for this genre.
-             Not shown during DECIDED (has its own button above). -->
-        <button
-          v-if="battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
-          @click="revealChampionForGenre"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
-        >
-          <i class="pi pi-star text-xs"></i>
-          Reveal Champion
-        </button>
-        <button
-          v-if="revealActive && battlePhase !== 'DECIDED'"
-          @click="dismissReveal"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
-        >
-          <i class="pi pi-times text-xs"></i>
-          Dismiss Reveal
-        </button>
-      </div>
-
-      <!-- Uploaded images list -->
-      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
-        <div class="section-rule mb-3">
-          <span class="section-rule-label">Uploaded Images</span>
-          <div class="section-rule-line"></div>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <div
-            v-for="(name, idx) in uploadedFiles"
-            :key="idx"
-            class="card-hover p-2 relative flex items-center gap-2 px-3"
-          >
-            <div class="corner-bar-tl"></div>
-            <span class="type-body text-content-primary max-w-[160px] truncate">{{ name }}</span>
-            <button
-              @click="removeUploadedFile(idx)"
-              class="flex-shrink-0 w-5 h-5 flex items-center justify-center hover:text-red-400 transition-colors"
-            >
-              <i class="pi pi-times text-xs"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Live Match panel — rendered for all roles, acts as orchestrator -->
+    <LiveMatchPanel
+      :selectedEvent="selectedEvent"
+      :selectedGenre="selectedGenre"
+      :uniqueGenres="uniqueGenres"
+      :battlePhase="battlePhase"
+      :battleJudges="battleJudges?.judges ?? []"
+      :currentBattle="currentBattle"
+      :currentWinner="currentWinner"
+      :currentRound="currentRound"
+      :currentTop="currentTop"
+      :rounds="rounds"
+      :topSize="topSize"
+      :isSmoke="isSmoke"
+      :roundNames="roundNames"
+      :roundSizes="roundSizes"
+      :saveStatus="saveStatus"
+      :finalTieBlocked="finalTieBlocked"
+      :isReadonly="!isAdminOrOrganiser"
+      :canSwitchGenre="canSwitchGenre"
+      :genreSwitchBlockReason="genreSwitchBlockReason"
+      :genreChampions="genreChampions"
+      :stompClient="wsClient"
+      :overlayConfig="overlayConfig"
+      :revealActive="revealActive"
+      :activeRoundIdx="currentRound"
+      @request-genre-change="requestGenreChange"
+      @open-voting="openVoting"
+      @get-score="submitGetScore"
+      @submit-revote="startRevote"
+      @lock-champion="lockChampion"
+      @reveal-champion="revealChampionForGenre"
+      @dismiss-reveal="dismissReveal"
+      @next-pair="nextPair"
+      @unlock-champion="unlockChampion"
+      @set-round="(idx) => { currentRound = idx }"
+      @unlock="handleTimerUnlock"
+    />
 
     </div>
   </div>
