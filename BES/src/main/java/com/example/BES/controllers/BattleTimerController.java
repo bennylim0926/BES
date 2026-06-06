@@ -16,6 +16,7 @@ public class BattleTimerController {
 
     @MessageMapping("/battle/timer")
     public void handleTimerState(Map<String, Object> payload) {
+        System.out.println("[TimerController] Received timer payload: " + payload);
         battleService.handleTimerPayload(payload);
     }
 }

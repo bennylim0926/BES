@@ -197,8 +197,10 @@ onBeforeUnmount(() => {
 if (props.recoveryState) recoverFromState(props.recoveryState)
 
 function publishState() {
-  if (!props.stompClient || !props.stompClient.connected) return
+  if (!props.stompClient) { console.warn('[BattleTimer] publishState: no stompClient'); return }
+  if (!props.stompClient.connected) { console.warn('[BattleTimer] publishState: stompClient not connected'); return }
   try {
+    console.warn('[BattleTimer] publishing timer', { running: isRunning.value, timeLeft: timeLeft.value })
     props.stompClient.publish({
       destination: '/app/battle/timer',
       headers: { 'content-type': 'application/json' },
