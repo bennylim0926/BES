@@ -51,7 +51,7 @@ const isGuestSlot = (name) =>
   !!name && props.guestsForCurrentGenre.some(g => g.guestName === name)
 
 // ── Members lookup ────────────────────────────────────────────
-const getMembersFor = (name) => props.memberLookup[name] ?? []
+const _getMembersFor = (name) => props.memberLookup[name] ?? []
 
 // ── Drag-drop state (pointer-based DnD) ───────────────────────
 const dragSource = ref(null)   // { roundKey, matchIdx, slotIdx } or { smokeIdx }
@@ -259,7 +259,6 @@ function onSmokeDrop(tgtIdx) {
   dragOverKey.value = null
   if (srcIdx === tgtIdx) return
 
-  const srcName = rounds[srcIdx]?.name
   const tgtName = rounds[tgtIdx]?.name
   if (guestNames.has(tgtName)) return
 
@@ -276,25 +275,25 @@ function clearSmokeSlot(idx) {
 }
 
 // ── Clear bracket slot ────────────────────────────────────────
-function clearBracketSlot(roundKey, matchIdx, slotIdx) {
+function _clearBracketSlot(roundKey, matchIdx, slotIdx) {
   emit('clear-slot', { round: roundKey, matchIdx, slotIdx })
 }
 
 // ── Winner actions ────────────────────────────────────────────
-function setWinnerAction(roundKey, matchIdx, slotIdx, name) {
+function _setWinnerAction(roundKey, matchIdx, slotIdx, name) {
   emit('set-winner', { round: roundKey, matchIdx, winnerName: name })
 }
 
-function clearWinnerAction(roundKey, matchIdx) {
+function _clearWinnerAction(roundKey, matchIdx) {
   emit('clear-winner', { round: roundKey, matchIdx })
 }
 
 // ── Start round ──────────────────────────────────────────────
-function startRound() {
+function _startRound() {
   emit('start-round')
 }
 
-function startBattleAt(roundKey, matchIdx) {
+function _startBattleAt(roundKey, matchIdx) {
   emit('start-battle-at', { round: roundKey, matchIdx })
 }
 

@@ -1,6 +1,5 @@
 <script setup>
 import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
-import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
@@ -202,8 +201,6 @@ const _genreStatusDotMap = computed(() => {
   return map
 })
 
-const genreStatusDot = (genre) => _genreStatusDotMap.value[genre] ?? 'idle'
-
 const canSwitchGenre = computed(() =>
   battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
 )
@@ -264,50 +261,6 @@ const onFileChange = async (e) => {
   e.target.value = ''
 }
 
-const removeUploadedFile = async (index) => {
-  const name = uploadedFiles.value[index]
-  const res = await deleteImage(name)
-  if (res.ok) uploadedFiles.value.splice(index, 1)
-}
-
-const winnerAnnouncement = computed(() => {
-  if (currentBattle.value.length === 0) return "Choose a round to start"
-  if (currentWinner.value === -2) return "Battle is ongoing — GET SCORE when judges are ready"
-  if (currentWinner.value === -3) return "Judges are not ready yet"
-  if (isSmoke.value) {
-    if (currentWinner.value === -1) return "It's a tie"
-    if (currentWinner.value === 0) return `${rounds.value[0].name} takes it`
-    if (currentWinner.value === 1) return `${rounds.value[1].name} takes it`
-  } else {
-    if (currentWinner.value === -1) return "It's a tie"
-    if (currentWinner.value === 0) { setWinner(currentTop.value, currentRound.value, 0); return `${currentBattlePair?.value[currentWinner.value]} takes it` }
-    if (currentWinner.value === 1) return `${currentBattlePair?.value[currentWinner.value]} takes it`
-  }
-  return ""
-})
-
-const winnerVariant = computed(() => {
-  if (currentWinner.value === -2) return 'ongoing'
-  if (currentWinner.value === -3) return 'wait'
-  if (currentWinner.value === -1) return 'tie'
-  return 'winner'
-})
-
-const previousBattlePair = computed(() => {
-  if (currentBattle.value.length !== 0 && currentBattle?.value[0] > 0) {
-    return [currentBattle?.value[1][currentBattle?.value[0] - 1][0], currentBattle?.value[1][currentBattle?.value[0] - 1][1]]
-  }
-  return null
-})
-const nextBattlePair = computed(() => {
-  if (currentBattle.value.length === 0) return null
-  if (isSmoke.value) return currentBattle?.value[2]
-  if (currentBattle.value.length !== 0 && currentBattle?.value[0] < currentBattle?.value[1].length - 1) {
-    return [currentBattle?.value[1][currentBattle?.value[0] + 1][0], currentBattle?.value[1][currentBattle?.value[0] + 1][1]]
-  }
-  return null
-})
-
 const resetJudgeVote = async () => {
   // Reset locally first so the panel shows WAITING immediately, before WS echo arrives
   ;(battleJudges.value?.judges ?? []).forEach(j => { j.vote = -3 })
@@ -320,15 +273,6 @@ const currentBattlePair = computed(() => {
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   return [left, right]
-})
-
-// Smoke mode pair entries are objects {name, score}; standard mode entries are strings.
-// This computed always returns [string|null, string|null] so templates are uniform.
-const currentBattlePairNames = computed(() => {
-  const pair = currentBattlePair.value
-  if (!pair) return [null, null]
-  const n = (p) => (p && typeof p === 'object') ? p.name : p
-  return [n(pair[0]), n(pair[1])]
 })
 
 const isActivePair = (match) => {
@@ -1038,7 +982,7 @@ const bracketHasData = computed(() => {
 // Round tab status: 'active' (has current battle), 'done' (all winners set),
 // 'filled' (all slots filled + previous round complete), 'locked' (waiting for
 // previous round to finish), 'empty' (slots not yet filled)
-const roundTabStatus = (idx) => {
+const _roundTabStatus = (idx) => {
   if (isSmoke.value) return 'empty'
   const size = roundSizes.value[idx]
   if (!size) return 'empty'
@@ -1107,16 +1051,6 @@ const showFinalReveal = computed(() =>
   allJudgesVoted.value &&
   tentativeWinner.value !== -1
 )
-
-const voteWeightDisplay = computed(() => {
-  const judges = battleJudges.value?.judges ?? []
-  return {
-    left:  judges.filter(j => j.vote === 0).reduce((s, j) => s + (j.weightage ?? 1), 0),
-    right: judges.filter(j => j.vote === 1).reduce((s, j) => s + (j.weightage ?? 1), 0),
-  }
-})
-
-
 
 const restoreAndBroadcastGenreBattle = async (_genre) => {
   // Reset local state, then fetch the real state from the backend.
@@ -1497,20 +1431,6 @@ const isActiveBattleInThisRound = computed(() => {
 const effectivePhase = computed(() =>
   isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
 )
-
-// Guard: only prompt when switching AWAY from a round with an active battle.
-// Completed rounds and future rounds switch freely without prompting.
-const requestRoundChange = (idx) => {
-  if (roundTabStatus(idx) === 'locked') return
-  if (idx === activeRoundIdx.value) return
-  // Only prompt if the CURRENT round has an active battle in progress
-  if (roundTabStatus(activeRoundIdx.value) === 'active' && battlePhase.value !== 'IDLE') {
-    pendingRoundIdx.value = idx
-    showRoundChangeConfirm.value = true
-  } else {
-    activeRoundIdx.value = idx
-  }
-}
 
 const confirmRoundChange = () => {
   showRoundChangeConfirm.value = false

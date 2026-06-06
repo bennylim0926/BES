@@ -39,7 +39,7 @@ const props = defineProps({
   activeRoundIdx:            { type: Number,  default: 0 },
 })
 
-const emit = defineEmits([
+defineEmits([
   'request-genre-change',
   'open-voting',
   'get-score',
@@ -73,7 +73,7 @@ function voteDisplay(judgeId) {
   return 'WAITING'
 }
 
-function voteColor(judgeId) {
+function _voteColor(judgeId) {
   const v = props.currentBattle.find(b => b?.judgeId === judgeId)
   if (v?.vote === 0) return props.overlayConfig.leftColor || '#dc2626'
   if (v?.vote === 1) return props.overlayConfig.rightColor || '#2563eb'
@@ -142,12 +142,6 @@ const winnerVariant = computed(() => {
 })
 
 // ── Phase helpers ────────────────────────────────────────────────
-const isActiveBattleInThisRound = computed(() => {
-  if (props.currentBattle.length === 0) return false
-  if (props.isSmoke) return true
-  return true
-})
-
 const isFinalInProgress = computed(() =>
   !props.isSmoke && props.currentTop === 'Top2'
 )
