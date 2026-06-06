@@ -128,6 +128,12 @@ public class BattleController {
         ));
     }
 
+    @PostMapping("/timer")
+    public ResponseEntity<?> updateTimer(@RequestBody Map<String, Object> payload) {
+        battleService.handleTimerPayload(payload);
+        return ResponseEntity.ok(Map.of("message", "Timer updated"));
+    }
+
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){

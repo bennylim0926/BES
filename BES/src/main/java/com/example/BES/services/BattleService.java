@@ -466,7 +466,6 @@ public class BattleService {
     private long timerLastUpdated = 0; // System.currentTimeMillis() when last payload arrived
 
     public void handleTimerPayload(Map<String, Object> payload) {
-        System.out.println("[BattleService] Storing timer payload: " + payload);
         this.lastTimerPayload = new HashMap<>(payload);
         this.timerLastUpdated = System.currentTimeMillis();
         messagingTemplate.convertAndSend("/topic/battle/timer", payload);

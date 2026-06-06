@@ -116,21 +116,10 @@ function resetTimer() {
 }
 
 function recoverFromState(state) {
-  console.warn('[BattleTimer] recoverFromState called', JSON.stringify(state))
-  if (!state || !state.running) {
-    console.warn('[BattleTimer] recovery skipped — no state or not running')
-    return
-  }
-  if (isRunning.value) {
-    console.warn('[BattleTimer] recovery skipped — already running')
-    return
-  }
+  if (!state || !state.running) return
+  if (isRunning.value) return  // already running, don't interrupt
   const left = state.timeLeft ?? 0
-  if (left <= 0) {
-    console.warn('[BattleTimer] recovery skipped — timeLeft <= 0', left)
-    return
-  }
-  console.warn('[BattleTimer] recovering timer at', left, 'seconds')
+  if (left <= 0) return
   timerState.value = 'RUNNING'
   totalDuration.value = state.totalDuration || left
   timeLeft.value = left
