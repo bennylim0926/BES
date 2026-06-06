@@ -38,18 +38,21 @@ describe('BattleTimer', () => {
     expect(wrapper.find('.countdown-display').text()).toMatch(/\d:\d{2}/)
   })
 
-  it('broadcasts timer state on start and each tick', async () => {
+  it('sends timer state via REST on start and each tick', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchSpy)
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
     await wrapper.find('.start-btn').trigger('click')
     vi.advanceTimersByTime(3000)
-    const calls = mockStompClient.publish.mock.calls
+    const calls = fetchSpy.mock.calls
     expect(calls.length).toBeGreaterThanOrEqual(3)
-    const body = JSON.parse(calls[0][0].body)
+    const body = JSON.parse(calls[0][1].body)
     expect(body).toHaveProperty('running')
     expect(body).toHaveProperty('timeLeft')
     expect(body).toHaveProperty('totalDuration')
+    vi.unstubAllGlobals()
   })
 
   it('does NOT auto-unlock at 10s — timer runs independently', async () => {

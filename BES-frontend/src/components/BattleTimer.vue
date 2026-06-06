@@ -197,19 +197,19 @@ onBeforeUnmount(() => {
 if (props.recoveryState) recoverFromState(props.recoveryState)
 
 function publishState() {
-  if (!props.stompClient) { console.warn('[BattleTimer] publishState: no stompClient'); return }
-  if (!props.stompClient.connected) { console.warn('[BattleTimer] publishState: stompClient not connected'); return }
+  // Use REST API instead of STOMP — more reliable for writes.
+  // Backend stores the payload and broadcasts to /topic/battle/timer for overlay + recovery.
   try {
-    console.warn('[BattleTimer] publishing timer', { running: isRunning.value, timeLeft: timeLeft.value })
-    props.stompClient.publish({
-      destination: '/app/battle/timer',
-      headers: { 'content-type': 'application/json' },
+    fetch('/api/v1/battle/timer', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         running: isRunning.value,
         timeLeft: timeLeft.value,
         totalDuration: totalDuration.value
       })
-    })
+    }).catch(() => {})
   } catch (_) {
     // Gracefully skip broadcast failures — never crash the UI
   }
