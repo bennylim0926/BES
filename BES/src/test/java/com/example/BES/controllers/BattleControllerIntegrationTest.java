@@ -501,7 +501,7 @@ public class BattleControllerIntegrationTest {
     public void emcee_cannotSetOverlayConfig() throws Exception {
         mockMvc.perform(post("/api/v1/battle/overlay-config")
                 .contentType("application/json")
-                .content("{\"leftColor\":\"#ff0000\",\"rightColor\":\"#0000ff\"}"))
+                .content("{\"showImages\":true,\"leftColor\":\"#ff0000\",\"rightColor\":\"#0000ff\"}"))
             .andExpect(status().isForbidden());
     }
 
@@ -510,7 +510,7 @@ public class BattleControllerIntegrationTest {
     public void emcee_cannotAddJudge() throws Exception {
         mockMvc.perform(post("/api/v1/battle/judge")
                 .contentType("application/json")
-                .content("{\"name\":\"Judge A\"}"))
+                .content("{\"id\":999}"))
             .andExpect(status().isForbidden());
     }
 
