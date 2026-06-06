@@ -182,6 +182,7 @@ function publishState() {
   try {
     props.stompClient.publish({
       destination: '/app/battle/timer',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         running: isRunning.value,
         timeLeft: timeLeft.value,
