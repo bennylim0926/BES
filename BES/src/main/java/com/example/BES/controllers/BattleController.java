@@ -129,7 +129,7 @@ public class BattleController {
     }
 
     @PostMapping("/score")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){
         boolean isFinal = dto != null && dto.isFinal();
         Integer code = battleService.setScoreService(isFinal);
@@ -159,7 +159,7 @@ public class BattleController {
     }
 
     @PostMapping("/revote")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> revote(){
         battleService.resetJudgeVotesService();
         return ResponseEntity.ok(Map.of("message", "Judge votes reset"));
@@ -325,7 +325,7 @@ public class BattleController {
     }
 
     @PostMapping("/phase")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
         battleService.setBattlePhaseService(dto.getPhase(), dto.getChampion());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
@@ -358,7 +358,7 @@ public class BattleController {
     }
 
     @PostMapping("/active-genre")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setActiveGenre(@Valid @RequestBody SetActiveGenreDto dto) {
         battleService.switchActiveGenreService(dto);
         return ResponseEntity.ok(Map.of("message", "Active genre set"));
