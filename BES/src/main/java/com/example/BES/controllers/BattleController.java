@@ -339,7 +339,7 @@ public class BattleController {
     }
 
     @PostMapping("/bracket")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
         battleService.setBracketStateService(dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));

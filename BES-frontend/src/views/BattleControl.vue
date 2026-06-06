@@ -234,12 +234,22 @@ const pushOverlayConfig = async () => {
 
 const activeRoundIdx = ref(0)
 
+// LiveMatchPanel tab index — separate from currentRound (match index).
+// currentRound is overloaded: it's the match index within currentTop, but
+// LiveMatchPanel uses it as a round tab index. When nextPair increments
+// currentRound from 0 to 1, the tab would incorrectly switch from Top16 to Top8.
+const viewedRoundIdx = ref(0)
+watch(currentTop, (newTop) => {
+  const idx = roundNames.value.indexOf(newTop)
+  if (idx >= 0) viewedRoundIdx.value = idx
+})
+
 const roundNames = computed(() => {
   if (isSmoke.value) return []
   const sizes = []
   let s = topSize.value
   while (s >= 2) {
-    if (s < topSize.value) sizes.push(`Top${s}`)
+    sizes.push(`Top${s}`)
     s = Math.floor(s / 2)
   }
   return sizes
@@ -1127,7 +1137,7 @@ const jumpToRecoveredPair = async () => {
     // Restore the round tab to match the recovered currentTop
     const recoveredSize = parseInt(topKey.replace('Top', ''))
     const recoveredIdx = roundSizes.value.indexOf(recoveredSize)
-    if (recoveredIdx >= 0) activeRoundIdx.value = recoveredIdx
+    if (recoveredIdx >= 0) { activeRoundIdx.value = recoveredIdx; viewedRoundIdx.value = recoveredIdx }
   }
 
   // REVEALED: backend already has the correct state loaded from DB on startup.
@@ -1376,14 +1386,6 @@ const openVoting = async () => {
   markSaved()
 }
 
-const handleTimerUnlock = async () => {
-  if (battlePhase.value !== 'LOCKED') return
-  try {
-    await setBattlePhase('VOTING')
-  } catch (err) {
-    console.error('Auto-unlock failed:', err)
-  }
-}
 
 const confirmResetBracket = async () => {
   rounds.value = initRounds()
@@ -1397,6 +1399,7 @@ const confirmResetBracket = async () => {
   currentTop.value = ''
   currentRound.value = 0
   activeRoundIdx.value = 0
+  viewedRoundIdx.value = 0
   finalTieBlocked.value = false
 
   // Clear champion tracking — both backend (DB) and local ref
@@ -1445,6 +1448,7 @@ const effectivePhase = computed(() =>
 const confirmRoundChange = () => {
   showRoundChangeConfirm.value = false
   activeRoundIdx.value = pendingRoundIdx.value
+  viewedRoundIdx.value = pendingRoundIdx.value
   pendingRoundIdx.value = null
 }
 
@@ -1592,6 +1596,7 @@ watch(topSize, async (newVal, oldVal) => {
   // Only when event+genre are known — during setup they're still null, defer to onMounted.
   if (selectedEvent.value && selectedGenre.value) {
     activeRoundIdx.value = 0
+    viewedRoundIdx.value = 0
   }
   rounds.value = initRounds()
   currentWinner.value = -2
@@ -1675,6 +1680,7 @@ onMounted(async () => {
   }
   // Round tab starts at 0 on mount
   activeRoundIdx.value = 0
+  viewedRoundIdx.value = 0
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
@@ -2497,7 +2503,7 @@ onUnmounted(() => {
       :stompClient="wsClient"
       :overlayConfig="overlayConfig"
       :revealActive="revealActive"
-      :activeRoundIdx="currentRound"
+      :activeRoundIdx="viewedRoundIdx"
       @request-genre-change="requestGenreChange"
       @open-voting="openVoting"
       @get-score="submitGetScore"
@@ -2507,8 +2513,7 @@ onUnmounted(() => {
       @dismiss-reveal="dismissReveal"
       @next-pair="nextPair"
       @unlock-champion="unlockChampion"
-      @set-round="(idx) => { currentRound = idx }"
-      @unlock="handleTimerUnlock"
+      @set-round="(idx) => { viewedRoundIdx = idx }"
       @start-round="handleEmceeStartRound"
     />
 

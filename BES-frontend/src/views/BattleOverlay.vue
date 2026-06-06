@@ -586,7 +586,7 @@ onMounted(async () => {
   // Broadcast timer (from BattleTimer.vue countdown)
   const cTimer = createClient(); clients.push(cTimer)
   subscribeToChannel(cTimer, '/topic/battle/timer', (msg) => {
-    const data = JSON.parse(msg.body)
+    const data = msg
     timerState.value = data
     if (data.running && !showTimer.value) {
       showTimer.value = true

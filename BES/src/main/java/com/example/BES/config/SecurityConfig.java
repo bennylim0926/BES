@@ -32,6 +32,9 @@ public class SecurityConfig {
     @Value("${BES_COOKIE_DOMAIN:localhost}")
     private String cookieDomain;
 
+    @Value("${BES_SECURE_COOKIE:true}")
+    private boolean secureCookie;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
         return http
@@ -73,8 +76,10 @@ public class SecurityConfig {
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setSameSite("None");
-        serializer.setUseSecureCookie(true);
+        // SameSite=None requires Secure=true per browser spec.
+        // When Secure is off (local dev without HTTPS), fall back to Lax.
+        serializer.setSameSite(secureCookie ? "None" : "Lax");
+        serializer.setUseSecureCookie(secureCookie);
         serializer.setDomainName(cookieDomain);
         return serializer;
     }

@@ -49,7 +49,6 @@ defineEmits([
   'next-pair',
   'unlock-champion',
   'set-round',
-  'unlock',
   'start-round',
 ])
 
@@ -382,12 +381,11 @@ const currentGenreChampion = computed(() => {
         <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
       </div>
 
-      <!-- BattleTimer (LOCKED phase only) -->
-      <div v-if="!isReadonly || battlePhase === 'LOCKED'" class="mb-4">
+      <!-- BattleTimer (LOCKED: timer counts down independently; Emcee opens voting manually) -->
+      <div v-if="!isReadonly || battlePhase === 'LOCKED' || battlePhase === 'VOTING'" class="mb-4">
         <BattleTimer
           :phase="battlePhase"
           :stomp-client="stompClient"
-          @unlock="$emit('unlock')"
         />
       </div>
 
@@ -426,14 +424,15 @@ const currentGenreChampion = computed(() => {
             }"
           >
             <span class="type-label text-content-muted text-[10px] w-5">{{ mIdx + 1 }}</span>
-            <span class="type-body flex-1 truncate" :class="match[0] ? 'text-content-primary' : 'text-content-muted/40'">
+            <span class="type-body flex-1 truncate" :class="match[2] === match[0] && match[0] ? 'text-green-400' : match[0] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[0] || '---' }}
+              <span v-if="match[2] === match[0] && match[0]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
             <span class="type-label text-content-muted text-[9px] mx-1">VS</span>
-            <span class="type-body flex-1 truncate text-right" :class="match[1] ? 'text-content-primary' : 'text-content-muted/40'">
+            <span class="type-body flex-1 truncate text-right" :class="match[2] === match[1] && match[1] ? 'text-green-400' : match[1] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[1] || '---' }}
+              <span v-if="match[2] === match[1] && match[1]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
-            <span v-if="match[2]" class="type-label text-green-400 text-[9px] ml-2">WIN</span>
           </div>
         </div>
         <div v-else class="type-label text-content-muted text-[10px] text-center py-3">
@@ -697,9 +696,33 @@ const currentGenreChampion = computed(() => {
         </button>
       </div>
 
-      <!-- Phase action buttons (Emcee readonly: limited set) -->
+      <!-- Phase action buttons (Emcee readonly: controls for running the live battle) -->
       <div v-if="isReadonly && currentBattle.length > 0" class="flex flex-wrap gap-3 sm:gap-2">
-        <!-- Emcee can trigger revel when champion is already decided -->
+        <!-- LOCKED: open voting (manual, in addition to auto-unlock at 10s) -->
+        <button
+          v-if="battlePhase === 'LOCKED'"
+          @click="$emit('open-voting')"
+          class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
+        >
+          <i class="pi pi-lock-open text-xs"></i>
+          Open Voting
+        </button>
+
+        <!-- VOTING: Get Score / Rematch -->
+        <button
+          v-if="battlePhase === 'VOTING' && !showFinalReveal"
+          :disabled="!allJudgesVoted"
+          @click="$emit('get-score')"
+          :class="allJudgesVoted
+            ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
+            : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
+          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
+        >
+          <i class="pi pi-bolt text-xs"></i>
+          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
+        </button>
+
+        <!-- DECIDED: reveal champion -->
         <button
           v-if="battlePhase === 'DECIDED' && !revealActive"
           @click="$emit('reveal-champion')"
@@ -716,6 +739,8 @@ const currentGenreChampion = computed(() => {
           <i class="pi pi-times text-xs"></i>
           Dismiss Reveal
         </button>
+
+        <!-- REVEALED: next pair -->
         <button
           v-if="battlePhase === 'REVEALED'"
           @click="$emit('next-pair')"

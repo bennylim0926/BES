@@ -276,6 +276,7 @@ public class BattleService {
         }
         messagingTemplate.convertAndSend("/topic/battle/bracket", state);
         persistActiveState();
+        broadcastStateSnapshot();
     }
 
     public String getSelectedMode() { return selectedMode; }

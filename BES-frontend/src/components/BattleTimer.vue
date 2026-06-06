@@ -2,19 +2,20 @@
 /**
  * BattleTimer.vue
  *
- * A countdown timer for the live battle flow during the LOCKED phase.
- * The Emcee selects a preset duration and starts the timer manually.
- * At 10 seconds remaining, it auto-emits an `unlock` event to trigger
- * the phase transition to VOTING. Timer state is broadcast via STOMP
- * every second for display on the overlay.
+ * A countdown timer for the live battle flow.
+ * The Emcee selects a preset duration and starts the timer during LOCKED.
+ * The timer runs independently — it does NOT auto-open voting.
+ * Voting should be opened manually by the Emcee only after BOTH battlers
+ * have finished their performance.
+ * At 0 seconds, a burst animation plays and the timer resets.
+ * Timer state is broadcast via STOMP every second for the overlay.
  *
  * State machine:
- *   IDLE   → (click START) → RUNNING
- *   RUNNING → (timeLeft=0)  → IDLE  (auto-stop)
+ *   IDLE    → (click START) → RUNNING
+ *   RUNNING → (timeLeft=0)  → FINISHED (burst anim) → IDLE
  *   RUNNING → (click RESET) → IDLE
- *   RUNNING → (phase leaves LOCKED) → IDLE (auto-reset via watcher)
  */
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   phase:       { type: String, default: 'IDLE' },
@@ -22,23 +23,23 @@ const props = defineProps({
   presets:     { type: Array,  default: () => [30, 45, 60, 90] }
 })
 
-const emit = defineEmits(['unlock'])
-
 // ── Reactive state ──
-const timerState        = ref('IDLE')  // 'IDLE' | 'RUNNING'
+const timerState        = ref('IDLE')  // 'IDLE' | 'RUNNING' | 'FINISHED'
 const selectedDuration  = ref(30)      // currently highlighted preset (seconds)
 const totalDuration     = ref(0)
 const timeLeft          = ref(0)
-const autoUnlocked      = ref(false)   // guard: prevent double-unlock emit
+const autoUnlocked      = ref(false)   // guard: true once timer has fired its 10s warning
 
 let intervalId = null
+let finishTimeoutId = null
 
 // ── Computed ──
 const isRunning    = computed(() => timerState.value === 'RUNNING')
 const isIdle       = computed(() => timerState.value === 'IDLE')
+const isFinished   = computed(() => timerState.value === 'FINISHED')
 const isLockedPhase = computed(() => props.phase === 'LOCKED')
 const isWarning    = computed(() => isRunning.value && timeLeft.value <= 10)
-const isMuted      = computed(() => !isRunning.value && !isLockedPhase.value)
+const isMuted      = computed(() => !isRunning.value && !isFinished.value && !isLockedPhase.value)
 
 const displayTime = computed(() => {
   const mins = Math.floor(timeLeft.value / 60)
@@ -59,36 +60,54 @@ function selectPreset(seconds) {
 }
 
 function startTimer() {
-  if (isRunning.value) return        // guard: only start from IDLE
+  if (isRunning.value) return
   timerState.value = 'RUNNING'
   totalDuration.value = selectedDuration.value
   timeLeft.value = selectedDuration.value
   autoUnlocked.value = false
 
-  publishState()                      // broadcast initial state
+  publishState()
 
   clearInterval(intervalId)
   intervalId = setInterval(() => {
     timeLeft.value--
 
-    publishState()                    // broadcast every tick
+    publishState()                      // broadcast every tick
 
-    // At exactly 10 seconds remaining: emit unlock (once)
+    // At exactly 10 seconds remaining: visual warning pulse (no auto-unlock)
+    // Voting is opened manually by the Emcee after both battlers finish
     if (timeLeft.value === 10 && !autoUnlocked.value) {
       autoUnlocked.value = true
-      emit('unlock')
     }
 
-    // Auto-stop when countdown hits zero
+    // At zero: play finish burst, then reset
     if (timeLeft.value <= 0) {
-      resetTimer()
+      finishTimer()
     }
   }, 1000)
+}
+
+function finishTimer() {
+  clearInterval(intervalId)
+  intervalId = null
+  timerState.value = 'FINISHED'
+  timeLeft.value = 0
+  publishState()                        // broadcast running=false, timeLeft=0 → overlay plays burst
+
+  // After burst animation (~800ms), go back to IDLE
+  clearTimeout(finishTimeoutId)
+  finishTimeoutId = setTimeout(() => {
+    timerState.value = 'IDLE'
+    totalDuration.value = 0
+    publishState()
+  }, 800)
 }
 
 function resetTimer() {
   clearInterval(intervalId)
   intervalId = null
+  clearTimeout(finishTimeoutId)
+  finishTimeoutId = null
   timerState.value = 'IDLE'
   totalDuration.value = 0
   timeLeft.value = 0
@@ -111,18 +130,18 @@ function publishState() {
   }
 }
 
-// ── Phase watcher: auto-reset when phase leaves LOCKED while running ──
-watch(() => props.phase, (newPhase, oldPhase) => {
-  if (isRunning.value && oldPhase === 'LOCKED' && newPhase !== 'LOCKED') {
-    resetTimer()
-  }
-})
-
 // ── Cleanup ──
 onBeforeUnmount(() => {
-  if (intervalId) {
-    clearInterval(intervalId)
-    intervalId = null
+  clearInterval(intervalId)
+  intervalId = null
+  clearTimeout(finishTimeoutId)
+  finishTimeoutId = null
+  // Always broadcast final state so the overlay doesn't show a frozen timer
+  if (timerState.value === 'RUNNING' || timerState.value === 'FINISHED') {
+    timerState.value = 'IDLE'
+    timeLeft.value = 0
+    totalDuration.value = 0
+    publishState()
   }
 })
 </script>
@@ -136,13 +155,11 @@ onBeforeUnmount(() => {
     <!-- IDLE + LOCKED: Preset selector + START button                   -->
     <!-- ================================================================ -->
     <div v-if="isIdle && isLockedPhase" class="flex flex-col items-center gap-3 py-2">
-      <!-- Section rule label -->
       <div class="section-rule w-full">
         <span class="section-rule-label">BATTLE TIMER</span>
         <span class="section-rule-line"></span>
       </div>
 
-      <!-- Preset buttons row -->
       <div class="flex items-center gap-2">
         <button
           v-for="p in presets"
@@ -157,7 +174,6 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <!-- START button -->
       <button
         class="para-chip-sm start-btn px-5 py-2.5 type-body transition-all duration-150 active:scale-95"
         @click="startTimer"
@@ -170,13 +186,11 @@ onBeforeUnmount(() => {
     <!-- RUNNING: Progress bar + countdown + RESET                       -->
     <!-- ================================================================ -->
     <div v-if="isRunning" class="flex flex-col items-center gap-3 py-2">
-      <!-- Section rule label -->
       <div class="section-rule w-full">
         <span class="section-rule-label">COUNTDOWN</span>
         <span class="section-rule-line"></span>
       </div>
 
-      <!-- Countdown number (28px Anton SC) -->
       <div
         class="countdown-display text-center transition-colors duration-300"
         :class="isWarning ? 'text-red-500 animate-pulse' : 'text-content-primary'"
@@ -184,7 +198,6 @@ onBeforeUnmount(() => {
         {{ displayTime }}
       </div>
 
-      <!-- Progress bar track -->
       <div
         class="progress-track w-full"
         :class="isWarning ? 'progress-track-warning' : ''"
@@ -198,7 +211,6 @@ onBeforeUnmount(() => {
         ></div>
       </div>
 
-      <!-- RESET button -->
       <button
         class="reset-btn para-chip-sm px-3 py-1.5 type-label transition-all duration-150 active:scale-95"
         @click="resetTimer"
@@ -208,7 +220,16 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- ================================================================ -->
-    <!-- Muted IDLE (phase !== 'LOCKED') — minimal label                  -->
+    <!-- FINISHED: Burst animation at 0s                                 -->
+    <!-- ================================================================ -->
+    <div v-if="isFinished" class="flex flex-col items-center justify-center py-4">
+      <div class="countdown-burst text-center">
+        <span class="burst-text">TIME</span>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- Muted IDLE (phase !== 'LOCKED' && phase !== 'VOTING')            -->
     <!-- ================================================================ -->
     <div v-if="isIdle && !isLockedPhase" class="flex items-center justify-center py-3">
       <span class="type-label text-content-muted text-xs">TIMER — LOCKED PHASE ONLY</span>
@@ -241,15 +262,6 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
-/* ── Countdown display (28px Anton SC) ──────────────────────────── */
-.countdown-display {
-  font-family: 'Anton SC', sans-serif;
-  font-size: 28px;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── RESET button ──────────────────────────────────────────────── */
 .reset-btn {
   color: rgba(255, 255, 255, 0.35);
@@ -261,7 +273,16 @@ onBeforeUnmount(() => {
   background: rgba(239, 68, 68, 0.08);
 }
 
-/* ── Progress bar track (4px height) ──────────────────────────── */
+/* ── Countdown display (28px Anton SC) ──────────────────────────── */
+.countdown-display {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress bar track ────────────────────────────────────────── */
 .progress-track {
   height: 4px;
   background: rgba(255, 255, 255, 0.06);
@@ -273,5 +294,43 @@ onBeforeUnmount(() => {
 }
 .progress-fill {
   border-radius: 0;
+}
+
+/* ── Burst animation at 0s ──────────────────────────────────────── */
+.countdown-burst {
+  animation: timerBurst 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.burst-text {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 42px;
+  letter-spacing: 0.06em;
+  color: var(--accent-color, #fff);
+  text-shadow:
+    0 0 20px var(--accent-muted, rgba(255,255,255,0.3)),
+    0 0 60px var(--accent-muted, rgba(255,255,255,0.15));
+}
+
+@keyframes timerBurst {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+    filter: brightness(1);
+  }
+  15% {
+    transform: scale(1.15);
+    opacity: 1;
+    filter: brightness(2.5);
+  }
+  30% {
+    transform: scale(1.05);
+    opacity: 1;
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+    filter: brightness(0.3);
+  }
 }
 </style>

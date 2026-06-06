@@ -50,16 +50,15 @@ describe('BattleTimer', () => {
     expect(body).toHaveProperty('totalDuration')
   })
 
-  it('emits unlock event at exactly 10s remaining', async () => {
+  it('does NOT auto-unlock at 10s — timer runs independently', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
     // Start with 30s
     await wrapper.find('.start-btn').trigger('click')
-    // Advance 20 seconds (to timeLeft=10)
+    // Advance 20 seconds (to timeLeft=10) — no unlock emit
     vi.advanceTimersByTime(20000)
-    expect(wrapper.emitted('unlock')).toBeTruthy()
-    expect(wrapper.emitted('unlock').length).toBe(1)
+    expect(wrapper.emitted('unlock')).toBeFalsy()
   })
 
   it('resets timer when reset button is clicked', async () => {
@@ -73,15 +72,31 @@ describe('BattleTimer', () => {
     expect(wrapper.text()).toContain('30s') // preset buttons visible
   })
 
-  it('resets timer when phase leaves LOCKED', async () => {
+  it('keeps counting when phase transitions from LOCKED to VOTING', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
     await wrapper.find('.start-btn').trigger('click')
     vi.advanceTimersByTime(5000)
     await wrapper.setProps({ phase: 'VOTING' })
-    // Should reset to idle
+    // Timer should STILL be running — it keeps counting to 0
+    expect(wrapper.find('.countdown-display').exists()).toBe(true)
+  })
+
+  it('stops at 0 with burst animation, then resets to idle', async () => {
+    const wrapper = mount(BattleTimer, {
+      props: { phase: 'LOCKED', stompClient: mockStompClient }
+    })
+    await wrapper.find('.start-btn').trigger('click') // 30s
+    vi.advanceTimersByTime(30000) // all the way to 0
+    await wrapper.vm.$nextTick()
+    // Should show FINISHED burst (TIME text)
+    expect(wrapper.text()).toContain('TIME')
+    // After burst animation (800ms), should reset to idle
+    vi.advanceTimersByTime(800)
+    await wrapper.vm.$nextTick()
     expect(wrapper.find('.countdown-display').exists()).toBe(false)
+    expect(wrapper.text()).toContain('30s') // preset buttons back
   })
 
   it('shows warning state when timeLeft <= 10', async () => {
@@ -101,14 +116,14 @@ describe('BattleTimer', () => {
     expect(wrapper.find('.opacity-40').exists()).toBe(true)
   })
 
-  it('only emits unlock once', async () => {
+  it('finishes at 0 with burst animation, no unlock emit', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
     await wrapper.find('.start-btn').trigger('click')
-    vi.advanceTimersByTime(20000) // to 10
-    expect(wrapper.emitted('unlock').length).toBe(1)
-    vi.advanceTimersByTime(1000) // to 9
-    expect(wrapper.emitted('unlock').length).toBe(1) // still 1
+    // Advance full 30s
+    vi.advanceTimersByTime(30000)
+    // Timer should emit no unlock events
+    expect(wrapper.emitted('unlock')).toBeFalsy()
   })
 })
