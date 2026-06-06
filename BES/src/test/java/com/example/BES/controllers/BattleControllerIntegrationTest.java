@@ -420,4 +420,107 @@ public class BattleControllerIntegrationTest {
                 .andExpect(jsonPath("$.genreName").value("Popping"))
                 .andExpect(jsonPath("$.battlePhase").exists());
     }
+
+    // ─────────────────────────────────────────────────────────
+    // Emcee Auth Tests
+    // ─────────────────────────────────────────────────────────
+
+    // === Operator-tier: Emcee SHOULD have access ===
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattleState() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/state"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattlePhase() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/phase"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattleJudges() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/judges"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBracketState() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/bracket"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetOverlayConfig() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/overlay-config"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetActiveGenre() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/active-genre"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetChampions() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/champions")
+                .param("event", "test-event"))
+            .andExpect(status().isOk());
+    }
+
+    // === Config-tier: Emcee should NOT have access ===
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotSetBattlePair() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/battle-pair")
+                .contentType("application/json")
+                .content("{\"leftBattler\":\"A\",\"rightBattler\":\"B\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotSetBracket() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/bracket")
+                .contentType("application/json")
+                .content("{\"topSize\":16,\"rounds\":{}}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotSetOverlayConfig() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                .contentType("application/json")
+                .content("{\"leftColor\":\"#ff0000\",\"rightColor\":\"#0000ff\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotAddJudge() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/judge")
+                .contentType("application/json")
+                .content("{\"name\":\"Judge A\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotSetSmokeList() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/smoke")
+                .contentType("application/json")
+                .content("{\"battlers\":[]}"))
+            .andExpect(status().isForbidden());
+    }
 }
