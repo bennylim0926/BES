@@ -9,7 +9,6 @@
  * Every write action is emitted up for the parent to handle.
  */
 import { computed } from 'vue'
-import BracketViewer from '@/components/BracketViewer.vue'
 import BattleTimer from '@/components/BattleTimer.vue'
 
 const props = defineProps({
@@ -51,6 +50,7 @@ defineEmits([
   'unlock-champion',
   'set-round',
   'unlock',
+  'start-round',
 ])
 
 // ── Genre status dot ─────────────────────────────────────────────
@@ -96,6 +96,9 @@ const currentBattlePairNames = computed(() => {
   const n = (p) => (p && typeof p === 'object') ? p.name : p
   return [n(pair[0]), n(pair[1])]
 })
+
+const currentBattleLeft = computed(() => currentBattlePairNames.value?.[0] ?? '')
+const currentBattleRight = computed(() => currentBattlePairNames.value?.[1] ?? '')
 
 const previousBattlePair = computed(() => {
   if (props.isSmoke || props.currentBattle.length === 0) return null
@@ -206,37 +209,10 @@ const currentGenreChampion = computed(() => {
   return null
 })
 
-// ── Round tab status ─────────────────────────────────────────────
-// Returns 'active' | 'done' | 'filled' | 'locked' | 'empty'
-function roundTabStatus(idx) {
-  if (props.isSmoke) return 'empty'
-  const key = props.roundNames[idx]
-  if (!key) return 'empty'
-  const pairList = props.rounds?.[key]
-  if (!Array.isArray(pairList)) return 'empty'
-
-  const hasActive = props.currentBattle.length > 0 && props.currentTop === key
-  if (hasActive) return 'active'
-
-  const allHaveWinners = pairList.every(m => Array.isArray(m) && m[2])
-  if (allHaveWinners && pairList.length > 0 && pairList.some(m => m[0] || m[1])) return 'done'
-
-  if (idx > 0) {
-    const prevKey = props.roundNames[idx - 1]
-    const prevList = props.rounds?.[prevKey]
-    if (Array.isArray(prevList) && prevList.length > 0 && !prevList.every(m => Array.isArray(m) && m[2])) {
-      return 'locked'
-    }
-  }
-
-  const allFilled = pairList.every(m => Array.isArray(m) && m[0] && m[1])
-  if (allFilled) return 'filled'
-  return 'empty'
-}
 </script>
 
 <template>
-  <div class="live-match-panel space-y-4">
+  <div class="live-match-panel space-y-3">
     <!-- Role-aware guidance (Emcee) -->
     <div
       v-if="isReadonly"
@@ -415,51 +391,54 @@ function roundTabStatus(idx) {
         />
       </div>
 
-      <!-- Round tabs (standard bracket only) -->
-      <div v-if="!isSmoke && roundNames.length > 0" class="flex flex-wrap gap-2 sm:gap-1 mb-4">
-        <button
-          v-for="(name, idx) in roundNames"
-          :key="idx"
-          @click="$emit('set-round', idx)"
-          class="para-chip-sm px-4 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5 flex-1 sm:flex-none justify-center sm:justify-start"
-          :class="{
-            'text-accent border-[color:var(--accent-muted)]': activeRoundIdx === idx,
-            'text-emerald-400/70 border-emerald-500/30': activeRoundIdx !== idx && roundTabStatus(idx) === 'done',
-            'text-content-muted/40 cursor-not-allowed': roundTabStatus(idx) === 'locked',
-            'text-content-muted hover:text-content-primary': activeRoundIdx !== idx && roundTabStatus(idx) !== 'done' && roundTabStatus(idx) !== 'locked',
-            'border-amber-400/40 text-amber-400': roundTabStatus(idx) === 'active',
-          }"
-          :title="roundTabStatus(idx) === 'locked' ? 'Waiting for previous round to complete' : ''"
-        >
-          <i
-            v-if="roundTabStatus(idx) === 'active'"
-            class="pi pi-circle-fill text-[6px] text-amber-400"
-            title="Active battle"
-          ></i>
-          <i
-            v-else-if="roundTabStatus(idx) === 'done'"
-            class="pi pi-check text-[9px] text-emerald-400/70"
-            title="Round complete"
-          ></i>
-          <i
-            v-else-if="roundTabStatus(idx) === 'locked'"
-            class="pi pi-lock text-[8px] text-content-muted/40"
-            title="Waiting for previous round"
-          ></i>
-          {{ name.replace('Top', 'TOP ') }}
-        </button>
-      </div>
+      <!-- Round tabs + bracket viewer — compact combined section -->
+      <div v-if="!isSmoke && roundNames.length > 0" class="card p-4">
+        <div class="section-rule mb-3">
+          <span class="section-rule-label">BRACKET</span>
+          <div class="section-rule-line"></div>
+        </div>
 
-      <!-- Bracket viewer (read-only) -->
-      <div v-if="rounds && (typeof rounds === 'object' ? Object.keys(rounds).length : rounds.length) > 0" class="mb-4">
-        <BracketViewer
-          :rounds="rounds"
-          :top-size="topSize"
-          :current-round="currentRound"
-          :is-smoke="isSmoke"
-          :current-battle-left="currentBattlePairNames?.[0] ?? ''"
-          :current-battle-right="currentBattlePairNames?.[1] ?? ''"
-        />
+        <!-- Round tabs as compact filter chips -->
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          <button
+            v-for="(name, idx) in roundNames"
+            :key="idx"
+            @click="$emit('set-round', idx)"
+            class="para-chip-sm px-2.5 py-1 type-label transition-all duration-150 text-[10px]"
+            :class="activeRoundIdx === idx
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+          >
+            {{ name.replace('Top', 'TOP ') }}
+          </button>
+        </div>
+
+        <!-- Bracket viewer — shows only selected round -->
+        <div v-if="rounds && Object.keys(rounds).length > 0" class="compact-bracket">
+          <div
+            v-for="(match, mIdx) in (rounds[roundNames[activeRoundIdx]] || [])"
+            :key="mIdx"
+            class="compact-match-card flex items-center gap-3 py-1.5 px-2"
+            :class="{
+              'bg-[color:var(--accent-subtle)] border-l-[3px] border-l-[color:var(--accent-muted)]':
+                (match[0] && (match[0] === currentBattleLeft || match[0] === currentBattleRight)) ||
+                (match[1] && (match[1] === currentBattleLeft || match[1] === currentBattleRight))
+            }"
+          >
+            <span class="type-label text-content-muted text-[10px] w-5">{{ mIdx + 1 }}</span>
+            <span class="type-body flex-1 truncate" :class="match[0] ? 'text-content-primary' : 'text-content-muted/40'">
+              {{ match[0] || '---' }}
+            </span>
+            <span class="type-label text-content-muted text-[9px] mx-1">VS</span>
+            <span class="type-body flex-1 truncate text-right" :class="match[1] ? 'text-content-primary' : 'text-content-muted/40'">
+              {{ match[1] || '---' }}
+            </span>
+            <span v-if="match[2]" class="type-label text-green-400 text-[9px] ml-2">WIN</span>
+          </div>
+        </div>
+        <div v-else class="type-label text-content-muted text-[10px] text-center py-3">
+          No bracket data
+        </div>
       </div>
 
       <!-- Judge vote grid -->
@@ -746,6 +725,16 @@ function roundTabStatus(idx) {
           <i class="pi pi-chevron-right text-xs"></i>
         </button>
       </div>
+
+      <!-- Start Round button (IDLE, bracket has data) -->
+      <button
+        v-if="!isSmoke && battlePhase === 'IDLE' && rounds && Object.keys(rounds).length > 0"
+        @click="$emit('start-round')"
+        class="para-chip-sm px-6 py-3 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all duration-150"
+      >
+        <i class="pi pi-play text-xs mr-1.5"></i>
+        START ROUND
+      </button>
 
       <!-- No active battle placeholder -->
       <div

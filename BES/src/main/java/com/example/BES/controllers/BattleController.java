@@ -109,7 +109,7 @@ public class BattleController {
     }
 
     @PostMapping("/battle-pair")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattlerPair(@Valid @RequestBody SetBattlerPairDto dto){
         battleService.setBattlerPairService(dto);
         return ResponseEntity.ok(Map.of(

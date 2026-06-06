@@ -188,6 +188,16 @@ const confirmStartAt = async () => {
 
 const cancelStartAt = () => { pendingStartAt.value = null }
 
+const handleEmceeStartRound = () => {
+  // Use the first round name and its pair list
+  const roundName = roundNames.value[0] || `Top${topSize.value}`
+  const pairList = rounds.value[roundName]
+  if (!pairList || pairList.length === 0) return
+  // Fire the same flow as the desktop "Start from this match" button
+  pendingStartAt.value = { top: roundName, pairList, matchIdx: 0, startAll: true }
+  confirmStartAt()
+}
+
 // ── Genre switcher — per-genre status dot ─────────────────────
 // Returns 'champion' | 'active' | 'idle'
 const _genreStatusDotMap = computed(() => {
@@ -1751,7 +1761,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Quick access links -->
-    <div class="flex flex-wrap gap-2">
+    <div v-if="isAdminOrOrganiser" class="flex flex-wrap gap-2">
       <a
         href="/battle/overlay"
         target="_blank"
@@ -2499,6 +2509,7 @@ onUnmounted(() => {
       @unlock-champion="unlockChampion"
       @set-round="(idx) => { currentRound = idx }"
       @unlock="handleTimerUnlock"
+      @start-round="handleEmceeStartRound"
     />
 
     </div>
