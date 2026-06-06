@@ -116,10 +116,21 @@ function resetTimer() {
 }
 
 function recoverFromState(state) {
-  if (!state || !state.running) return
-  if (isRunning.value) return  // already running, don't interrupt
+  console.warn('[BattleTimer] recoverFromState called', JSON.stringify(state))
+  if (!state || !state.running) {
+    console.warn('[BattleTimer] recovery skipped — no state or not running')
+    return
+  }
+  if (isRunning.value) {
+    console.warn('[BattleTimer] recovery skipped — already running')
+    return
+  }
   const left = state.timeLeft ?? 0
-  if (left <= 0) return
+  if (left <= 0) {
+    console.warn('[BattleTimer] recovery skipped — timeLeft <= 0', left)
+    return
+  }
+  console.warn('[BattleTimer] recovering timer at', left, 'seconds')
   timerState.value = 'RUNNING'
   totalDuration.value = state.totalDuration || left
   timeLeft.value = left
@@ -146,8 +157,11 @@ watch(() => props.recoveryState, (state) => {
 }, { immediate: true })
 
 // Direct subscription to /topic/battle/timer for page-refresh recovery.
-// When the backend broadcasts a state snapshot, it also rebroadcasts the timer.
+// When the backend serves state via REST, it also rebroadcasts timer.
+// The subscription may be set up after the broadcast — so we also
+// recover from props.recoveryState when the STOMP connection is ready.
 let timerSub = null
+let wsRecoveryAttempted = false
 onMounted(() => {
   if (!props.stompClient) return
   const doSubscribe = () => {
@@ -155,9 +169,14 @@ onMounted(() => {
     timerSub = props.stompClient.subscribe('/topic/battle/timer', (raw) => {
       try {
         const msg = JSON.parse(raw.body)
-        if (msg && msg.running) recoverFromState(msg)
+        if (msg && msg.running) { wsRecoveryAttempted = true; recoverFromState(msg) }
       } catch (_) {}
     })
+    // If the prop was already set before WS connected, recover now
+    if (!wsRecoveryAttempted && props.recoveryState) {
+      wsRecoveryAttempted = true
+      recoverFromState(props.recoveryState)
+    }
   }
   if (props.stompClient.connected) {
     doSubscribe()

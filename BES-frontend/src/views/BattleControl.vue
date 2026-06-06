@@ -108,7 +108,10 @@ const hydrateFromState = (state) => {
     } catch (_) { resolvedParticipants.value = null }
   }
   if (state.timer) {
+    console.warn('[BattleControl] hydrateFromState: setting recoveredTimer', JSON.stringify(state.timer))
     recoveredTimer.value = state.timer  // { running, timeLeft, totalDuration }
+  } else {
+    console.warn('[BattleControl] hydrateFromState: no timer in state')
   }
 }
 

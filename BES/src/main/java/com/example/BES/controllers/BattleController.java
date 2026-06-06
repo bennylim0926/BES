@@ -374,7 +374,13 @@ public class BattleController {
 
     @GetMapping("/state")
     public ResponseEntity<?> getBattleState() {
-        return ResponseEntity.ok(battleService.getBattleStateService());
+        Map<String, Object> state = battleService.getBattleStateService();
+        // Also push timer to WS topic so BattleTimer recovers on page refresh.
+        // GET is a poll — no broadcast would otherwise reach the fresh subscription.
+        if (state.containsKey("timer")) {
+            battleService.rebroadcastTimer(state.get("timer"));
+        }
+        return ResponseEntity.ok(state);
     }
 
     @PostMapping("/resolved-participants")

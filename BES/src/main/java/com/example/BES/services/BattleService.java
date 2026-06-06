@@ -471,6 +471,13 @@ public class BattleService {
         messagingTemplate.convertAndSend("/topic/battle/timer", payload);
     }
 
+    /** Rebroadcast timer state to WS topic (used by REST state endpoint for page-refresh recovery). */
+    public void rebroadcastTimer(Object timerState) {
+        if (timerState != null) {
+            messagingTemplate.convertAndSend("/topic/battle/timer", timerState);
+        }
+    }
+
     private void persistActiveState() {
         if (activeEventName == null || activeGenreName == null) return;
         try {
