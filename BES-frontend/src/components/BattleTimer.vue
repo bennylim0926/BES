@@ -15,7 +15,7 @@
  *   RUNNING → (timeLeft=0)  → FINISHED (burst anim) → IDLE
  *   RUNNING → (click RESET) → IDLE
  */
-import { ref, computed, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 
 const props = defineProps({
   phase:         { type: String, default: 'IDLE' },
@@ -140,10 +140,39 @@ function recoverFromState(state) {
   }, 1000)
 }
 
-// Watch for timer state from backend snapshot (page-refresh recovery)
+// Watch for timer state from backend snapshot (page-refresh recovery via REST/WS state)
 watch(() => props.recoveryState, (state) => {
   if (state) recoverFromState(state)
 }, { immediate: true })
+
+// Direct subscription to /topic/battle/timer for page-refresh recovery.
+// When the backend broadcasts a state snapshot, it also rebroadcasts the timer.
+let timerSub = null
+onMounted(() => {
+  if (!props.stompClient) return
+  const doSubscribe = () => {
+    if (timerSub) return
+    timerSub = props.stompClient.subscribe('/topic/battle/timer', (raw) => {
+      try {
+        const msg = JSON.parse(raw.body)
+        if (msg && msg.running) recoverFromState(msg)
+      } catch (_) {}
+    })
+  }
+  if (props.stompClient.connected) {
+    doSubscribe()
+  } else {
+    const prev = props.stompClient.onConnect
+    props.stompClient.onConnect = () => {
+      if (prev) prev()
+      doSubscribe()
+    }
+  }
+})
+
+onBeforeUnmount(() => {
+  if (timerSub) { timerSub.unsubscribe(); timerSub = null }
+})
 
 // Also check on mount in case prop was already set before watcher registered
 if (props.recoveryState) recoverFromState(props.recoveryState)

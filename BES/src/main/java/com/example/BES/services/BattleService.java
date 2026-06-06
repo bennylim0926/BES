@@ -564,7 +564,12 @@ public class BattleService {
     }
 
     private void broadcastStateSnapshot() {
-        messagingTemplate.convertAndSend("/topic/battle/state", getBattleStateService());
+        Map<String, Object> state = getBattleStateService();
+        messagingTemplate.convertAndSend("/topic/battle/state", state);
+        // Also rebroadcast timer so BattleTimer can recover on page refresh
+        if (state.containsKey("timer")) {
+            messagingTemplate.convertAndSend("/topic/battle/timer", state.get("timer"));
+        }
     }
 
     public static class BattleJudge {

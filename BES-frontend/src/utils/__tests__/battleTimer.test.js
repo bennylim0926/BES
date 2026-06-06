@@ -4,7 +4,9 @@ import BattleTimer from '@/components/BattleTimer.vue'
 
 const mockStompClient = {
   connected: true,
-  publish: vi.fn()
+  publish: vi.fn(),
+  subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })),
+  onConnect: null
 }
 
 describe('BattleTimer', () => {
