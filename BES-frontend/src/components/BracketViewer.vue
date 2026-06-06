@@ -95,12 +95,17 @@ function isDecided(match) {
          STANDARD BRACKET MODE
     ══════════════════════════════════════════════════════════════ -->
     <div v-else class="round-list">
-      <div
-        v-for="(round, rIdx) in roundNames"
-        :key="round"
-        class="round-column"
-        :class="{ 'round-column-current': rIdx === currentRound }"
-      >
+      <!-- Empty state when no bracket data -->
+      <div v-if="!roundNames.length || !Object.keys(rounds).length" class="round-empty round-empty-full">
+        <span class="type-label">No bracket data</span>
+      </div>
+      <template v-else>
+        <div
+          v-for="(round, rIdx) in roundNames"
+          :key="round"
+          class="round-column"
+          :class="{ 'round-column-current': rIdx === currentRound }"
+        >
         <!-- Round label -->
         <div class="round-label">
           <span class="round-label-text">{{ formatLabel(round) }}</span>
@@ -113,7 +118,7 @@ function isDecided(match) {
             v-for="(match, mIdx) in (rounds[round] || [])"
             :key="mIdx"
             class="match-card"
-            :class="{ 'match-card-active': match[0] === currentBattleLeft || match[1] === currentBattleRight || match[0] === currentBattleRight || match[1] === currentBattleLeft }"
+            :class="{ 'match-card-active': (match[0] === currentBattleLeft && match[1] === currentBattleRight) || (match[0] === currentBattleRight && match[1] === currentBattleLeft) }"
           >
             <!-- Accent corner bar -->
             <div class="match-corner-bar"></div>
@@ -143,6 +148,7 @@ function isDecided(match) {
           </div>
         </div>
       </div>
+      </template>
     </div>
 
   </div>
@@ -215,9 +221,9 @@ function isDecided(match) {
 }
 
 .smoke-slot.smoke-active {
-  background: rgba(245, 158, 11, 0.10);
-  border-color: rgba(245, 158, 11, 0.30);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+  background: var(--accent-subtle);
+  border-color: var(--accent-muted);
+  box-shadow: 0 0 12px var(--accent-muted);
 }
 
 .smoke-slot.smoke-next {
@@ -236,7 +242,7 @@ function isDecided(match) {
 }
 
 .smoke-active .smoke-pos {
-  color: rgb(245, 158, 11);
+  color: var(--accent-color);
 }
 
 .smoke-name {
@@ -264,7 +270,7 @@ function isDecided(match) {
 }
 
 .smoke-active .smoke-score {
-  color: rgb(245, 158, 11);
+  color: var(--accent-color);
 }
 
 .smoke-badge {
@@ -274,9 +280,9 @@ function isDecided(match) {
   text-transform: uppercase;
   padding: 2px 8px;
   clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
-  background: rgba(245, 158, 11, 0.15);
-  color: rgb(245, 158, 11);
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: var(--accent-muted);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-muted);
   white-space: nowrap;
   line-height: 1;
 }
@@ -355,9 +361,9 @@ function isDecided(match) {
 }
 
 .match-card.match-card-active {
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.12);
-  background: rgba(245, 158, 11, 0.06);
+  border-color: var(--accent-muted);
+  box-shadow: 0 0 14px var(--accent-muted);
+  background: var(--accent-subtle);
 }
 
 /* Accent corner bar on match cards */
@@ -432,10 +438,10 @@ function isDecided(match) {
 
 /* Currently battling */
 .bracket-slot-active {
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--accent-subtle);
 }
 .bracket-slot-active .slot-name {
-  color: rgb(245, 158, 11);
+  color: var(--accent-color);
 }
 
 /* Winner */
@@ -473,6 +479,12 @@ function isDecided(match) {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.20);
+}
+
+/* Full-width empty state for top-level bracket placeholder */
+.round-empty-full {
+  width: 100%;
+  min-height: 120px;
 }
 
 /* ── Current round column indicator ────────────────────────── */
