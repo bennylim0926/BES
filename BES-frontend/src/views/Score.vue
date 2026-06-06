@@ -814,8 +814,8 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="type-body text-content-secondary">No scores yet</p>
-        <p class="type-label text-content-muted mt-1">Select an event and genre to view scores</p>
+        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
+        <p class="type-label text-content-muted mt-1">{{ selectedGenre ? 'Judges need to submit scores for this genre' : 'Select an event and genre to view scores' }}</p>
       </div>
     </template>
 
@@ -843,8 +843,8 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="type-body text-content-secondary">No scores yet</p>
-        <p class="type-label text-content-muted mt-1">Select an event and genre to view scores</p>
+        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
+        <p class="type-label text-content-muted mt-1">{{ selectedGenre ? 'Judges need to submit scores for this genre' : 'Select an event and genre to view scores' }}</p>
       </div>
     </template>
 

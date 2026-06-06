@@ -256,6 +256,16 @@ watch(selectedEvent, async (val) => {
       <p class="text-muted text-sm mt-1">Only genres with solo pickup entries will be listed</p>
     </div>
 
+    <!-- Empty state: no solo entrants in this genre -->
+    <div
+      v-else-if="soloEntries.length === 0"
+      class="card p-8 text-center"
+    >
+      <div class="type-page-title text-content-muted mb-3">NO INDIVIDUAL PARTICIPANTS</div>
+      <p class="type-body text-content-muted mb-4">All participants in {{ selectedGenre }} are part of pre-formed teams or have no scores yet. Individual (solo) entrants are needed to form pickup crews.</p>
+      <button @click="selectedGenre = ''" class="para-chip-sm px-5 py-3 type-label text-content-muted hover:text-content-primary transition-colors">SELECT ANOTHER GENRE</button>
+    </div>
+
     <template v-else>
 
       <!-- Toast -->

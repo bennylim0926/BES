@@ -318,7 +318,7 @@ onUnmounted(() => {
           aria-live="polite"
         >
           <span class="blocker-icon">{{ battlePhase === 'DECIDED' ? '⭐' : battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
-          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
+          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'WAITING FOR OPERATOR TO OPEN VOTING' : 'WAITING…' }}</span>
         </div>
       </Transition>
 

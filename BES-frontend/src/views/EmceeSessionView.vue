@@ -61,6 +61,11 @@ function navigate(routeName) {
         </div>
       </div>
 
+      <!-- Role guidance -->
+      <div class="px-4 py-3 type-label" style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)">
+        You are logged in as Emcee. Control the audition flow, view scores, and manage the live battle.
+      </div>
+
       <!-- Section header -->
       <div class="section-header">
         <span class="section-label">NAVIGATION</span>
