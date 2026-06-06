@@ -64,18 +64,18 @@ function genreStatusDot(g) {
 // ── Judge vote display helpers ───────────────────────────────────
 // Look up a judge's vote from currentBattle entries by judgeId.
 function voteDisplay(judgeId) {
-  const v = props.currentBattle.find(b => b?.judgeId === judgeId)
-  if (!v || v.vote === undefined || v.vote === -3) return 'WAITING'
-  if (v.vote === 0) return 'LEFT'
-  if (v.vote === 1) return 'RIGHT'
-  if (v.vote === -1) return 'TIE'
+  const j = props.battleJudges.find(j => j.id === judgeId)
+  if (!j || j.vote === undefined || j.vote === -3) return 'WAITING'
+  if (j.vote === 0) return 'LEFT'
+  if (j.vote === 1) return 'RIGHT'
+  if (j.vote === -1) return 'TIE'
   return 'WAITING'
 }
 
 function _voteColor(judgeId) {
-  const v = props.currentBattle.find(b => b?.judgeId === judgeId)
-  if (v?.vote === 0) return props.overlayConfig.leftColor || '#dc2626'
-  if (v?.vote === 1) return props.overlayConfig.rightColor || '#2563eb'
+  const j = props.battleJudges.find(j => j.id === judgeId)
+  if (j?.vote === 0) return props.overlayConfig.leftColor || '#dc2626'
+  if (j?.vote === 1) return props.overlayConfig.rightColor || '#2563eb'
   return 'transparent'
 }
 
