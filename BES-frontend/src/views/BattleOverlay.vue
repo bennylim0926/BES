@@ -623,7 +623,7 @@ onUnmounted(() => {
   >
     <!-- Broadcast timer bar (visible when BattleTimer is running) -->
     <Transition name="timer-enter">
-      <div v-if="showTimer" class="timer-overlay" :class="{ 'timer-zoom': timerFinished }">
+      <div v-if="showTimer" class="timer-overlay">
         <div class="timer-bar-container">
           <div class="timer-progress-track">
             <div
@@ -1537,7 +1537,7 @@ body.transparent-page #app {
 /* Judge scales back down while retreating to top */
 @keyframes judgeRetreatTop {
   0%   { transform: translateY(42vh) scale(1.38); }
-  100% { transform: translateY(0)    scale(1); }
+  100% { transform: translateY(30px) scale(1); }
 }
 
 /* Card burst entrance on score reveal */
@@ -1587,8 +1587,6 @@ body.transparent-page #app {
 .timer-enter-leave-active { animation: timer-slide-out 200ms ease-in; }
 @keyframes timer-slide-in { from { opacity: 0; transform: translateX(-50%) translateY(-100%); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes timer-slide-out { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-100%); } }
-.timer-zoom { animation: netflix-zoom 400ms cubic-bezier(0.55, 0, 0.45, 1) forwards; pointer-events: none; }
-@keyframes netflix-zoom { 0% { transform: translateX(-50%) scale(1); opacity: 1; } 60% { opacity: 1; } 100% { transform: translateX(-50%) scale(20); opacity: 0; } }
 @keyframes timer-pulse-bar { from { opacity: 0.6; } to { opacity: 1; } }
 @keyframes timer-pulse-text { from { opacity: 0.7; transform: scale(1); } to { opacity: 1; transform: scale(1.03); } }
 
@@ -1607,6 +1605,6 @@ body.transparent-page #app {
 .slide-up         { animation: slideUp         300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
 .judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2,  0,   0.3, 1) both; }
 .judge-retreat-top { animation: judgeRetreatTop 500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
-.judge-at-top      { transform: translateY(0); }
+.judge-at-top      { transform: translateY(30px); }
 </style>
 

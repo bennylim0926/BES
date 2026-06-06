@@ -4,7 +4,7 @@ import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipan
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { RouterLink, useRouter, onBeforeRouteLeave } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import { useAuthStore } from '@/utils/auth';
@@ -35,6 +35,7 @@ const modalVariant = ref("info")
 const showModal = ref(false)
 const showMiniMenu = ref(false)
 const dynamicCallBack = ref(() => {})
+const emceeRoundRef = ref(null)
 
 const resetConfirmCode = ref("")
 const resetCodeError = ref("")
@@ -599,6 +600,13 @@ watch(hasActiveSession, (active) => {
   }
 }, { immediate: true })
 
+// Reset the audition timer when navigating away (e.g., to Score page).
+// The timer slides up and out, then navigation proceeds.
+onBeforeRouteLeave(() => {
+  emceeRoundRef.value?.resetTimer()
+  return new Promise(resolve => setTimeout(resolve, 300))
+})
+
 onUnmounted(() => {
   wsClients.forEach(c => deactivateClient(c));
   [document.documentElement, document.body].forEach(el => {
@@ -892,6 +900,7 @@ onMounted(async () => {
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView
+        ref="emceeRoundRef"
         :key="selectedGenre"
         :participants="filteredParticipantsForEmceeView"
         :mode="judgingMode"

@@ -34,6 +34,11 @@ const progressPct = computed(() => {
 })
 
 function startTimer(seconds) {
+  // Clicking the active preset while running resets the timer
+  if (selectedTime.value === seconds && timer) {
+    reset()
+    return
+  }
   if (timer) clearInterval(timer)
   selectedTime.value = seconds
   timeLeft.value = 0
@@ -56,6 +61,24 @@ function toggleMode() {
   timeLeft.value = 0
   countUp.value = !countUp.value
 }
+
+function reset() {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+  selectedTime.value = 0
+  timeLeft.value = 0
+}
+
+function stop() {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
+defineExpose({ reset, stop })
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
@@ -83,7 +106,7 @@ onBeforeUnmount(() => {
     <!-- Progress bar -->
     <div class="w-full max-w-xs h-px bg-white/8 overflow-hidden">
       <div
-        class="h-full transition-all duration-1000"
+        class="h-full transition-[width] duration-200"
         :class="isNearEnd ? 'bg-red-500' : countUp ? 'bg-green-400' : 'bg-white/50'"
         :style="{ width: progressPct + '%' }"
       ></div>

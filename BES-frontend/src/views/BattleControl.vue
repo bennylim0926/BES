@@ -41,6 +41,8 @@ const recoveryState      = ref(null)
 const genreChampions     = ref({})
 const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
 const recoveredTimer = ref(null)   // { running, timeLeft, totalDuration } from backend state
+const lastSetWinnerTime = ref(0)   // timestamp of last local setWinner call (prevents stale WS overwrites)
+let setWinnerCooldown = null       // timeout handle for clearing the cooldown
 
 // Single entry point for full-state hydration from /topic/battle/state or REST API.
 // Diffs against lastAppliedState to skip no-op updates and prevent animation disruption.
@@ -59,7 +61,18 @@ const hydrateFromState = (state) => {
       }
     }
     if (state.bracket.rounds) {
-      rounds.value = state.bracket.rounds
+      // Guard: if setWinner was called recently (within cooldown), compare winner
+      // counts to prevent a stale WS message from overwriting fresh local mutations.
+      if (lastSetWinnerTime.value > 0) {
+        const incomingWinners = countWinnersInRounds(state.bracket.rounds)
+        const localWinners = countWinnersInRounds(rounds.value)
+        if (incomingWinners >= localWinners) {
+          rounds.value = state.bracket.rounds
+        }
+        // else: incoming state is stale (fewer winners), keep local
+      } else {
+        rounds.value = state.bracket.rounds
+      }
     }
   }
   if (state.currentRoundIndex !== undefined) {
@@ -193,13 +206,21 @@ const confirmStartAt = async () => {
 const cancelStartAt = () => { pendingStartAt.value = null }
 
 const handleEmceeStartRound = () => {
-  // Use the first round name and its pair list
-  const roundName = roundNames.value[0] || `Top${topSize.value}`
+  // Find the first round that has filled slots but is not yet complete
+  let roundName = roundNames.value[0] || `Top${topSize.value}`
+  for (const name of roundNames.value) {
+    const list = rounds.value[name]
+    if (!Array.isArray(list) || list.length === 0) continue
+    const allFilled = list.every(m => Array.isArray(m) && m[0] && m[1])
+    if (!allFilled) { roundName = name; break }
+    const allDone = list.every(m => Array.isArray(m) && m[2])
+    if (!allDone) { roundName = name; break }
+  }
   const pairList = rounds.value[roundName]
   if (!pairList || pairList.length === 0) return
-  // Fire the same flow as the desktop "Start from this match" button
+  const hasFilledMatch = pairList.some(m => Array.isArray(m) && m[0] && m[1])
+  if (!hasFilledMatch) return
   pendingStartAt.value = { top: roundName, pairList, matchIdx: 0, startAll: true }
-  confirmStartAt()
 }
 
 // ── Genre switcher — per-genre status dot ─────────────────────
@@ -242,7 +263,31 @@ const activeRoundIdx = ref(0)
 // currentRound is overloaded: it's the match index within currentTop, but
 // LiveMatchPanel uses it as a round tab index. When nextPair increments
 // currentRound from 0 to 1, the tab would incorrectly switch from Top16 to Top8.
+const viewedRoundTabKey = computed(() => `battle_rtab_${selectedEvent.value}_${selectedGenre.value}`)
 const viewedRoundIdx = ref(0)
+
+// Restore persisted round tab from localStorage
+const _restoreRoundTab = () => {
+  try {
+    const saved = localStorage.getItem(viewedRoundTabKey.value)
+    if (saved !== null) {
+      const idx = parseInt(saved, 10)
+      if (!isNaN(idx) && idx >= 0 && idx < roundNames.value.length) {
+        viewedRoundIdx.value = idx
+        return
+      }
+    }
+  } catch (_) {}
+  // Fall back to currentTop if no saved value
+  const idx = roundNames.value.indexOf(currentTop.value)
+  if (idx >= 0) viewedRoundIdx.value = idx
+}
+
+// Save round tab to localStorage whenever it changes
+watch(viewedRoundIdx, (idx) => {
+  try { localStorage.setItem(viewedRoundTabKey.value, String(idx)) } catch (_) {}
+})
+
 watch(currentTop, (newTop) => {
   const idx = roundNames.value.indexOf(newTop)
   if (idx >= 0) viewedRoundIdx.value = idx
@@ -398,8 +443,18 @@ const nextPair = async () => {
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
       currentBattle.value = []
-      currentTop.value = ''
-    
+      // Advance to the next round so the bracket viewer shows the next round's
+      // matches (already populated by setWinner). If this was the final round
+      // (Top2), clear currentTop to signal completion.
+      const curRoundIdx = roundNames.value.indexOf(currentTop.value)
+      if (curRoundIdx >= 0 && curRoundIdx < roundNames.value.length - 1) {
+        const nextIdx = curRoundIdx + 1
+        activeRoundIdx.value = nextIdx
+        viewedRoundIdx.value = nextIdx
+        currentTop.value = ''  // cleared so IDLE state is unambiguous
+      } else {
+        currentTop.value = ''
+      }
     }
   }
   markSaved()
@@ -714,7 +769,7 @@ function initRounds() {
   return standardBattleRound()
 }
 
-const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+const broadcastBracket = async () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
 
 // Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
 // its slots. Called after onDrop / onSmokeDrop so currentBattlePair already reflects
@@ -955,30 +1010,66 @@ async function update7toSmokeMatch(winner) {
   currentWinner.value = -2
 }
 
-function setWinner(roundKey, matchIdx, slotIdx) {
-  const match = rounds.value[roundKey][matchIdx]
+async function setWinner(roundKey, matchIdx, slotIdx) {
+  const match = rounds.value[roundKey]?.[matchIdx]
+  if (!match) return
   const winner = match[slotIdx]
+  if (!winner) return
   match[2] = winner
+  // Trigger Vue reactivity on the match array by replacing the entry
+  rounds.value[roundKey][matchIdx] = [...match]
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
   const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (!nextRoundSize) { broadcastBracket(); return }
+  if (!nextRoundSize) { await broadcastBracket(); return }
   const nextRoundKey = `Top${nextRoundSize}`
   const nextMatchIdx = Math.floor(matchIdx / 2)
   const nextSlotIdx = matchIdx % 2
-  rounds.value[nextRoundKey][nextMatchIdx][nextSlotIdx] = winner
-  broadcastBracket()
+  // Ensure the next round exists in rounds before accessing
+  if (!rounds.value[nextRoundKey]) {
+    const numMatches = nextRoundSize / 2
+    rounds.value[nextRoundKey] = Array.from({ length: numMatches }, () => [null, null, null])
+  }
+  if (!rounds.value[nextRoundKey][nextMatchIdx]) {
+    rounds.value[nextRoundKey][nextMatchIdx] = [null, null, null]
+  }
+  const nextMatch = [...(rounds.value[nextRoundKey][nextMatchIdx] || [null, null, null])]
+  nextMatch[nextSlotIdx] = winner
+  rounds.value[nextRoundKey][nextMatchIdx] = nextMatch
+  // Mark local mutation time to prevent stale WS messages from overwriting
+  lastSetWinnerTime.value = Date.now()
+  clearTimeout(setWinnerCooldown)
+  setWinnerCooldown = setTimeout(() => { lastSetWinnerTime.value = 0 }, 1500)
+  await broadcastBracket()
+}
+
+/** Count total winners across all rounds to compare state freshness. */
+function countWinnersInRounds(roundsObj) {
+  if (!roundsObj || typeof roundsObj !== 'object') return 0
+  let count = 0
+  for (const key of Object.keys(roundsObj)) {
+    const list = roundsObj[key]
+    if (!Array.isArray(list)) continue
+    for (const match of list) {
+      if (Array.isArray(match) && match[2]) count++
+    }
+  }
+  return count
 }
 
 function clearWinner(roundKey, matchIdx) {
-  const match = rounds.value[roundKey][matchIdx]
+  const match = rounds.value[roundKey]?.[matchIdx]
+  if (!match) return
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
   const nextRoundSize = roundSizes.value[roundIndex + 1]
   if (nextRoundSize) {
     const nextMatchIdx = Math.floor(matchIdx / 2)
     const nextSlotIdx = matchIdx % 2
-    rounds.value[`Top${nextRoundSize}`][nextMatchIdx][nextSlotIdx] = null
+    const nextMatch = [...(rounds.value[`Top${nextRoundSize}`][nextMatchIdx] || [null, null, null])]
+    nextMatch[nextSlotIdx] = null
+    rounds.value[`Top${nextRoundSize}`][nextMatchIdx] = nextMatch
   }
   match[2] = null
+  rounds.value[roundKey][matchIdx] = [...match]
   broadcastBracket()
 }
 
@@ -1096,6 +1187,9 @@ const restoreAndBroadcastGenreBattle = async (_genre) => {
   // Also re-fetch judges
   const judges = await getBattleJudges()
   if (judges) battleJudges.value = judges
+
+  // Restore persisted round tab after bracket data is loaded
+  _restoreRoundTab()
 }
 
 const jumpToRecoveredPair = async () => {
@@ -1107,6 +1201,7 @@ const jumpToRecoveredPair = async () => {
   if (bracket?.topSize !== undefined) {
     const restored = Number(bracket.topSize)
     if (!isNaN(restored) && restored !== Number(topSize.value)) {
+      skipSizeChangeClear = true
       topSize.value = restored
     }
   }
@@ -1156,20 +1251,25 @@ const jumpToRecoveredPair = async () => {
     return
   }
 
-  // Non-REVEALED: re-broadcast pair and phase to overlay and judges
-  if (!isSmoke.value && bracket?.rounds) {
-    await setBattlePair(
-      currentPair.left, currentPair.right, currentPair.isFinal,
-      currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
-      currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
-    )
-  } else {
-    // Smoke or no bracket data — just re-broadcast the pair
-    await setBattlePair(currentPair.left, currentPair.right, false,
-      getMembersFor(currentPair.left), getMembersFor(currentPair.right))
-  }
-
   const phase = restoredPhase && restoredPhase !== 'IDLE' ? restoredPhase : 'LOCKED'
+
+  if (phase !== 'VOTING') {
+    // LOCKED recovery: judges haven't voted yet, safe to re-broadcast the pair.
+    // setBattlePair forces LOCKED on the backend before the phase is set.
+    if (!isSmoke.value && bracket?.rounds) {
+      await setBattlePair(
+        currentPair.left, currentPair.right, currentPair.isFinal,
+        currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
+        currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
+      )
+    } else {
+      await setBattlePair(currentPair.left, currentPair.right, false,
+        getMembersFor(currentPair.left), getMembersFor(currentPair.right))
+    }
+  }
+  // For VOTING recovery, skip setBattlePair — the backend already has the correct
+  // pair from loadGenreStateIntoMemory(). Calling setBattlePair would force LOCKED
+  // and broadcast it, clearing all judge votes unnecessarily. Just re-broadcast phase.
   await setBattlePhase(phase)
   battlePhase.value = phase
   markSaved()
@@ -1314,7 +1414,7 @@ const submitGetScore = async () => {
   const data = await res.json()
   finalTieBlocked.value = false
   currentWinner.value = Number(data.winner)
-  if (data.winner === 1 || data.winner === 0) { setWinner(currentTop.value, currentRound.value, data.winner) }
+  if (data.winner === 1 || data.winner === 0) { await setWinner(currentTop.value, currentRound.value, data.winner) }
 }
 
 const startRevote = async () => {
@@ -1596,13 +1696,16 @@ watch(selectedGenre, async (newVal, oldVal) => {
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
-  // Restore previously-selected round tab for this size; default to 0 (first round).
-  // Only when event+genre are known — during setup they're still null, defer to onMounted.
-  if (selectedEvent.value && selectedGenre.value) {
-    activeRoundIdx.value = 0
-    viewedRoundIdx.value = 0
+  // On user-initiated size change, reset the round tab and bracket.
+  // Programmatic changes (recovery, genre switch, hydration) set skipSizeChangeClear
+  // so the restored bracket and tab position are not wiped before the caller finishes.
+  if (!skipSizeChangeClear) {
+    if (selectedEvent.value && selectedGenre.value) {
+      activeRoundIdx.value = 0
+      viewedRoundIdx.value = 0
+    }
+    rounds.value = initRounds()
   }
-  rounds.value = initRounds()
   currentWinner.value = -2
   // Only clear battle on user-initiated size change (not programmatic from
   // genre switch or initial load). The onMounted recovery handles init.
@@ -1614,9 +1717,9 @@ watch(topSize, async (newVal, oldVal) => {
     currentTop.value = ''
   }
   skipSizeChangeClear = false
-  // Guard against broadcasting before event/genre are known (initial load with null values
-  // would send empty initRounds() to DB, corrupting the stored bracket).
-  if (selectedEvent.value && selectedGenre.value) broadcastBracket()
+  // Guard against broadcasting before event/genre are known, and on initial load (oldVal is
+  // undefined on first fire). Broadcasting initRounds() on mount corrupts the stored bracket.
+  if (oldVal && selectedEvent.value && selectedGenre.value) broadcastBracket()
 
   // State is restored from /topic/battle/state via hydrateFromState
   currentBattle.value = []
@@ -1682,9 +1785,7 @@ onMounted(async () => {
   if (selectedEvent.value && selectedGenre.value) {
     await setActiveGenre(selectedEvent.value, selectedGenre.value)
   }
-  // Round tab starts at 0 on mount
-  activeRoundIdx.value = 0
-  viewedRoundIdx.value = 0
+  // Round tab restored from localStorage (persisted across refresh/genre switch)
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
@@ -1705,8 +1806,16 @@ onMounted(async () => {
   const battleState = await getBattleState()
   if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
     recoveryState.value = battleState
-    await jumpToRecoveredPair()   // restore silently
+    await jumpToRecoveredPair()   // restore silently — also sets the correct round tab
     showRecoveryBanner.value = true  // then notify the operator
+    // jumpToRecoveredPair already set viewedRoundIdx to the correct round.
+    // Don't call _restoreRoundTab() here — it would read stale localStorage and override it.
+  } else {
+    // No active battle to recover. Still hydrate bracket data (rounds, topSize) from
+    // the backend — the bracket may have been pre-seeded before the battle started.
+    if (battleState) hydrateFromState(battleState)
+    // Restore the last-viewed round tab after bracket data is loaded.
+    _restoreRoundTab()
   }
   wsClient.value = createClient()
   wsClient.value.onConnect = () => {
@@ -2139,142 +2248,104 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <!-- ── Standard bracket ──────────────────────────── -->
+      <!-- ── Standard bracket (first round — seeding only) ──── -->
       <div v-if="Number(topSize) !== 7" class="mt-3">
-        <!-- Active round matches -->
-        <template v-for="(size, idx) in roundSizes" :key="idx">
-          <div v-if="activeRoundIdx === idx" class="card p-4">
-            <div class="flex flex-col gap-2 mb-3">
-              <!-- Match card: horizontal Left VS Right layout -->
+        <div class="card p-4">
+          <div class="flex flex-col gap-2 mb-3">
+            <!-- Match card: horizontal Left VS Right layout -->
+            <div
+              v-for="(match, mIdx) in rounds[`Top${bracketSize}`]"
+              :key="mIdx"
+              class="card-hover p-3 relative flex flex-col sm:flex-row items-stretch"
+              :style="isActivePair(match) && battlePhase !== 'IDLE'
+                ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
+                : ''"
+            >
+              <div class="corner-bar-tl"></div>
+              <!-- Slot 0 — full-width on mobile, left half on sm+ -->
               <div
-                v-for="(match, mIdx) in rounds[`Top${size}`]"
-                :key="mIdx"
-                class="card-hover p-3 relative flex flex-col sm:flex-row items-stretch"
-                :style="isActivePair(match) && effectivePhase !== 'IDLE'
-                  ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
-                  : ''"
+                class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
+                :data-drop-key="`bracket-Top${bracketSize}-${mIdx}-0`"
+                :class="[
+                  match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
+                  dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
+                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                ]"
               >
-                <div class="corner-bar-tl"></div>
-                <!-- Slot 0 — full-width on mobile, left half on sm+ -->
-                <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
-                  :data-drop-key="`bracket-Top${size}-${mIdx}-0`"
-                  :class="[
-                    match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
-                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
-                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                      : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
-                  ]"
+                <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
+                <!-- Name + members: stacked on mobile, inline on sm+ -->
+                <div v-if="match[0]"
+                  @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${bracketSize}`, matchIdx: mIdx, slotIdx: 0 }, e)"
+                  class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
+                  :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
+                  style="touch-action: none;"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <!-- Name + members: stacked on mobile, inline on sm+ -->
-                  <div v-if="match[0]"
-                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 0 }, e)"
-                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
-                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
-                    style="touch-action: none;"
-                  >
-                    <div class="flex items-center gap-1 min-w-0">
-                      <span class="type-body break-words">{{ match[0] }}</span>
-                      <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
-                    </div>
-                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
-                      <span
-                        v-for="m in getMembersFor(match[0])" :key="m"
-                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
-                        :class="match[2] === match[0] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
-                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                      >{{ m }}</span>
-                    </div>
+                  <div class="flex items-center gap-1 min-w-0">
+                    <span class="type-body break-words">{{ match[0] }}</span>
+                    <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[0]"
-                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
+                  <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
+                    <span
+                      v-for="m in getMembersFor(match[0])" :key="m"
+                      class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                      :class="match[2] === match[0] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                      style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >{{ m }}</span>
+                  </div>
                 </div>
+                <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${bracketSize}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+              </div>
 
-                <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
-                <div class="sm:hidden flex items-center gap-2 px-2 py-0.5">
-                  <div class="flex-1 h-px bg-surface-600/30"></div>
-                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
-                  <div class="flex-1 h-px bg-surface-600/30"></div>
-                </div>
-                <div class="hidden sm:flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
-                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
-                </div>
+              <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
+              <div class="sm:hidden flex items-center gap-2 px-2 py-0.5">
+                <div class="flex-1 h-px bg-surface-600/30"></div>
+                <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
+                <div class="flex-1 h-px bg-surface-600/30"></div>
+              </div>
+              <div class="hidden sm:flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
+                <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
+              </div>
 
-                <!-- Slot 1 — full-width on mobile, right half on sm+ -->
-                <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
-                  :data-drop-key="`bracket-Top${size}-${mIdx}-1`"
-                  :class="[
-                    match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
-                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
-                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                      : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
-                  ]"
+              <!-- Slot 1 — full-width on mobile, right half on sm+ -->
+              <div
+                class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
+                :data-drop-key="`bracket-Top${bracketSize}-${mIdx}-1`"
+                :class="[
+                  match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
+                  dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
+                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                ]"
+              >
+                <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
+                <!-- Name + members: stacked on mobile, inline on sm+ -->
+                <div v-if="match[1]"
+                  @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${bracketSize}`, matchIdx: mIdx, slotIdx: 1 }, e)"
+                  class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
+                  :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
+                  style="touch-action: none;"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <!-- Name + members: stacked on mobile, inline on sm+ -->
-                  <div v-if="match[1]"
-                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 1 }, e)"
-                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
-                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
-                    style="touch-action: none;"
-                  >
-                    <div class="flex items-center gap-1 min-w-0">
-                      <span class="type-body break-words">{{ match[1] }}</span>
-                      <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
-                    </div>
-                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
-                      <span
-                        v-for="m in getMembersFor(match[1])" :key="m"
-                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
-                        :class="match[2] === match[1] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
-                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                      >{{ m }}</span>
-                    </div>
+                  <div class="flex items-center gap-1 min-w-0">
+                    <span class="type-body break-words">{{ match[1] }}</span>
+                    <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[1]"
-                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
+                  <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
+                    <span
+                      v-for="m in getMembersFor(match[1])" :key="m"
+                      class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                      :class="match[2] === match[1] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                      style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >{{ m }}</span>
+                  </div>
                 </div>
-                <!-- Start from this match — desktop only, mobile has the global Start Round button -->
-                <button
-                  v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
-                  @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
-                  class="hidden sm:flex flex-shrink-0 items-center justify-center w-10 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
-                  title="Start round from this match"
-                ><i class="pi pi-play text-[10px]"></i></button>
+                <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${bracketSize}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
               </div>
             </div>
-
-            <button
-              v-if="effectivePhase === 'IDLE'"
-              :disabled="!isActiveRoundFilled"
-              @click="requestStartAll(`Top${size}`, rounds[`Top${size}`])"
-              class="w-full py-4 sm:py-2 para-chip type-label transition-all duration-200"
-              :class="isActiveRoundFilled ? 'bg-accent' : 'bg-surface-700 text-content-muted cursor-not-allowed'"
-              :title="isActiveRoundFilled ? '' : 'All slots must be filled and the previous round must be completed'"
-            >
-              <i class="pi pi-play text-xs mr-1.5"></i>
-              Start Round
-            </button>
-            <div v-else class="w-full py-4 sm:py-2 text-center type-label text-content-muted">
-              <template v-if="currentTop === `Top${size}`">Active battle in Top{{ size }}</template>
-              <template v-else-if="rounds[`Top${size}`]?.every(m => Array.isArray(m) && m[2])">Round complete</template>
-            </div>
           </div>
-        </template>
+        </div>
       </div>
 
       <!-- ── 7 to Smoke bracket ──────────────────────────── -->
@@ -2518,8 +2589,11 @@ onUnmounted(() => {
       @dismiss-reveal="dismissReveal"
       @next-pair="nextPair"
       @unlock-champion="unlockChampion"
-      @set-round="(idx) => { viewedRoundIdx = idx }"
+      @set-round="(idx) => { viewedRoundIdx = idx; activeRoundIdx = idx }"
       @start-round="handleEmceeStartRound"
+      @set-winner="(roundKey, matchIdx, slotIdx) => requestWin(roundKey, matchIdx, slotIdx)"
+      @request-start-at="(top, pairList, matchIdx) => requestStartAt(top, pairList, matchIdx)"
+      @request-start-all="(top, pairList) => requestStartAll(top, pairList)"
     />
 
     </div>

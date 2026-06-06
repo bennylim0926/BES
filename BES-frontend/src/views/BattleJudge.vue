@@ -192,17 +192,22 @@ onMounted(async () => {
 
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     if (!msg?.phase) return
+    const prev = battlePhase.value
     battlePhase.value = msg.phase
-    if (msg.phase === 'LOCKED') {
+    if (msg.phase === 'LOCKED' && prev !== 'LOCKED') {
       clearVote()
       revealedWinner.value = -2
     }
   })
 
   subscribeToChannel(cPair, '/topic/battle/battle-pair', (msg) => {
-    leftName.value  = msg.left  ?? ''
-    rightName.value = msg.right ?? ''
-    clearVote()
+    const newLeft  = msg.left  ?? ''
+    const newRight = msg.right ?? ''
+    if (newLeft !== leftName.value || newRight !== rightName.value) {
+      leftName.value  = newLeft
+      rightName.value = newRight
+      clearVote()
+    }
   })
 
   subscribeToChannel(cScore, '/topic/battle/score', (msg) => {

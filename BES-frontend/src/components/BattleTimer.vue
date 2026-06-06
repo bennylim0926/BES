@@ -115,6 +115,8 @@ function resetTimer() {
   publishState()
 }
 
+defineExpose({ resetTimer })
+
 function recoverFromState(state) {
   if (!state || !state.running) return
   if (isRunning.value) return  // already running, don't interrupt

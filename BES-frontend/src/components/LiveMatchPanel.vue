@@ -8,8 +8,10 @@
  * Props are passed by the BattleControl orchestrator parent.
  * Every write action is emitted up for the parent to handle.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import BattleTimer from '@/components/BattleTimer.vue'
+
+const battleTimerRef = ref(null)
 
 const props = defineProps({
   selectedEvent:             { type: String,  required: true },
@@ -39,7 +41,7 @@ const props = defineProps({
   recoveryTimer:             { type: Object,  default: null },
 })
 
-defineEmits([
+const emit = defineEmits([
   'request-genre-change',
   'open-voting',
   'get-score',
@@ -51,7 +53,17 @@ defineEmits([
   'unlock-champion',
   'set-round',
   'start-round',
+  'set-winner',
+  'request-start-at',
+  'request-start-all',
 ])
+
+function handleGetScore() {
+  battleTimerRef.value?.resetTimer()
+  // Brief pause — let the timer clear before the judge result arrives,
+  // so the two events don't rush over each other.
+  setTimeout(() => emit('get-score'), 400)
+}
 
 // ── Genre status dot ─────────────────────────────────────────────
 // Returns 'champion' | 'active' | 'idle'
@@ -207,6 +219,13 @@ const currentGenreChampion = computed(() => {
     return r.Top2?.[0]?.[2] ?? null
   }
   return null
+})
+
+const viewedRoundKey = computed(() => props.roundNames[props.activeRoundIdx] ?? '')
+const viewedPairList = computed(() => {
+  const key = viewedRoundKey.value
+  if (!key || !props.rounds) return []
+  return (props.rounds)[key] ?? []
 })
 
 </script>
@@ -385,6 +404,7 @@ const currentGenreChampion = computed(() => {
       <!-- BattleTimer (LOCKED: timer counts down independently; Emcee opens voting manually) -->
       <div v-if="!isReadonly || battlePhase === 'LOCKED' || battlePhase === 'VOTING'" class="mb-4">
         <BattleTimer
+          ref="battleTimerRef"
           :phase="battlePhase"
           :stomp-client="stompClient"
           :recovery-state="recoveryTimer"
@@ -395,6 +415,16 @@ const currentGenreChampion = computed(() => {
       <div v-if="!isSmoke && roundNames.length > 0" class="card p-4">
         <div class="section-rule mb-3">
           <span class="section-rule-label">BRACKET</span>
+          <!-- Start All button — organiser only, IDLE phase, current round has filled matches -->
+          <button
+            v-if="!isReadonly && battlePhase === 'IDLE' && viewedPairList.some(m => m[0] && m[1])"
+            @click="$emit('request-start-all', viewedRoundKey, viewedPairList)"
+            class="ml-2 para-chip-sm px-2.5 py-1 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all inline-flex items-center gap-1"
+            style="font-size:10px"
+          >
+            <i class="pi pi-play" style="font-size:8px"></i>
+            START {{ viewedRoundKey.replace('Top', 'TOP ') }}
+          </button>
           <div class="section-rule-line"></div>
         </div>
 
@@ -416,25 +446,56 @@ const currentGenreChampion = computed(() => {
         <!-- Bracket viewer — shows only selected round -->
         <div v-if="rounds && Object.keys(rounds).length > 0" class="compact-bracket">
           <div
-            v-for="(match, mIdx) in (rounds[roundNames[activeRoundIdx]] || [])"
+            v-for="(match, mIdx) in viewedPairList"
             :key="mIdx"
-            class="compact-match-card flex items-center gap-3 py-1.5 px-2"
+            class="compact-match-card flex items-center gap-1.5 py-1.5 px-2"
             :class="{
               'bg-[color:var(--accent-subtle)] border-l-[3px] border-l-[color:var(--accent-muted)]':
                 (match[0] && (match[0] === currentBattleLeft || match[0] === currentBattleRight)) ||
                 (match[1] && (match[1] === currentBattleLeft || match[1] === currentBattleRight))
             }"
           >
-            <span class="type-label text-content-muted text-[10px] w-5">{{ mIdx + 1 }}</span>
-            <span class="type-body flex-1 truncate" :class="match[2] === match[0] && match[0] ? 'text-green-400' : match[0] ? 'text-content-primary' : 'text-content-muted/40'">
+            <span class="type-label text-content-muted text-[10px] w-5 flex-shrink-0">{{ mIdx + 1 }}</span>
+
+            <!-- Left name -->
+            <span class="type-body flex-1 truncate min-w-0" :class="match[2] === match[0] && match[0] ? 'text-green-400' : match[0] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[0] || '---' }}
               <span v-if="match[2] === match[0] && match[0]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
-            <span class="type-label text-content-muted text-[9px] mx-1">VS</span>
-            <span class="type-body flex-1 truncate text-right" :class="match[2] === match[1] && match[1] ? 'text-green-400' : match[1] ? 'text-content-primary' : 'text-content-muted/40'">
+
+            <!-- Left WIN button (organiser only) -->
+            <button
+              v-if="!isReadonly && match[0]"
+              @click="$emit('set-winner', viewedRoundKey, mIdx, 0)"
+              class="flex-shrink-0 px-1.5 py-1 transition-colors"
+              :class="match[2] === match[0] ? 'text-amber-400' : 'text-surface-600 hover:text-amber-400 hover:bg-amber-500/10'"
+              title="Set as winner"
+            ><i class="pi pi-crown" style="font-size:9px"></i></button>
+
+            <span class="type-label text-content-muted text-[9px] mx-0.5 flex-shrink-0">VS</span>
+
+            <!-- Right WIN button (organiser only) -->
+            <button
+              v-if="!isReadonly && match[1]"
+              @click="$emit('set-winner', viewedRoundKey, mIdx, 1)"
+              class="flex-shrink-0 px-1.5 py-1 transition-colors"
+              :class="match[2] === match[1] ? 'text-amber-400' : 'text-surface-600 hover:text-amber-400 hover:bg-amber-500/10'"
+              title="Set as winner"
+            ><i class="pi pi-crown" style="font-size:9px"></i></button>
+
+            <!-- Right name -->
+            <span class="type-body flex-1 truncate text-right min-w-0" :class="match[2] === match[1] && match[1] ? 'text-green-400' : match[1] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[1] || '---' }}
               <span v-if="match[2] === match[1] && match[1]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
+
+            <!-- Start from here (organiser only, IDLE, both slots filled) -->
+            <button
+              v-if="!isReadonly && battlePhase === 'IDLE' && match[0] && match[1]"
+              @click="$emit('request-start-at', viewedRoundKey, viewedPairList, mIdx)"
+              class="flex-shrink-0 ml-1 px-1.5 py-1 text-surface-600 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
+              title="Start from this match"
+            ><i class="pi pi-play" style="font-size:8px"></i></button>
           </div>
         </div>
         <div v-else class="type-label text-content-muted text-[10px] text-center py-3">
@@ -616,7 +677,7 @@ const currentGenreChampion = computed(() => {
         <button
           v-if="battlePhase === 'VOTING' && !showFinalReveal"
           :disabled="!allJudgesVoted"
-          @click="$emit('get-score')"
+          @click="handleGetScore"
           :class="allJudgesVoted
             ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
             : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
@@ -714,7 +775,7 @@ const currentGenreChampion = computed(() => {
         <button
           v-if="battlePhase === 'VOTING' && !showFinalReveal"
           :disabled="!allJudgesVoted"
-          @click="$emit('get-score')"
+          @click="handleGetScore"
           :class="allJudgesVoted
             ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
             : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
@@ -753,9 +814,9 @@ const currentGenreChampion = computed(() => {
         </button>
       </div>
 
-      <!-- Start Round button (IDLE, bracket has data) -->
+      <!-- Start Round button — Emcee only (organiser uses bracket Start buttons above) -->
       <button
-        v-if="!isSmoke && battlePhase === 'IDLE' && rounds && Object.keys(rounds).length > 0"
+        v-if="isReadonly && !isSmoke && battlePhase === 'IDLE' && rounds && Object.keys(rounds).length > 0"
         @click="$emit('start-round')"
         class="para-chip-sm px-6 py-3 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all duration-150"
       >
@@ -769,7 +830,7 @@ const currentGenreChampion = computed(() => {
         class="w-full py-4 sm:py-3 text-center"
       >
         <span class="type-label text-content-muted">
-          {{ isReadonly ? 'Waiting for organiser to start a battle...' : 'Set up bracket and start a round from the Setup panel above.' }}
+          {{ isReadonly ? 'Waiting for organiser to start a battle...' : 'Seed the bracket in Setup above, then use the Bracket to start rounds.' }}
         </span>
       </div>
     </div>
