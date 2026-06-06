@@ -36,6 +36,7 @@ const props = defineProps({
   overlayConfig:             { type: Object,  default: () => ({ leftColor: '#dc2626', rightColor: '#2563eb' }) },
   revealActive:              { type: Boolean, default: false },
   activeRoundIdx:            { type: Number,  default: 0 },
+  recoveryTimer:             { type: Object,  default: null },
 })
 
 defineEmits([
@@ -386,6 +387,7 @@ const currentGenreChampion = computed(() => {
         <BattleTimer
           :phase="battlePhase"
           :stomp-client="stompClient"
+          :recovery-state="recoveryTimer"
         />
       </div>
 

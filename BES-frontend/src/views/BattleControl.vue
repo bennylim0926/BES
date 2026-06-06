@@ -40,6 +40,7 @@ const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
 const genreChampions     = ref({})
 const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
+const recoveredTimer = ref(null)   // { running, timeLeft, totalDuration } from backend state
 
 // Single entry point for full-state hydration from /topic/battle/state or REST API.
 // Diffs against lastAppliedState to skip no-op updates and prevent animation disruption.
@@ -105,6 +106,9 @@ const hydrateFromState = (state) => {
     try {
       resolvedParticipants.value = JSON.parse(state.resolvedParticipants)
     } catch (_) { resolvedParticipants.value = null }
+  }
+  if (state.timer) {
+    recoveredTimer.value = state.timer  // { running, timeLeft, totalDuration }
   }
 }
 
@@ -2504,6 +2508,7 @@ onUnmounted(() => {
       :overlayConfig="overlayConfig"
       :revealActive="revealActive"
       :activeRoundIdx="viewedRoundIdx"
+      :recoveryTimer="recoveredTimer"
       @request-genre-change="requestGenreChange"
       @open-voting="openVoting"
       @get-score="submitGetScore"

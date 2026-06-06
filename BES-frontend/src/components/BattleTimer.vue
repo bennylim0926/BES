@@ -15,12 +15,13 @@
  *   RUNNING → (timeLeft=0)  → FINISHED (burst anim) → IDLE
  *   RUNNING → (click RESET) → IDLE
  */
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, watch } from 'vue'
 
 const props = defineProps({
-  phase:       { type: String, default: 'IDLE' },
-  stompClient: { type: Object, default: null },
-  presets:     { type: Array,  default: () => [30, 45, 60, 90] }
+  phase:         { type: String, default: 'IDLE' },
+  stompClient:   { type: Object, default: null },
+  presets:       { type: Array,  default: () => [30, 45, 60, 90] },
+  recoveryState: { type: Object, default: null }  // { running, timeLeft, totalDuration }
 })
 
 // ── Reactive state ──
@@ -113,6 +114,39 @@ function resetTimer() {
   timeLeft.value = 0
   publishState()
 }
+
+function recoverFromState(state) {
+  if (!state || !state.running) return
+  if (isRunning.value) return  // already running, don't interrupt
+  const left = state.timeLeft ?? 0
+  if (left <= 0) return
+  timerState.value = 'RUNNING'
+  totalDuration.value = state.totalDuration || left
+  timeLeft.value = left
+  autoUnlocked.value = false
+
+  publishState()
+
+  clearInterval(intervalId)
+  intervalId = setInterval(() => {
+    timeLeft.value--
+    publishState()
+    if (timeLeft.value === 10 && !autoUnlocked.value) {
+      autoUnlocked.value = true
+    }
+    if (timeLeft.value <= 0) {
+      finishTimer()
+    }
+  }, 1000)
+}
+
+// Watch for timer state from backend snapshot (page-refresh recovery)
+watch(() => props.recoveryState, (state) => {
+  if (state) recoverFromState(state)
+}, { immediate: true })
+
+// Also check on mount in case prop was already set before watcher registered
+if (props.recoveryState) recoverFromState(props.recoveryState)
 
 function publishState() {
   if (!props.stompClient || !props.stompClient.connected) return

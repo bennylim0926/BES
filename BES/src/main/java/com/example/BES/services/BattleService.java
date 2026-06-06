@@ -440,11 +440,36 @@ public class BattleService {
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
         }
+        // Recoverable timer state — recalculate timeLeft from elapsed wall-clock
+        if (lastTimerPayload != null) {
+            Map<String, Object> timer = new HashMap<>(lastTimerPayload);
+            if (Boolean.TRUE.equals(timer.get("running"))) {
+                long elapsedSec = (System.currentTimeMillis() - timerLastUpdated) / 1000;
+                int currentLeft = ((Number) timer.getOrDefault("timeLeft", 0)).intValue();
+                int adjusted = Math.max(0, currentLeft - (int) elapsedSec);
+                timer.put("timeLeft", adjusted);
+                if (adjusted <= 0) {
+                    timer.put("running", false);
+                    timer.put("timeLeft", 0);
+                }
+            }
+            state.put("timer", timer);
+        }
         return state;
     }
 
     public String getActiveEventName() { return activeEventName; }
     public String getActiveGenreName() { return activeGenreName; }
+
+    // ── Timer state recovery ─────────────────────────────────────────
+    private Map<String, Object> lastTimerPayload = null;
+    private long timerLastUpdated = 0; // System.currentTimeMillis() when last payload arrived
+
+    public void handleTimerPayload(Map<String, Object> payload) {
+        this.lastTimerPayload = new HashMap<>(payload);
+        this.timerLastUpdated = System.currentTimeMillis();
+        messagingTemplate.convertAndSend("/topic/battle/timer", payload);
+    }
 
     private void persistActiveState() {
         if (activeEventName == null || activeGenreName == null) return;
