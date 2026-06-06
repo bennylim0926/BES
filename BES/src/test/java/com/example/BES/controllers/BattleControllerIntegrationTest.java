@@ -480,11 +480,11 @@ public class BattleControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = "EMCEE")
-    public void emcee_cannotSetBattlePair() throws Exception {
+    public void emcee_canSetBattlePair() throws Exception {
         mockMvc.perform(post("/api/v1/battle/battle-pair")
                 .contentType("application/json")
                 .content("{\"leftBattler\":\"A\",\"rightBattler\":\"B\"}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk());
     }
 
     @Test
