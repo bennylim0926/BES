@@ -161,7 +161,7 @@ onMounted(() => {
       try {
         const msg = JSON.parse(raw.body)
         if (msg && msg.running) { wsRecoveryAttempted = true; recoverFromState(msg) }
-      } catch (_) {}
+      } catch (_) { /* ignore malformed WS frames */ }
     })
     // If the prop was already set before WS connected, recover now
     if (!wsRecoveryAttempted && props.recoveryState) {
@@ -173,6 +173,7 @@ onMounted(() => {
     doSubscribe()
   } else {
     const prev = props.stompClient.onConnect
+    // eslint-disable-next-line vue/no-mutating-props
     props.stompClient.onConnect = () => {
       if (prev) prev()
       doSubscribe()

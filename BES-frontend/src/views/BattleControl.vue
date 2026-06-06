@@ -277,7 +277,7 @@ const _restoreRoundTab = () => {
         return
       }
     }
-  } catch (_) {}
+  } catch (_) { /* ignore localStorage errors */ }
   // Fall back to currentTop if no saved value
   const idx = roundNames.value.indexOf(currentTop.value)
   if (idx >= 0) viewedRoundIdx.value = idx
@@ -285,7 +285,7 @@ const _restoreRoundTab = () => {
 
 // Save round tab to localStorage whenever it changes
 watch(viewedRoundIdx, (idx) => {
-  try { localStorage.setItem(viewedRoundTabKey.value, String(idx)) } catch (_) {}
+  try { localStorage.setItem(viewedRoundTabKey.value, String(idx)) } catch (_) { /* ignore */ }
 })
 
 watch(currentTop, (newTop) => {
@@ -1056,7 +1056,7 @@ function countWinnersInRounds(roundsObj) {
   return count
 }
 
-function clearWinner(roundKey, matchIdx) {
+function _clearWinner(roundKey, matchIdx) {
   const match = rounds.value[roundKey]?.[matchIdx]
   if (!match) return
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
@@ -1125,7 +1125,7 @@ const _roundTabStatus = (idx) => {
 
 // True when every match in the active round tab has both slots filled
 // AND the previous round (if any) is fully complete (all winners set).
-const isActiveRoundFilled = computed(() => {
+const _isActiveRoundFilled = computed(() => {
   if (isSmoke.value) return true
   const idx = activeRoundIdx.value
   const size = roundSizes.value[idx]
@@ -1545,7 +1545,7 @@ const isActiveBattleInThisRound = computed(() => {
 
 // Effective phase for the currently-viewed round: IDLE if the active battle
 // is in a different round, otherwise the global phase.
-const effectivePhase = computed(() =>
+const _effectivePhase = computed(() =>
   isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
 )
 
