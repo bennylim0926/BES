@@ -213,11 +213,15 @@ function onDrop(tgtRound, tgtMatch, tgtSlot) {
   dragOverKey.value = null
   if (srcRound === tgtRound && srcMatch === tgtMatch && srcSlot === tgtSlot) return
 
-  // Swap: clear both slots first, then set them swapped
-  emit('clear-slot', { round: srcRound, matchIdx: srcMatch, slotIdx: srcSlot })
-  emit('clear-slot', { round: tgtRound, matchIdx: tgtMatch, slotIdx: tgtSlot })
+  // Read values FIRST before emitting clear-slot (which synchronously clears them from props)
   const srcVal = props.rounds[srcRound]?.[srcMatch]?.[srcSlot]
   const tgtVal = props.rounds[tgtRound]?.[tgtMatch]?.[tgtSlot]
+
+  // Then emit clears
+  emit('clear-slot', { round: srcRound, matchIdx: srcMatch, slotIdx: srcSlot })
+  emit('clear-slot', { round: tgtRound, matchIdx: tgtMatch, slotIdx: tgtSlot })
+
+  // Then emit the swap
   if (tgtVal) {
     emit('update-rounds', {
       round: srcRound, matchIdx: srcMatch, slotIdx: srcSlot, name: tgtVal, isGuest: isGuestSlot(tgtVal),
@@ -241,7 +245,7 @@ function onSmokeDrop(tgtIdx) {
     poolDragName.value = null
     dragOverKey.value = null
     const tgtName = rounds[tgtIdx]?.name
-    if (guestNames.has(tgtName)) return
+    if (tgtName) return  // Block: slot is already occupied (guest or not)
     emit('update-rounds', {
       round: 0, matchIdx: tgtIdx, slotIdx: 0, name, isGuest: false,
     })
