@@ -48,6 +48,20 @@ const hydrateJudgeFromState = (state) => {
     }
   }
 
+  // Restore revealedWinner on refresh during REVEALED (e.g. hard reload mid-reveal)
+  if (state.battlePhase === 'REVEALED' && state.bracket?.rounds && state.currentPair?.left) {
+    for (const matchList of Object.values(state.bracket.rounds)) {
+      if (!Array.isArray(matchList)) continue
+      const match = matchList.find(m =>
+        Array.isArray(m) && m[0] === state.currentPair.left && m[1] === state.currentPair.right && m[2]
+      )
+      if (match) {
+        revealedWinner.value = match[2] === state.currentPair.left ? 0 : 1
+        break
+      }
+    }
+  }
+
   // Judges — check if current judge was re-added after block
   if (state.judges?.length) {
     battleJudges.value = { judges: state.judges }

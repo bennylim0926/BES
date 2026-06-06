@@ -66,7 +66,7 @@ const hydrateFromState = (state) => {
       if (lastSetWinnerTime.value > 0) {
         const incomingWinners = countWinnersInRounds(state.bracket.rounds)
         const localWinners = countWinnersInRounds(rounds.value)
-        if (incomingWinners >= localWinners) {
+        if (incomingWinners > localWinners) {
           rounds.value = state.bracket.rounds
         }
         // else: incoming state is stale (fewer winners), keep local
@@ -133,7 +133,6 @@ const markSaved  = () => {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2200)
 }
-const _markSaveError = () => { saveStatus.value = 'error' }
 
 // ── Setup panel state ──────────────────────────────────────────
 const setupExpanded = ref(true)
@@ -223,18 +222,6 @@ const handleEmceeStartRound = () => {
   pendingStartAt.value = { top: roundName, pairList, matchIdx: 0, startAll: true }
 }
 
-// ── Genre switcher — per-genre status dot ─────────────────────
-// Returns 'champion' | 'active' | 'idle'
-const _genreStatusDotMap = computed(() => {
-  const map = {}
-  for (const genre of uniqueGenres.value) {
-    if (genreChampions.value[genre]) { map[genre] = 'champion'; continue }
-    // Only the active genre has a known phase; other genres show as idle
-    const phase = genre === selectedGenre.value ? battlePhase.value : 'IDLE'
-    map[genre] = ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
-  }
-  return map
-})
 
 const canSwitchGenre = computed(() =>
   battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
@@ -257,7 +244,6 @@ const pushOverlayConfig = async () => {
   await setOverlayConfig(overlayConfig.value)
 }
 
-const activeRoundIdx = ref(0)
 
 // LiveMatchPanel tab index — separate from currentRound (match index).
 // currentRound is overloaded: it's the match index within currentTop, but
@@ -449,7 +435,6 @@ const nextPair = async () => {
       const curRoundIdx = roundNames.value.indexOf(currentTop.value)
       if (curRoundIdx >= 0 && curRoundIdx < roundNames.value.length - 1) {
         const nextIdx = curRoundIdx + 1
-        activeRoundIdx.value = nextIdx
         viewedRoundIdx.value = nextIdx
         currentTop.value = ''  // cleared so IDLE state is unambiguous
       } else {
@@ -1056,23 +1041,6 @@ function countWinnersInRounds(roundsObj) {
   return count
 }
 
-function _clearWinner(roundKey, matchIdx) {
-  const match = rounds.value[roundKey]?.[matchIdx]
-  if (!match) return
-  const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
-  const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (nextRoundSize) {
-    const nextMatchIdx = Math.floor(matchIdx / 2)
-    const nextSlotIdx = matchIdx % 2
-    const nextMatch = [...(rounds.value[`Top${nextRoundSize}`][nextMatchIdx] || [null, null, null])]
-    nextMatch[nextSlotIdx] = null
-    rounds.value[`Top${nextRoundSize}`][nextMatchIdx] = nextMatch
-  }
-  match[2] = null
-  rounds.value[roundKey][matchIdx] = [...match]
-  broadcastBracket()
-}
-
 
 const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName)
@@ -1094,54 +1062,6 @@ const bracketHasData = computed(() => {
   )
 })
 
-// Round tab status: 'active' (has current battle), 'done' (all winners set),
-// 'filled' (all slots filled + previous round complete), 'locked' (waiting for
-// previous round to finish), 'empty' (slots not yet filled)
-const _roundTabStatus = (idx) => {
-  if (isSmoke.value) return 'empty'
-  const size = roundSizes.value[idx]
-  if (!size) return 'empty'
-  const pairList = rounds.value[`Top${size}`]
-  if (!Array.isArray(pairList)) return 'empty'
-  // Active battle in this round?
-  const hasActive = currentBattle.value.length > 0 && currentTop.value === `Top${size}`
-  if (hasActive) return 'active'
-  // All winners set? (round completed)
-  const allHaveWinners = pairList.every(m => Array.isArray(m) && m[2])
-  if (allHaveWinners && pairList.length > 0 && pairList.some(m => m[0] || m[1])) return 'done'
-  // Previous round incomplete? This round is locked
-  if (idx > 0) {
-    const prevSize = roundSizes.value[idx - 1]
-    const prevList = rounds.value[`Top${prevSize}`]
-    if (Array.isArray(prevList) && prevList.length > 0 && !prevList.every(m => Array.isArray(m) && m[2])) {
-      return 'locked'
-    }
-  }
-  // All slots filled? Ready to start
-  const allFilled = pairList.every(m => Array.isArray(m) && m[0] && m[1])
-  if (allFilled) return 'filled'
-  return 'empty'
-}
-
-// True when every match in the active round tab has both slots filled
-// AND the previous round (if any) is fully complete (all winners set).
-const _isActiveRoundFilled = computed(() => {
-  if (isSmoke.value) return true
-  const idx = activeRoundIdx.value
-  const size = roundSizes.value[idx]
-  if (!size) return false
-  // Current round: all slots filled
-  const pairList = rounds.value[`Top${size}`]
-  if (!Array.isArray(pairList)) return false
-  if (!pairList.every(m => Array.isArray(m) && m[0] && m[1])) return false
-  // Previous round (if any): all winners set
-  if (idx > 0) {
-    const prevSize = roundSizes.value[idx - 1]
-    const prevList = rounds.value[`Top${prevSize}`]
-    if (Array.isArray(prevList) && !prevList.every(m => Array.isArray(m) && m[2])) return false
-  }
-  return true
-})
 
 // All judges have cast a vote (none still at -3 = "hasn't voted this round")
 const allJudgesVoted = computed(() => {
@@ -1236,7 +1156,7 @@ const jumpToRecoveredPair = async () => {
     // Restore the round tab to match the recovered currentTop
     const recoveredSize = parseInt(topKey.replace('Top', ''))
     const recoveredIdx = roundSizes.value.indexOf(recoveredSize)
-    if (recoveredIdx >= 0) { activeRoundIdx.value = recoveredIdx; viewedRoundIdx.value = recoveredIdx }
+    if (recoveredIdx >= 0) { viewedRoundIdx.value = recoveredIdx }
   }
 
   // REVEALED: backend already has the correct state loaded from DB on startup.
@@ -1294,7 +1214,7 @@ const syncJudgesForGenre = async (_newGenre, _prevGenre) => {
 const submitAddBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   const res = await addBattleJudge(j?.judgeId)
-  if (res.status === 404) console.log("No judge in database")
+  if (res.status === 404) { console.log("No judge in database"); return }
   battleJudges.value = await getBattleJudges()
 
 }
@@ -1402,8 +1322,8 @@ const submitGetScore = async () => {
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
-  const isFinal = !isSmoke.value && currentTop.value === 'Top2'
-  const res = await setBattleScore(isFinal)
+  const isFinalMatch = !isSmoke.value && currentTop.value === 'Top2'
+  const res = await setBattleScore(isFinalMatch)
   if (res?.status === 409) {
     finalTieBlocked.value = true
     // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
@@ -1502,7 +1422,6 @@ const confirmResetBracket = async () => {
   currentBattle.value = []
   currentTop.value = ''
   currentRound.value = 0
-  activeRoundIdx.value = 0
   viewedRoundIdx.value = 0
   finalTieBlocked.value = false
 
@@ -1534,24 +1453,9 @@ const cancelSizeChange = () => {
   pendingSize.value = null
 }
 
-// True when the active battle is happening in the currently-viewed round tab.
-// Smoke mode has only one "round" (the queue) — always true when battle is active.
-const isActiveBattleInThisRound = computed(() => {
-  if (currentBattle.value.length === 0) return false
-  if (isSmoke.value) return true
-  const size = roundSizes.value[activeRoundIdx.value]
-  return size != null && currentTop.value === `Top${size}`
-})
-
-// Effective phase for the currently-viewed round: IDLE if the active battle
-// is in a different round, otherwise the global phase.
-const _effectivePhase = computed(() =>
-  isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
-)
 
 const confirmRoundChange = () => {
   showRoundChangeConfirm.value = false
-  activeRoundIdx.value = pendingRoundIdx.value
   viewedRoundIdx.value = pendingRoundIdx.value
   pendingRoundIdx.value = null
 }
@@ -1603,10 +1507,6 @@ watch(selectedEvent, async (newVal, oldVal) => {
   }
 }, { immediate: true })
 
-watch(uniqueGenres, (genres) => {
-  if (!selectedEvent.value || !genres?.length) return
-  // Champions are loaded from backend via getBattleChampions() in onMounted
-}, { immediate: true })
 
 // When all judges revote to a tie in the final, clear any previously locked
 // champion so stale data doesn't linger. (Champion is only saved via Lock button.)
@@ -1701,7 +1601,6 @@ watch(topSize, async (newVal, oldVal) => {
   // so the restored bracket and tab position are not wiped before the caller finishes.
   if (!skipSizeChangeClear) {
     if (selectedEvent.value && selectedGenre.value) {
-      activeRoundIdx.value = 0
       viewedRoundIdx.value = 0
     }
     rounds.value = initRounds()
@@ -1853,12 +1752,6 @@ onMounted(async () => {
     syncJudgeVoteSubscriptions()
   }
   wsClient.value.activate()
-  // After WS activation, hydrate from the same battleState already fetched above.
-  // The WS /topic/battle/state subscription was registered in onConnect BEFORE activate().
-  // This reuses the existing REST response to cover the gap before the first WS message arrives.
-  if (selectedEvent.value && selectedGenre.value) {
-    if (battleState) hydrateFromState(battleState)
-  }
 })
 
 onUnmounted(() => {
@@ -2396,7 +2289,7 @@ onUnmounted(() => {
 
         <button
           v-if="!setupLocked || currentBattle.length === 0"
-          @click="initiateBattlePair(0, 0)"
+          @click="initiateBattlePair()"
           class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
         >
           <i class="pi pi-play text-xs mr-1.5"></i>
@@ -2589,7 +2482,7 @@ onUnmounted(() => {
       @dismiss-reveal="dismissReveal"
       @next-pair="nextPair"
       @unlock-champion="unlockChampion"
-      @set-round="(idx) => { viewedRoundIdx = idx; activeRoundIdx = idx }"
+      @set-round="(idx) => { viewedRoundIdx = idx }"
       @start-round="handleEmceeStartRound"
       @set-winner="(roundKey, matchIdx, slotIdx) => requestWin(roundKey, matchIdx, slotIdx)"
       @request-start-at="(top, pairList, matchIdx) => requestStartAt(top, pairList, matchIdx)"
@@ -2842,13 +2735,6 @@ onUnmounted(() => {
   cursor: pointer;
   clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
   transition: background 0.2s, color 0.2s;
-}
-.recovery-btn-jump {
-  background: rgba(245,158,11,0.85);
-  color: #060a14;
-}
-.recovery-btn-jump:hover {
-  background: rgba(245,158,11,1);
 }
 .recovery-btn-dismiss {
   background: rgba(255,255,255,0.08);

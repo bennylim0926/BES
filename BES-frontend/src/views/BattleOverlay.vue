@@ -604,7 +604,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unmounted = true
-  clients.forEach(c => { if (c?.value) deactivateClient(c.value) })
+  clients.forEach(c => { if (c) deactivateClient(c) })
 })
 
 onUnmounted(() => {
