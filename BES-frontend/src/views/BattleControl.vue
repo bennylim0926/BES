@@ -193,6 +193,11 @@ const requestStartAll = (top, pairList) => {
 
 const confirmStartAt = async () => {
   if (!pendingStartAt.value) return
+  if (pendingStartAt.value.smoke) {
+    pendingStartAt.value = null
+    await initiateBattlePair()
+    return
+  }
   const { top, pairList, matchIdx, startAll } = pendingStartAt.value
   pendingStartAt.value = null
   if (startAll) {
@@ -206,7 +211,10 @@ const cancelStartAt = () => { pendingStartAt.value = null }
 
 const handleEmceeStartRound = () => {
   if (isSmoke.value) {
-    initiateBattlePair()
+    const player1 = rounds.value[0]?.name
+    const player2 = rounds.value[1]?.name
+    if (!player1 || !player2) return
+    pendingStartAt.value = { smoke: true, player1, player2 }
     return
   }
   // Standard: find the first round with filled slots and trigger confirmation
@@ -2577,15 +2585,30 @@ onUnmounted(() => {
           </div>
           <p class="type-body text-content-primary mb-3">{{ selectedGenre }}</p>
 
-          <!-- Round -->
-          <div class="section-rule mb-3">
-            <span class="section-rule-label">Round</span>
-            <div class="section-rule-line"></div>
-          </div>
-          <p class="type-body text-content-primary mb-3">
-            {{ roundLabel(pendingStartAt?.top) }}
-            <span class="type-label text-content-muted ml-2">({{ pendingStartAt?.pairList?.length || 0 }} match{{ pendingStartAt?.pairList?.length !== 1 ? 'es' : '' }})</span>
-          </p>
+          <!-- Round (standard only) -->
+          <template v-if="!pendingStartAt?.smoke">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Round</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <p class="type-body text-content-primary mb-3">
+              {{ roundLabel(pendingStartAt?.top) }}
+              <span class="type-label text-content-muted ml-2">({{ pendingStartAt?.pairList?.length || 0 }} match{{ pendingStartAt?.pairList?.length !== 1 ? 'es' : '' }})</span>
+            </p>
+          </template>
+
+          <!-- Next battle (smoke) -->
+          <template v-if="pendingStartAt?.smoke">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Next Battle</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <p class="type-body mb-3">
+              <span class="text-content-primary">{{ pendingStartAt.player1 }}</span>
+              <span class="text-content-muted mx-2">vs</span>
+              <span class="text-content-primary">{{ pendingStartAt.player2 }}</span>
+            </p>
+          </template>
 
           <!-- Judges -->
           <div class="section-rule mb-3">
@@ -2598,23 +2621,25 @@ onUnmounted(() => {
           </div>
           <p v-else class="type-label text-red-400 mb-3">⚠ No judges assigned — add judges before starting</p>
 
-          <!-- Starting match -->
-          <div v-if="!pendingStartAt?.startAll" class="section-rule mb-3">
-            <span class="section-rule-label">Starting Match</span>
-            <div class="section-rule-line"></div>
-          </div>
-          <template v-if="!pendingStartAt?.startAll">
-            <p class="type-body mb-1">
-              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
-              <span class="text-content-muted mx-2">vs</span>
-              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
-            </p>
-            <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
-              {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
-            </p>
-            <p v-else class="mb-4"></p>
+          <!-- Starting match (standard only) -->
+          <template v-if="!pendingStartAt?.smoke">
+            <div v-if="!pendingStartAt?.startAll" class="section-rule mb-3">
+              <span class="section-rule-label">Starting Match</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <template v-if="!pendingStartAt?.startAll">
+              <p class="type-body mb-1">
+                <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
+                <span class="text-content-muted mx-2">vs</span>
+                <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
+              </p>
+              <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
+                {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
+              </p>
+              <p v-else class="mb-4"></p>
+            </template>
+            <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
           </template>
-          <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
 
           <div class="flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
