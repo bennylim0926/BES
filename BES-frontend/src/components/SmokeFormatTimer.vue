@@ -132,8 +132,8 @@ function publishState() {
         totalDuration: totalDuration.value,
         expired: isExpired.value
       })
-    }).catch(() => {})
-  } catch (_) {}
+    }).catch(() => { /* fire-and-forget */ })
+  } catch (_) { /* ignore publish errors */ }
 }
 
 function recoverFromState(state) {
@@ -172,7 +172,7 @@ onMounted(() => {
       try {
         const msg = JSON.parse(raw.body)
         if (msg) recoverFromState(msg)
-      } catch (_) {}
+      } catch (_) { /* ignore malformed WS messages */ }
     })
   }
   if (props.stompClient.connected) {
