@@ -39,6 +39,7 @@ const props = defineProps({
   revealActive:              { type: Boolean, default: false },
   activeRoundIdx:            { type: Number,  default: 0 },
   recoveryTimer:             { type: Object,  default: null },
+  guestsForCurrentGenre:     { type: Array,   default: () => [] },
 })
 
 const emit = defineEmits([
@@ -411,6 +412,46 @@ const viewedPairList = computed(() => {
         />
       </div>
 
+      <!-- 7-to-Smoke queue display — shows all 8 slots, visible to both roles -->
+      <div v-if="isSmoke && Array.isArray(rounds) && rounds.length > 0" class="card p-4 mb-4">
+        <div class="section-rule mb-3">
+          <span class="section-rule-label">QUEUE</span>
+          <!-- Start Round — organiser: direct start; Emcee: same emit path -->
+          <button
+            v-if="battlePhase === 'IDLE' && rounds.some(r => r?.name)"
+            @click="$emit('start-round')"
+            class="ml-2 para-chip-sm px-2.5 py-1 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all inline-flex items-center gap-1"
+            style="font-size:10px"
+          >
+            <i class="pi pi-play" style="font-size:8px"></i>
+            START ROUND
+          </button>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <div
+            v-for="(slot, idx) in rounds"
+            :key="idx"
+            class="compact-match-card flex items-center gap-2 py-1.5 px-2"
+            :class="{
+              'bg-[color:var(--accent-subtle)] border-l-[3px] border-l-[color:var(--accent-muted)]':
+                battlePhase !== 'IDLE' && (idx === 0 || idx === 1)
+            }"
+          >
+            <span class="type-label text-content-muted text-[10px] w-5 flex-shrink-0">{{ idx + 1 }}</span>
+            <span
+              class="type-body flex-1 truncate min-w-0"
+              :class="slot.name ? 'text-content-primary' : 'text-content-muted/40 italic'"
+            >{{ slot.name || '—' }}</span>
+            <span
+              v-if="battlePhase !== 'IDLE' && idx < 2 && slot.name"
+              class="type-label text-accent"
+              style="font-size:8px;letter-spacing:0.14em"
+            >ACTIVE</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Round tabs + bracket viewer — compact combined section -->
       <div v-if="!isSmoke && roundNames.length > 0" class="card p-4">
         <div class="section-rule mb-3">
@@ -595,7 +636,7 @@ const viewedPairList = computed(() => {
         </div>
       </div>
       <div
-        v-else-if="battlePhase !== 'IDLE'"
+        v-else-if="battlePhase !== 'IDLE' && !isReadonly"
         class="mb-4 px-3 py-2"
         style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.04)"
       >
@@ -658,6 +699,26 @@ const viewedPairList = computed(() => {
           <span class="type-label text-content-muted mb-1">Queue</span>
           <span v-if="nextBattlePair" class="type-body text-content-secondary block">{{ Array.isArray(nextBattlePair) ? nextBattlePair.join(', ') : nextBattlePair }}</span>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
+        </div>
+      </div>
+
+      <!-- Battle guests — read-only list for all roles -->
+      <div v-if="guestsForCurrentGenre.length > 0" class="mb-4">
+        <div class="section-rule mb-2">
+          <span class="section-rule-label">BATTLE GUESTS</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="g in guestsForCurrentGenre"
+            :key="g.id"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1"
+            style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04)"
+          >
+            <i class="pi pi-star text-accent" style="font-size:0.55rem"></i>
+            <span class="type-body text-content-primary" style="font-size:12px">{{ g.guestName }}</span>
+            <span v-if="!isSmoke" class="type-label text-content-muted" style="font-size:10px">→ {{ g.entryRound }}</span>
+          </span>
         </div>
       </div>
 
@@ -814,7 +875,7 @@ const viewedPairList = computed(() => {
         </button>
       </div>
 
-      <!-- Start Round button — Emcee only (organiser uses bracket Start buttons above) -->
+      <!-- Start Round button — Emcee only, standard mode (smoke Start is in the Queue section above) -->
       <button
         v-if="isReadonly && !isSmoke && battlePhase === 'IDLE' && rounds && Object.keys(rounds).length > 0"
         @click="$emit('start-round')"

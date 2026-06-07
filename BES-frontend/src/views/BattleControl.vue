@@ -205,7 +205,11 @@ const confirmStartAt = async () => {
 const cancelStartAt = () => { pendingStartAt.value = null }
 
 const handleEmceeStartRound = () => {
-  // Find the first round that has filled slots but is not yet complete
+  if (isSmoke.value) {
+    initiateBattlePair()
+    return
+  }
+  // Standard: find the first round with filled slots and trigger confirmation
   let roundName = roundNames.value[0] || `Top${topSize.value}`
   for (const name of roundNames.value) {
     const list = rounds.value[name]
@@ -298,6 +302,8 @@ const newGuestName = ref('')
 const newGuestEntryRound = ref('')
 const newGuestMembers = ref('') // comma-separated member names
 const addingGuest = ref(false)
+const editingGuestId = ref(null)
+const editingGuestRound = ref('')
 
 const dragSource = ref(null)  // { roundKey, matchIdx, slotIdx }
 const dragOverKey = ref(null) // `${roundKey}-${matchIdx}-${slotIdx}`
@@ -1295,6 +1301,23 @@ const submitRemoveBattleGuest = async (guest) => {
   broadcastBracket()
 }
 
+const submitEditBattleGuestRound = async (guest) => {
+  if (!editingGuestRound.value || editingGuestRound.value === guest.entryRound) {
+    editingGuestId.value = null
+    return
+  }
+  await removeBattleGuest(guest.id)
+  const res = await addBattleGuest(selectedEvent.value, selectedGenre.value, guest.guestName, editingGuestRound.value, guest.memberNames ?? [])
+  if (res?.ok) {
+    const updated = await res.json()
+    battleGuests.value = battleGuests.value.filter(g => g.id !== guest.id)
+    battleGuests.value.push(updated)
+    placeGuestsInBracket()
+  }
+  editingGuestId.value = null
+  editingGuestRound.value = ''
+}
+
 const submitGetScore = async () => {
   battleJudges.value = await getBattleJudges()
   const hasMinusThree = battleJudges?.value.judges.some(j => j.vote === -3)
@@ -1541,20 +1564,13 @@ watch(selectedGenre, async (newVal, oldVal) => {
       if (Number(topSize.value) !== 7) {
         topSize.value = 7
       }
-    } else {
-      // Restore per-genre topSize from DB-backed state. Default to 16 on genre switch.
-      if (oldVal) {
-        const state = await getBattleState()
-        if (state?.bracket?.topSize !== undefined) {
-          const dbSize = Number(state.bracket.topSize)
-          if (!isNaN(dbSize) && dbSize !== Number(topSize.value)) {
-            skipSizeChangeClear = true
-            topSize.value = dbSize
-          }
-        } else {
-          topSize.value = 16
-        }
-      }
+    } else if (Number(topSize.value) === 7) {
+      // Switching away from smoke: reset to standard default immediately so
+      // initRounds() produces a standard bracket. restoreAndBroadcastGenreBattle
+      // (below) calls getBattleState() AFTER setActiveGenre and will update
+      // topSize to the actual saved value for this genre via hydrateFromState.
+      skipSizeChangeClear = true
+      topSize.value = 16
     }
     localStorage.setItem("selectedGenre", newVal)
     rounds.value = initRounds()
@@ -1569,6 +1585,19 @@ watch(selectedGenre, async (newVal, oldVal) => {
       // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
       // from the last mutation, and pushing initRounds() would overwrite it.
       await restoreAndBroadcastGenreBattle(newVal)
+      // Post-hydration: genre name is authoritative for format detection.
+      // hydrateFromState() above may have set topSize from DB state — correct it
+      // if it contradicts what the genre name requires.
+      const currentIsSmoke = Number(topSize.value) === 7
+      if (genreNeedsSmoke && !currentIsSmoke) {
+        skipSizeChangeClear = true
+        topSize.value = 7
+        rounds.value = initRounds()
+      } else if (!genreNeedsSmoke && currentIsSmoke) {
+        skipSizeChangeClear = true
+        topSize.value = 16
+        rounds.value = initRounds()
+      }
     }
     // Sync per-genre judges on genre switch.
     // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
@@ -2042,9 +2071,19 @@ onUnmounted(() => {
             <div class="flex items-start gap-1.5 px-3 py-2">
               <i class="pi pi-star text-accent flex-shrink-0 mt-0.5" style="font-size:0.6rem"></i>
               <div class="min-w-0">
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="type-body text-content-primary">{{ g.guestName }}</span>
-                  <span v-if="!isSmoke" class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+                  <!-- round display / inline edit -->
+                  <template v-if="!isSmoke">
+                    <template v-if="editingGuestId === g.id">
+                      <select v-model="editingGuestRound" class="input-base py-0.5 text-[11px] w-24">
+                        <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
+                      </select>
+                      <button @click="submitEditBattleGuestRound(g)" class="type-label text-accent hover:opacity-80 transition-opacity" style="font-size:10px">Save</button>
+                      <button @click="editingGuestId = null" class="type-label text-content-muted hover:text-content-primary transition-colors" style="font-size:10px">Cancel</button>
+                    </template>
+                    <span v-else class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+                  </template>
                 </div>
                 <div
                   v-if="g.memberNames?.length"
@@ -2053,15 +2092,24 @@ onUnmounted(() => {
                 >{{ g.memberNames.join(' · ') }}</div>
               </div>
             </div>
-            <!-- remove button — hidden when locked -->
-            <button
-              v-if="!setupLocked"
-              @click="submitRemoveBattleGuest(g)"
-              class="flex items-center justify-center px-2.5 flex-shrink-0 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title="Remove guest"
-            >
-              <i class="pi pi-times" style="font-size:11px"></i>
-            </button>
+            <!-- action buttons — hidden when locked -->
+            <div v-if="!setupLocked" class="flex flex-shrink-0">
+              <button
+                v-if="!isSmoke && editingGuestId !== g.id"
+                @click="editingGuestId = g.id; editingGuestRound = g.entryRound"
+                class="flex items-center justify-center px-2 border-l border-surface-600/40 text-surface-400 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
+                title="Change round"
+              >
+                <i class="pi pi-pencil" style="font-size:10px"></i>
+              </button>
+              <button
+                @click="submitRemoveBattleGuest(g)"
+                class="flex items-center justify-center px-2.5 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="Remove guest"
+              >
+                <i class="pi pi-times" style="font-size:11px"></i>
+              </button>
+            </div>
           </span>
           <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
@@ -2287,14 +2335,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <button
-          v-if="!setupLocked || currentBattle.length === 0"
-          @click="initiateBattlePair()"
-          class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
-        >
-          <i class="pi pi-play text-xs mr-1.5"></i>
-          Start Round
-        </button>
       </div>
 
       <!-- ── Setup actions ──────────────────────────────── -->
@@ -2473,6 +2513,7 @@ onUnmounted(() => {
       :revealActive="revealActive"
       :activeRoundIdx="viewedRoundIdx"
       :recoveryTimer="recoveredTimer"
+      :guestsForCurrentGenre="guestsForCurrentGenre"
       @request-genre-change="requestGenreChange"
       @open-voting="openVoting"
       @get-score="submitGetScore"
