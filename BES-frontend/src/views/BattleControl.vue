@@ -52,28 +52,63 @@ const hydrateFromState = (state) => {
   if (snapshot === lastAppliedState.value) return
   lastAppliedState.value = snapshot
 
+  // Detect format from the state message. Always cross-check with the current
+  // genre format to prevent a standard-genre state from corrupting a smoke
+  // bracket and vice versa.
+  const stateTopSize = Number(state.bracket?.topSize)
+  // Use the genre's format field from the DB (e.g. "7 to Smoke", "2v2") —
+  // authoritative and doesn't rely on genre naming conventions.
+  const genreIsSmoke = typeof state.genreFormat === 'string' &&
+    state.genreFormat.toLowerCase().includes('7 to smoke')
+  // Trust the genre format + smokeBattlers presence over bracket.topSize, which
+  // can be stale (the backend's bracketState persists across genre switches and
+  // may still carry the previous standard genre's topSize).
+  const stateIsSmoke = genreIsSmoke || stateTopSize === 7 || (state.smokeBattlers?.length > 0 && !state.bracket)
+  // Hard gate: never cross formats. If the current genre is smoke, don't apply
+  // standard bracket data; if standard, don't apply smoke array data.
+  const applySmoke  = stateIsSmoke && isSmoke.value
+  const applyStd    = !stateIsSmoke && !isSmoke.value
+
   if (state.bracket) {
+    // Only sync topSize from state if the formats agree — prevents a standard-genre
+    // state (topSize=16) from flipping a smoke genre (topSize=7) to the wrong format.
+    // Also guard against a stale bracket.topSize inside the same format: a smoke
+    // genre's bracketState may carry a previous standard genre's topSize (e.g. 16)
+    // if the backend has not yet fully switched active genres. Smoke is always 7.
     if (state.bracket.topSize !== undefined) {
-      const size = Number(state.bracket.topSize)
-      if (!isNaN(size) && size !== Number(topSize.value)) {
+      const size = stateTopSize
+      if (!isNaN(size) && size !== Number(topSize.value)
+          && stateIsSmoke === isSmoke.value
+          && (!stateIsSmoke || size === 7)) {
         skipSizeChangeClear = true
         topSize.value = size
       }
     }
-    if (state.bracket.rounds) {
-      // Guard: if setWinner was called recently (within cooldown), compare winner
-      // counts to prevent a stale WS message from overwriting fresh local mutations.
+    if (applySmoke && state.smokeBattlers?.length) {
+      // Prefer smokeBattlers — always has the most up-to-date order and scores
+      // (updated by setScoreService and updateSmokePair). bracket.rounds is only
+      // saved by broadcastBracket and can be stale after Next rotates the queue.
+      rounds.value = state.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
+    } else if (applySmoke && Array.isArray(state.bracket.rounds)) {
+      // Fallback: no smokeBattlers available, use bracket.rounds
+      rounds.value = state.bracket.rounds.map(r => {
+        const name = typeof r === 'object' && r ? r.name : r
+        return { name, score: typeof r === 'object' ? (r.score ?? 0) : 0 }
+      })
+    } else if (applyStd && state.bracket.rounds && !Array.isArray(state.bracket.rounds)) {
+      // Standard bracket — must be an object keyed by round name.
       if (lastSetWinnerTime.value > 0) {
         const incomingWinners = countWinnersInRounds(state.bracket.rounds)
         const localWinners = countWinnersInRounds(rounds.value)
         if (incomingWinners > localWinners) {
           rounds.value = state.bracket.rounds
         }
-        // else: incoming state is stale (fewer winners), keep local
       } else {
         rounds.value = state.bracket.rounds
       }
     }
+  } else if (applySmoke && state.smokeBattlers?.length) {
+    rounds.value = state.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
   }
   if (state.currentRoundIndex !== undefined) {
     currentRound.value = state.currentRoundIndex
@@ -109,8 +144,14 @@ const hydrateFromState = (state) => {
   if (state.battlePhase) {
     battlePhase.value = state.battlePhase
   }
+  // Sync champion from authoritative state. If the backend has no champion
+  // for this genre, clear any stale local entry — prevents champion leaking
+  // between formats (smoke → regular) on genre switch.
   if (state.champion) {
     genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: state.champion }
+  } else if (selectedGenre.value) {
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    if (_removed !== undefined) genreChampions.value = rest
   }
   if (state.judges?.length) {
     battleJudges.value = { judges: state.judges }
@@ -352,7 +393,7 @@ const isActivePair = (match) => {
 
 const updateSmokePair = async () => {
   currentBattle.value = [rounds.value[0], rounds.value[1], rounds.value.slice(2)]
-  await updateSmokeList(rounds.value)
+  await broadcastBracket()
 }
 
 const initiateBattlePairAt = async (top, pairList, startIdx) => {
@@ -690,7 +731,6 @@ const placeGuestsInBracket = () => {
       }
       if (lowestSlot) lowestSlot.name = guest.guestName
     }
-    broadcastBracket()
     return
   }
 
@@ -768,7 +808,16 @@ function initRounds() {
   return standardBattleRound()
 }
 
-const broadcastBracket = async () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+const broadcastBracket = async () => {
+  // Sync smoke battlers immediately alongside the bracket so the backend's
+  // battlers list never lags behind (the 250ms-debounced watcher may not
+  // fire before a genre switch, causing smokeBattlers to be stale).
+  if (isSmoke.value) {
+    const named = rounds.value.filter(r => r?.name)
+    await updateSmokeList(named)
+  }
+  return setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+}
 
 // Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
 // its slots. Called after onDrop / onSmokeDrop so currentBattlePair already reflects
@@ -1140,12 +1189,22 @@ const jumpToRecoveredPair = async () => {
     }
   }
 
-  // Restore champion if the DB recorded one for this genre
+  // Sync champion from authoritative recovery state. Clear local entry if
+  // the DB has no champion for this genre — prevents cross-format leakage.
   if (restoredChampion && selectedGenre.value) {
     genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: restoredChampion }
+  } else if (selectedGenre.value) {
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    if (_removed !== undefined) genreChampions.value = rest
   }
 
   // Restore local bracket and pair position first (no backend calls yet)
+  // Smoke: bracketJson is never written — restore queue from battlers list instead.
+  if (isSmoke.value && recoveryState.value.smokeBattlers?.length) {
+    const smokeQ = recoveryState.value.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
+    rounds.value = smokeQ
+    currentBattle.value = [smokeQ[0], smokeQ[1], smokeQ.slice(2)]
+  }
   if (!isSmoke.value && bracket?.rounds) {
     rounds.value = bracket.rounds
     // Find which round key contains this match
@@ -1445,6 +1504,15 @@ const openVoting = async () => {
 const confirmResetBracket = async () => {
   rounds.value = initRounds()
   placeGuestsInBracket()
+
+  // Smoke: must sync the cleared list to the backend BEFORE broadcastBracket()
+  // so that persistActiveState and broadcastStateSnapshot (called inside
+  // setBracketStateService) see fresh scores instead of stale battlers.
+  if (isSmoke.value) {
+    const named = rounds.value.filter(r => r?.name)
+    await updateSmokeList(named)
+  }
+
   broadcastBracket()
   await clearBattlePair()
   await setBattlePhase('IDLE')
@@ -1594,9 +1662,10 @@ watch(selectedGenre, async (newVal, oldVal) => {
       // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
       // from the last mutation, and pushing initRounds() would overwrite it.
       await restoreAndBroadcastGenreBattle(newVal)
-      // Post-hydration: genre name is authoritative for format detection.
-      // hydrateFromState() above may have set topSize from DB state — correct it
-      // if it contradicts what the genre name requires.
+      // Post-hydration: ensure the bracket format matches the genre. The state
+      // hydration may have been gated (smoke-vs-standard mismatch) or the DB
+      // may not have had saved bracket data yet. In either case, initRounds()
+      // produces the right empty structure for the current format.
       const currentIsSmoke = Number(topSize.value) === 7
       if (genreNeedsSmoke && !currentIsSmoke) {
         skipSizeChangeClear = true
@@ -1605,6 +1674,14 @@ watch(selectedGenre, async (newVal, oldVal) => {
       } else if (!genreNeedsSmoke && currentIsSmoke) {
         skipSizeChangeClear = true
         topSize.value = 16
+        rounds.value = initRounds()
+      } else if (genreNeedsSmoke && !Array.isArray(rounds.value)) {
+        // Format is correct (topSize=7) but rounds is a standard object —
+        // the state hydration was gated. Reset to smoke array.
+        rounds.value = initRounds()
+      } else if (!genreNeedsSmoke && Array.isArray(rounds.value)) {
+        // Format is correct (topSize≠7) but rounds is a smoke array —
+        // the state hydration was gated. Reset to standard object.
         rounds.value = initRounds()
       }
     }
@@ -1658,10 +1735,14 @@ watch(topSize, async (newVal, oldVal) => {
   // and must not be overwritten by an empty initRounds() broadcast here.
   if (oldVal && !programmatic && selectedEvent.value && selectedGenre.value) broadcastBracket()
 
-  // State is restored from /topic/battle/state via hydrateFromState
-  currentBattle.value = []
-  currentTop.value = ''
-  currentRound.value = 0
+  // State is restored from /topic/battle/state via hydrateFromState.
+  // Only clear on user-initiated size changes — programmatic changes (recovery,
+  // hydration, genre switch) must not wipe the state just restored.
+  if (oldVal && !programmatic) {
+    currentBattle.value = []
+    currentTop.value = ''
+    currentRound.value = 0
+  }
 }, { immediate: true })
 
 const wsClient = ref(null)
@@ -1705,11 +1786,15 @@ watch(() => battleJudges.value?.judges?.length, syncJudgeVoteSubscriptions)
 
 // Broadcast smoke list to overlay in real-time as operator assigns participants —
 // fires on any smoke rounds mutation (drag/drop, add, clear) without waiting for Start Round.
+let smokeHydrationReady = false
 let smokeListSyncTimer = null
 watch(rounds, () => {
   if (!isSmoke.value || !Array.isArray(rounds.value) || rounds.value.length === 0) return
+  if (!smokeHydrationReady) return
+  const named = rounds.value.filter(r => r?.name)
+  if (named.length === 0) return
   clearTimeout(smokeListSyncTimer)
-  smokeListSyncTimer = setTimeout(() => updateSmokeList(rounds.value), 250)
+  smokeListSyncTimer = setTimeout(() => updateSmokeList(named), 250)
 }, { deep: true })
 
 onMounted(async () => {
@@ -1720,7 +1805,12 @@ onMounted(async () => {
   // the backend still points at the previous event. Calling it here ensures the correct
   // (eventName, genreName) DB row is loaded before any getBattleState/getBattlePhase reads.
   if (selectedEvent.value && selectedGenre.value) {
-    await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    const res = await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    if (!res || !res.ok) {
+      console.error('[BattleControl] setActiveGenre failed — retrying once')
+      await new Promise(r => setTimeout(r, 200))
+      await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    }
   }
   // Round tab restored from localStorage (persisted across refresh/genre switch)
   await fetchAllJudges(selectedEvent.value)
@@ -1754,13 +1844,15 @@ onMounted(async () => {
     // Restore the last-viewed round tab after bracket data is loaded.
     _restoreRoundTab()
   }
+  smokeHydrationReady = true
   wsClient.value = createClient()
   wsClient.value.onConnect = () => {
     // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
     // Diff logic prevents re-rendering already-current state.
     subscribeToChannel(wsClient.value, '/topic/battle/state', (msg) => {
-      // Guard: ignore state broadcasts for a different genre (stale WS from genre switch)
-      if (msg.genreName && msg.genreName !== selectedGenre.value) return
+      // Guard: ignore state broadcasts for a different genre, or when genre is
+      // unset (empty/null). Prevents phase/champion leaking between formats.
+      if (!msg.genreName || msg.genreName !== selectedGenre.value) return
       hydrateFromState(msg)
       syncJudgeVoteSubscriptions()
     })
@@ -1768,7 +1860,10 @@ onMounted(async () => {
     // Phase subscription — keep for real-time phase transitions
     wsClient.value.subscribe('/topic/battle/phase', (raw) => {
       const msg = JSON.parse(raw.body)
-      if (msg.genre && msg.genre !== selectedGenre.value) return
+      // Guard: ignore phase broadcasts with missing/mismatched genre.
+      // Prevents DECIDED phase from a finished smoke genre leaking into
+      // a regular battle genre when switching between formats.
+      if (!msg.genre || msg.genre !== selectedGenre.value) return
       battlePhase.value = msg.phase
       if (msg.phase === 'DECIDED' && msg.champion) {
         genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: msg.champion }

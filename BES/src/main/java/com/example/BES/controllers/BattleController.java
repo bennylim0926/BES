@@ -120,7 +120,7 @@ public class BattleController {
     }
 
     @DeleteMapping("/battle-pair")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> clearBattlePair(){
         battleService.clearBattlePairService();
         return ResponseEntity.ok(Map.of(
@@ -172,7 +172,7 @@ public class BattleController {
     }
 
     @PostMapping("/champion-reveal")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> championReveal(@RequestBody ChampionRevealDto dto){
         battleService.broadcastChampionReveal(dto);
         return ResponseEntity.ok(Map.of("message", "Champion reveal broadcast"));
@@ -317,7 +317,7 @@ public class BattleController {
     }
 
     @PostMapping("/smoke")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setSmokeList(@Valid @RequestBody SetSmokeBattlersDto dto){
         battleService.setSmokeBattlersService(dto);
         return ResponseEntity.ok(Map.of(
@@ -345,7 +345,7 @@ public class BattleController {
     }
 
     @PostMapping("/bracket")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
         battleService.setBracketStateService(dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));

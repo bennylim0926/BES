@@ -444,6 +444,11 @@ const viewedPairList = computed(() => {
               :class="slot.name ? 'text-content-primary' : 'text-content-muted/40 italic'"
             >{{ slot.name || '—' }}</span>
             <span
+              v-if="slot.name && slot.score > 0"
+              class="type-label text-accent flex-shrink-0"
+              style="font-size:10px;letter-spacing:0.06em"
+            >{{ slot.score }}</span>
+            <span
               v-if="battlePhase !== 'IDLE' && idx < 2 && slot.name"
               class="type-label text-accent"
               style="font-size:8px;letter-spacing:0.14em"
@@ -456,9 +461,9 @@ const viewedPairList = computed(() => {
       <div v-if="!isSmoke && roundNames.length > 0" class="card p-4">
         <div class="section-rule mb-3">
           <span class="section-rule-label">BRACKET</span>
-          <!-- Start All button — organiser only, IDLE phase, current round has filled matches -->
+          <!-- Start All button — IDLE phase, current round has filled matches -->
           <button
-            v-if="!isReadonly && battlePhase === 'IDLE' && viewedPairList.some(m => m[0] && m[1])"
+            v-if="battlePhase === 'IDLE' && viewedPairList.some(m => m[0] && m[1])"
             @click="$emit('request-start-all', viewedRoundKey, viewedPairList)"
             class="ml-2 para-chip-sm px-2.5 py-1 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all inline-flex items-center gap-1"
             style="font-size:10px"
@@ -530,9 +535,9 @@ const viewedPairList = computed(() => {
               <span v-if="match[2] === match[1] && match[1]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
 
-            <!-- Start from here (organiser only, IDLE, both slots filled) -->
+            <!-- Start from here (IDLE, both slots filled) -->
             <button
-              v-if="!isReadonly && battlePhase === 'IDLE' && match[0] && match[1]"
+              v-if="battlePhase === 'IDLE' && match[0] && match[1]"
               @click="$emit('request-start-at', viewedRoundKey, viewedPairList, mIdx)"
               class="flex-shrink-0 ml-1 px-1.5 py-1 text-surface-600 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
               title="Start from this match"
@@ -764,7 +769,8 @@ const viewedPairList = computed(() => {
         </button>
 
         <!-- DECIDED: champion locked, ready to reveal or unlock for revote -->
-        <template v-if="battlePhase === 'DECIDED'">
+        <!-- 7-to-Smoke auto-declares the champion — no manual reveal/unlock needed -->
+        <template v-if="battlePhase === 'DECIDED' && !isSmoke">
           <button
             v-if="!revealActive"
             @click="$emit('reveal-champion')"
@@ -801,9 +807,9 @@ const viewedPairList = computed(() => {
           </button>
         </template>
 
-        <!-- Champion re-reveal (not in DECIDED, has a champion but not yet revealed) -->
+        <!-- Champion re-reveal (not in DECIDED, has a champion but not yet revealed). Smoke auto-reveals; no manual button. -->
         <button
-          v-if="battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
+          v-if="!isSmoke && battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
           @click="$emit('reveal-champion')"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >
@@ -811,7 +817,7 @@ const viewedPairList = computed(() => {
           Reveal Champion
         </button>
         <button
-          v-if="revealActive && battlePhase !== 'DECIDED'"
+          v-if="!isSmoke && revealActive && battlePhase !== 'DECIDED'"
           @click="$emit('dismiss-reveal')"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
@@ -846,9 +852,24 @@ const viewedPairList = computed(() => {
           {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
         </button>
 
-        <!-- DECIDED: reveal champion -->
+        <!-- VOTING + final + all judges voted → Lock Champion (regular battle only) -->
         <button
-          v-if="battlePhase === 'DECIDED' && !revealActive"
+          v-if="battlePhase === 'VOTING' && isFinalInProgress && allJudgesVoted"
+          :disabled="!showFinalReveal"
+          @click="$emit('lock-champion')"
+          class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
+          :class="showFinalReveal
+            ? 'border-amber-400/50 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
+            : 'border-gray-500/30 text-content-muted bg-surface-700/30 cursor-not-allowed'"
+          :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
+        >
+          <i class="pi pi-lock text-xs"></i>
+          Lock Champion
+        </button>
+
+        <!-- DECIDED: reveal champion (regular battle only — smoke auto-reveals) -->
+        <button
+          v-if="!isSmoke && battlePhase === 'DECIDED' && !revealActive"
           @click="$emit('reveal-champion')"
           class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all flex-1 sm:flex-none justify-center"
         >
@@ -856,12 +877,20 @@ const viewedPairList = computed(() => {
           Reveal Champion
         </button>
         <button
-          v-if="revealActive"
+          v-if="!isSmoke && revealActive"
           @click="$emit('dismiss-reveal')"
           class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
           <i class="pi pi-times text-xs"></i>
           Dismiss Reveal
+        </button>
+        <button
+          v-if="!isSmoke && battlePhase === 'DECIDED'"
+          @click="$emit('unlock-champion')"
+          class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all flex-1 sm:flex-none justify-center"
+        >
+          <i class="pi pi-unlock text-xs"></i>
+          Unlock
         </button>
 
         <!-- REVEALED: next pair -->
@@ -875,15 +904,8 @@ const viewedPairList = computed(() => {
         </button>
       </div>
 
-      <!-- Start Round button — Emcee only, standard mode (smoke Start is in the Queue section above) -->
-      <button
-        v-if="isReadonly && !isSmoke && battlePhase === 'IDLE' && rounds && Object.keys(rounds).length > 0"
-        @click="$emit('start-round')"
-        class="para-chip-sm px-6 py-3 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all duration-150"
-      >
-        <i class="pi pi-play text-xs mr-1.5"></i>
-        START ROUND
-      </button>
+      <!-- Start Round: both roles use the BRACKET section above (per-match ▶ or START ALL) -->
+      <!-- Smoke Start is in the QUEUE section above -->
 
       <!-- No active battle placeholder -->
       <div

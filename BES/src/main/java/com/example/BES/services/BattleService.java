@@ -27,9 +27,12 @@ import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.models.BattleActiveGenre;
 import com.example.BES.models.BattleGenreState;
+import com.example.BES.models.Event;
 import com.example.BES.models.Judge;
 import com.example.BES.respositories.BattleActiveGenreRepository;
 import com.example.BES.respositories.BattleGenreStateRepository;
+import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventRepo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,6 +52,12 @@ public class BattleService {
 
     @Autowired
     BattleActiveGenreRepository battleActiveGenreRepository;
+
+    @Autowired
+    EventGenreRepo eventGenreRepo;
+
+    @Autowired
+    EventRepo eventRepo;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -72,6 +81,7 @@ public class BattleService {
 
     private String activeEventName;
     private String activeGenreName;
+    private String genreFormat;
     private String champion = null;
 
     BattleService() {
@@ -189,6 +199,13 @@ public class BattleService {
             "right",   currentPair.getRightBattler().getScore()
         ));
         if (res == 0 || res == 1) {
+            // For smoke mode: persist the winner's score immediately so page-refresh
+            // shows the correct score before the Emcee clicks "Next".
+            if (res == 0 && battlers.size() > 0) {
+                battlers.get(0).setScore(battlers.get(0).getScore() + 1);
+            } else if (res == 1 && battlers.size() > 1) {
+                battlers.get(1).setScore(battlers.get(1).getScore() + 1);
+            }
             battlePhase = "REVEALED";
             messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
                 "phase", battlePhase,
@@ -418,6 +435,7 @@ public class BattleService {
         Map<String, Object> state = new HashMap<>();
         state.put("eventName", activeEventName);
         state.put("genreName", activeGenreName);
+        state.put("genreFormat", genreFormat);
         state.put("bracket", bracketState);
         state.put("currentRoundIndex", currentRoundIndex);
         Map<String, Object> pair = new HashMap<>();
@@ -439,6 +457,9 @@ public class BattleService {
         state.put("resolvedParticipants", resolvedJson != null ? resolvedJson : "");
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
+        }
+        if (!battlers.isEmpty()) {
+            state.put("smokeBattlers", new ArrayList<>(battlers));
         }
         // Recoverable timer state — recalculate timeLeft from elapsed wall-clock
         if (lastTimerPayload != null) {
@@ -516,6 +537,16 @@ public class BattleService {
     }
 
     private void loadGenreStateIntoMemory(String eventName, String genreName) {
+        // Resolve the genre format from the EventGenre table so the frontend
+        // can detect smoke mode without fragile name-based heuristics.
+        genreFormat = null;
+        if (eventName != null && genreName != null) {
+            Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+            if (ev != null) {
+                eventGenreRepo.findByEventAndName(ev, genreName)
+                    .ifPresent(eg -> genreFormat = eg.getFormat());
+            }
+        }
         Optional<BattleGenreState> stateOpt =
             battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
         if (stateOpt.isEmpty()) { resetToDefaults(); return; }
