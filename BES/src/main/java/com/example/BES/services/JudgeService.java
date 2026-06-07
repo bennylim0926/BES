@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,12 +15,16 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
+import com.example.BES.models.BattleGenreState;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Judge;
+import com.example.BES.respositories.BattleGenreStateRepository;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class JudgeService {
@@ -31,6 +36,12 @@ public class JudgeService {
 
     @Autowired
     EventGenreRepo eventGenreRepo;
+
+    @Autowired
+    BattleGenreStateRepository battleGenreStateRepository;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     public Judge addJudgeService(AddJudgeDto dto){
         return judgeRepo.findFirstByName(dto.judgeName).orElseGet(() -> {
@@ -193,14 +204,36 @@ public class JudgeService {
         if (event == null) return new ArrayList<>();
         List<EventGenre> genres = eventGenreRepo.findByEvent(event);
         List<JudgeDivisionDto> result = new ArrayList<>();
+        Set<String> added = new HashSet<>();
         for (EventGenre eg : genres) {
+            // Check event-level judge assignments (set in EventDetails)
             if (eg.getJudges() != null) {
                 for (Judge j : eg.getJudges()) {
                     if (j.getJudgeId().equals(judgeId)) {
                         result.add(new JudgeDivisionDto(eg.getName(), eg.getFormat()));
+                        added.add(eg.getName());
                         break;
                     }
                 }
+            }
+            // Also check battle-session judge assignments (set in BattleControl)
+            if (!added.contains(eg.getName())) {
+                battleGenreStateRepository.findByEventNameAndGenreName(eventName, eg.getName())
+                    .ifPresent(state -> {
+                        if (state.getJudgesJson() == null) return;
+                        try {
+                            List<Map<String, Object>> battleJudges = objectMapper.readValue(
+                                state.getJudgesJson(), new TypeReference<>() {});
+                            for (Map<String, Object> bj : battleJudges) {
+                                Object bjId = bj.get("id");
+                                if (bjId != null && Long.parseLong(bjId.toString()) == judgeId) {
+                                    result.add(new JudgeDivisionDto(eg.getName(), eg.getFormat()));
+                                    added.add(eg.getName());
+                                    break;
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    });
             }
         }
         return result;
