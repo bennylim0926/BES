@@ -48,6 +48,20 @@ const hydrateJudgeFromState = (state) => {
     }
   }
 
+  // Restore revealedWinner on refresh during REVEALED (e.g. hard reload mid-reveal)
+  if (state.battlePhase === 'REVEALED' && state.bracket?.rounds && state.currentPair?.left) {
+    for (const matchList of Object.values(state.bracket.rounds)) {
+      if (!Array.isArray(matchList)) continue
+      const match = matchList.find(m =>
+        Array.isArray(m) && m[0] === state.currentPair.left && m[1] === state.currentPair.right && m[2]
+      )
+      if (match) {
+        revealedWinner.value = match[2] === state.currentPair.left ? 0 : 1
+        break
+      }
+    }
+  }
+
   // Judges — check if current judge was re-added after block
   if (state.judges?.length) {
     battleJudges.value = { judges: state.judges }
@@ -192,17 +206,22 @@ onMounted(async () => {
 
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     if (!msg?.phase) return
+    const prev = battlePhase.value
     battlePhase.value = msg.phase
-    if (msg.phase === 'LOCKED') {
+    if (msg.phase === 'LOCKED' && prev !== 'LOCKED') {
       clearVote()
       revealedWinner.value = -2
     }
   })
 
   subscribeToChannel(cPair, '/topic/battle/battle-pair', (msg) => {
-    leftName.value  = msg.left  ?? ''
-    rightName.value = msg.right ?? ''
-    clearVote()
+    const newLeft  = msg.left  ?? ''
+    const newRight = msg.right ?? ''
+    if (newLeft !== leftName.value || newRight !== rightName.value) {
+      leftName.value  = newLeft
+      rightName.value = newRight
+      clearVote()
+    }
   })
 
   subscribeToChannel(cScore, '/topic/battle/score', (msg) => {
@@ -318,7 +337,7 @@ onUnmounted(() => {
           aria-live="polite"
         >
           <span class="blocker-icon">{{ battlePhase === 'DECIDED' ? '⭐' : battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
-          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'VOTING NOT OPEN' : 'WAITING…' }}</span>
+          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'WAITING FOR OPERATOR TO OPEN VOTING' : 'WAITING…' }}</span>
         </div>
       </Transition>
 

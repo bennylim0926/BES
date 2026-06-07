@@ -1,6 +1,5 @@
 package com.example.BES.controllers;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -419,5 +418,108 @@ public class BattleControllerIntegrationTest {
                 .andExpect(jsonPath("$.eventName").value("EventA"))
                 .andExpect(jsonPath("$.genreName").value("Popping"))
                 .andExpect(jsonPath("$.battlePhase").exists());
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Emcee Auth Tests
+    // ─────────────────────────────────────────────────────────
+
+    // === Operator-tier: Emcee SHOULD have access ===
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattleState() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/state"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattlePhase() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/phase"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBattleJudges() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/judges"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetBracketState() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/bracket"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetOverlayConfig() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/overlay-config"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetActiveGenre() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/active-genre"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canGetChampions() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/champions")
+                .param("event", "test-event"))
+            .andExpect(status().isOk());
+    }
+
+    // === Config-tier: Emcee should NOT have access ===
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canSetBattlePair() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/battle-pair")
+                .contentType("application/json")
+                .content("{\"leftBattler\":\"A\",\"rightBattler\":\"B\"}"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canSetBracket() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/bracket")
+                .contentType("application/json")
+                .content("{\"topSize\":16,\"rounds\":{}}"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotSetOverlayConfig() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                .contentType("application/json")
+                .content("{\"showImages\":true,\"leftColor\":\"#ff0000\",\"rightColor\":\"#0000ff\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_cannotAddJudge() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/judge")
+                .contentType("application/json")
+                .content("{\"id\":999}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMCEE")
+    public void emcee_canSetSmokeList() throws Exception {
+        mockMvc.perform(post("/api/v1/battle/smoke")
+                .contentType("application/json")
+                .content("{\"battlers\":[]}"))
+            .andExpect(status().isOk());
     }
 }

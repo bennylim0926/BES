@@ -89,6 +89,11 @@ function navigateToBattle() {
         </div>
       </div>
 
+      <!-- Role guidance -->
+      <div class="px-4 py-3 type-label" style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)">
+        You are logged in as a Judge. Swipe through audition cards to score participants.
+      </div>
+
       <!-- Section header -->
       <div class="section-header">
         <span class="section-label">ASSIGNED DIVISIONS</span>
@@ -112,7 +117,7 @@ function navigateToBattle() {
         No divisions assigned. Contact an organiser to be added to this event's judging panel.
       </div>
 
-      <!-- Division rows with action buttons -->
+      <!-- Division rows with role-aware action buttons -->
       <div v-else class="division-list">
         <div v-for="(d, i) in divisions" :key="i" class="division-row">
           <div class="division-info">
@@ -121,13 +126,20 @@ function navigateToBattle() {
           </div>
           <div class="division-actions">
             <button
+              v-if="d.isAudition"
               @click="navigateToAudition(d.divisionName)"
               class="action-btn action-btn--audition"
             >AUDITION</button>
             <button
+              v-if="d.isBattle"
               @click="navigateToBattle()"
               class="action-btn action-btn--battle"
             >BATTLE</button>
+            <span
+              v-if="!d.isAudition && !d.isBattle"
+              class="empty-text"
+              style="font-size:10px"
+            >NO ACTIONS</span>
           </div>
         </div>
       </div>

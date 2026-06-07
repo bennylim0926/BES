@@ -7,6 +7,7 @@ import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
 
 const events = ref([])
+const showCreateModal = ref(false)
 const dbEvents = ref([])
 const search  = ref('')
 const router  = useRouter()
@@ -122,7 +123,14 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- Empty state -->
+    <!-- Empty state: no events at all -->
+    <div v-else-if="events.length === 0" class="card p-8 text-center">
+      <div class="type-page-title text-content-muted mb-3">NO EVENTS YET</div>
+      <p class="type-body text-content-muted mb-4">Create your first event to get started.</p>
+      <button @click="showCreateModal = true" class="para-chip-sm px-5 py-3 type-label text-accent">CREATE EVENT</button>
+    </div>
+
+    <!-- Empty state: search found nothing -->
     <div v-else class="flex flex-col items-center justify-center py-24 text-center">
       <div class="para-chip w-16 h-16 flex items-center justify-center mb-4">
         <i class="pi pi-calendar text-content-muted text-2xl"></i>

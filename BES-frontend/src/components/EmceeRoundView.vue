@@ -7,6 +7,16 @@ const props = defineProps({
   mode:         { type: String, default: 'SOLO' },
 });
 
+const timerRef = ref(null)
+const timerVisible = ref(true)
+
+function resetTimer() {
+  timerRef.value?.reset()
+  timerVisible.value = false
+}
+
+defineExpose({ resetTimer })
+
 const currentRound = ref(1)
 
 const rounds = computed(() => {
@@ -200,14 +210,29 @@ const swipeHint = computed(() => {
     </div>
 
     <!-- ── Timer at bottom (thumb reach) ── -->
-    <div class="emcee-timer px-3 pb-3 pt-2">
-      <Timer />
-    </div>
+    <Transition name="timer-slide">
+      <div v-if="timerVisible" class="emcee-timer px-3 pb-3 pt-2">
+        <Timer ref="timerRef" />
+      </div>
+    </Transition>
 
   </div>
 </template>
 
 <style scoped>
+/* ── Timer slide-up ──────────────────────────────────────────────────── */
+.timer-slide-leave-active {
+  transition: transform 0.25s ease-in, opacity 0.2s ease-in;
+}
+.timer-slide-leave-from {
+  transform: translateY(0);
+  opacity: 1;
+}
+.timer-slide-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
 /* ── Current card ─────────────────────────────────────────────────────── */
 .card-left-enter-active, .card-left-leave-active,
 .card-right-enter-active, .card-right-leave-active {

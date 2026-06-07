@@ -58,6 +58,7 @@ const divRenameInput = ref('')
 const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
 
 const showModal = ref(false)
+const importError = ref('')
 const reloadOnClose = ref(false)
 const handleAccept = () => {
   showModal.value = false
@@ -374,32 +375,42 @@ const toggleInitGenre = (g, checked) => {
 }
 
 const refreshParticipant = async () => {
+  importError.value = ''
   loading.value = true
-  const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
-  if (createEventResponse.ok) {
-    await Promise.all([
-      getVerifiedParticipantsByEvent(eventName.value).then(r => { verifiedFormParticipants.value = r }),
-      getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
-      getUnverifiedParticipantsDB(props.eventName).then(r => { unverifiedParticipants.value = r }),
-      getGenresByEvent(props.eventName).then(r => { eventGenres.value = r }),
-      fetchCheckinList(),
-    ])
-    selectedUnverified.value = new Set()
-    createEventResponse.json().then(result => {
-      const r = typeof result === 'string' ? JSON.parse(result) : result
-      const imported = r?.imported ?? r?.IMPORTED ?? 0
-      const existing = r?.existing ?? 0
-      const skipped = r?.skipped ?? r?.SKIPPED ?? 0
-      const errors = r?.errors ?? r?.ERRORS ?? []
-      let msg = `${imported} new participant${imported !== 1 ? 's' : ''} added`
-      if (existing > 0) msg += `, ${existing} already existed`
-      if (skipped > 0) msg += `, ${skipped} skipped`
-      openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success', errors)
-    })
-  } else if (createEventResponse.status == 404) {
-    createEventResponse.json().then(result => {
-      openModal("Not Found", result, "error")
-    })
+  try {
+    const createEventResponse = await addParticipantToSystem(fileId.value, props.eventName)
+    if (createEventResponse.ok) {
+      await Promise.all([
+        getVerifiedParticipantsByEvent(eventName.value).then(r => { verifiedFormParticipants.value = r }),
+        getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
+        getUnverifiedParticipantsDB(props.eventName).then(r => { unverifiedParticipants.value = r }),
+        getGenresByEvent(props.eventName).then(r => { eventGenres.value = r }),
+        fetchCheckinList(),
+      ])
+      selectedUnverified.value = new Set()
+      createEventResponse.json().then(result => {
+        const r = typeof result === 'string' ? JSON.parse(result) : result
+        const imported = r?.imported ?? r?.IMPORTED ?? 0
+        const existing = r?.existing ?? 0
+        const skipped = r?.skipped ?? r?.SKIPPED ?? 0
+        const errors = r?.errors ?? r?.ERRORS ?? []
+        let msg = `${imported} new participant${imported !== 1 ? 's' : ''} added`
+        if (existing > 0) msg += `, ${existing} already existed`
+        if (skipped > 0) msg += `, ${skipped} skipped`
+        openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success', errors)
+      })
+    } else if (createEventResponse.status == 404) {
+      createEventResponse.json().then(result => {
+        importError.value = typeof result === 'string' ? result : 'Google Sheet not found. Check the folder ID and try again.'
+        openModal("Not Found", importError.value, "error")
+      })
+    } else {
+      importError.value = `Import failed (${createEventResponse.status}). Check the sheet connection and try again.`
+      openModal("Import Error", importError.value, "error")
+    }
+  } catch (e) {
+    importError.value = `Network error during import: ${e.message}`
+    openModal("Import Error", importError.value, "error")
   }
   loading.value = false
 }
@@ -1193,6 +1204,20 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Import error banner -->
+    <div
+      v-if="importError"
+      class="flex items-center gap-3 px-4 py-3 mb-4"
+      style="border-left:3px solid rgb(239 68 68);background:rgba(239,68,68,0.1)"
+    >
+      <span class="inline-block w-2 h-2 rounded-full bg-red-400 flex-shrink-0" style="box-shadow:0 0 6px rgba(239,68,68,0.8)"></span>
+      <span class="type-label text-red-300/90 flex-1">{{ importError }}</span>
+      <button
+        @click="importError = ''"
+        class="para-chip-sm px-2.5 py-1 type-label text-content-muted hover:text-content-primary transition-colors flex-shrink-0"
+      >DISMISS</button>
+    </div>
+
     <!-- Unverified (payment pending — DB-driven) -->
       <div v-if="unverifiedParticipants.length > 0" class="card-hover p-4 relative">
         <div class="corner-bar-tl"></div>
@@ -1340,6 +1365,16 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+
+  <!-- Empty state: no participants -->
+  <div v-if="tableExist && verifiedDbParticipants.length === 0 && unverifiedParticipants.length === 0 && eventGenres.length > 0" class="card p-8 text-center mt-6">
+    <div class="type-page-title text-content-muted mb-3">NO PARTICIPANTS YET</div>
+    <p class="type-body text-content-muted mb-4">Import from Google Sheets or add a walk-in to get started.</p>
+    <div class="flex justify-center gap-3">
+      <button @click="refreshParticipant" class="para-chip-sm px-5 py-3 type-label text-accent">IMPORT SHEET</button>
+      <button @click="showWalkInForm = true" class="para-chip-sm px-5 py-3 type-label text-content-primary">ADD WALK-IN</button>
+    </div>
+  </div>
 
   <!-- Divisions (post-init) — grouped by parent genre -->
   <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">

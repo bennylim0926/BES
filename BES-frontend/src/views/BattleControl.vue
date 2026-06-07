@@ -1,16 +1,23 @@
 <script setup>
 import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
-import { deleteImage } from '@/utils/adminApi'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
 import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { parseDropKey } from '@/utils/pointerDnd'
+import LiveMatchPanel from '@/components/LiveMatchPanel.vue'
+import { useAuthStore } from '@/utils/auth'
 
 const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
 const { rounds, topSize, roundSizes, isSmoke, standardBattleRound, sevenToSmokeRound } = useBattleLogic()
+
+const authStore = useAuthStore()
+const isAdminOrOrganiser = computed(() => {
+  const role = authStore.user?.['role']?.[0]?.authority
+  return role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'
+})
 
 const battleJudges = ref([])
 const memberLookup = ref({}) // participantName → all member names (including rep)
@@ -33,6 +40,9 @@ const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
 const genreChampions     = ref({})
 const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
+const recoveredTimer = ref(null)   // { running, timeLeft, totalDuration } from backend state
+const lastSetWinnerTime = ref(0)   // timestamp of last local setWinner call (prevents stale WS overwrites)
+let setWinnerCooldown = null       // timeout handle for clearing the cooldown
 
 // Single entry point for full-state hydration from /topic/battle/state or REST API.
 // Diffs against lastAppliedState to skip no-op updates and prevent animation disruption.
@@ -42,17 +52,63 @@ const hydrateFromState = (state) => {
   if (snapshot === lastAppliedState.value) return
   lastAppliedState.value = snapshot
 
+  // Detect format from the state message. Always cross-check with the current
+  // genre format to prevent a standard-genre state from corrupting a smoke
+  // bracket and vice versa.
+  const stateTopSize = Number(state.bracket?.topSize)
+  // Use the genre's format field from the DB (e.g. "7 to Smoke", "2v2") —
+  // authoritative and doesn't rely on genre naming conventions.
+  const genreIsSmoke = typeof state.genreFormat === 'string' &&
+    state.genreFormat.toLowerCase().includes('7 to smoke')
+  // Trust the genre format + smokeBattlers presence over bracket.topSize, which
+  // can be stale (the backend's bracketState persists across genre switches and
+  // may still carry the previous standard genre's topSize).
+  const stateIsSmoke = genreIsSmoke || stateTopSize === 7 || (state.smokeBattlers?.length > 0 && !state.bracket)
+  // Hard gate: never cross formats. If the current genre is smoke, don't apply
+  // standard bracket data; if standard, don't apply smoke array data.
+  const applySmoke  = stateIsSmoke && isSmoke.value
+  const applyStd    = !stateIsSmoke && !isSmoke.value
+
   if (state.bracket) {
+    // Only sync topSize from state if the formats agree — prevents a standard-genre
+    // state (topSize=16) from flipping a smoke genre (topSize=7) to the wrong format.
+    // Also guard against a stale bracket.topSize inside the same format: a smoke
+    // genre's bracketState may carry a previous standard genre's topSize (e.g. 16)
+    // if the backend has not yet fully switched active genres. Smoke is always 7.
     if (state.bracket.topSize !== undefined) {
-      const size = Number(state.bracket.topSize)
-      if (!isNaN(size) && size !== Number(topSize.value)) {
+      const size = stateTopSize
+      if (!isNaN(size) && size !== Number(topSize.value)
+          && stateIsSmoke === isSmoke.value
+          && (!stateIsSmoke || size === 7)) {
         skipSizeChangeClear = true
         topSize.value = size
       }
     }
-    if (state.bracket.rounds) {
-      rounds.value = state.bracket.rounds
+    if (applySmoke && state.smokeBattlers?.length) {
+      // Prefer smokeBattlers — always has the most up-to-date order and scores
+      // (updated by setScoreService and updateSmokePair). bracket.rounds is only
+      // saved by broadcastBracket and can be stale after Next rotates the queue.
+      rounds.value = state.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
+    } else if (applySmoke && Array.isArray(state.bracket.rounds)) {
+      // Fallback: no smokeBattlers available, use bracket.rounds
+      rounds.value = state.bracket.rounds.map(r => {
+        const name = typeof r === 'object' && r ? r.name : r
+        return { name, score: typeof r === 'object' ? (r.score ?? 0) : 0 }
+      })
+    } else if (applyStd && state.bracket.rounds && !Array.isArray(state.bracket.rounds)) {
+      // Standard bracket — must be an object keyed by round name.
+      if (lastSetWinnerTime.value > 0) {
+        const incomingWinners = countWinnersInRounds(state.bracket.rounds)
+        const localWinners = countWinnersInRounds(rounds.value)
+        if (incomingWinners > localWinners) {
+          rounds.value = state.bracket.rounds
+        }
+      } else {
+        rounds.value = state.bracket.rounds
+      }
     }
+  } else if (applySmoke && state.smokeBattlers?.length) {
+    rounds.value = state.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
   }
   if (state.currentRoundIndex !== undefined) {
     currentRound.value = state.currentRoundIndex
@@ -88,8 +144,14 @@ const hydrateFromState = (state) => {
   if (state.battlePhase) {
     battlePhase.value = state.battlePhase
   }
+  // Sync champion from authoritative state. If the backend has no champion
+  // for this genre, clear any stale local entry — prevents champion leaking
+  // between formats (smoke → regular) on genre switch.
   if (state.champion) {
     genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: state.champion }
+  } else if (selectedGenre.value) {
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    if (_removed !== undefined) genreChampions.value = rest
   }
   if (state.judges?.length) {
     battleJudges.value = { judges: state.judges }
@@ -98,6 +160,9 @@ const hydrateFromState = (state) => {
     try {
       resolvedParticipants.value = JSON.parse(state.resolvedParticipants)
     } catch (_) { resolvedParticipants.value = null }
+  }
+  if (state.timer) {
+    recoveredTimer.value = state.timer  // { running, timeLeft, totalDuration }
   }
 }
 
@@ -109,7 +174,6 @@ const markSaved  = () => {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2200)
 }
-const _markSaveError = () => { saveStatus.value = 'error' }
 
 // ── Setup panel state ──────────────────────────────────────────
 const setupExpanded = ref(true)
@@ -170,6 +234,11 @@ const requestStartAll = (top, pairList) => {
 
 const confirmStartAt = async () => {
   if (!pendingStartAt.value) return
+  if (pendingStartAt.value.smoke) {
+    pendingStartAt.value = null
+    await initiateBattlePair()
+    return
+  }
   const { top, pairList, matchIdx, startAll } = pendingStartAt.value
   pendingStartAt.value = null
   if (startAll) {
@@ -181,20 +250,31 @@ const confirmStartAt = async () => {
 
 const cancelStartAt = () => { pendingStartAt.value = null }
 
-// ── Genre switcher — per-genre status dot ─────────────────────
-// Returns 'champion' | 'active' | 'idle'
-const _genreStatusDotMap = computed(() => {
-  const map = {}
-  for (const genre of uniqueGenres.value) {
-    if (genreChampions.value[genre]) { map[genre] = 'champion'; continue }
-    // Only the active genre has a known phase; other genres show as idle
-    const phase = genre === selectedGenre.value ? battlePhase.value : 'IDLE'
-    map[genre] = ['LOCKED', 'VOTING', 'REVEALED'].includes(phase) ? 'active' : 'idle'
+const handleEmceeStartRound = () => {
+  if (isSmoke.value) {
+    const player1 = rounds.value[0]?.name
+    const player2 = rounds.value[1]?.name
+    if (!player1 || !player2) return
+    pendingStartAt.value = { smoke: true, player1, player2 }
+    return
   }
-  return map
-})
+  // Standard: find the first round with filled slots and trigger confirmation
+  let roundName = roundNames.value[0] || `Top${topSize.value}`
+  for (const name of roundNames.value) {
+    const list = rounds.value[name]
+    if (!Array.isArray(list) || list.length === 0) continue
+    const allFilled = list.every(m => Array.isArray(m) && m[0] && m[1])
+    if (!allFilled) { roundName = name; break }
+    const allDone = list.every(m => Array.isArray(m) && m[2])
+    if (!allDone) { roundName = name; break }
+  }
+  const pairList = rounds.value[roundName]
+  if (!pairList || pairList.length === 0) return
+  const hasFilledMatch = pairList.some(m => Array.isArray(m) && m[0] && m[1])
+  if (!hasFilledMatch) return
+  pendingStartAt.value = { top: roundName, pairList, matchIdx: 0, startAll: true }
+}
 
-const genreStatusDot = (genre) => _genreStatusDotMap.value[genre] ?? 'idle'
 
 const canSwitchGenre = computed(() =>
   battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
@@ -217,7 +297,51 @@ const pushOverlayConfig = async () => {
   await setOverlayConfig(overlayConfig.value)
 }
 
-const activeRoundIdx = ref(0)
+
+// LiveMatchPanel tab index — separate from currentRound (match index).
+// currentRound is overloaded: it's the match index within currentTop, but
+// LiveMatchPanel uses it as a round tab index. When nextPair increments
+// currentRound from 0 to 1, the tab would incorrectly switch from Top16 to Top8.
+const viewedRoundTabKey = computed(() => `battle_rtab_${selectedEvent.value}_${selectedGenre.value}`)
+const viewedRoundIdx = ref(0)
+
+// Restore persisted round tab from localStorage
+const _restoreRoundTab = () => {
+  try {
+    const saved = localStorage.getItem(viewedRoundTabKey.value)
+    if (saved !== null) {
+      const idx = parseInt(saved, 10)
+      if (!isNaN(idx) && idx >= 0 && idx < roundNames.value.length) {
+        viewedRoundIdx.value = idx
+        return
+      }
+    }
+  } catch (_) { /* ignore localStorage errors */ }
+  // Fall back to currentTop if no saved value
+  const idx = roundNames.value.indexOf(currentTop.value)
+  if (idx >= 0) viewedRoundIdx.value = idx
+}
+
+// Save round tab to localStorage whenever it changes
+watch(viewedRoundIdx, (idx) => {
+  try { localStorage.setItem(viewedRoundTabKey.value, String(idx)) } catch (_) { /* ignore */ }
+})
+
+watch(currentTop, (newTop) => {
+  const idx = roundNames.value.indexOf(newTop)
+  if (idx >= 0) viewedRoundIdx.value = idx
+})
+
+const roundNames = computed(() => {
+  if (isSmoke.value) return []
+  const sizes = []
+  let s = topSize.value
+  while (s >= 2) {
+    sizes.push(`Top${s}`)
+    s = Math.floor(s / 2)
+  }
+  return sizes
+})
 
 const pickupCrews = ref([])
 const crewSortMode = ref('leader')  // 'leader' | 'avg'
@@ -227,6 +351,8 @@ const newGuestName = ref('')
 const newGuestEntryRound = ref('')
 const newGuestMembers = ref('') // comma-separated member names
 const addingGuest = ref(false)
+const editingGuestId = ref(null)
+const editingGuestRound = ref('')
 
 const dragSource = ref(null)  // { roundKey, matchIdx, slotIdx }
 const dragOverKey = ref(null) // `${roundKey}-${matchIdx}-${slotIdx}`
@@ -245,50 +371,6 @@ const onFileChange = async (e) => {
   e.target.value = ''
 }
 
-const removeUploadedFile = async (index) => {
-  const name = uploadedFiles.value[index]
-  const res = await deleteImage(name)
-  if (res.ok) uploadedFiles.value.splice(index, 1)
-}
-
-const winnerAnnouncement = computed(() => {
-  if (currentBattle.value.length === 0) return "Choose a round to start"
-  if (currentWinner.value === -2) return "Battle is ongoing — GET SCORE when judges are ready"
-  if (currentWinner.value === -3) return "Judges are not ready yet"
-  if (isSmoke.value) {
-    if (currentWinner.value === -1) return "It's a tie"
-    if (currentWinner.value === 0) return `${rounds.value[0].name} takes it`
-    if (currentWinner.value === 1) return `${rounds.value[1].name} takes it`
-  } else {
-    if (currentWinner.value === -1) return "It's a tie"
-    if (currentWinner.value === 0) { setWinner(currentTop.value, currentRound.value, 0); return `${currentBattlePair?.value[currentWinner.value]} takes it` }
-    if (currentWinner.value === 1) return `${currentBattlePair?.value[currentWinner.value]} takes it`
-  }
-  return ""
-})
-
-const winnerVariant = computed(() => {
-  if (currentWinner.value === -2) return 'ongoing'
-  if (currentWinner.value === -3) return 'wait'
-  if (currentWinner.value === -1) return 'tie'
-  return 'winner'
-})
-
-const previousBattlePair = computed(() => {
-  if (currentBattle.value.length !== 0 && currentBattle?.value[0] > 0) {
-    return [currentBattle?.value[1][currentBattle?.value[0] - 1][0], currentBattle?.value[1][currentBattle?.value[0] - 1][1]]
-  }
-  return null
-})
-const nextBattlePair = computed(() => {
-  if (currentBattle.value.length === 0) return null
-  if (isSmoke.value) return currentBattle?.value[2]
-  if (currentBattle.value.length !== 0 && currentBattle?.value[0] < currentBattle?.value[1].length - 1) {
-    return [currentBattle?.value[1][currentBattle?.value[0] + 1][0], currentBattle?.value[1][currentBattle?.value[0] + 1][1]]
-  }
-  return null
-})
-
 const resetJudgeVote = async () => {
   // Reset locally first so the panel shows WAITING immediately, before WS echo arrives
   ;(battleJudges.value?.judges ?? []).forEach(j => { j.vote = -3 })
@@ -303,15 +385,6 @@ const currentBattlePair = computed(() => {
   return [left, right]
 })
 
-// Smoke mode pair entries are objects {name, score}; standard mode entries are strings.
-// This computed always returns [string|null, string|null] so templates are uniform.
-const currentBattlePairNames = computed(() => {
-  const pair = currentBattlePair.value
-  if (!pair) return [null, null]
-  const n = (p) => (p && typeof p === 'object') ? p.name : p
-  return [n(pair[0]), n(pair[1])]
-})
-
 const isActivePair = (match) => {
   if (!currentBattlePair.value || !match[0] || !match[1]) return false
   const [a, b] = currentBattlePair.value
@@ -320,7 +393,7 @@ const isActivePair = (match) => {
 
 const updateSmokePair = async () => {
   currentBattle.value = [rounds.value[0], rounds.value[1], rounds.value.slice(2)]
-  await updateSmokeList(rounds.value)
+  await broadcastBracket()
 }
 
 const initiateBattlePairAt = async (top, pairList, startIdx) => {
@@ -411,8 +484,17 @@ const nextPair = async () => {
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
       currentBattle.value = []
-      currentTop.value = ''
-    
+      // Advance to the next round so the bracket viewer shows the next round's
+      // matches (already populated by setWinner). If this was the final round
+      // (Top2), clear currentTop to signal completion.
+      const curRoundIdx = roundNames.value.indexOf(currentTop.value)
+      if (curRoundIdx >= 0 && curRoundIdx < roundNames.value.length - 1) {
+        const nextIdx = curRoundIdx + 1
+        viewedRoundIdx.value = nextIdx
+        currentTop.value = ''  // cleared so IDLE state is unambiguous
+      } else {
+        currentTop.value = ''
+      }
     }
   }
   markSaved()
@@ -649,7 +731,6 @@ const placeGuestsInBracket = () => {
       }
       if (lowestSlot) lowestSlot.name = guest.guestName
     }
-    broadcastBracket()
     return
   }
 
@@ -727,7 +808,16 @@ function initRounds() {
   return standardBattleRound()
 }
 
-const broadcastBracket = () => setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+const broadcastBracket = async () => {
+  // Sync smoke battlers immediately alongside the bracket so the backend's
+  // battlers list never lags behind (the 250ms-debounced watcher may not
+  // fire before a genre switch, causing smokeBattlers to be stale).
+  if (isSmoke.value) {
+    const named = rounds.value.filter(r => r?.name)
+    await updateSmokeList(named)
+  }
+  return setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+}
 
 // Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
 // its slots. Called after onDrop / onSmokeDrop so currentBattlePair already reflects
@@ -968,31 +1058,50 @@ async function update7toSmokeMatch(winner) {
   currentWinner.value = -2
 }
 
-function setWinner(roundKey, matchIdx, slotIdx) {
-  const match = rounds.value[roundKey][matchIdx]
+async function setWinner(roundKey, matchIdx, slotIdx) {
+  const match = rounds.value[roundKey]?.[matchIdx]
+  if (!match) return
   const winner = match[slotIdx]
+  if (!winner) return
   match[2] = winner
+  // Trigger Vue reactivity on the match array by replacing the entry
+  rounds.value[roundKey][matchIdx] = [...match]
   const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
   const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (!nextRoundSize) { broadcastBracket(); return }
+  if (!nextRoundSize) { await broadcastBracket(); return }
   const nextRoundKey = `Top${nextRoundSize}`
   const nextMatchIdx = Math.floor(matchIdx / 2)
   const nextSlotIdx = matchIdx % 2
-  rounds.value[nextRoundKey][nextMatchIdx][nextSlotIdx] = winner
-  broadcastBracket()
+  // Ensure the next round exists in rounds before accessing
+  if (!rounds.value[nextRoundKey]) {
+    const numMatches = nextRoundSize / 2
+    rounds.value[nextRoundKey] = Array.from({ length: numMatches }, () => [null, null, null])
+  }
+  if (!rounds.value[nextRoundKey][nextMatchIdx]) {
+    rounds.value[nextRoundKey][nextMatchIdx] = [null, null, null]
+  }
+  const nextMatch = [...(rounds.value[nextRoundKey][nextMatchIdx] || [null, null, null])]
+  nextMatch[nextSlotIdx] = winner
+  rounds.value[nextRoundKey][nextMatchIdx] = nextMatch
+  // Mark local mutation time to prevent stale WS messages from overwriting
+  lastSetWinnerTime.value = Date.now()
+  clearTimeout(setWinnerCooldown)
+  setWinnerCooldown = setTimeout(() => { lastSetWinnerTime.value = 0 }, 1500)
+  await broadcastBracket()
 }
 
-function clearWinner(roundKey, matchIdx) {
-  const match = rounds.value[roundKey][matchIdx]
-  const roundIndex = roundSizes.value.indexOf(parseInt(roundKey.replace("Top", "")))
-  const nextRoundSize = roundSizes.value[roundIndex + 1]
-  if (nextRoundSize) {
-    const nextMatchIdx = Math.floor(matchIdx / 2)
-    const nextSlotIdx = matchIdx % 2
-    rounds.value[`Top${nextRoundSize}`][nextMatchIdx][nextSlotIdx] = null
+/** Count total winners across all rounds to compare state freshness. */
+function countWinnersInRounds(roundsObj) {
+  if (!roundsObj || typeof roundsObj !== 'object') return 0
+  let count = 0
+  for (const key of Object.keys(roundsObj)) {
+    const list = roundsObj[key]
+    if (!Array.isArray(list)) continue
+    for (const match of list) {
+      if (Array.isArray(match) && match[2]) count++
+    }
   }
-  match[2] = null
-  broadcastBracket()
+  return count
 }
 
 
@@ -1016,54 +1125,6 @@ const bracketHasData = computed(() => {
   )
 })
 
-// Round tab status: 'active' (has current battle), 'done' (all winners set),
-// 'filled' (all slots filled + previous round complete), 'locked' (waiting for
-// previous round to finish), 'empty' (slots not yet filled)
-const roundTabStatus = (idx) => {
-  if (isSmoke.value) return 'empty'
-  const size = roundSizes.value[idx]
-  if (!size) return 'empty'
-  const pairList = rounds.value[`Top${size}`]
-  if (!Array.isArray(pairList)) return 'empty'
-  // Active battle in this round?
-  const hasActive = currentBattle.value.length > 0 && currentTop.value === `Top${size}`
-  if (hasActive) return 'active'
-  // All winners set? (round completed)
-  const allHaveWinners = pairList.every(m => Array.isArray(m) && m[2])
-  if (allHaveWinners && pairList.length > 0 && pairList.some(m => m[0] || m[1])) return 'done'
-  // Previous round incomplete? This round is locked
-  if (idx > 0) {
-    const prevSize = roundSizes.value[idx - 1]
-    const prevList = rounds.value[`Top${prevSize}`]
-    if (Array.isArray(prevList) && prevList.length > 0 && !prevList.every(m => Array.isArray(m) && m[2])) {
-      return 'locked'
-    }
-  }
-  // All slots filled? Ready to start
-  const allFilled = pairList.every(m => Array.isArray(m) && m[0] && m[1])
-  if (allFilled) return 'filled'
-  return 'empty'
-}
-
-// True when every match in the active round tab has both slots filled
-// AND the previous round (if any) is fully complete (all winners set).
-const isActiveRoundFilled = computed(() => {
-  if (isSmoke.value) return true
-  const idx = activeRoundIdx.value
-  const size = roundSizes.value[idx]
-  if (!size) return false
-  // Current round: all slots filled
-  const pairList = rounds.value[`Top${size}`]
-  if (!Array.isArray(pairList)) return false
-  if (!pairList.every(m => Array.isArray(m) && m[0] && m[1])) return false
-  // Previous round (if any): all winners set
-  if (idx > 0) {
-    const prevSize = roundSizes.value[idx - 1]
-    const prevList = rounds.value[`Top${prevSize}`]
-    if (Array.isArray(prevList) && !prevList.every(m => Array.isArray(m) && m[2])) return false
-  }
-  return true
-})
 
 // All judges have cast a vote (none still at -3 = "hasn't voted this round")
 const allJudgesVoted = computed(() => {
@@ -1089,16 +1150,6 @@ const showFinalReveal = computed(() =>
   tentativeWinner.value !== -1
 )
 
-const voteWeightDisplay = computed(() => {
-  const judges = battleJudges.value?.judges ?? []
-  return {
-    left:  judges.filter(j => j.vote === 0).reduce((s, j) => s + (j.weightage ?? 1), 0),
-    right: judges.filter(j => j.vote === 1).reduce((s, j) => s + (j.weightage ?? 1), 0),
-  }
-})
-
-
-
 const restoreAndBroadcastGenreBattle = async (_genre) => {
   // Reset local state, then fetch the real state from the backend.
   // switchActiveGenreService already broadcast /topic/battle/state — if the WS
@@ -1119,6 +1170,9 @@ const restoreAndBroadcastGenreBattle = async (_genre) => {
   // Also re-fetch judges
   const judges = await getBattleJudges()
   if (judges) battleJudges.value = judges
+
+  // Restore persisted round tab after bracket data is loaded
+  _restoreRoundTab()
 }
 
 const jumpToRecoveredPair = async () => {
@@ -1130,16 +1184,27 @@ const jumpToRecoveredPair = async () => {
   if (bracket?.topSize !== undefined) {
     const restored = Number(bracket.topSize)
     if (!isNaN(restored) && restored !== Number(topSize.value)) {
+      skipSizeChangeClear = true
       topSize.value = restored
     }
   }
 
-  // Restore champion if the DB recorded one for this genre
+  // Sync champion from authoritative recovery state. Clear local entry if
+  // the DB has no champion for this genre — prevents cross-format leakage.
   if (restoredChampion && selectedGenre.value) {
     genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: restoredChampion }
+  } else if (selectedGenre.value) {
+    const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
+    if (_removed !== undefined) genreChampions.value = rest
   }
 
   // Restore local bracket and pair position first (no backend calls yet)
+  // Smoke: bracketJson is never written — restore queue from battlers list instead.
+  if (isSmoke.value && recoveryState.value.smokeBattlers?.length) {
+    const smokeQ = recoveryState.value.smokeBattlers.map(b => ({ name: b.name, score: b.score ?? 0 }))
+    rounds.value = smokeQ
+    currentBattle.value = [smokeQ[0], smokeQ[1], smokeQ.slice(2)]
+  }
   if (!isSmoke.value && bracket?.rounds) {
     rounds.value = bracket.rounds
     // Find which round key contains this match
@@ -1164,7 +1229,7 @@ const jumpToRecoveredPair = async () => {
     // Restore the round tab to match the recovered currentTop
     const recoveredSize = parseInt(topKey.replace('Top', ''))
     const recoveredIdx = roundSizes.value.indexOf(recoveredSize)
-    if (recoveredIdx >= 0) activeRoundIdx.value = recoveredIdx
+    if (recoveredIdx >= 0) { viewedRoundIdx.value = recoveredIdx }
   }
 
   // REVEALED: backend already has the correct state loaded from DB on startup.
@@ -1179,20 +1244,25 @@ const jumpToRecoveredPair = async () => {
     return
   }
 
-  // Non-REVEALED: re-broadcast pair and phase to overlay and judges
-  if (!isSmoke.value && bracket?.rounds) {
-    await setBattlePair(
-      currentPair.left, currentPair.right, currentPair.isFinal,
-      currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
-      currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
-    )
-  } else {
-    // Smoke or no bracket data — just re-broadcast the pair
-    await setBattlePair(currentPair.left, currentPair.right, false,
-      getMembersFor(currentPair.left), getMembersFor(currentPair.right))
-  }
-
   const phase = restoredPhase && restoredPhase !== 'IDLE' ? restoredPhase : 'LOCKED'
+
+  if (phase !== 'VOTING') {
+    // LOCKED recovery: judges haven't voted yet, safe to re-broadcast the pair.
+    // setBattlePair forces LOCKED on the backend before the phase is set.
+    if (!isSmoke.value && bracket?.rounds) {
+      await setBattlePair(
+        currentPair.left, currentPair.right, currentPair.isFinal,
+        currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
+        currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
+      )
+    } else {
+      await setBattlePair(currentPair.left, currentPair.right, false,
+        getMembersFor(currentPair.left), getMembersFor(currentPair.right))
+    }
+  }
+  // For VOTING recovery, skip setBattlePair — the backend already has the correct
+  // pair from loadGenreStateIntoMemory(). Calling setBattlePair would force LOCKED
+  // and broadcast it, clearing all judge votes unnecessarily. Just re-broadcast phase.
   await setBattlePhase(phase)
   battlePhase.value = phase
   markSaved()
@@ -1217,7 +1287,7 @@ const syncJudgesForGenre = async (_newGenre, _prevGenre) => {
 const submitAddBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
   const res = await addBattleJudge(j?.judgeId)
-  if (res.status === 404) console.log("No judge in database")
+  if (res.status === 404) { console.log("No judge in database"); return }
   battleJudges.value = await getBattleJudges()
 
 }
@@ -1298,6 +1368,23 @@ const submitRemoveBattleGuest = async (guest) => {
   broadcastBracket()
 }
 
+const submitEditBattleGuestRound = async (guest) => {
+  if (!editingGuestRound.value || editingGuestRound.value === guest.entryRound) {
+    editingGuestId.value = null
+    return
+  }
+  await removeBattleGuest(guest.id)
+  const res = await addBattleGuest(selectedEvent.value, selectedGenre.value, guest.guestName, editingGuestRound.value, guest.memberNames ?? [])
+  if (res?.ok) {
+    const updated = await res.json()
+    battleGuests.value = battleGuests.value.filter(g => g.id !== guest.id)
+    battleGuests.value.push(updated)
+    placeGuestsInBracket()
+  }
+  editingGuestId.value = null
+  editingGuestRound.value = ''
+}
+
 const submitGetScore = async () => {
   battleJudges.value = await getBattleJudges()
   const hasMinusThree = battleJudges?.value.judges.some(j => j.vote === -3)
@@ -1325,8 +1412,8 @@ const submitGetScore = async () => {
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
-  const isFinal = !isSmoke.value && currentTop.value === 'Top2'
-  const res = await setBattleScore(isFinal)
+  const isFinalMatch = !isSmoke.value && currentTop.value === 'Top2'
+  const res = await setBattleScore(isFinalMatch)
   if (res?.status === 409) {
     finalTieBlocked.value = true
     // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
@@ -1337,7 +1424,7 @@ const submitGetScore = async () => {
   const data = await res.json()
   finalTieBlocked.value = false
   currentWinner.value = Number(data.winner)
-  if (data.winner === 1 || data.winner === 0) { setWinner(currentTop.value, currentRound.value, data.winner) }
+  if (data.winner === 1 || data.winner === 0) { await setWinner(currentTop.value, currentRound.value, data.winner) }
 }
 
 const startRevote = async () => {
@@ -1413,9 +1500,19 @@ const openVoting = async () => {
   markSaved()
 }
 
+
 const confirmResetBracket = async () => {
   rounds.value = initRounds()
   placeGuestsInBracket()
+
+  // Smoke: must sync the cleared list to the backend BEFORE broadcastBracket()
+  // so that persistActiveState and broadcastStateSnapshot (called inside
+  // setBracketStateService) see fresh scores instead of stale battlers.
+  if (isSmoke.value) {
+    const named = rounds.value.filter(r => r?.name)
+    await updateSmokeList(named)
+  }
+
   broadcastBracket()
   await clearBattlePair()
   await setBattlePhase('IDLE')
@@ -1424,7 +1521,7 @@ const confirmResetBracket = async () => {
   currentBattle.value = []
   currentTop.value = ''
   currentRound.value = 0
-  activeRoundIdx.value = 0
+  viewedRoundIdx.value = 0
   finalTieBlocked.value = false
 
   // Clear champion tracking — both backend (DB) and local ref
@@ -1455,38 +1552,10 @@ const cancelSizeChange = () => {
   pendingSize.value = null
 }
 
-// True when the active battle is happening in the currently-viewed round tab.
-// Smoke mode has only one "round" (the queue) — always true when battle is active.
-const isActiveBattleInThisRound = computed(() => {
-  if (currentBattle.value.length === 0) return false
-  if (isSmoke.value) return true
-  const size = roundSizes.value[activeRoundIdx.value]
-  return size != null && currentTop.value === `Top${size}`
-})
-
-// Effective phase for the currently-viewed round: IDLE if the active battle
-// is in a different round, otherwise the global phase.
-const effectivePhase = computed(() =>
-  isActiveBattleInThisRound.value ? battlePhase.value : 'IDLE'
-)
-
-// Guard: only prompt when switching AWAY from a round with an active battle.
-// Completed rounds and future rounds switch freely without prompting.
-const requestRoundChange = (idx) => {
-  if (roundTabStatus(idx) === 'locked') return
-  if (idx === activeRoundIdx.value) return
-  // Only prompt if the CURRENT round has an active battle in progress
-  if (roundTabStatus(activeRoundIdx.value) === 'active' && battlePhase.value !== 'IDLE') {
-    pendingRoundIdx.value = idx
-    showRoundChangeConfirm.value = true
-  } else {
-    activeRoundIdx.value = idx
-  }
-}
 
 const confirmRoundChange = () => {
   showRoundChangeConfirm.value = false
-  activeRoundIdx.value = pendingRoundIdx.value
+  viewedRoundIdx.value = pendingRoundIdx.value
   pendingRoundIdx.value = null
 }
 
@@ -1537,10 +1606,6 @@ watch(selectedEvent, async (newVal, oldVal) => {
   }
 }, { immediate: true })
 
-watch(uniqueGenres, (genres) => {
-  if (!selectedEvent.value || !genres?.length) return
-  // Champions are loaded from backend via getBattleChampions() in onMounted
-}, { immediate: true })
 
 // When all judges revote to a tie in the final, clear any previously locked
 // champion so stale data doesn't linger. (Champion is only saved via Lock button.)
@@ -1573,22 +1638,16 @@ watch(selectedGenre, async (newVal, oldVal) => {
     const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
     if (genreNeedsSmoke) {
       if (Number(topSize.value) !== 7) {
+        skipSizeChangeClear = true
         topSize.value = 7
       }
-    } else {
-      // Restore per-genre topSize from DB-backed state. Default to 16 on genre switch.
-      if (oldVal) {
-        const state = await getBattleState()
-        if (state?.bracket?.topSize !== undefined) {
-          const dbSize = Number(state.bracket.topSize)
-          if (!isNaN(dbSize) && dbSize !== Number(topSize.value)) {
-            skipSizeChangeClear = true
-            topSize.value = dbSize
-          }
-        } else {
-          topSize.value = 16
-        }
-      }
+    } else if (Number(topSize.value) === 7) {
+      // Switching away from smoke: reset to standard default immediately so
+      // initRounds() produces a standard bracket. restoreAndBroadcastGenreBattle
+      // (below) calls getBattleState() AFTER setActiveGenre and will update
+      // topSize to the actual saved value for this genre via hydrateFromState.
+      skipSizeChangeClear = true
+      topSize.value = 16
     }
     localStorage.setItem("selectedGenre", newVal)
     rounds.value = initRounds()
@@ -1603,6 +1662,28 @@ watch(selectedGenre, async (newVal, oldVal) => {
       // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
       // from the last mutation, and pushing initRounds() would overwrite it.
       await restoreAndBroadcastGenreBattle(newVal)
+      // Post-hydration: ensure the bracket format matches the genre. The state
+      // hydration may have been gated (smoke-vs-standard mismatch) or the DB
+      // may not have had saved bracket data yet. In either case, initRounds()
+      // produces the right empty structure for the current format.
+      const currentIsSmoke = Number(topSize.value) === 7
+      if (genreNeedsSmoke && !currentIsSmoke) {
+        skipSizeChangeClear = true
+        topSize.value = 7
+        rounds.value = initRounds()
+      } else if (!genreNeedsSmoke && currentIsSmoke) {
+        skipSizeChangeClear = true
+        topSize.value = 16
+        rounds.value = initRounds()
+      } else if (genreNeedsSmoke && !Array.isArray(rounds.value)) {
+        // Format is correct (topSize=7) but rounds is a standard object —
+        // the state hydration was gated. Reset to smoke array.
+        rounds.value = initRounds()
+      } else if (!genreNeedsSmoke && Array.isArray(rounds.value)) {
+        // Format is correct (topSize≠7) but rounds is a smoke array —
+        // the state hydration was gated. Reset to standard object.
+        rounds.value = initRounds()
+      }
     }
     // Sync per-genre judges on genre switch.
     // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
@@ -1630,16 +1711,18 @@ watch(selectedGenre, async (newVal, oldVal) => {
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
-  // Restore previously-selected round tab for this size; default to 0 (first round).
-  // Only when event+genre are known — during setup they're still null, defer to onMounted.
-  if (selectedEvent.value && selectedGenre.value) {
-    activeRoundIdx.value = 0
+  // Save before reset: programmatic changes (recovery, genre switch, hydration) set
+  // skipSizeChangeClear so restored bracket/tab are not wiped and not re-broadcast
+  // before the caller finishes restoring state.
+  const programmatic = skipSizeChangeClear
+  if (!programmatic) {
+    if (selectedEvent.value && selectedGenre.value) {
+      viewedRoundIdx.value = 0
+    }
+    rounds.value = initRounds()
   }
-  rounds.value = initRounds()
   currentWinner.value = -2
-  // Only clear battle on user-initiated size change (not programmatic from
-  // genre switch or initial load). The onMounted recovery handles init.
-  if (oldVal && !skipSizeChangeClear) {
+  if (oldVal && !programmatic) {
     await clearBattlePair()
     await setBattlePhase('IDLE')
     battlePhase.value = 'IDLE'
@@ -1647,14 +1730,19 @@ watch(topSize, async (newVal, oldVal) => {
     currentTop.value = ''
   }
   skipSizeChangeClear = false
-  // Guard against broadcasting before event/genre are known (initial load with null values
-  // would send empty initRounds() to DB, corrupting the stored bracket).
-  if (selectedEvent.value && selectedGenre.value) broadcastBracket()
+  // Only broadcast on user-initiated changes. Programmatic changes (genre switch,
+  // hydration, recovery) restore the real bracket via restoreAndBroadcastGenreBattle
+  // and must not be overwritten by an empty initRounds() broadcast here.
+  if (oldVal && !programmatic && selectedEvent.value && selectedGenre.value) broadcastBracket()
 
-  // State is restored from /topic/battle/state via hydrateFromState
-  currentBattle.value = []
-  currentTop.value = ''
-  currentRound.value = 0
+  // State is restored from /topic/battle/state via hydrateFromState.
+  // Only clear on user-initiated size changes — programmatic changes (recovery,
+  // hydration, genre switch) must not wipe the state just restored.
+  if (oldVal && !programmatic) {
+    currentBattle.value = []
+    currentTop.value = ''
+    currentRound.value = 0
+  }
 }, { immediate: true })
 
 const wsClient = ref(null)
@@ -1698,11 +1786,15 @@ watch(() => battleJudges.value?.judges?.length, syncJudgeVoteSubscriptions)
 
 // Broadcast smoke list to overlay in real-time as operator assigns participants —
 // fires on any smoke rounds mutation (drag/drop, add, clear) without waiting for Start Round.
+let smokeHydrationReady = false
 let smokeListSyncTimer = null
 watch(rounds, () => {
   if (!isSmoke.value || !Array.isArray(rounds.value) || rounds.value.length === 0) return
+  if (!smokeHydrationReady) return
+  const named = rounds.value.filter(r => r?.name)
+  if (named.length === 0) return
   clearTimeout(smokeListSyncTimer)
-  smokeListSyncTimer = setTimeout(() => updateSmokeList(rounds.value), 250)
+  smokeListSyncTimer = setTimeout(() => updateSmokeList(named), 250)
 }, { deep: true })
 
 onMounted(async () => {
@@ -1713,10 +1805,14 @@ onMounted(async () => {
   // the backend still points at the previous event. Calling it here ensures the correct
   // (eventName, genreName) DB row is loaded before any getBattleState/getBattlePhase reads.
   if (selectedEvent.value && selectedGenre.value) {
-    await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    const res = await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    if (!res || !res.ok) {
+      console.error('[BattleControl] setActiveGenre failed — retrying once')
+      await new Promise(r => setTimeout(r, 200))
+      await setActiveGenre(selectedEvent.value, selectedGenre.value)
+    }
   }
-  // Round tab starts at 0 on mount
-  activeRoundIdx.value = 0
+  // Round tab restored from localStorage (persisted across refresh/genre switch)
   await fetchAllJudges(selectedEvent.value)
   await fetchBattleGuests()
   battleJudges.value = await getBattleJudges()
@@ -1737,16 +1833,26 @@ onMounted(async () => {
   const battleState = await getBattleState()
   if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
     recoveryState.value = battleState
-    await jumpToRecoveredPair()   // restore silently
+    await jumpToRecoveredPair()   // restore silently — also sets the correct round tab
     showRecoveryBanner.value = true  // then notify the operator
+    // jumpToRecoveredPair already set viewedRoundIdx to the correct round.
+    // Don't call _restoreRoundTab() here — it would read stale localStorage and override it.
+  } else {
+    // No active battle to recover. Still hydrate bracket data (rounds, topSize) from
+    // the backend — the bracket may have been pre-seeded before the battle started.
+    if (battleState) hydrateFromState(battleState)
+    // Restore the last-viewed round tab after bracket data is loaded.
+    _restoreRoundTab()
   }
+  smokeHydrationReady = true
   wsClient.value = createClient()
   wsClient.value.onConnect = () => {
     // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
     // Diff logic prevents re-rendering already-current state.
     subscribeToChannel(wsClient.value, '/topic/battle/state', (msg) => {
-      // Guard: ignore state broadcasts for a different genre (stale WS from genre switch)
-      if (msg.genreName && msg.genreName !== selectedGenre.value) return
+      // Guard: ignore state broadcasts for a different genre, or when genre is
+      // unset (empty/null). Prevents phase/champion leaking between formats.
+      if (!msg.genreName || msg.genreName !== selectedGenre.value) return
       hydrateFromState(msg)
       syncJudgeVoteSubscriptions()
     })
@@ -1754,7 +1860,10 @@ onMounted(async () => {
     // Phase subscription — keep for real-time phase transitions
     wsClient.value.subscribe('/topic/battle/phase', (raw) => {
       const msg = JSON.parse(raw.body)
-      if (msg.genre && msg.genre !== selectedGenre.value) return
+      // Guard: ignore phase broadcasts with missing/mismatched genre.
+      // Prevents DECIDED phase from a finished smoke genre leaking into
+      // a regular battle genre when switching between formats.
+      if (!msg.genre || msg.genre !== selectedGenre.value) return
       battlePhase.value = msg.phase
       if (msg.phase === 'DECIDED' && msg.champion) {
         genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: msg.champion }
@@ -1776,12 +1885,6 @@ onMounted(async () => {
     syncJudgeVoteSubscriptions()
   }
   wsClient.value.activate()
-  // After WS activation, hydrate from the same battleState already fetched above.
-  // The WS /topic/battle/state subscription was registered in onConnect BEFORE activate().
-  // This reuses the existing REST response to cover the gap before the first WS message arrives.
-  if (selectedEvent.value && selectedGenre.value) {
-    if (battleState) hydrateFromState(battleState)
-  }
 })
 
 onUnmounted(() => {
@@ -1803,7 +1906,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Quick access links -->
-    <div class="flex flex-wrap gap-2">
+    <div v-if="isAdminOrOrganiser" class="flex flex-wrap gap-2">
       <a
         href="/battle/overlay"
         target="_blank"
@@ -1869,46 +1972,10 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Genre switcher — page-level selector, above both panels -->
-    <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
-      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="g in uniqueGenres"
-          :key="g"
-          @click="requestGenreChange(g)"
-          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
-          :class="[
-            selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : !canSwitchGenre && g !== selectedGenre
-                ? 'text-content-muted/40 cursor-not-allowed'
-                : 'text-content-muted hover:text-content-primary'
-          ]"
-          :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
-          :disabled="g !== selectedGenre && !canSwitchGenre"
-        >
-          <template v-if="genreStatusDot(g) === 'champion'">
-            <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
-          </template>
-          <template v-else-if="genreStatusDot(g) === 'active'">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
-          </template>
-          <template v-else>
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
-          </template>
-          {{ g }}
-        </button>
-      </div>
-      <span
-        v-if="uniqueGenres.length > 1 && !canSwitchGenre"
-        class="type-label text-amber-400/70"
-        style="font-size:10px;letter-spacing:0.12em"
-      >{{ genreSwitchBlockReason }}</span>
-    </div>
+    <!-- NOTE: Genre switcher is rendered inside LiveMatchPanel below -->
 
-    <!-- Setup panel (collapsible, locks once battle starts) -->
-    <div class="card overflow-hidden">
+    <!-- Setup panel — visible only to Admin/Organiser -->
+    <div v-if="isAdminOrOrganiser" class="card overflow-hidden">
       <!-- Header — always visible, click to expand/collapse -->
       <div
         class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
@@ -2108,9 +2175,19 @@ onUnmounted(() => {
             <div class="flex items-start gap-1.5 px-3 py-2">
               <i class="pi pi-star text-accent flex-shrink-0 mt-0.5" style="font-size:0.6rem"></i>
               <div class="min-w-0">
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="type-body text-content-primary">{{ g.guestName }}</span>
-                  <span v-if="!isSmoke" class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+                  <!-- round display / inline edit -->
+                  <template v-if="!isSmoke">
+                    <template v-if="editingGuestId === g.id">
+                      <select v-model="editingGuestRound" class="input-base py-0.5 text-[11px] w-24">
+                        <option v-for="r in entryRoundOptions" :key="r" :value="r">{{ r }}</option>
+                      </select>
+                      <button @click="submitEditBattleGuestRound(g)" class="type-label text-accent hover:opacity-80 transition-opacity" style="font-size:10px">Save</button>
+                      <button @click="editingGuestId = null" class="type-label text-content-muted hover:text-content-primary transition-colors" style="font-size:10px">Cancel</button>
+                    </template>
+                    <span v-else class="type-label text-content-muted">→ {{ g.entryRound }}</span>
+                  </template>
                 </div>
                 <div
                   v-if="g.memberNames?.length"
@@ -2119,15 +2196,24 @@ onUnmounted(() => {
                 >{{ g.memberNames.join(' · ') }}</div>
               </div>
             </div>
-            <!-- remove button — hidden when locked -->
-            <button
-              v-if="!setupLocked"
-              @click="submitRemoveBattleGuest(g)"
-              class="flex items-center justify-center px-2.5 flex-shrink-0 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title="Remove guest"
-            >
-              <i class="pi pi-times" style="font-size:11px"></i>
-            </button>
+            <!-- action buttons — hidden when locked -->
+            <div v-if="!setupLocked" class="flex flex-shrink-0">
+              <button
+                v-if="!isSmoke && editingGuestId !== g.id"
+                @click="editingGuestId = g.id; editingGuestRound = g.entryRound"
+                class="flex items-center justify-center px-2 border-l border-surface-600/40 text-surface-400 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
+                title="Change round"
+              >
+                <i class="pi pi-pencil" style="font-size:10px"></i>
+              </button>
+              <button
+                @click="submitRemoveBattleGuest(g)"
+                class="flex items-center justify-center px-2.5 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="Remove guest"
+              >
+                <i class="pi pi-times" style="font-size:11px"></i>
+              </button>
+            </div>
           </span>
           <span v-if="!guestsForCurrentGenre.length" class="type-label text-content-muted pt-1">None added</span>
         </div>
@@ -2207,165 +2293,104 @@ onUnmounted(() => {
         <div class="section-rule-line"></div>
       </div>
 
-      <!-- ── Standard bracket ──────────────────────────── -->
+      <!-- ── Standard bracket (first round — seeding only) ──── -->
       <div v-if="Number(topSize) !== 7" class="mt-3">
-        <!-- Round tabs -->
-        <div class="flex flex-wrap gap-2 sm:gap-1 mb-4">
-          <button
-            v-for="(size, idx) in roundSizes"
-            :key="idx"
-            @click="requestRoundChange(idx)"
-            class="para-chip-sm px-4 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5 flex-1 sm:flex-none justify-center sm:justify-start"
-            :class="{
-              'text-accent border-[color:var(--accent-muted)]': activeRoundIdx === idx,
-              'text-emerald-400/70 border-emerald-500/30': activeRoundIdx !== idx && roundTabStatus(idx) === 'done',
-              'text-content-muted/40 cursor-not-allowed': roundTabStatus(idx) === 'locked',
-              'text-content-muted hover:text-content-primary': activeRoundIdx !== idx && roundTabStatus(idx) !== 'done' && roundTabStatus(idx) !== 'locked',
-              'border-amber-400/40 text-amber-400': roundTabStatus(idx) === 'active',
-            }"
-            :title="roundTabStatus(idx) === 'locked' ? 'Waiting for previous round to complete' : ''"
-          >
-            <i v-if="roundTabStatus(idx) === 'active'" class="pi pi-circle-fill text-[6px] text-amber-400" title="Active battle"></i>
-            <i v-else-if="roundTabStatus(idx) === 'done'" class="pi pi-check text-[9px] text-emerald-400/70" title="Round complete"></i>
-            <i v-else-if="roundTabStatus(idx) === 'locked'" class="pi pi-lock text-[8px] text-content-muted/40" title="Waiting for previous round"></i>
-            Top {{ size }}
-          </button>
-        </div>
-
-        <!-- Active round matches -->
-        <template v-for="(size, idx) in roundSizes" :key="idx">
-          <div v-if="activeRoundIdx === idx" class="card p-4">
-            <div class="flex flex-col gap-2 mb-3">
-              <!-- Match card: horizontal Left VS Right layout -->
+        <div class="card p-4">
+          <div class="flex flex-col gap-2 mb-3">
+            <!-- Match card: horizontal Left VS Right layout -->
+            <div
+              v-for="(match, mIdx) in rounds[`Top${bracketSize}`]"
+              :key="mIdx"
+              class="card-hover p-3 relative flex flex-col sm:flex-row items-stretch"
+              :style="isActivePair(match) && battlePhase !== 'IDLE'
+                ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
+                : ''"
+            >
+              <div class="corner-bar-tl"></div>
+              <!-- Slot 0 — full-width on mobile, left half on sm+ -->
               <div
-                v-for="(match, mIdx) in rounds[`Top${size}`]"
-                :key="mIdx"
-                class="card-hover p-3 relative flex flex-col sm:flex-row items-stretch"
-                :style="isActivePair(match) && effectivePhase !== 'IDLE'
-                  ? 'border-left: 3px solid var(--accent-color); background: var(--accent-subtle); box-shadow: 0 0 0 1px var(--accent-muted), 0 0 18px var(--accent-subtle);'
-                  : ''"
+                class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
+                :data-drop-key="`bracket-Top${bracketSize}-${mIdx}-0`"
+                :class="[
+                  match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
+                  dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
+                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                ]"
               >
-                <div class="corner-bar-tl"></div>
-                <!-- Slot 0 — full-width on mobile, left half on sm+ -->
-                <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
-                  :data-drop-key="`bracket-Top${size}-${mIdx}-0`"
-                  :class="[
-                    match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
-                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
-                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                      : dragOverKey === `Top${size}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
-                  ]"
+                <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
+                <!-- Name + members: stacked on mobile, inline on sm+ -->
+                <div v-if="match[0]"
+                  @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${bracketSize}`, matchIdx: mIdx, slotIdx: 0 }, e)"
+                  class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
+                  :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
+                  style="touch-action: none;"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <!-- Name + members: stacked on mobile, inline on sm+ -->
-                  <div v-if="match[0]"
-                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 0 }, e)"
-                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
-                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[0] && match[0] ? 'text-emerald-400' : 'text-content-primary']"
-                    style="touch-action: none;"
-                  >
-                    <div class="flex items-center gap-1 min-w-0">
-                      <span class="type-body break-words">{{ match[0] }}</span>
-                      <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
-                    </div>
-                    <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
-                      <span
-                        v-for="m in getMembersFor(match[0])" :key="m"
-                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
-                        :class="match[2] === match[0] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
-                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                      >{{ m }}</span>
-                    </div>
+                  <div class="flex items-center gap-1 min-w-0">
+                    <span class="type-body break-words">{{ match[0] }}</span>
+                    <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${size}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[0]"
-                    @click="match[2] === match[0] && match[0] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 0, match[0])"
-                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[0] && match[0] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[0] && match[0] ? '✓' : 'Win' }}</button>
+                  <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
+                    <span
+                      v-for="m in getMembersFor(match[0])" :key="m"
+                      class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                      :class="match[2] === match[0] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                      style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >{{ m }}</span>
+                  </div>
                 </div>
+                <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${bracketSize}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+              </div>
 
-                <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
-                <div class="sm:hidden flex items-center gap-2 px-2 py-0.5">
-                  <div class="flex-1 h-px bg-surface-600/30"></div>
-                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
-                  <div class="flex-1 h-px bg-surface-600/30"></div>
-                </div>
-                <div class="hidden sm:flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
-                  <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
-                </div>
+              <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
+              <div class="sm:hidden flex items-center gap-2 px-2 py-0.5">
+                <div class="flex-1 h-px bg-surface-600/30"></div>
+                <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
+                <div class="flex-1 h-px bg-surface-600/30"></div>
+              </div>
+              <div class="hidden sm:flex items-center justify-center w-7 shrink-0 border-x border-surface-600/30 bg-surface-900/50">
+                <span class="text-[9px] font-black text-surface-600 tracking-widest">VS</span>
+              </div>
 
-                <!-- Slot 1 — full-width on mobile, right half on sm+ -->
-                <div
-                  class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
-                  :data-drop-key="`bracket-Top${size}-${mIdx}-1`"
-                  :class="[
-                    match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
-                    dragSource?.roundKey === `Top${size}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
-                      ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                      : dragOverKey === `Top${size}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
-                  ]"
+              <!-- Slot 1 — full-width on mobile, right half on sm+ -->
+              <div
+                class="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-2 transition-all duration-150"
+                :data-drop-key="`bracket-Top${bracketSize}-${mIdx}-1`"
+                :class="[
+                  match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
+                  dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
+                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                ]"
+              >
+                <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
+                <!-- Name + members: stacked on mobile, inline on sm+ -->
+                <div v-if="match[1]"
+                  @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${bracketSize}`, matchIdx: mIdx, slotIdx: 1 }, e)"
+                  class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
+                  :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
+                  style="touch-action: none;"
                 >
-                  <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
-                  <!-- Name + members: stacked on mobile, inline on sm+ -->
-                  <div v-if="match[1]"
-                    @pointerdown="(e) => onPointerDragStart('bracket', { roundKey: `Top${size}`, matchIdx: mIdx, slotIdx: 1 }, e)"
-                    class="flex-1 min-w-0 select-none flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-0.5 sm:gap-x-1.5"
-                    :class="[!setupLocked ? 'cursor-grab active:cursor-grabbing' : '', match[2] === match[1] && match[1] ? 'text-emerald-400' : 'text-content-primary']"
-                    style="touch-action: none;"
-                  >
-                    <div class="flex items-center gap-1 min-w-0">
-                      <span class="type-body break-words">{{ match[1] }}</span>
-                      <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
-                    </div>
-                    <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
-                      <span
-                        v-for="m in getMembersFor(match[1])" :key="m"
-                        class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
-                        :class="match[2] === match[1] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
-                        style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                      >{{ m }}</span>
-                    </div>
+                  <div class="flex items-center gap-1 min-w-0">
+                    <span class="type-body break-words">{{ match[1] }}</span>
+                    <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
-                  <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                  <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${size}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
-                  <button
-                    :disabled="!match[1]"
-                    @click="match[2] === match[1] && match[1] ? clearWinner(`Top${size}`, mIdx) : requestWin(`Top${size}`, mIdx, 1, match[1])"
-                    class="flex-shrink-0 w-10 sm:w-11 text-center rounded text-[10px] sm:text-[11px] font-bold transition-all disabled:opacity-20 disabled:cursor-not-allowed leading-5"
-                    :class="match[2] === match[1] && match[1] ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40' : 'bg-surface-700 text-surface-400 border border-surface-600/50 hover:border-surface-500'"
-                  >{{ match[2] === match[1] && match[1] ? '✓' : 'Win' }}</button>
+                  <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
+                    <span
+                      v-for="m in getMembersFor(match[1])" :key="m"
+                      class="inline-block px-2 py-0.5 normal-case flex-shrink-0"
+                      :class="match[2] === match[1] ? 'bg-emerald-500/15 text-emerald-400/80' : 'bg-surface-700/60 text-content-muted'"
+                      style="font-size:10px;letter-spacing:0.04em;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                    >{{ m }}</span>
+                  </div>
                 </div>
-                <!-- Start from this match — desktop only, mobile has the global Start Round button -->
-                <button
-                  v-if="match[0] && match[1] && !match[2] && isActiveRoundFilled && effectivePhase === 'IDLE'"
-                  @click="requestStartAt(`Top${size}`, rounds[`Top${size}`], mIdx)"
-                  class="hidden sm:flex flex-shrink-0 items-center justify-center w-10 ml-1.5 self-stretch rounded text-accent border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] hover:bg-[color:var(--accent-muted)] transition-colors"
-                  title="Start round from this match"
-                ><i class="pi pi-play text-[10px]"></i></button>
+                <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
+                <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${bracketSize}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
               </div>
             </div>
-
-            <button
-              v-if="effectivePhase === 'IDLE'"
-              :disabled="!isActiveRoundFilled"
-              @click="requestStartAll(`Top${size}`, rounds[`Top${size}`])"
-              class="w-full py-4 sm:py-2 para-chip type-label transition-all duration-200"
-              :class="isActiveRoundFilled ? 'bg-accent' : 'bg-surface-700 text-content-muted cursor-not-allowed'"
-              :title="isActiveRoundFilled ? '' : 'All slots must be filled and the previous round must be completed'"
-            >
-              <i class="pi pi-play text-xs mr-1.5"></i>
-              Start Round
-            </button>
-            <div v-else class="w-full py-4 sm:py-2 text-center type-label text-content-muted">
-              <template v-if="currentTop === `Top${size}`">Active battle in Top{{ size }}</template>
-              <template v-else-if="rounds[`Top${size}`]?.every(m => Array.isArray(m) && m[2])">Round complete</template>
-            </div>
           </div>
-        </template>
+        </div>
       </div>
 
       <!-- ── 7 to Smoke bracket ──────────────────────────── -->
@@ -2414,14 +2439,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <button
-          v-if="!setupLocked || currentBattle.length === 0"
-          @click="initiateBattlePair(0, 0)"
-          class="w-full py-2 bg-accent para-chip type-label transition-all duration-200"
-        >
-          <i class="pi pi-play text-xs mr-1.5"></i>
-          Start Round
-        </button>
       </div>
 
       <!-- ── Setup actions ──────────────────────────────── -->
@@ -2573,352 +2590,49 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Live match tracker -->
-    <div class="card p-5">
-      <div class="section-rule mb-4">
-        <span class="section-rule-label">Live Match</span>
-        <div class="section-rule-line"></div>
-      </div>
-
-      <div class="flex items-center gap-3 mb-4">
-        <div
-          class="inline-flex items-center gap-2 px-3 py-1.5"
-          :class="{
-            'semantic-chip-success': effectivePhase === 'REVEALED',
-            'semantic-chip-warning': effectivePhase === 'LOCKED',
-            'semantic-chip-warning animate-pulse': effectivePhase === 'VOTING',
-            'semantic-chip-warning opacity-50': effectivePhase === 'IDLE',
-          }"
-        >
-          <div
-            class="w-2 h-2 rounded-full"
-            :style="effectivePhase === 'REVEALED' ? 'background:#34d399;box-shadow:0 0 8px rgba(52,211,153,0.8)' : effectivePhase === 'LOCKED' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : effectivePhase === 'VOTING' ? 'background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)' : 'background:#6b7280;box-shadow:0 0 8px rgba(107,114,128,0.5)'"
-          ></div>
-          <span class="type-body" :class="effectivePhase === 'REVEALED' ? 'text-emerald-400' : effectivePhase === 'LOCKED' ? 'text-amber-400' : effectivePhase === 'VOTING' ? 'text-amber-400' : 'text-gray-400'">{{ effectivePhase }}</span>
-        </div>
-        <span v-if="!isActiveBattleInThisRound && battlePhase !== 'IDLE'" class="type-label text-content-muted">
-          (active battle in {{ currentTop }})
-        </span>
-        <!-- Save state indicator — next to phase badge so operator sees it -->
-        <Transition name="recovery-fade" mode="out-in">
-          <span v-if="saveStatus === 'saving'" key="saving" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-content-muted" style="font-size:10px;letter-spacing:0.16em;background:rgba(255,255,255,0.04);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <i class="pi pi-spin pi-spinner" style="font-size:9px"></i> SAVING
-          </span>
-          <span v-else-if="saveStatus === 'saved'" key="saved" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-emerald-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(52,211,153,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,0.7)"></span> SAVED
-          </span>
-          <span v-else-if="saveStatus === 'error'" key="error" class="inline-flex items-center gap-1.5 px-2.5 py-1 type-label text-amber-400" style="font-size:10px;letter-spacing:0.16em;background:rgba(245,158,11,0.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span> SAVE FAILED
-          </span>
-        </Transition>
-      </div>
-
-      <!-- Final tie warning -->
-      <div
-        v-if="finalTieBlocked"
-        class="semantic-chip-warning px-4 py-3 flex items-center justify-between gap-3 mb-4"
-      >
-        <div class="w-2 h-2 rounded-full" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)"></div>
-        <span class="type-body flex-1 text-amber-400"><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
-        <button
-          @click="startRevote"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent transition-all"
-        >START REVOTE</button>
-      </div>
-
-      <!-- WINNER ANNOUNCEMENT -->
-      <!-- DECIDED: champion locked — show glowing champion name -->
-      <div
-        v-if="battlePhase === 'DECIDED'"
-        class="px-4 py-3 mb-4"
-        style="border-left:4px solid #34d399;background:rgba(52,211,153,0.08)"
-      >
-        <span class="type-label text-emerald-400" style="font-size:9px;letter-spacing:0.22em">⭐ CHAMPION LOCKED</span>
-        <span class="type-body text-emerald-400 block mt-1" style="font-size:18px;font-weight:bold;text-shadow:0 0 12px rgba(52,211,153,0.4)">
-          {{ genreChampions[selectedGenre] ?? currentGenreChampion ?? '—' }}
-        </span>
-        <span v-if="!revealActive" class="type-label text-content-muted block mt-1" style="font-size:9px;letter-spacing:0.22em">
-          FINAL · ORGANISER ONLY — NOT REVEALED YET
-        </span>
-      </div>
-      <!-- All other phases: ongoing/wait/winner/tie announcement -->
-      <div
-        v-else
-        class="px-4 py-3 mb-4"
-        :class="{
-          'semantic-chip-warning': winnerVariant === 'ongoing',
-          'semantic-chip-warning': winnerVariant === 'wait',
-          'semantic-chip-success': winnerVariant === 'winner',
-          'border-l-3 border-gray-400 bg-gray-500/10': winnerVariant === 'tie',
-        }"
-      >
-        <div
-          class="w-2 h-2 rounded-full mb-1"
-          :class="winnerVariant === 'winner' ? 'bg-emerald-400' : winnerVariant === 'tie' ? 'bg-gray-400' : 'bg-amber-400'"
-          :style="winnerVariant === 'winner' ? 'box-shadow:0 0 8px rgba(52,211,153,0.8)' : winnerVariant === 'tie' ? '' : 'box-shadow:0 0 8px rgba(245,158,11,0.8)'"
-        ></div>
-        <span class="type-body text-content-primary">{{ winnerAnnouncement }}</span>
-      </div>
-
-      <!-- Judge vote panel — live per-judge votes, visible in all phases -->
-      <div v-if="battleJudges?.judges?.length" class="mb-4">
-        <div class="section-rule mb-3">
-          <span class="section-rule-label">JUDGES</span>
-          <div class="section-rule-line"></div>
-        </div>
-        <div
-          class="grid gap-2 mb-3"
-          :style="{ gridTemplateColumns: `repeat(${battleJudges.judges.length}, 1fr)` }"
-        >
-          <div
-            v-for="judge in battleJudges.judges"
-            :key="judge.id"
-            class="px-3 py-3 text-center"
-            :style="{
-              clipPath: 'polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)',
-              border: judge.vote === -3
-                ? '1px solid rgba(245,158,11,0.3)'
-                : judge.vote === 0
-                  ? `1px solid ${overlayConfig.leftColor}99`
-                  : `1px solid ${overlayConfig.rightColor}99`,
-              background: judge.vote === -3
-                ? 'rgba(245,158,11,0.06)'
-                : judge.vote === 0
-                  ? `${overlayConfig.leftColor}18`
-                  : `${overlayConfig.rightColor}18`,
-            }"
-          >
-            <div style="font-size:10px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);margin-bottom:2px">{{ judge.name }}</div>
-            <div style="font-size:11px;color:#93c5fd;letter-spacing:0.12em;margin-bottom:4px;font-weight:700">WT {{ judge.weightage ?? 1 }}</div>
-            <div
-              v-if="judge.vote === -3"
-              class="type-body text-amber-400"
-              style="font-size:13px"
-            >⏳ WAITING</div>
-            <div
-              v-else-if="judge.vote === 0"
-              class="type-body"
-              :style="{ fontSize: '13px', color: overlayConfig.leftColor }"
-            >{{ currentBattlePairNames?.[0] ?? 'LEFT' }}</div>
-            <div
-              v-else-if="judge.vote === 1"
-              class="type-body"
-              :style="{ fontSize: '13px', color: overlayConfig.rightColor }"
-            >{{ currentBattlePairNames?.[1] ?? 'RIGHT' }}</div>
-          </div>
-        </div>
-        <!-- Winner preview banner when all judges have voted -->
-        <div
-          v-if="allJudgesVoted && tentativeWinner !== -1"
-          class="px-4 py-3"
-          :style="{
-            borderLeft: `4px solid ${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}`,
-            background: `${tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor}18`,
-          }"
-        >
-          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">WINNER PREVIEW (ORGANISER ONLY)</div>
-          <div class="type-body" style="font-size:20px;letter-spacing:0.08em;font-weight:bold" :style="{ color: tentativeWinner === 0 ? overlayConfig.leftColor : overlayConfig.rightColor }">
-            {{ tentativeWinner === 0 ? (currentBattlePairNames?.[0] ?? 'LEFT') : (currentBattlePairNames?.[1] ?? 'RIGHT') }}
-          </div>
-          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">{{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
-        </div>
-        <div
-          v-else-if="allJudgesVoted && tentativeWinner === -1"
-          class="px-4 py-3"
-          style="border-left:3px solid #6b7280;background:rgba(107,114,128,0.08)"
-        >
-          <div class="type-label mb-2" style="font-size:9px;letter-spacing:0.18em;color:#9ca3af">WINNER PREVIEW</div>
-          <div class="type-body" style="font-size:20px;letter-spacing:0.06em;font-weight:bold;color:#9ca3af">TIE — {{ voteWeightDisplay.left }} – {{ voteWeightDisplay.right }}</div>
-          <div class="type-label text-content-muted mt-1" style="font-size:13px;letter-spacing:0.06em">Rematch required</div>
-        </div>
-      </div>
-      <div
-        v-else-if="!battleJudges?.judges?.length"
-        class="mb-4 px-3 py-2"
-        style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.04)"
-      >
-        <span class="type-label text-content-muted">No judges assigned for this battle</span>
-      </div>
-
-      <!-- Match pairs (standard) — only shown when viewing the active round -->
-      <div v-if="!isSmoke && isActiveBattleInThisRound" class="grid grid-cols-3 gap-3 mb-4">
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Previous</span>
-          <template v-if="previousBattlePair">
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[0] }}</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[1] }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-accent mb-1">Current</span>
-          <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0] }}</span>
-            <span v-if="getMembersFor(currentBattlePair[0]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[0]).join(' · ') }}</span>
-            <span class="type-label text-content-muted my-0.5 block">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1] }}</span>
-            <span v-if="getMembersFor(currentBattlePair[1]).length" class="type-label text-content-muted normal-case block" style="font-size:11px;letter-spacing:0.04em">{{ getMembersFor(currentBattlePair[1]).join(' · ') }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Next</span>
-          <template v-if="nextBattlePair">
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[0] }}</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[1] }}</span>
-          </template>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-      </div>
-
-      <!-- Match pairs (smoke) -->
-      <div v-if="isSmoke" class="grid grid-cols-2 gap-3 mb-4">
-        <div class="stat-card relative" style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-accent mb-1">Current Match</span>
-          <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0].name }} ({{ currentBattlePair[0].score }})</span>
-            <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1].name }} ({{ currentBattlePair[1].score }})</span>
-          </template>
-        </div>
-        <div class="stat-card relative">
-          <div class="corner-bar-tl"></div>
-          <span class="type-label text-content-muted mb-1">Queue</span>
-          <span v-if="nextBattlePair" class="type-body text-content-secondary block">{{ nextBattlePair.map(p => p.name).join(', ') }}</span>
-          <span v-else class="type-stat text-content-disabled opacity-30">—</span>
-        </div>
-      </div>
-
-      <!-- Action buttons — only for the active round -->
-      <div v-if="isActiveBattleInThisRound" class="flex flex-wrap gap-3 sm:gap-2">
-        <!-- LOCKED: open voting -->
-        <button
-          v-if="battlePhase === 'LOCKED'"
-          @click="openVoting"
-          class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-        >
-          <i class="pi pi-lock-open text-xs"></i>
-          Open Voting
-        </button>
-
-        <!-- VOTING: non-final, not all voted, or tie → Get Score / Rematch -->
-        <button
-          v-if="battlePhase === 'VOTING' && !showFinalReveal"
-          :disabled="!allJudgesVoted"
-          @click="submitGetScore"
-          :class="allJudgesVoted
-            ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
-            : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
-          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
-        >
-          <i class="pi pi-bolt text-xs"></i>
-          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
-        </button>
-
-        <!-- VOTING + final + all judges voted → Lock Champion. -->
-        <button
-          v-if="battlePhase === 'VOTING' && isFinalInProgress && allJudgesVoted"
-          :disabled="!showFinalReveal"
-          @click="lockChampion"
-          class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          :class="showFinalReveal
-            ? 'border-amber-400/50 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
-            : 'border-gray-500/30 text-content-muted bg-surface-700/30 cursor-not-allowed'"
-          :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
-        >
-          <i class="pi pi-lock text-xs"></i>
-          Lock Champion
-        </button>
-
-        <!-- DECIDED: champion locked, ready to reveal or unlock for revote -->
-        <template v-if="battlePhase === 'DECIDED'">
-          <button
-            v-if="!revealActive"
-            @click="revealChampionForGenre"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-star text-xs"></i>
-            Reveal Champion
-          </button>
-          <button
-            v-if="revealActive"
-            @click="dismissReveal"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-times text-xs"></i>
-            Dismiss Reveal
-          </button>
-          <button
-            @click="unlockChampion"
-            class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all flex-1 sm:flex-none justify-center"
-          >
-            <i class="pi pi-unlock text-xs"></i>
-            Unlock
-          </button>
-        </template>
-
-        <!-- REVEALED: next only -->
-        <template v-if="battlePhase === 'REVEALED'">
-          <button
-            @click="nextPair"
-            class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
-          >
-            Next
-            <i class="pi pi-chevron-right text-xs"></i>
-          </button>
-        </template>
-
-        <!-- Champion Reveal (re-reveal) — winner already scored or tracked.
-             Only shown when a champion was previously locked/revealed for this genre.
-             Not shown during DECIDED (has its own button above). -->
-        <button
-          v-if="battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
-          @click="revealChampionForGenre"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
-        >
-          <i class="pi pi-star text-xs"></i>
-          Reveal Champion
-        </button>
-        <button
-          v-if="revealActive && battlePhase !== 'DECIDED'"
-          @click="dismissReveal"
-          class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
-        >
-          <i class="pi pi-times text-xs"></i>
-          Dismiss Reveal
-        </button>
-      </div>
-
-      <!-- Uploaded images list -->
-      <div v-if="uploadedFiles.length > 0" class="mt-4 pt-4">
-        <div class="section-rule mb-3">
-          <span class="section-rule-label">Uploaded Images</span>
-          <div class="section-rule-line"></div>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <div
-            v-for="(name, idx) in uploadedFiles"
-            :key="idx"
-            class="card-hover p-2 relative flex items-center gap-2 px-3"
-          >
-            <div class="corner-bar-tl"></div>
-            <span class="type-body text-content-primary max-w-[160px] truncate">{{ name }}</span>
-            <button
-              @click="removeUploadedFile(idx)"
-              class="flex-shrink-0 w-5 h-5 flex items-center justify-center hover:text-red-400 transition-colors"
-            >
-              <i class="pi pi-times text-xs"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Live Match panel — rendered for all roles, acts as orchestrator -->
+    <LiveMatchPanel
+      :selectedEvent="selectedEvent"
+      :selectedGenre="selectedGenre"
+      :uniqueGenres="uniqueGenres"
+      :battlePhase="battlePhase"
+      :battleJudges="battleJudges?.judges ?? []"
+      :currentBattle="currentBattle"
+      :currentWinner="currentWinner"
+      :currentRound="currentRound"
+      :currentTop="currentTop"
+      :rounds="rounds"
+      :topSize="topSize"
+      :isSmoke="isSmoke"
+      :roundNames="roundNames"
+      :roundSizes="roundSizes"
+      :saveStatus="saveStatus"
+      :finalTieBlocked="finalTieBlocked"
+      :isReadonly="!isAdminOrOrganiser"
+      :canSwitchGenre="canSwitchGenre"
+      :genreSwitchBlockReason="genreSwitchBlockReason"
+      :genreChampions="genreChampions"
+      :stompClient="wsClient"
+      :overlayConfig="overlayConfig"
+      :revealActive="revealActive"
+      :activeRoundIdx="viewedRoundIdx"
+      :recoveryTimer="recoveredTimer"
+      :guestsForCurrentGenre="guestsForCurrentGenre"
+      @request-genre-change="requestGenreChange"
+      @open-voting="openVoting"
+      @get-score="submitGetScore"
+      @submit-revote="startRevote"
+      @lock-champion="lockChampion"
+      @reveal-champion="revealChampionForGenre"
+      @dismiss-reveal="dismissReveal"
+      @next-pair="nextPair"
+      @unlock-champion="unlockChampion"
+      @set-round="(idx) => { viewedRoundIdx = idx }"
+      @start-round="handleEmceeStartRound"
+      @set-winner="(roundKey, matchIdx, slotIdx) => requestWin(roundKey, matchIdx, slotIdx)"
+      @request-start-at="(top, pairList, matchIdx) => requestStartAt(top, pairList, matchIdx)"
+      @request-start-all="(top, pairList) => requestStartAll(top, pairList)"
+    />
 
     </div>
   </div>
@@ -2967,15 +2681,30 @@ onUnmounted(() => {
           </div>
           <p class="type-body text-content-primary mb-3">{{ selectedGenre }}</p>
 
-          <!-- Round -->
-          <div class="section-rule mb-3">
-            <span class="section-rule-label">Round</span>
-            <div class="section-rule-line"></div>
-          </div>
-          <p class="type-body text-content-primary mb-3">
-            {{ roundLabel(pendingStartAt?.top) }}
-            <span class="type-label text-content-muted ml-2">({{ pendingStartAt?.pairList?.length || 0 }} match{{ pendingStartAt?.pairList?.length !== 1 ? 'es' : '' }})</span>
-          </p>
+          <!-- Round (standard only) -->
+          <template v-if="!pendingStartAt?.smoke">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Round</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <p class="type-body text-content-primary mb-3">
+              {{ roundLabel(pendingStartAt?.top) }}
+              <span class="type-label text-content-muted ml-2">({{ pendingStartAt?.pairList?.length || 0 }} match{{ pendingStartAt?.pairList?.length !== 1 ? 'es' : '' }})</span>
+            </p>
+          </template>
+
+          <!-- Next battle (smoke) -->
+          <template v-if="pendingStartAt?.smoke">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Next Battle</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <p class="type-body mb-3">
+              <span class="text-content-primary">{{ pendingStartAt.player1 }}</span>
+              <span class="text-content-muted mx-2">vs</span>
+              <span class="text-content-primary">{{ pendingStartAt.player2 }}</span>
+            </p>
+          </template>
 
           <!-- Judges -->
           <div class="section-rule mb-3">
@@ -2988,23 +2717,25 @@ onUnmounted(() => {
           </div>
           <p v-else class="type-label text-red-400 mb-3">⚠ No judges assigned — add judges before starting</p>
 
-          <!-- Starting match -->
-          <div v-if="!pendingStartAt?.startAll" class="section-rule mb-3">
-            <span class="section-rule-label">Starting Match</span>
-            <div class="section-rule-line"></div>
-          </div>
-          <template v-if="!pendingStartAt?.startAll">
-            <p class="type-body mb-1">
-              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
-              <span class="text-content-muted mx-2">vs</span>
-              <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
-            </p>
-            <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
-              {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
-            </p>
-            <p v-else class="mb-4"></p>
+          <!-- Starting match (standard only) -->
+          <template v-if="!pendingStartAt?.smoke">
+            <div v-if="!pendingStartAt?.startAll" class="section-rule mb-3">
+              <span class="section-rule-label">Starting Match</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <template v-if="!pendingStartAt?.startAll">
+              <p class="type-body mb-1">
+                <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[0] }}</span>
+                <span class="text-content-muted mx-2">vs</span>
+                <span class="text-content-primary">{{ pendingStartAt?.pairList?.[pendingStartAt.matchIdx]?.[1] }}</span>
+              </p>
+              <p v-if="pendingStartAt?.matchIdx > 0" class="type-label text-amber-400/80 mb-4" style="font-size:10px;letter-spacing:0.12em">
+                {{ pendingStartAt.matchIdx }} match{{ pendingStartAt.matchIdx !== 1 ? 'es' : '' }} before this one will be skipped.
+              </p>
+              <p v-else class="mb-4"></p>
+            </template>
+            <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
           </template>
-          <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
 
           <div class="flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
@@ -3166,13 +2897,6 @@ onUnmounted(() => {
   cursor: pointer;
   clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
   transition: background 0.2s, color 0.2s;
-}
-.recovery-btn-jump {
-  background: rgba(245,158,11,0.85);
-  color: #060a14;
-}
-.recovery-btn-jump:hover {
-  background: rgba(245,158,11,1);
 }
 .recovery-btn-dismiss {
   background: rgba(255,255,255,0.08);

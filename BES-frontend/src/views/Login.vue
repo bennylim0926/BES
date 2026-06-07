@@ -113,6 +113,7 @@ const submitLogin = async () => {
                 type="text"
                 placeholder="Username"
                 class="input-base w-full"
+                style="text-transform: none; font-family: var(--font-body, 'Inter'), sans-serif; letter-spacing: normal;"
                 autocomplete="username"
               />
             </div>
@@ -124,6 +125,7 @@ const submitLogin = async () => {
                   :type="showPassword ? 'text' : 'password'"
                   placeholder="Password"
                   class="input-base w-full pr-10"
+                  style="text-transform: none; font-family: var(--font-body, 'Inter'), sans-serif; letter-spacing: normal;"
                   autocomplete="current-password"
                 />
                 <button type="button" @click="showPassword = !showPassword"

@@ -1,9 +1,8 @@
 package com.example.BES.services;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,12 +13,16 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
+import com.example.BES.models.BattleGenreState;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Judge;
+import com.example.BES.respositories.BattleGenreStateRepository;
 import com.example.BES.respositories.EventGenreRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class JudgeService {
@@ -31,6 +34,12 @@ public class JudgeService {
 
     @Autowired
     EventGenreRepo eventGenreRepo;
+
+    @Autowired
+    BattleGenreStateRepository battleGenreStateRepository;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     public Judge addJudgeService(AddJudgeDto dto){
         return judgeRepo.findFirstByName(dto.judgeName).orElseGet(() -> {
@@ -194,13 +203,31 @@ public class JudgeService {
         List<EventGenre> genres = eventGenreRepo.findByEvent(event);
         List<JudgeDivisionDto> result = new ArrayList<>();
         for (EventGenre eg : genres) {
+            boolean isAudition = false;
+            boolean isBattle = false;
+
+            // Event-level assignment (EventDetails) → audition judging
             if (eg.getJudges() != null) {
-                for (Judge j : eg.getJudges()) {
-                    if (j.getJudgeId().equals(judgeId)) {
-                        result.add(new JudgeDivisionDto(eg.getName(), eg.getFormat()));
-                        break;
-                    }
-                }
+                isAudition = eg.getJudges().stream()
+                    .anyMatch(j -> j.getJudgeId().equals(judgeId));
+            }
+
+            // Battle-session assignment (BattleControl) → battle judging
+            var battleState = battleGenreStateRepository
+                .findByEventNameAndGenreName(eventName, eg.getName()).orElse(null);
+            if (battleState != null && battleState.getJudgesJson() != null) {
+                try {
+                    List<Map<String, Object>> battleJudges = objectMapper.readValue(
+                        battleState.getJudgesJson(), new TypeReference<>() {});
+                    isBattle = battleJudges.stream().anyMatch(bj -> {
+                        Object bjId = bj.get("id");
+                        return bjId != null && Long.parseLong(bjId.toString()) == judgeId;
+                    });
+                } catch (Exception ignored) {}
+            }
+
+            if (isAudition || isBattle) {
+                result.add(new JudgeDivisionDto(eg.getName(), eg.getFormat(), isAudition, isBattle));
             }
         }
         return result;

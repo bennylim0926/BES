@@ -27,9 +27,12 @@ import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.models.BattleActiveGenre;
 import com.example.BES.models.BattleGenreState;
+import com.example.BES.models.Event;
 import com.example.BES.models.Judge;
 import com.example.BES.respositories.BattleActiveGenreRepository;
 import com.example.BES.respositories.BattleGenreStateRepository;
+import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventRepo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,6 +52,12 @@ public class BattleService {
 
     @Autowired
     BattleActiveGenreRepository battleActiveGenreRepository;
+
+    @Autowired
+    EventGenreRepo eventGenreRepo;
+
+    @Autowired
+    EventRepo eventRepo;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -72,6 +81,7 @@ public class BattleService {
 
     private String activeEventName;
     private String activeGenreName;
+    private String genreFormat;
     private String champion = null;
 
     BattleService() {
@@ -189,6 +199,13 @@ public class BattleService {
             "right",   currentPair.getRightBattler().getScore()
         ));
         if (res == 0 || res == 1) {
+            // For smoke mode: persist the winner's score immediately so page-refresh
+            // shows the correct score before the Emcee clicks "Next".
+            if (res == 0 && battlers.size() > 0) {
+                battlers.get(0).setScore(battlers.get(0).getScore() + 1);
+            } else if (res == 1 && battlers.size() > 1) {
+                battlers.get(1).setScore(battlers.get(1).getScore() + 1);
+            }
             battlePhase = "REVEALED";
             messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
                 "phase", battlePhase,
@@ -276,6 +293,7 @@ public class BattleService {
         }
         messagingTemplate.convertAndSend("/topic/battle/bracket", state);
         persistActiveState();
+        broadcastStateSnapshot();
     }
 
     public String getSelectedMode() { return selectedMode; }
@@ -417,6 +435,7 @@ public class BattleService {
         Map<String, Object> state = new HashMap<>();
         state.put("eventName", activeEventName);
         state.put("genreName", activeGenreName);
+        state.put("genreFormat", genreFormat);
         state.put("bracket", bracketState);
         state.put("currentRoundIndex", currentRoundIndex);
         Map<String, Object> pair = new HashMap<>();
@@ -439,11 +458,46 @@ public class BattleService {
         synchronized (judges) {
             state.put("judges", new ArrayList<>(judges));
         }
+        if (!battlers.isEmpty()) {
+            state.put("smokeBattlers", new ArrayList<>(battlers));
+        }
+        // Recoverable timer state — recalculate timeLeft from elapsed wall-clock
+        if (lastTimerPayload != null) {
+            Map<String, Object> timer = new HashMap<>(lastTimerPayload);
+            if (Boolean.TRUE.equals(timer.get("running"))) {
+                long elapsedSec = (System.currentTimeMillis() - timerLastUpdated) / 1000;
+                int currentLeft = ((Number) timer.getOrDefault("timeLeft", 0)).intValue();
+                int adjusted = Math.max(0, currentLeft - (int) elapsedSec);
+                timer.put("timeLeft", adjusted);
+                if (adjusted <= 0) {
+                    timer.put("running", false);
+                    timer.put("timeLeft", 0);
+                }
+            }
+            state.put("timer", timer);
+        }
         return state;
     }
 
     public String getActiveEventName() { return activeEventName; }
     public String getActiveGenreName() { return activeGenreName; }
+
+    // ── Timer state recovery ─────────────────────────────────────────
+    private Map<String, Object> lastTimerPayload = null;
+    private long timerLastUpdated = 0; // System.currentTimeMillis() when last payload arrived
+
+    public void handleTimerPayload(Map<String, Object> payload) {
+        this.lastTimerPayload = new HashMap<>(payload);
+        this.timerLastUpdated = System.currentTimeMillis();
+        messagingTemplate.convertAndSend("/topic/battle/timer", payload);
+    }
+
+    /** Rebroadcast timer state to WS topic (used by REST state endpoint for page-refresh recovery). */
+    public void rebroadcastTimer(Object timerState) {
+        if (timerState != null) {
+            messagingTemplate.convertAndSend("/topic/battle/timer", timerState);
+        }
+    }
 
     private void persistActiveState() {
         if (activeEventName == null || activeGenreName == null) return;
@@ -483,6 +537,16 @@ public class BattleService {
     }
 
     private void loadGenreStateIntoMemory(String eventName, String genreName) {
+        // Resolve the genre format from the EventGenre table so the frontend
+        // can detect smoke mode without fragile name-based heuristics.
+        genreFormat = null;
+        if (eventName != null && genreName != null) {
+            Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+            if (ev != null) {
+                eventGenreRepo.findByEventAndName(ev, genreName)
+                    .ifPresent(eg -> genreFormat = eg.getFormat());
+            }
+        }
         Optional<BattleGenreState> stateOpt =
             battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
         if (stateOpt.isEmpty()) { resetToDefaults(); return; }
@@ -538,7 +602,12 @@ public class BattleService {
     }
 
     private void broadcastStateSnapshot() {
-        messagingTemplate.convertAndSend("/topic/battle/state", getBattleStateService());
+        Map<String, Object> state = getBattleStateService();
+        messagingTemplate.convertAndSend("/topic/battle/state", state);
+        // Also rebroadcast timer so BattleTimer can recover on page refresh
+        if (state.containsKey("timer")) {
+            messagingTemplate.convertAndSend("/topic/battle/timer", state.get("timer"));
+        }
     }
 
     public static class BattleJudge {

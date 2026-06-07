@@ -126,6 +126,11 @@ let animToken = 0
 // animation fires after LOCKED confirms and panels mount (isBlank flips false).
 let pendingEntrance = false
 
+// ── Broadcast timer (BattleTimer countdown) ──────────────────────
+const timerState    = ref({ running: false, timeLeft: 0, totalDuration: 0 })
+const showTimer     = ref(false)
+const timerFinished = ref(false)
+
 // Start from URL param; updated in real-time when backend state reports a different genre
 const isSmoke = ref(route.query.isSmoke === 'true')
 
@@ -577,11 +582,29 @@ onMounted(async () => {
   subscribeToChannel(cState, '/topic/battle/state', (msg) => {
     hydrateOverlayFromState(msg)
   })
+
+  // Broadcast timer (from BattleTimer.vue countdown)
+  const cTimer = createClient(); clients.push(cTimer)
+  subscribeToChannel(cTimer, '/topic/battle/timer', (msg) => {
+    const data = msg
+    timerState.value = data
+    if (data.running && !showTimer.value) {
+      showTimer.value = true
+      timerFinished.value = false
+    }
+    if (!data.running && showTimer.value && data.timeLeft === 0) {
+      timerFinished.value = true
+      setTimeout(() => {
+        showTimer.value = false
+        timerFinished.value = false
+      }, 600)
+    }
+  })
 })
 
 onBeforeUnmount(() => {
   unmounted = true
-  clients.forEach(c => { if (c?.value) deactivateClient(c.value) })
+  clients.forEach(c => { if (c) deactivateClient(c) })
 })
 
 onUnmounted(() => {
@@ -598,6 +621,24 @@ onUnmounted(() => {
     :class="{ 'stage-shake': stageShaking }"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
   >
+    <!-- Broadcast timer bar (visible when BattleTimer is running) -->
+    <Transition name="timer-enter">
+      <div v-if="showTimer" class="timer-overlay">
+        <div class="timer-bar-container">
+          <div class="timer-progress-track">
+            <div
+              class="timer-progress-fill"
+              :style="{ width: (timerState.totalDuration > 0 ? (timerState.timeLeft / timerState.totalDuration) * 100 : 0) + '%' }"
+              :class="{ 'timer-fill-warning': timerState.timeLeft <= 10 }"
+            ></div>
+          </div>
+          <div class="timer-countdown" :class="{ 'timer-text-warning': timerState.timeLeft <= 10 }">
+            {{ Math.floor(timerState.timeLeft / 60) }}:{{ String(timerState.timeLeft % 60).padStart(2, '0') }}
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Screen-reader live region -->
     <div class="sr-only" role="status" aria-live="assertive" aria-atomic="true">
       <template v-if="currentWinner === 0">{{ leftName }} wins!</template>
@@ -1496,7 +1537,7 @@ body.transparent-page #app {
 /* Judge scales back down while retreating to top */
 @keyframes judgeRetreatTop {
   0%   { transform: translateY(42vh) scale(1.38); }
-  100% { transform: translateY(0)    scale(1); }
+  100% { transform: translateY(30px) scale(1); }
 }
 
 /* Card burst entrance on score reveal */
@@ -1534,6 +1575,21 @@ body.transparent-page #app {
 /* (borderRotate removed — judge card no longer uses rotating glow border) */
 
 
+/* ── Broadcast timer (top center bar) ─────────────── */
+.timer-overlay { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 100; width: 60%; padding: 16px 0 0 0; pointer-events: none; }
+.timer-bar-container { background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.1); padding: 8px 20px; clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); }
+.timer-progress-track { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-bottom: 6px; overflow: hidden; }
+.timer-progress-fill { height: 100%; background: var(--accent-color, #fff); transition: width 1s linear; border-radius: 2px; }
+.timer-fill-warning { background: #ef4444; animation: timer-pulse-bar 0.5s ease-in-out infinite alternate; }
+.timer-countdown { font-family: 'Anton SC', sans-serif; font-size: 24px; letter-spacing: 0.06em; color: var(--accent-color, #fff); text-align: center; text-shadow: 0 0 12px var(--accent-muted, rgba(255,255,255,0.25)); }
+.timer-text-warning { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5); animation: timer-pulse-text 0.5s ease-in-out infinite alternate; }
+.timer-enter-enter-active { animation: timer-slide-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.timer-enter-leave-active { animation: timer-slide-out 200ms ease-in; }
+@keyframes timer-slide-in { from { opacity: 0; transform: translateX(-50%) translateY(-100%); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes timer-slide-out { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-100%); } }
+@keyframes timer-pulse-bar { from { opacity: 0.6; } to { opacity: 1; } }
+@keyframes timer-pulse-text { from { opacity: 0.7; transform: scale(1); } to { opacity: 1; transform: scale(1.03); } }
+
 /* ── Animation utility classes ───────────────────── */
 .slam-in-left  { animation: leftSlamIn  450ms cubic-bezier(0.2, 0, 0.3, 1) both; }
 .slam-in-right { animation: rightSlamIn 450ms cubic-bezier(0.2, 0, 0.3, 1) both; }
@@ -1549,6 +1605,6 @@ body.transparent-page #app {
 .slide-up         { animation: slideUp         300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
 .judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2,  0,   0.3, 1) both; }
 .judge-retreat-top { animation: judgeRetreatTop 500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
-.judge-at-top      { transform: translateY(0); }
+.judge-at-top      { transform: translateY(30px); }
 </style>
 

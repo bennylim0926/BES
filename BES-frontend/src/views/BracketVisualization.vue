@@ -19,6 +19,7 @@ let   animRunning     = false
 // Saves the bracket state that existed BEFORE the most recent bracket update.
 // Used when the bracket WebSocket message arrives before the score message.
 let   prevBracketUpdate = null  // { state, timestamp }
+let   lastBracketBody   = ''
 
 // DOM registry for every battler slot
 const slotEls = {}
@@ -336,6 +337,8 @@ onMounted(async () => {
     })
 
     wsClient.subscribe('/topic/battle/bracket', (msg) => {
+      if (msg.body === lastBracketBody) return
+      lastBracketBody = msg.body
       const newState = JSON.parse(msg.body)
       if (animRunning) {
         pendingBracket.value = newState   // defer until animation finishes
@@ -421,19 +424,16 @@ onMounted(async () => {
     // Re-hydrate on reconnect — REST covers gap while WS was disconnected
     getBattleState().then(state => {
       if (state && (state.bracket?.topSize || state.bracket?.rounds)) {
-        const snapshot = JSON.stringify(state)
-        if (snapshot !== lastBracketSnapshot.value) {
-          lastBracketSnapshot.value = snapshot
-          if (state.bracket && !animRunning) {
+        if (state.bracket && !animRunning) {
+          const incoming = JSON.stringify(state.bracket)
+          if (incoming !== JSON.stringify(bracketState.value)) {
             bracketState.value = state.bracket
           }
-          if (state.currentPair?.left) {
-            activePair.value = { left: state.currentPair.left, right: state.currentPair.right }
-          }
-          if (state.genreName) {
-            currentGenre.value = state.genreName
-          }
         }
+        if (state.currentPair?.left) {
+          activePair.value = { left: state.currentPair.left, right: state.currentPair.right }
+        }
+        if (state.genreName) currentGenre.value = state.genreName
       }
     }).catch(() => {})
   }

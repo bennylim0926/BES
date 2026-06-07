@@ -4,7 +4,7 @@ import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipan
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { RouterLink, useRouter, onBeforeRouteLeave } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import { useAuthStore } from '@/utils/auth';
@@ -35,6 +35,7 @@ const modalVariant = ref("info")
 const showModal = ref(false)
 const showMiniMenu = ref(false)
 const dynamicCallBack = ref(() => {})
+const emceeRoundRef = ref(null)
 
 const resetConfirmCode = ref("")
 const resetCodeError = ref("")
@@ -344,6 +345,7 @@ const uniqueGenres = computed(() => {
 })
 
 const submitScore = async (eventName, genreName, judgeName, participantList) => {
+  scoreError.value = ''
   if (judgeName === "") {
     openModal("Missing Judge", "Please select a judge before submitting.", "warning")
     return
@@ -363,17 +365,23 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
     openModal("No Participants", "No participants found for this judge/genre combination. Select a judge filter to view your assigned participants.", "warning")
     return
   }
-  const res = await submitParticipantScore(eventName, genreName, judgeName, p)
-  if (res?.ok) {
-    participants.value = participants.value.map(obj =>
-      participantList.some(pl => pl.auditionNumber === obj.auditionNumber && pl.genreName === obj.genreName)
-        ? { ...obj, submitted: true }
-        : obj
-    )
-    openModal("Scores Submitted", "All scores have been saved successfully.", "success")
-  } else {
-    const errText = res ? await res.text().catch(() => "") : "Network error"
-    openModal("Submit Failed", `Could not save scores (${res?.status ?? "no response"}). ${errText}`, "warning")
+  try {
+    const res = await submitParticipantScore(eventName, genreName, judgeName, p)
+    if (res?.ok) {
+      participants.value = participants.value.map(obj =>
+        participantList.some(pl => pl.auditionNumber === obj.auditionNumber && pl.genreName === obj.genreName)
+          ? { ...obj, submitted: true }
+          : obj
+      )
+      openModal("Scores Submitted", "All scores have been saved successfully.", "success")
+    } else {
+      const errText = res ? await res.text().catch(() => "") : "Network error"
+      scoreError.value = `Could not save scores (${res?.status ?? "no response"}). ${errText}`
+      openModal("Submit Failed", scoreError.value, "warning")
+    }
+  } catch (e) {
+    scoreError.value = `Score submission failed: ${e.message}`
+    openModal("Submit Failed", scoreError.value, "error")
   }
 }
 
@@ -564,6 +572,7 @@ watch([currentJudge, selectedGenre], loadFeedbackGiven)
 // ───────────────────────────────────────────────────────────────────────────
 
 const showFilters = ref(false)
+const scoreError = ref('')
 const hasActiveSession = computed(() => !!selectedGenre.value && !!selectedRole.value)
 const router = useRouter()
 const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
@@ -590,6 +599,13 @@ watch(hasActiveSession, (active) => {
     document.body.style.height = ''
   }
 }, { immediate: true })
+
+// Reset the audition timer when navigating away (e.g., to Score page).
+// The timer slides up and out, then navigation proceeds.
+onBeforeRouteLeave(() => {
+  emceeRoundRef.value?.resetTimer()
+  return new Promise(resolve => setTimeout(resolve, 300))
+})
 
 onUnmounted(() => {
   wsClients.forEach(c => deactivateClient(c));
@@ -845,6 +861,37 @@ onMounted(async () => {
       </RouterLink>
     </div>
 
+    <!-- Score error banner -->
+    <div
+      v-if="scoreError"
+      class="flex items-center gap-3 px-4 py-3 mb-4"
+      style="border-left:3px solid rgb(239 68 68);background:rgba(239,68,68,0.1)"
+    >
+      <span class="inline-block w-2 h-2 rounded-full bg-red-400 flex-shrink-0" style="box-shadow:0 0 6px rgba(239,68,68,0.8)"></span>
+      <span class="type-label text-red-300/90 flex-1">{{ scoreError }}</span>
+      <button
+        @click="scoreError = ''"
+        class="para-chip-sm px-2.5 py-1 type-label text-content-muted hover:text-content-primary transition-colors flex-shrink-0"
+      >DISMISS</button>
+    </div>
+
+    <!-- Role-aware guidance -->
+    <div
+      v-if="selectedRole === 'Judge'"
+      class="px-4 py-3 mb-4 type-label"
+      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
+    >
+      You are scoring as <strong style="color:var(--accent-color)">{{ currentJudge || 'yourself' }}</strong>.
+      Swipe through audition cards and tap a score to save.
+    </div>
+    <div
+      v-else-if="selectedRole === 'Emcee'"
+      class="px-4 py-3 mb-4 type-label"
+      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
+    >
+      You are viewing as Emcee. Track participant progress, scores, and the audition flow.
+    </div>
+
     <!-- Emcee view: Timer + round view -->
     <div class="section-rule mb-4">
       <span class="section-rule-label">Participants</span>
@@ -853,11 +900,29 @@ onMounted(async () => {
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView
+        ref="emceeRoundRef"
         :key="selectedGenre"
         :participants="filteredParticipantsForEmceeView"
         :mode="judgingMode"
       />
     </template>
+
+    <!-- Emcee: no participants in this genre -->
+    <div
+      v-else-if="selectedRole === 'Emcee' && selectedGenre"
+      class="flex flex-col items-center justify-center h-full text-center"
+    >
+      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
+        <i class="pi pi-list text-content-muted text-xl"></i>
+      </div>
+      <p class="type-body text-content-secondary">No participants in {{ selectedGenre }}</p>
+      <p class="type-label text-content-muted mt-1">Participants will appear here once they are checked in and have audition numbers</p>
+      <div class="mt-4 px-5 py-3" style="border-left:3px solid rgba(245,158,11,0.8);background:rgba(245,158,11,0.07);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+        <p class="type-label text-amber-300/80">
+          {{ participants.filter(p => p.genreName === selectedGenre).length }} total in {{ selectedGenre }}
+        </p>
+      </div>
+    </div>
 
     <!-- Judge: no identity selected -->
     <div

@@ -39,15 +39,22 @@ const lastChartState = ref('')  // JSON diff guard
 const activeLeft  = computed(() => smokeParticipants.value[0] ?? null)
 const activeRight = computed(() => smokeParticipants.value[1] ?? null)
 
-// Flatten participants + stable spacer entries so TransitionGroup FLIP has a unique
-// key per DOM node — prevents vs-chip/queue-gap from sharing keys with their
-// surrounding participant and causing jitter during queue reorders.
+// Display in queue order so the chart mirrors the LiveMatchPanel queue.
+// Active battlers (positions 0 and 1) are highlighted with left/right colors.
+// A VS chip sits between the active pair, and a gap separates the queue.
 const chartItems = computed(() => {
   const result = []
   smokeParticipants.value.forEach((p, idx) => {
     if (idx === 1) result.push({ _type: 'vs',  _key: '__vs__' })
     if (idx === 2) result.push({ _type: 'gap', _key: '__gap__' })
-    result.push({ _type: 'col', _key: p.name, _idx: idx, name: p.name, score: p.score })
+    result.push({
+      _type:    'col',
+      _key:     p.name || `__empty_${idx}__`,
+      _isLeft:  idx === 0,
+      _isRight: idx === 1,
+      name:     p.name,
+      score:    p.score
+    })
   })
   return result
 })
@@ -132,17 +139,6 @@ const updateScore = async (msg) => {
   }
   // winner === -1 (tie): no score change
 
-  // Champion check: did the winner just reach 7?
-  if (!showChampion.value && (winner === 0 || winner === 1)) {
-    const champ = smokeParticipants.value[winner]
-    if (champ && champ.score >= 7) {
-      champName.value  = champ.name
-      champColor.value = winner === 0 ? overlayConfig.value.leftColor : overlayConfig.value.rightColor
-      showChampion.value = true
-      return  // champion overlay takes over — skip the regular result overlay
-    }
-  }
-
   // Fetch fresh judge votes from API at reveal time — avoids race where per-judge WS
   // subscriptions haven't connected yet and the local battleJudges still shows stale/cleared votes
   const freshJudges = await getBattleJudges()
@@ -151,9 +147,29 @@ const updateScore = async (msg) => {
   resultState.value = { winner, leftName, rightName, judges }
   showResult.value = true
 
-  await useDelay().wait(4000)
+  // Champion check: did the winner just reach 7?
+  // Show the result overlay WITH judge votes first, then transition to champion overlay.
+  let isChampion = false
+  if (!showChampion.value && (winner === 0 || winner === 1)) {
+    const champ = smokeParticipants.value[winner]
+    if (champ && champ.score >= 7) {
+      isChampion = true
+      champName.value  = champ.name
+      champColor.value = winner === 0 ? overlayConfig.value.leftColor : overlayConfig.value.rightColor
+      // Don't show champion yet — let the result overlay display first so
+      // the audience sees the judge votes before the final winner is announced.
+    }
+  }
+
+  await useDelay().wait(isChampion ? 5000 : 4000)
   if (unmounted) return
   showResult.value = false
+
+  if (isChampion) {
+    await useDelay().wait(400)
+    if (unmounted) return
+    showChampion.value = true
+  }
 }
 
 // ── State hydration (used on WS connect + reconnect) ────────────────────────
@@ -173,6 +189,11 @@ const hydrateChartFromState = (state) => {
   if (state.judges?.length) {
     battleJudges.value = { judges: state.judges }
     updateBattleJudge({ judges: state.judges })
+  }
+
+  // Smoke participants — restore from state on page-refresh recovery
+  if (state.smokeBattlers?.length) {
+    smokeParticipants.value = state.smokeBattlers
   }
 }
 
@@ -251,7 +272,7 @@ onBeforeUnmount(() => {
           :class="
             item._type === 'vs'  ? 'vs-chip' :
             item._type === 'gap' ? 'queue-gap' :
-            ['smoke-col', { 'col-active-left': item._idx === 0, 'col-active-right': item._idx === 1 }]
+            ['smoke-col', { 'col-active-left': item._isLeft, 'col-active-right': item._isRight }]
           "
           :aria-hidden="item._type !== 'col' ? 'true' : undefined"
         >
@@ -533,24 +554,6 @@ body.transparent-page #app {
   text-shadow: 0 0 12px color-mix(in srgb, var(--right-color) 80%, transparent);
 }
 
-/* ── VS chip ──────────────────────────────────────────── */
-.vs-chip {
-  flex: 0 0 clamp(16px, 2.2vw, 26px);
-  align-self: flex-end;
-  margin-bottom: clamp(20px, 3vw, 30px);
-  display: flex; align-items: center; justify-content: center;
-  font-size: clamp(7px, 0.9vw, 10px);
-  letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.5);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 4px;
-  background: rgba(255,255,255,0.04);
-  padding: 3px 0; line-height: 1;
-}
-
-/* ── Queue gap ────────────────────────────────────────── */
-.queue-gap { flex: 0 0 clamp(8px, 1.4vw, 16px); }
-
 /* ── Design B: ghost names behind chart ───────────────── */
 .bg-names {
   position: absolute; z-index: 1;
@@ -579,6 +582,24 @@ body.transparent-page #app {
 .col-move {
   transition: transform 0.85s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
+
+/* ── VS chip ──────────────────────────────────────────── */
+.vs-chip {
+  flex: 0 0 clamp(16px, 2.2vw, 26px);
+  align-self: flex-end;
+  margin-bottom: clamp(20px, 3vw, 30px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(7px, 0.9vw, 10px);
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  padding: 3px 0; line-height: 1;
+}
+
+/* ── Queue gap ────────────────────────────────────────── */
+.queue-gap { flex: 0 0 clamp(8px, 1.4vw, 16px); }
 
 /* ══════════════════════════════════════════════════
    RESULT OVERLAY
