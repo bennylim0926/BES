@@ -1570,6 +1570,7 @@ watch(selectedGenre, async (newVal, oldVal) => {
     const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
     if (genreNeedsSmoke) {
       if (Number(topSize.value) !== 7) {
+        skipSizeChangeClear = true
         topSize.value = 7
       }
     } else if (Number(topSize.value) === 7) {
@@ -1633,19 +1634,18 @@ watch(selectedGenre, async (newVal, oldVal) => {
 
 watch(topSize, async (newVal, oldVal) => {
   if (!newVal) return
-  // On user-initiated size change, reset the round tab and bracket.
-  // Programmatic changes (recovery, genre switch, hydration) set skipSizeChangeClear
-  // so the restored bracket and tab position are not wiped before the caller finishes.
-  if (!skipSizeChangeClear) {
+  // Save before reset: programmatic changes (recovery, genre switch, hydration) set
+  // skipSizeChangeClear so restored bracket/tab are not wiped and not re-broadcast
+  // before the caller finishes restoring state.
+  const programmatic = skipSizeChangeClear
+  if (!programmatic) {
     if (selectedEvent.value && selectedGenre.value) {
       viewedRoundIdx.value = 0
     }
     rounds.value = initRounds()
   }
   currentWinner.value = -2
-  // Only clear battle on user-initiated size change (not programmatic from
-  // genre switch or initial load). The onMounted recovery handles init.
-  if (oldVal && !skipSizeChangeClear) {
+  if (oldVal && !programmatic) {
     await clearBattlePair()
     await setBattlePhase('IDLE')
     battlePhase.value = 'IDLE'
@@ -1653,9 +1653,10 @@ watch(topSize, async (newVal, oldVal) => {
     currentTop.value = ''
   }
   skipSizeChangeClear = false
-  // Guard against broadcasting before event/genre are known, and on initial load (oldVal is
-  // undefined on first fire). Broadcasting initRounds() on mount corrupts the stored bracket.
-  if (oldVal && selectedEvent.value && selectedGenre.value) broadcastBracket()
+  // Only broadcast on user-initiated changes. Programmatic changes (genre switch,
+  // hydration, recovery) restore the real bracket via restoreAndBroadcastGenreBattle
+  // and must not be overwritten by an empty initRounds() broadcast here.
+  if (oldVal && !programmatic && selectedEvent.value && selectedGenre.value) broadcastBracket()
 
   // State is restored from /topic/battle/state via hydrateFromState
   currentBattle.value = []
