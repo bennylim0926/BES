@@ -117,7 +117,7 @@ function navigateToBattle() {
         No divisions assigned. Contact an organiser to be added to this event's judging panel.
       </div>
 
-      <!-- Division rows with action buttons -->
+      <!-- Division rows with role-aware action buttons -->
       <div v-else class="division-list">
         <div v-for="(d, i) in divisions" :key="i" class="division-row">
           <div class="division-info">
@@ -126,13 +126,20 @@ function navigateToBattle() {
           </div>
           <div class="division-actions">
             <button
+              v-if="d.isAudition"
               @click="navigateToAudition(d.divisionName)"
               class="action-btn action-btn--audition"
             >AUDITION</button>
             <button
+              v-if="d.isBattle"
               @click="navigateToBattle()"
               class="action-btn action-btn--battle"
             >BATTLE</button>
+            <span
+              v-if="!d.isAudition && !d.isBattle"
+              class="empty-text"
+              style="font-size:10px"
+            >NO ACTIONS</span>
           </div>
         </div>
       </div>
