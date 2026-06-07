@@ -461,7 +461,7 @@ public class BattleService {
         if (!battlers.isEmpty()) {
             state.put("smokeBattlers", new ArrayList<>(battlers));
         }
-        // Recoverable timer state — recalculate timeLeft from elapsed wall-clock
+        // Recoverable per-round timer state — recalculate timeLeft from elapsed wall-clock
         if (lastTimerPayload != null) {
             Map<String, Object> timer = new HashMap<>(lastTimerPayload);
             if (Boolean.TRUE.equals(timer.get("running"))) {
@@ -476,15 +476,31 @@ public class BattleService {
             }
             state.put("timer", timer);
         }
+        // Recoverable format timer state — recalculate timeLeft from elapsed wall-clock
+        if (lastFormatTimerPayload != null) {
+            Map<String, Object> ft = new HashMap<>(lastFormatTimerPayload);
+            if (Boolean.TRUE.equals(ft.get("running"))) {
+                long elapsedSec = (System.currentTimeMillis() - formatTimerLastUpdated) / 1000;
+                int currentLeft = ((Number) ft.getOrDefault("timeLeft", 0)).intValue();
+                int adjusted = Math.max(0, currentLeft - (int) elapsedSec);
+                ft.put("timeLeft", adjusted);
+                if (adjusted <= 0) {
+                    ft.put("running", false);
+                    ft.put("timeLeft", 0);
+                    ft.put("expired", true);
+                }
+            }
+            state.put("formatTimer", ft);
+        }
         return state;
     }
 
     public String getActiveEventName() { return activeEventName; }
     public String getActiveGenreName() { return activeGenreName; }
 
-    // ── Timer state recovery ─────────────────────────────────────────
+    // ── Per-round timer state recovery ──────────────────────────────
     private Map<String, Object> lastTimerPayload = null;
-    private long timerLastUpdated = 0; // System.currentTimeMillis() when last payload arrived
+    private long timerLastUpdated = 0;
 
     public void handleTimerPayload(Map<String, Object> payload) {
         this.lastTimerPayload = new HashMap<>(payload);
@@ -496,6 +512,32 @@ public class BattleService {
     public void rebroadcastTimer(Object timerState) {
         if (timerState != null) {
             messagingTemplate.convertAndSend("/topic/battle/timer", timerState);
+        }
+    }
+
+    // ── Format timer state (7-to-Smoke session-level countdown) ─────
+    private Map<String, Object> lastFormatTimerPayload = null;
+    private long formatTimerLastUpdated = 0;
+
+    public void handleFormatTimerPayload(Map<String, Object> payload) {
+        this.lastFormatTimerPayload = new HashMap<>(payload);
+        this.formatTimerLastUpdated = System.currentTimeMillis();
+        messagingTemplate.convertAndSend("/topic/battle/format-timer", payload);
+        persistFormatTimer();
+    }
+
+    private void persistFormatTimer() {
+        if (activeEventName == null || activeGenreName == null || lastFormatTimerPayload == null) return;
+        try {
+            BattleGenreState s = battleGenreStateRepository
+                .findByEventNameAndGenreName(activeEventName, activeGenreName)
+                .orElse(null);
+            if (s == null) return;
+            s.setFormatTimerJson(objectMapper.writeValueAsString(lastFormatTimerPayload));
+            s.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(s);
+        } catch (Exception e) {
+            System.err.println("Failed to persist format timer: " + e.getMessage());
         }
     }
 
@@ -528,6 +570,9 @@ public class BattleService {
             s.setSmokeListJson(objectMapper.writeValueAsString(new ArrayList<>(battlers)));
             synchronized (judges) {
                 s.setJudgesJson(objectMapper.writeValueAsString(new ArrayList<>(judges)));
+            }
+            if (lastFormatTimerPayload != null) {
+                s.setFormatTimerJson(objectMapper.writeValueAsString(lastFormatTimerPayload));
             }
             s.setUpdatedAt(LocalDateTime.now());
             battleGenreStateRepository.save(s);
@@ -579,6 +624,13 @@ public class BattleService {
                     judges.addAll(restored);
                 }
             }
+            if (s.getFormatTimerJson() != null) {
+                lastFormatTimerPayload = objectMapper.readValue(
+                    s.getFormatTimerJson(), new TypeReference<Map<String, Object>>(){});
+                formatTimerLastUpdated = System.currentTimeMillis();
+            } else {
+                lastFormatTimerPayload = null;
+            }
         } catch (Exception e) {
             System.err.println("Failed to load genre state from DB: " + e.getMessage());
             resetToDefaults();
@@ -599,14 +651,18 @@ public class BattleService {
         champion = null;
         battlers = new ArrayList<>();
         synchronized (judges) { judges.clear(); }
+        lastFormatTimerPayload = null;
+        formatTimerLastUpdated = 0;
     }
 
     private void broadcastStateSnapshot() {
         Map<String, Object> state = getBattleStateService();
         messagingTemplate.convertAndSend("/topic/battle/state", state);
-        // Also rebroadcast timer so BattleTimer can recover on page refresh
         if (state.containsKey("timer")) {
             messagingTemplate.convertAndSend("/topic/battle/timer", state.get("timer"));
+        }
+        if (state.containsKey("formatTimer")) {
+            messagingTemplate.convertAndSend("/topic/battle/format-timer", state.get("formatTimer"));
         }
     }
 

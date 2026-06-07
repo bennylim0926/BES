@@ -40,7 +40,9 @@ const showRecoveryBanner = ref(false)
 const recoveryState      = ref(null)
 const genreChampions     = ref({})
 const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
-const recoveredTimer = ref(null)   // { running, timeLeft, totalDuration } from backend state
+const recoveredTimer       = ref(null)   // { running, timeLeft, totalDuration } from backend state
+const recoveredFormatTimer = ref(null)   // { running, timeLeft, totalDuration, expired } from backend state
+const lmpRef               = ref(null)   // ref to LiveMatchPanel — for triggerFormatTimerStart
 const lastSetWinnerTime = ref(0)   // timestamp of last local setWinner call (prevents stale WS overwrites)
 let setWinnerCooldown = null       // timeout handle for clearing the cooldown
 
@@ -162,7 +164,10 @@ const hydrateFromState = (state) => {
     } catch (_) { resolvedParticipants.value = null }
   }
   if (state.timer) {
-    recoveredTimer.value = state.timer  // { running, timeLeft, totalDuration }
+    recoveredTimer.value = state.timer
+  }
+  if (state.formatTimer) {
+    recoveredFormatTimer.value = state.formatTimer
   }
 }
 
@@ -236,6 +241,7 @@ const confirmStartAt = async () => {
   if (!pendingStartAt.value) return
   if (pendingStartAt.value.smoke) {
     pendingStartAt.value = null
+    lmpRef.value?.triggerFormatTimerStart()
     await initiateBattlePair()
     return
   }
@@ -1395,6 +1401,14 @@ const submitGetScore = async () => {
     currentWinner.value = Number(data.winner)
     await setBattlePhase('REVEALED')
     battlePhase.value = 'REVEALED'
+    // If format timer expired, fetch fresh battler scores (guaranteed up-to-date)
+    // and resolve the session winner. Avoids race with WS-delivered rounds update.
+    if (lmpRef.value?.isFormatTimerExpired?.()) {
+      const freshState = await getBattleState()
+      if (freshState?.smokeBattlers?.length) {
+        lmpRef.value.checkFormatWinnerIfExpired(freshState.smokeBattlers)
+      }
+    }
     return
   }
   if (currentBattle.value.length === 0) return
@@ -1442,7 +1456,15 @@ const lockChampion = async () => {
   genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
   await setBattlePhase('DECIDED', winner)
   battlePhase.value = 'DECIDED'
+}
 
+const handleForceSmokeWinner = async (battler) => {
+  if (!battler?.name) return
+  genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: battler.name }
+  await setBattlePhase('DECIDED', battler.name)
+  battlePhase.value = 'DECIDED'
+  await revealChampion(selectedGenre.value, battler.name)
+  revealActive.value = true
 }
 
 const unlockChampion = async () => {
@@ -2592,6 +2614,7 @@ onUnmounted(() => {
 
     <!-- Live Match panel — rendered for all roles, acts as orchestrator -->
     <LiveMatchPanel
+      ref="lmpRef"
       :selectedEvent="selectedEvent"
       :selectedGenre="selectedGenre"
       :uniqueGenres="uniqueGenres"
@@ -2617,6 +2640,7 @@ onUnmounted(() => {
       :revealActive="revealActive"
       :activeRoundIdx="viewedRoundIdx"
       :recoveryTimer="recoveredTimer"
+      :recoveryFormatTimer="recoveredFormatTimer"
       :guestsForCurrentGenre="guestsForCurrentGenre"
       @request-genre-change="requestGenreChange"
       @open-voting="openVoting"
@@ -2629,6 +2653,7 @@ onUnmounted(() => {
       @unlock-champion="unlockChampion"
       @set-round="(idx) => { viewedRoundIdx = idx }"
       @start-round="handleEmceeStartRound"
+      @force-smoke-winner="handleForceSmokeWinner"
       @set-winner="(roundKey, matchIdx, slotIdx) => requestWin(roundKey, matchIdx, slotIdx)"
       @request-start-at="(top, pairList, matchIdx) => requestStartAt(top, pairList, matchIdx)"
       @request-start-all="(top, pairList) => requestStartAll(top, pairList)"
@@ -2670,7 +2695,7 @@ onUnmounted(() => {
     <!-- Start-from-here confirmation modal -->
     <Transition name="fade">
       <div v-if="pendingStartAt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
+        <div class="confirm-modal card-hover p-6 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
           <div class="corner-bar-tl"></div>
           <div class="type-page-title text-lg mb-4">Confirm Battle Round</div>
 
@@ -2703,6 +2728,17 @@ onUnmounted(() => {
               <span class="text-content-primary">{{ pendingStartAt.player1 }}</span>
               <span class="text-content-muted mx-2">vs</span>
               <span class="text-content-primary">{{ pendingStartAt.player2 }}</span>
+            </p>
+
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Format Timer</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <p class="type-body text-content-primary mb-1">
+              {{ lmpRef?.formatTimerSelectedMinutes ?? 30 }} min
+            </p>
+            <p class="type-label text-content-muted mb-3" style="font-size:10px;letter-spacing:0.12em">
+              Timer auto-starts on first round. Change duration in the Format Timer panel before confirming.
             </p>
           </template>
 
@@ -2737,7 +2773,7 @@ onUnmounted(() => {
             <p v-else class="type-body text-content-primary mb-4">All matches in this round will be started from the beginning.</p>
           </template>
 
-          <div class="flex gap-3 justify-end">
+          <div class="confirm-modal-actions flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
             <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all" :disabled="!(battleJudges?.judges ?? []).length">
               <i class="pi pi-play text-xs mr-1.5"></i>Start Round
@@ -2916,4 +2952,27 @@ onUnmounted(() => {
 .recovery-fade-leave-active { transition: opacity 0.3s ease; }
 .recovery-fade-enter-from,
 .recovery-fade-leave-to { opacity: 0; }
+
+/* ── Confirm modal — mobile responsiveness ───────────────────── */
+@media (max-width: 640px) {
+  .confirm-modal {
+    padding: 20px 16px;
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+
+  .confirm-modal-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .confirm-modal-actions button {
+    width: 100%;
+    justify-content: center;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+  }
+}
 </style>

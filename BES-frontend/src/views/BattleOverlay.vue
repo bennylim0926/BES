@@ -126,10 +126,14 @@ let animToken = 0
 // animation fires after LOCKED confirms and panels mount (isBlank flips false).
 let pendingEntrance = false
 
-// ── Broadcast timer (BattleTimer countdown) ──────────────────────
+// ── Broadcast timer (per-round BattleTimer countdown) ────────────
 const timerState    = ref({ running: false, timeLeft: 0, totalDuration: 0 })
 const showTimer     = ref(false)
 const timerFinished = ref(false)
+
+// ── Format timer (7-to-Smoke session-level countdown) ────────────
+const formatTimerState   = ref({ running: false, timeLeft: 0, totalDuration: 0, expired: false })
+const showFormatTimer    = ref(false)
 
 // Start from URL param; updated in real-time when backend state reports a different genre
 const isSmoke = ref(route.query.isSmoke === 'true')
@@ -600,6 +604,13 @@ onMounted(async () => {
       }, 600)
     }
   })
+
+  // Format timer (session-level 7-to-Smoke countdown)
+  const cFormatTimer = createClient(); clients.push(cFormatTimer)
+  subscribeToChannel(cFormatTimer, '/topic/battle/format-timer', (msg) => {
+    formatTimerState.value = msg
+    showFormatTimer.value = msg.running || msg.expired
+  })
 })
 
 onBeforeUnmount(() => {
@@ -635,6 +646,35 @@ onUnmounted(() => {
           <div class="timer-countdown" :class="{ 'timer-text-warning': timerState.timeLeft <= 10 }">
             {{ Math.floor(timerState.timeLeft / 60) }}:{{ String(timerState.timeLeft % 60).padStart(2, '0') }}
           </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Format timer — full-width bar at bottom, smoke mode only.
+         Per-round match timer stays at top-center; this lives at the bottom
+         so both can coexist. Chart content gets padding-bottom to clear it. -->
+    <Transition name="fmt-bar-enter">
+      <div v-if="isSmoke && showFormatTimer" class="fmt-bar" :class="{ 'fmt-bar-expired': formatTimerState.expired }">
+        <!-- Progress fill behind everything -->
+        <div
+          v-if="!formatTimerState.expired"
+          class="fmt-bar-fill"
+          :class="{ 'fmt-bar-fill-warning': formatTimerState.timeLeft <= 300 }"
+          :style="{ width: (formatTimerState.totalDuration > 0 ? (formatTimerState.timeLeft / formatTimerState.totalDuration) * 100 : 0) + '%' }"
+        ></div>
+        <!-- Text overlay -->
+        <div class="fmt-bar-inner">
+          <span
+            class="fmt-bar-time"
+            :class="{
+              'fmt-bar-time-warning': !formatTimerState.expired && formatTimerState.timeLeft <= 300,
+              'fmt-bar-time-expired': formatTimerState.expired
+            }"
+          >
+            {{ formatTimerState.expired
+              ? 'BATTLE HAS ENDED'
+              : (Math.floor(formatTimerState.timeLeft / 60) + ':' + String(formatTimerState.timeLeft % 60).padStart(2, '0')) }}
+          </span>
         </div>
       </div>
     </Transition>
@@ -854,7 +894,7 @@ onUnmounted(() => {
          SMOKE MODE  (isSmoke = true)
     ═══════════════════════════════════════════════════ -->
     <template v-else>
-      <Chart />
+      <Chart :bottom-pad="showFormatTimer ? 52 : 0" />
     </template>
 
   </div>
@@ -1587,6 +1627,74 @@ body.transparent-page #app {
 .timer-enter-leave-active { animation: timer-slide-out 200ms ease-in; }
 @keyframes timer-slide-in { from { opacity: 0; transform: translateX(-50%) translateY(-100%); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes timer-slide-out { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-100%); } }
+
+/* ── Format timer — full-width bottom bar (smoke mode only) ─────── */
+/* Per-round match timer lives at top-center (narrow centered bar). */
+/* This bar spans the full width at the bottom and is taller, so   */
+/* the two are clearly different in size, position, and purpose.   */
+.fmt-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  z-index: 100;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.82);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.fmt-bar-expired {
+  border-top-color: rgba(239, 68, 68, 0.4);
+  background: rgba(20, 0, 0, 0.88);
+}
+/* Progress fill sweeps from left — sits behind text layer */
+.fmt-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-color, #fff);
+  opacity: 0.07;
+  transition: width 1s linear;
+  transform-origin: left;
+}
+.fmt-bar-fill-warning {
+  background: #fbbf24;
+  opacity: 0.10;
+}
+/* Text layer — label + time centred vertically */
+.fmt-bar-inner {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.fmt-bar-label {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.30em;
+  color: rgba(255, 255, 255, 0.30);
+  line-height: 1;
+}
+.fmt-bar-time {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.80);
+  font-variant-numeric: tabular-nums;
+}
+.fmt-bar-time-warning { color: #fbbf24; }
+.fmt-bar-time-expired {
+  color: #ef4444;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+  animation: fmt-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes fmt-pulse { from { opacity: 1; } to { opacity: 0.5; } }
+.fmt-bar-enter-enter-active { transition: transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 300ms; }
+.fmt-bar-enter-leave-active { transition: transform 200ms ease-in, opacity 200ms; }
+.fmt-bar-enter-enter-from, .fmt-bar-enter-leave-to { transform: translateY(100%); opacity: 0; }
 @keyframes timer-pulse-bar { from { opacity: 0.6; } to { opacity: 1; } }
 @keyframes timer-pulse-text { from { opacity: 0.7; transform: scale(1); } to { opacity: 1; transform: scale(1.03); } }
 

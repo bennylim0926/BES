@@ -8,10 +8,12 @@
  * Props are passed by the BattleControl orchestrator parent.
  * Every write action is emitted up for the parent to handle.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BattleTimer from '@/components/BattleTimer.vue'
+import SmokeFormatTimer from '@/components/SmokeFormatTimer.vue'
 
-const battleTimerRef = ref(null)
+const battleTimerRef      = ref(null)
+const smokeFormatTimerRef = ref(null)
 
 const props = defineProps({
   selectedEvent:             { type: String,  required: true },
@@ -39,6 +41,7 @@ const props = defineProps({
   revealActive:              { type: Boolean, default: false },
   activeRoundIdx:            { type: Number,  default: 0 },
   recoveryTimer:             { type: Object,  default: null },
+  recoveryFormatTimer:       { type: Object,  default: null },
   guestsForCurrentGenre:     { type: Array,   default: () => [] },
 })
 
@@ -57,14 +60,62 @@ const emit = defineEmits([
   'set-winner',
   'request-start-at',
   'request-start-all',
+  'force-smoke-winner',
 ])
+
+// ── Format timer winner picker ───────────────────────────────────
+const showSmokeWinnerPicker  = ref(false)
+const smokeWinnerCandidates  = ref([])   // [{ name, score }]
+const autoSmokeWinner        = ref(null) // set when single clear top scorer
 
 function handleGetScore() {
   battleTimerRef.value?.resetTimer()
-  // Brief pause — let the timer clear before the judge result arrives,
-  // so the two events don't rush over each other.
   setTimeout(() => emit('get-score'), 400)
 }
+
+/**
+ * Called by BattleControl after scoring completes with a fresh battler list from
+ * the server. Only acts when the format timer is actually expired.
+ */
+function checkFormatWinnerIfExpired(battlers) {
+  if (!smokeFormatTimerRef.value?.isExpired) return
+  const filtered = (battlers ?? []).filter(b => b?.name)
+  if (!filtered.length) return
+  const maxScore = Math.max(...filtered.map(b => b.score ?? 0))
+  const topBattlers = filtered.filter(b => (b.score ?? 0) === maxScore)
+  if (topBattlers.length === 1) {
+    emit('force-smoke-winner', topBattlers[0])
+  } else {
+    smokeWinnerCandidates.value = filtered
+    autoSmokeWinner.value = null
+    showSmokeWinnerPicker.value = true
+  }
+}
+
+function isFormatTimerExpired() {
+  return !!smokeFormatTimerRef.value?.isExpired
+}
+
+function confirmSmokeWinner(battler) {
+  showSmokeWinnerPicker.value = false
+  emit('force-smoke-winner', battler)
+}
+
+/** Called by BattleControl after the existing Start Round confirmation is accepted. */
+function triggerFormatTimerStart() {
+  smokeFormatTimerRef.value?.autoStartIfIdle()
+}
+
+// Stop the format timer when the smoke battle is decided (natural 7-smoke or format expiry)
+watch(() => props.battlePhase, (phase) => {
+  if (phase === 'DECIDED' && props.isSmoke) {
+    smokeFormatTimerRef.value?.resetTimer()
+  }
+})
+
+const formatTimerSelectedMinutes = computed(() => smokeFormatTimerRef.value?.selectedMinutes ?? 30)
+
+defineExpose({ triggerFormatTimerStart, formatTimerSelectedMinutes, isFormatTimerExpired, checkFormatWinnerIfExpired })
 
 // ── Genre status dot ─────────────────────────────────────────────
 // Returns 'champion' | 'active' | 'idle'
@@ -409,6 +460,15 @@ const viewedPairList = computed(() => {
           :phase="battlePhase"
           :stomp-client="stompClient"
           :recovery-state="recoveryTimer"
+        />
+      </div>
+
+      <!-- 7-to-Smoke format timer (session-level countdown) -->
+      <div v-if="isSmoke" class="mb-4">
+        <SmokeFormatTimer
+          ref="smokeFormatTimerRef"
+          :stomp-client="stompClient"
+          :recovery-state="recoveryFormatTimer"
         />
       </div>
 
@@ -918,6 +978,50 @@ const viewedPairList = computed(() => {
       </div>
     </div>
   </div>
+
+  <!-- ── Smoke Format Winner Picker Modal ──────────────────────── -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showSmokeWinnerPicker" class="smoke-picker-overlay" @click.self="showSmokeWinnerPicker = false">
+        <div class="smoke-picker-modal">
+          <div class="section-rule mb-4">
+            <span class="section-rule-label">BATTLE HAS ENDED</span>
+            <span class="section-rule-line"></span>
+          </div>
+
+          <p class="type-label text-content-muted mb-4" style="font-size:11px;letter-spacing:0.12em">
+            {{ autoSmokeWinner ? 'CLEAR WINNER BY SCORE — CONFIRM TO DECLARE CHAMPION' : 'SCORES ARE TIED — SELECT THE FORMAT WINNER' }}
+          </p>
+
+          <div class="flex flex-col gap-2 mb-5">
+            <button
+              v-for="b in smokeWinnerCandidates"
+              :key="b.name"
+              class="smoke-picker-row"
+              :class="{
+                'smoke-picker-row-top': autoSmokeWinner?.name === b.name,
+                'smoke-picker-row-tied': !autoSmokeWinner && smokeWinnerCandidates.filter(x => x.score === Math.max(...smokeWinnerCandidates.map(x => x.score ?? 0))).some(x => x.name === b.name)
+              }"
+              @click="confirmSmokeWinner(b)"
+            >
+              <span class="type-body flex-1 truncate">{{ b.name }}</span>
+              <span class="smoke-score-badge">{{ b.score ?? 0 }} <span style="font-size:9px;opacity:0.6">SMK</span></span>
+              <span v-if="autoSmokeWinner?.name === b.name" class="type-label text-accent ml-2" style="font-size:9px">HIGHEST</span>
+              <i class="pi pi-chevron-right text-content-muted text-xs ml-1"></i>
+            </button>
+          </div>
+
+          <button
+            class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary w-full text-center"
+            @click="showSmokeWinnerPicker = false"
+          >
+            CANCEL — CONTINUE BATTLE
+          </button>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
 </template>
 
 <style scoped>
@@ -1112,5 +1216,72 @@ button.border-accent:hover:not(:disabled) {
 /* Pi icon default */
 i.pi {
   font-style: normal;
+}
+
+/* ── Smoke Format Winner Picker ─────────────────────────────── */
+.smoke-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.smoke-picker-modal {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.smoke-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+  min-height: 52px;
+}
+
+.smoke-picker-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.smoke-picker-row-top {
+  border-color: color-mix(in srgb, var(--accent-color) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-color) 6%, transparent);
+}
+
+.smoke-picker-row-tied {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.smoke-score-badge {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  color: var(--accent-color, #fff);
+  flex-shrink: 0;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

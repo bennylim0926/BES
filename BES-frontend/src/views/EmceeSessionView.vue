@@ -235,10 +235,16 @@ function navigate(routeName) {
   line-height: 1.3;
 }
 
-/* Mobile: stack to single column */
+/* Mobile */
 @media (max-width: 480px) {
+  .session-root {
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 32px;
+  }
+
   .session-card {
-    padding: 32px 20px;
+    padding: 28px 20px;
     gap: 20px;
     min-width: 0;
     width: 100%;
@@ -248,16 +254,35 @@ function navigate(routeName) {
     max-width: 100%;
   }
 
+  .session-title {
+    font-size: 24px;
+  }
+
+  .info-value {
+    font-size: 15px;
+  }
+
+  /* 2-column grid on mobile — 3 buttons fit better as 2+1 than a long single column */
   .nav-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .nav-btn {
-    flex-direction: row;
-    gap: 14px;
-    padding: 16px 20px;
-    min-height: 56px;
-    justify-content: flex-start;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 12px;
+    min-height: 96px;
+  }
+
+  .nav-btn-icon {
+    font-size: 1.7rem;
+  }
+
+  .nav-btn-label {
+    font-size: 12px;
+    letter-spacing: 0.1em;
   }
 }
 </style>
