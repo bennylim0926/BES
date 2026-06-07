@@ -26,14 +26,13 @@ describe('BattleTimer', () => {
     expect(wrapper.text()).toContain('45s')
     expect(wrapper.text()).toContain('60s')
     expect(wrapper.text()).toContain('90s')
-    expect(wrapper.text()).toContain('START')
   })
 
-  it('starts countdown when START is clicked', async () => {
+  it('starts countdown when preset is tapped', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     expect(wrapper.find('.countdown-display').exists()).toBe(true)
     expect(wrapper.find('.countdown-display').text()).toMatch(/\d:\d{2}/)
   })
@@ -44,7 +43,7 @@ describe('BattleTimer', () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     vi.advanceTimersByTime(3000)
     const calls = fetchSpy.mock.calls
     expect(calls.length).toBeGreaterThanOrEqual(3)
@@ -59,29 +58,29 @@ describe('BattleTimer', () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    // Start with 30s
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     // Advance 20 seconds (to timeLeft=10) — no unlock emit
     vi.advanceTimersByTime(20000)
     expect(wrapper.emitted('unlock')).toBeFalsy()
   })
 
-  it('resets timer when reset button is clicked', async () => {
+  it('restarts timer when a preset is tapped while running', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s to start
     vi.advanceTimersByTime(5000)
-    await wrapper.find('.reset-btn').trigger('click')
-    expect(wrapper.find('.countdown-display').exists()).toBe(false)
-    expect(wrapper.text()).toContain('30s') // preset buttons visible
+    await wrapper.vm.$nextTick()
+    await wrapper.findAll('button')[1].trigger('click') // tap 45s to restart
+    expect(wrapper.find('.countdown-display').exists()).toBe(true)
+    expect(wrapper.find('.countdown-display').text()).toBe('0:45')
   })
 
   it('keeps counting when phase transitions from LOCKED to VOTING', async () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     vi.advanceTimersByTime(5000)
     await wrapper.setProps({ phase: 'VOTING' })
     // Timer should STILL be running — it keeps counting to 0
@@ -92,7 +91,7 @@ describe('BattleTimer', () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click') // 30s
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     vi.advanceTimersByTime(30000) // all the way to 0
     await wrapper.vm.$nextTick()
     // Should show FINISHED burst (TIME text)
@@ -108,7 +107,7 @@ describe('BattleTimer', () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click') // 30s
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     vi.advanceTimersByTime(21000) // 9s remaining
     await wrapper.vm.$nextTick()
     expect(wrapper.find('.countdown-display').classes()).toContain('text-red-500')
@@ -125,7 +124,7 @@ describe('BattleTimer', () => {
     const wrapper = mount(BattleTimer, {
       props: { phase: 'LOCKED', stompClient: mockStompClient }
     })
-    await wrapper.find('.start-btn').trigger('click')
+    await wrapper.findAll('button')[0].trigger('click') // tap 30s preset
     // Advance full 30s
     vi.advanceTimersByTime(30000)
     // Timer should emit no unlock events

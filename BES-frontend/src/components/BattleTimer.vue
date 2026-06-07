@@ -83,34 +83,6 @@ function tapPreset(seconds) {
   }, 1000)
 }
 
-function startTimer() {
-  if (isRunning.value) return
-  timerState.value = 'RUNNING'
-  totalDuration.value = selectedDuration.value
-  timeLeft.value = selectedDuration.value
-  autoUnlocked.value = false
-
-  publishState()
-
-  clearInterval(intervalId)
-  intervalId = setInterval(() => {
-    timeLeft.value--
-
-    publishState()                      // broadcast every tick
-
-    // At exactly 10 seconds remaining: visual warning pulse (no auto-unlock)
-    // Voting is opened manually by the Emcee after both battlers finish
-    if (timeLeft.value === 10 && !autoUnlocked.value) {
-      autoUnlocked.value = true
-    }
-
-    // At zero: play finish burst, then reset
-    if (timeLeft.value <= 0) {
-      finishTimer()
-    }
-  }, 1000)
-}
-
 function finishTimer() {
   clearInterval(intervalId)
   intervalId = null

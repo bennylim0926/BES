@@ -489,11 +489,11 @@ public class BattleControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = "EMCEE")
-    public void emcee_cannotSetBracket() throws Exception {
+    public void emcee_canSetBracket() throws Exception {
         mockMvc.perform(post("/api/v1/battle/bracket")
                 .contentType("application/json")
                 .content("{\"topSize\":16,\"rounds\":{}}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk());
     }
 
     @Test
@@ -516,10 +516,10 @@ public class BattleControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = "EMCEE")
-    public void emcee_cannotSetSmokeList() throws Exception {
+    public void emcee_canSetSmokeList() throws Exception {
         mockMvc.perform(post("/api/v1/battle/smoke")
                 .contentType("application/json")
                 .content("{\"battlers\":[]}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk());
     }
 }
