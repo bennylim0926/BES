@@ -55,9 +55,32 @@ const progressPct = computed(() => {
 
 // ── Timer methods ──
 
-function selectPreset(seconds) {
-  if (isRunning.value) return
+function tapPreset(seconds) {
+  // Tapping a preset always (re)starts the timer — no separate Start/Reset buttons.
+  if (isRunning.value) {
+    // Reset current timer first, then restart with new duration
+    clearInterval(intervalId)
+    intervalId = null
+    clearTimeout(finishTimeoutId)
+    finishTimeoutId = null
+  }
   selectedDuration.value = seconds
+  timerState.value = 'RUNNING'
+  totalDuration.value = seconds
+  timeLeft.value = seconds
+  autoUnlocked.value = false
+  publishState()
+  clearInterval(intervalId)
+  intervalId = setInterval(() => {
+    timeLeft.value--
+    publishState()
+    if (timeLeft.value === 10 && !autoUnlocked.value) {
+      autoUnlocked.value = true
+    }
+    if (timeLeft.value <= 0) {
+      finishTimer()
+    }
+  }, 1000)
 }
 
 function startTimer() {
@@ -229,7 +252,7 @@ onBeforeUnmount(() => {
     :class="{ 'opacity-40 pointer-events-none': isMuted }"
   >
     <!-- ================================================================ -->
-    <!-- IDLE + LOCKED: Preset selector + START button                   -->
+    <!-- IDLE + LOCKED: Preset selector (tap to start)                  -->
     <!-- ================================================================ -->
     <div v-if="isIdle && isLockedPhase" class="flex flex-col items-center gap-3 py-2">
       <div class="section-rule w-full">
@@ -245,22 +268,15 @@ onBeforeUnmount(() => {
           :class="selectedDuration === p
             ? 'preset-btn-active text-accent'
             : 'text-content-muted hover:text-content-primary hover:border-white/20'"
-          @click="selectPreset(p)"
+          @click="tapPreset(p)"
         >
           {{ p }}s
         </button>
       </div>
-
-      <button
-        class="para-chip-sm start-btn px-5 py-2.5 type-body transition-all duration-150 active:scale-95"
-        @click="startTimer"
-      >
-        START {{ selectedDuration }}s
-      </button>
     </div>
 
     <!-- ================================================================ -->
-    <!-- RUNNING: Progress bar + countdown + RESET                       -->
+    <!-- RUNNING: Progress bar + countdown + presets to restart          -->
     <!-- ================================================================ -->
     <div v-if="isRunning" class="flex flex-col items-center gap-3 py-2">
       <div class="section-rule w-full">
@@ -288,12 +304,19 @@ onBeforeUnmount(() => {
         ></div>
       </div>
 
-      <button
-        class="reset-btn para-chip-sm px-3 py-1.5 type-label transition-all duration-150 active:scale-95"
-        @click="resetTimer"
-      >
-        RESET
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-for="p in presets"
+          :key="p"
+          class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 active:scale-95"
+          :class="totalDuration === p
+            ? 'preset-btn-active text-accent'
+            : 'text-content-muted hover:text-content-primary hover:border-white/20'"
+          @click="tapPreset(p)"
+        >
+          {{ p }}s
+        </button>
+      </div>
     </div>
 
     <!-- ================================================================ -->
@@ -322,32 +345,6 @@ onBeforeUnmount(() => {
 .preset-btn-active:hover {
   border-color: var(--accent-color) !important;
   background: rgba(255, 255, 255, 0.10);
-}
-
-/* ── START button ──────────────────────────────────────────────── */
-.start-btn {
-  border-color: var(--accent-color) !important;
-  color: var(--accent-color);
-}
-.start-btn:hover {
-  border-color: var(--accent-color) !important;
-  background: rgba(255, 255, 255, 0.18);
-  filter: brightness(0.88);
-}
-.start-btn:active {
-  filter: brightness(0.75);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-
-/* ── RESET button ──────────────────────────────────────────────── */
-.reset-btn {
-  color: rgba(255, 255, 255, 0.35);
-  border-color: rgba(255, 255, 255, 0.07);
-}
-.reset-btn:hover {
-  color: #ef4444 !important;
-  border-color: rgba(239, 68, 68, 0.3) !important;
-  background: rgba(239, 68, 68, 0.08);
 }
 
 /* ── Countdown display (28px Anton SC) ──────────────────────────── */
