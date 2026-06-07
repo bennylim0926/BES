@@ -6,6 +6,10 @@ import { createClient, subscribeToChannel, deactivateClient } from '@/utils/webs
 import { useDelay } from '@/utils/utils'
 import { barHeightPct, findScoreGainers } from '@/utils/smokeChartHelpers'
 
+const props = defineProps({
+  bottomPad: { type: Number, default: 0 }
+})
+
 // ── Overlay config ──────────────────────────────────────────────────────────
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
 
@@ -172,6 +176,29 @@ const updateScore = async (msg) => {
   }
 }
 
+// ── Champion helper (used by both WS paths) ──────────────────────────────────
+const showChampionFor = async (name) => {
+  if (!name || showChampion.value) return
+  champName.value = name
+  const idx = smokeParticipants.value.findIndex(p => p.name === name)
+  champColor.value = idx === 0
+    ? overlayConfig.value.leftColor
+    : idx === 1
+      ? overlayConfig.value.rightColor
+      : overlayConfig.value.leftColor
+  // If result overlay is still showing, wait for updateScore to clear it first,
+  // then add the same 400ms pause as the natural 7-smoke champion path.
+  if (showResult.value) {
+    while (showResult.value && !unmounted) {
+      await useDelay().wait(50)
+    }
+    if (unmounted) return
+    await useDelay().wait(400)
+    if (unmounted) return
+  }
+  showChampion.value = true
+}
+
 // ── State hydration (used on WS connect + reconnect) ────────────────────────
 const hydrateChartFromState = (state) => {
   if (!state) return
@@ -194,6 +221,11 @@ const hydrateChartFromState = (state) => {
   // Smoke participants — restore from state on page-refresh recovery
   if (state.smokeBattlers?.length) {
     smokeParticipants.value = state.smokeBattlers
+  }
+
+  // Champion — restore on page refresh when phase is DECIDED
+  if (state.battlePhase === 'DECIDED' && state.champion) {
+    showChampionFor(state.champion)
   }
 }
 
@@ -228,8 +260,16 @@ onMounted(async () => {
   subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
     if (!msg?.phase) return
     battlePhase.value = msg.phase
-    // When phase resets to LOCKED (Next was clicked), dismiss any visible result overlay
     if (msg.phase === 'LOCKED') showResult.value = false
+    // DECIDED broadcast includes champion name — show the overlay immediately
+    if (msg.phase === 'DECIDED' && msg.champion) showChampionFor(msg.champion)
+  })
+
+  const cReveal = createClient(); clients.push(cReveal)
+  subscribeToChannel(cReveal, '/topic/battle/champion-reveal', (msg) => {
+    if (!msg) return
+    if (msg.dismiss) { showChampion.value = false; return }
+    if (msg.championName) showChampionFor(msg.championName)
   })
 
   const cState = createClient(); clients.push(cState)
@@ -253,7 +293,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="smoke-root"
-    :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
+    :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, paddingBottom: props.bottomPad ? props.bottomPad + 'px' : undefined }"
   >
     <!-- Atmospheric background bleeds -->
     <div class="atmo-bleed" aria-hidden="true"></div>
@@ -558,24 +598,28 @@ body.transparent-page #app {
 .bg-names {
   position: absolute; z-index: 1;
   top: 4%; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center;
   padding: 0 14px;
   pointer-events: none;
 }
 .bg-name {
+  flex: 1;
   font-family: 'Anton SC', sans-serif;
   font-size: clamp(32px, 8vw, 110px);
-  letter-spacing: 0.06em; line-height: 1;
+  letter-spacing: 0.06em; line-height: 1.05;
   opacity: 0.1;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
-.bg-name-left  { color: var(--left-color);  text-shadow: 0 0 40px var(--left-color); }
-.bg-name-right { color: var(--right-color); text-shadow: 0 0 40px var(--right-color); }
+.bg-name-left  { color: var(--left-color);  text-shadow: 0 0 40px var(--left-color); text-align: left; }
+.bg-name-right { color: var(--right-color); text-shadow: 0 0 40px var(--right-color); text-align: right; }
 .bg-vs {
   font-family: 'Anton SC', sans-serif;
   font-size: clamp(10px, 2vw, 24px); letter-spacing: 0.2em;
   color: rgba(255,255,255,0.08);
-  flex-shrink: 0; padding: 0 8px;
+  flex-shrink: 0; padding: 0 12px;
+  text-align: center;
 }
 
 /* ── FLIP column slide (TransitionGroup move) ─────────── */

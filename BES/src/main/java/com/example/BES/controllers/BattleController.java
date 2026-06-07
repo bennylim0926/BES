@@ -134,6 +134,13 @@ public class BattleController {
         return ResponseEntity.ok(Map.of("message", "Timer updated"));
     }
 
+    @PostMapping("/format-timer")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
+    public ResponseEntity<?> updateFormatTimer(@RequestBody Map<String, Object> payload) {
+        battleService.handleFormatTimerPayload(payload);
+        return ResponseEntity.ok(Map.of("message", "Format timer updated"));
+    }
+
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){

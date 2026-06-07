@@ -64,6 +64,9 @@ public class BattleGenreState {
     @Column(name = "resolved_participants_json", columnDefinition = "TEXT")
     private String resolvedParticipantsJson;
 
+    @Column(name = "format_timer_json", columnDefinition = "TEXT")
+    private String formatTimerJson;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
