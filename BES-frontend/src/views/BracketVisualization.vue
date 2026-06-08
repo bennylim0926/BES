@@ -103,40 +103,7 @@ const centerColWidth = computed(() => {
   return '185px'
 })
 
-const formatLabel = (key) => key === 'Top2' ? 'FINAL' : key.replace('Top', 'TOP ')
 
-// ── ticker ────────────────────────────────────────────────
-const nextMatch = computed(() => {
-  if (!bracketState.value?.rounds) return null
-  for (const key of roundKeys.value) {
-    for (const m of getMatches(key)) {
-      if (!m[2] && !isActiveMatch(m) && (m[0] || m[1])) return m
-    }
-  }
-  return null
-})
-
-const activeRoundLabel = computed(() => {
-  if (!activePair.value) return null
-  for (const key of roundKeys.value) {
-    if (getMatches(key).some(m => isActiveMatch(m))) return formatLabel(key)
-  }
-  return null
-})
-
-const tickerItems = computed(() => {
-  const items = []
-  if (activePair.value) {
-    if (activeRoundLabel.value) items.push({ type: 'label', text: activeRoundLabel.value })
-    items.push({ type: 'now', text: `${activePair.value.left}  ⚔  ${activePair.value.right}` })
-  }
-  if (nextMatch.value) {
-    items.push({ type: 'next', text: `${nextMatch.value[0] || '—'}  ⚔  ${nextMatch.value[1] || '—'}` })
-  }
-  if (currentGenre.value) items.push({ type: 'genre', text: currentGenre.value })
-  if (!items.length) items.push({ type: 'label', text: 'LIVE BATTLE' })
-  return items
-})
 
 // ── animation helpers ─────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -503,7 +470,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
       <!-- LEFT half -->
       <div class="bracket-half bracket-left">
         <div v-for="key in sideRoundKeys" :key="key" class="round-col">
-          <div class="round-label">{{ formatLabel(key) }}</div>
           <div class="matches-col">
             <div
               v-for="(match, mIdx) in leftMatches(key)" :key="mIdx"
@@ -545,7 +511,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 
       <!-- CENTER: Final + Champion -->
       <div class="center-col">
-        <div class="round-label">FINAL</div>
         <div class="final-area">
           <div v-if="finalMatch" class="final-match" :class="{ 'match-active': isActiveMatch(finalMatch) }">
             <div
@@ -580,7 +545,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
       <!-- RIGHT half -->
       <div class="bracket-half bracket-right">
         <div v-for="key in rightRoundKeys" :key="key" class="round-col">
-          <div class="round-label">{{ formatLabel(key) }}</div>
           <div class="matches-col">
             <div
               v-for="(match, mIdx) in rightMatches(key)" :key="mIdx"
@@ -675,23 +639,33 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 
 /* ── Logo banner ──────────────────────────────────────── */
 .logo-banner {
-  flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, rgba(6,8,20,0.98) 0%, rgba(8,10,26,0.95) 100%);
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  position: relative; z-index: 10;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 32px 20px;
 }
 .logo-banner-img {
-  height: 36px;
+  max-height: 240px;
+  max-width: 720px;
   width: auto;
   object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
 }
 .logo-banner-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: 13px; letter-spacing: 0.3em;
-  color: rgba(255,255,255,0.45);
+  font-size: 72px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  color: rgba(180,180,180,0.12);
+  text-align: center;
+  text-shadow: none;
 }
 
 /* ── Empty / Smoke ────────────────────────────────────── */
@@ -731,7 +705,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .mb-4 { margin-bottom: 16px; }
 
 /* ── Bracket layout ───────────────────────────────────── */
-.bracket-area  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); padding: 8px 16px 12px; overflow: hidden; min-height: 0; position: relative; z-index: 1; }
+.bracket-area  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); padding: 8px 16px 12px; overflow: hidden; min-height: 0; position: relative; z-index: 2; }
 .bracket-half  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); min-width: 0; }
 .round-col     { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
 .matches-col   { flex: 1; display: flex; flex-direction: column; min-height: 0; }

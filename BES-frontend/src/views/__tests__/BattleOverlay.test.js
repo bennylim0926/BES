@@ -36,10 +36,10 @@ describe('BattleOverlay.vue', () => {
     expect(wrapper.exists()).toBe(true)
   })
 
-  it('adds transparent-page class to html on mount', async () => {
+  it('does not add transparent-page class to html on mount', async () => {
     mount(BattleOverlay, { global: { plugins: [router] } })
     await new Promise(r => setTimeout(r, 10))
-    expect(document.documentElement.classList.contains('transparent-page')).toBe(true)
+    expect(document.documentElement.classList.contains('transparent-page')).toBe(false)
   })
 
   it('renders .overlay-root element', async () => {
