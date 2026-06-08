@@ -88,7 +88,7 @@ public class EventGenreParticpantService {
             egp.setParticipant(p);
             egp.setEventGenre(eg);
 
-            String genreFormat = eg != null ? eg.getFormat() : null;
+            String genreFormat = eg.getFormat();
             boolean isTeamFormat = isTeamFormat(genreFormat);
             boolean isTeamEntry = isTeamFormat && !"solo".equalsIgnoreCase(entryMode);
 
@@ -339,7 +339,7 @@ public class EventGenreParticpantService {
         egp.setParticipant(participant);
         egp.setDisplayName(ep != null ? ep.getDisplayName() : participant.getParticipantName());
 
-        String genreFormat = eg != null ? eg.getFormat() : null;
+        String genreFormat = eg.getFormat();
         boolean soloMode = "solo".equalsIgnoreCase(entryMode);
         boolean hasProvidedTeamName = teamName != null && !teamName.isBlank();
 
