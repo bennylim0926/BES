@@ -1,5 +1,6 @@
 package com.example.BES.services;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +16,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.SetActiveGenreDto;
@@ -364,11 +371,21 @@ public class BattleService {
     }
 
     public Map<String, Object> getOverlayConfig() {
-        return stateFor(resolveEvent(null)).overlayConfig;
+        return getOverlayConfig(resolveEvent(null));
     }
 
     public Map<String, Object> getOverlayConfig(String eventName) {
-        return stateFor(eventName).overlayConfig;
+        EventBattleState s = stateFor(eventName);
+        Map<String, Object> cfg = new HashMap<>(s.overlayConfig);
+        cfg.put("logoUrl", s.logoUrl);
+        return cfg;
+    }
+
+    private void broadcastOverlayConfig(String eventName) {
+        messagingTemplate.convertAndSend(
+            "/topic/battle/" + eventName + "/overlay-config",
+            getOverlayConfig(eventName)
+        );
     }
 
     public void setOverlayConfigService(String eventName, SetOverlayConfigDto dto) {
@@ -378,7 +395,42 @@ public class BattleService {
         newConfig.put("leftColor",  dto.getLeftColor());
         newConfig.put("rightColor", dto.getRightColor());
         s.overlayConfig = newConfig;
-        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/overlay-config", newConfig);
+        broadcastOverlayConfig(eventName);
+    }
+
+    public String uploadLogoService(String eventName, MultipartFile file) throws IOException {
+        String original = file.getOriginalFilename();
+        String ext = (original != null && original.contains("."))
+            ? original.substring(original.lastIndexOf('.'))
+            : ".png";
+        String safeEvent = eventName.replaceAll("[^a-zA-Z0-9_-]", "_");
+        String filename = "__logo_" + safeEvent + ext;
+
+        Path uploadDir = Paths.get("uploads");
+        if (!Files.exists(uploadDir)) Files.createDirectories(uploadDir);
+        Path dest = uploadDir.resolve(filename).normalize();
+        if (!dest.startsWith(uploadDir.normalize())) throw new IOException("Invalid path");
+        Files.copy(file.getInputStream(), dest, StandardCopyOption.REPLACE_EXISTING);
+
+        EventBattleState s = stateFor(eventName);
+        s.logoUrl = "/api/v1/battle/uploads/" + filename;
+        persistActiveState(eventName);
+        broadcastOverlayConfig(eventName);
+        return s.logoUrl;
+    }
+
+    public void deleteLogoService(String eventName) throws IOException {
+        EventBattleState s = stateFor(eventName);
+        if (s.logoUrl != null) {
+            String filename = s.logoUrl.substring(s.logoUrl.lastIndexOf('/') + 1);
+            Path file = Paths.get("uploads").resolve(filename).normalize();
+            if (file.startsWith(Paths.get("uploads").normalize())) {
+                Files.deleteIfExists(file);
+            }
+        }
+        s.logoUrl = null;
+        persistActiveState(eventName);
+        broadcastOverlayConfig(eventName);
     }
 
     public void broadcastChampionReveal(String eventName, ChampionRevealDto dto) {
@@ -640,6 +692,7 @@ public class BattleService {
             if (s.lastFormatTimerPayload != null) {
                 st.setFormatTimerJson(objectMapper.writeValueAsString(s.lastFormatTimerPayload));
             }
+            st.setLogoUrl(s.logoUrl);
             st.setUpdatedAt(LocalDateTime.now());
             battleGenreStateRepository.save(st);
         } catch (Exception e) {
@@ -699,6 +752,7 @@ public class BattleService {
             } else {
                 s.lastFormatTimerPayload = null;
             }
+            s.logoUrl = dbState.getLogoUrl();
         } catch (Exception e) {
             System.err.println("Failed to load genre state from DB: " + e.getMessage());
             resetToDefaults(eventName);
@@ -755,6 +809,7 @@ public class BattleService {
             "leftColor",  "#dc2626",
             "rightColor", "#2563eb"
         ));
+        String logoUrl = null;
 
         EventBattleState() {
             currentPair = new BattlePair();

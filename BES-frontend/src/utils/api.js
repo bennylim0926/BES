@@ -694,6 +694,39 @@ export const getGenreStateFromDb = async (eventName, genreName) => {
   } catch (_e) { return null }
 }
 
+export const uploadBattleLogo = async (eventName, file) => {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const url = eventName
+      ? `/api/v1/battle/logo-upload?event=${encodeURIComponent(eventName)}`
+      : '/api/v1/battle/logo-upload'
+    return await fetch(`${domain}${url}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const deleteBattleLogo = async (eventName) => {
+  try {
+    const url = eventName
+      ? `/api/v1/battle/logo?event=${encodeURIComponent(eventName)}`
+      : '/api/v1/battle/logo'
+    return await fetch(`${domain}${url}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
 export const uploadImage = async(file)=>{
   try{
     const formData = new FormData();
