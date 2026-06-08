@@ -138,7 +138,7 @@ public class RegistrationService {
                         egp.setEventGenre(eg);
                         egp.setParticipant(toAddParticipant);
 
-                        String effectiveFormat = eg != null ? eg.getFormat() : null;
+                        String effectiveFormat = eg.getFormat();
                         boolean isTeamFormat = isTeamFormat(effectiveFormat);
                         boolean isTeamEntry = isTeamFormat && "team".equals(participant.getEntryType());
 
