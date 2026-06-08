@@ -12,7 +12,8 @@ const eventName = ref(route.query.event || '')
 const topic = (path) => `/topic/battle/${eventName.value}/${path}`
 
 // ── Overlay config (live from BattleControl + API) ─────────────────────────
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
+const logoUrl  = computed(() => overlayConfig.value.logoUrl)
 
 // ── Battle state ───────────────────────────────────────────────────────────
 const imageLeft  = ref(null)
@@ -94,6 +95,8 @@ const activeGenreName = ref('')
 
 // Judge panel visibility: true = off-screen (idle/battle), false = visible (score revealed)
 const hideJudgeDecision = ref(true)
+// judgeRestSide: null | 'left' | 'right' — side of screen where panel rests post-reveal
+const judgeRestSide = ref(null)
 
 // ── Voting state ───────────────────────────────────────────────────────────
 // showVotingIndicator: true when /topic/battle/phase emits VOTING
@@ -157,6 +160,8 @@ const hasCustomWeightage = computed(() =>
 
 const judgePanelClass = computed(() => {
   if (isSmoke.value) return 'smoke-judge-always-on'
+  if (judgeRestSide.value === 'right') return 'judge-rest-right'
+  if (judgeRestSide.value === 'left')  return 'judge-rest-left'
   return judgeAnim.value
 })
 
@@ -206,6 +211,7 @@ const updateBattlePair = async (msg) => {
   if (!msg.left && !msg.right) {
     hideJudgeDecision.value  = true
     judgeAnim.value          = ''
+    judgeRestSide.value      = null
     votesVisible.value       = false
     winnerTagVisible.value   = false
     leftWin.value            = false
@@ -230,7 +236,14 @@ const updateBattlePair = async (msg) => {
   // STANDARD MODE: if the judge panel is visible, clean it up before the new pair
   if (!hideJudgeDecision.value) {
     glitching.value = true
-    judgeAnim.value = 'slide-up'
+    // Exit from the side the panel is resting on; clear rest first so judgePanelClass uses judgeAnim
+    if (judgeRestSide.value) {
+      const exitSide = judgeRestSide.value
+      judgeRestSide.value = null
+      judgeAnim.value = exitSide === 'right' ? 'judge-exit-right' : 'judge-exit-left'
+    } else {
+      judgeAnim.value = 'slide-up'
+    }
     await useDelay().wait(100)
     if (unmounted) return
 
@@ -249,6 +262,7 @@ const updateBattlePair = async (msg) => {
     glitching.value          = false
     hideJudgeDecision.value  = true
     judgeAnim.value          = ''
+    judgeRestSide.value      = null
     votesVisible.value       = false
     winnerTagVisible.value   = false
     await useDelay().wait(50)
@@ -360,17 +374,13 @@ const updateScore = async (msg) => {
     await useDelay().wait(1500)
     if (!ok()) return
 
-    // Phase 2: panel scales down and retreats to top
-    judgeAnim.value = 'judge-retreat-top'
+    currentWinner.value = msg.message
+
+    // Panel retreats to beside winner name
+    judgeAnim.value = ''
+    judgeRestSide.value = msg.message === 0 ? 'right' : 'left'
     await useDelay().wait(550)
     if (!ok()) return
-    judgeAnim.value = 'judge-at-top'
-
-    // Brief pause before winner reveal
-    await useDelay().wait(150)
-    if (!ok()) return
-
-    currentWinner.value = msg.message
   }
 
   if (msg.message === 0) {
@@ -406,10 +416,12 @@ const restoreRevealedState = (rounds) => {
         leftWin.value    = true
         rightReset.value = true   // slide loser off screen
         vsAnim.value     = 'knock-right'
+        judgeRestSide.value = 'right'
       } else {
         rightWin.value  = true
         leftReset.value = true    // slide loser off screen
         vsAnim.value    = 'knock-left'
+        judgeRestSide.value = 'left'
       }
       winnerTagVisible.value = true
       return
@@ -419,9 +431,6 @@ const restoreRevealedState = (rounds) => {
 
 // ── Mount ──────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  document.documentElement.classList.add('transparent-page')
-  document.body.classList.add('transparent-page')
-
   // Fetch initial overlay config (survives OBS refresh)
   const config = await getOverlayConfig(eventName.value)
   if (config?.showImages !== undefined) overlayConfig.value = config
@@ -452,6 +461,7 @@ onMounted(async () => {
       animToken++
       hideJudgeDecision.value = true
       judgeAnim.value         = ''
+      judgeRestSide.value     = null
       votesVisible.value      = false
       winnerTagVisible.value  = false
       leftWin.value           = false
@@ -552,6 +562,7 @@ onMounted(async () => {
         vsAnim.value      = ''
         winnerTagVisible.value = false
         hideJudgeDecision.value = true
+        judgeRestSide.value = null
         if (freshState.currentPair.left)  imageLeft.value  = await getImage(`${freshState.currentPair.left}.png`).catch(() => null)
         if (freshState.currentPair.right) imageRight.value = await getImage(`${freshState.currentPair.right}.png`).catch(() => null)
         side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
@@ -566,6 +577,7 @@ onMounted(async () => {
     if (!ok()) return
     hideJudgeDecision.value = true
     judgeAnim.value = ''
+    judgeRestSide.value = null
     if (side === 0) {
       leftWin.value          = true
       winnerTagVisible.value = true
@@ -622,8 +634,6 @@ onBeforeUnmount(() => {
 })
 
 onUnmounted(() => {
-  document.documentElement.classList.remove('transparent-page')
-  document.body.classList.remove('transparent-page')
   const appRoot = document.getElementById('app')
   if (appRoot) appRoot.style.background = ''
 })
@@ -635,20 +645,11 @@ onUnmounted(() => {
     :class="{ 'stage-shake': stageShaking }"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
   >
-    <!-- Broadcast timer bar (visible when BattleTimer is running) -->
+    <!-- Broadcast timer — text-only top-right -->
     <Transition name="timer-enter">
       <div v-if="showTimer" class="timer-overlay">
-        <div class="timer-bar-container">
-          <div class="timer-progress-track">
-            <div
-              class="timer-progress-fill"
-              :style="{ width: (timerState.totalDuration > 0 ? (timerState.timeLeft / timerState.totalDuration) * 100 : 0) + '%' }"
-              :class="{ 'timer-fill-warning': timerState.timeLeft <= 10 }"
-            ></div>
-          </div>
-          <div class="timer-countdown" :class="{ 'timer-text-warning': timerState.timeLeft <= 10 }">
-            {{ Math.floor(timerState.timeLeft / 60) }}:{{ String(timerState.timeLeft % 60).padStart(2, '0') }}
-          </div>
+        <div class="timer-countdown" :class="{ 'timer-text-warning': timerState.timeLeft <= 10 }">
+          {{ Math.floor(timerState.timeLeft / 60) }}:{{ String(timerState.timeLeft % 60).padStart(2, '0') }}
         </div>
       </div>
     </Transition>
@@ -681,6 +682,12 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- Logo watermark + genre — top center -->
+    <div class="logo-watermark">
+      <img v-if="logoUrl" :src="logoUrl" class="logo-wm-img" alt="Event logo" />
+      <span v-if="activeGenreName && !isBlank" class="logo-wm-genre">{{ activeGenreName }}</span>
+    </div>
 
     <!-- Screen-reader live region -->
     <div class="sr-only" role="status" aria-live="assertive" aria-atomic="true">
@@ -903,17 +910,6 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style>
-/* ── Transparent background (OBS) — must be global ─────────── */
-html.transparent-page,
-body.transparent-page,
-html.transparent-page #app,
-body.transparent-page #app {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-</style>
-
 <style scoped>
 /* ── Blank announcement ─────────────────────────────────────── */
 .blank-announce {
@@ -950,6 +946,37 @@ body.transparent-page #app {
   50%       { transform: scale(1.12); opacity: 1; }
 }
 
+/* ── Logo watermark — top center ────────────────────────────── */
+.logo-watermark {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 32px 20px;
+  pointer-events: none;
+}
+.logo-wm-img {
+  max-height: 240px;
+  max-width: 720px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
+}
+.logo-wm-genre {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 72px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.07);
+  text-align: center;
+  text-shadow: 2px 2px 0 rgba(255,255,255,0.1);
+}
+
 /* ── Screen-reader only ─────────────────────────────────────── */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0;
@@ -964,6 +991,7 @@ body.transparent-page #app {
   width: 100vw; height: 100vh;
   overflow: hidden;
   font-family: 'Anton SC', sans-serif;
+  background: #060818;
   /* Default CSS custom properties — overridden by :style binding */
   --left-color: #dc2626;
   --right-color: #2563eb;
@@ -1225,6 +1253,7 @@ body.transparent-page #app {
   height: 100vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
+  z-index: 2;
   /* CSS transition for winner expand */
   transition: left 420ms cubic-bezier(0.2, 0, 0.3, 1),
               width 420ms cubic-bezier(0.2, 0, 0.3, 1);
@@ -1577,10 +1606,25 @@ body.transparent-page #app {
   100% { transform: translateY(42vh)  scale(1.38); opacity: 1; }
 }
 
-/* Judge scales back down while retreating to top */
-@keyframes judgeRetreatTop {
-  0%   { transform: translateY(42vh) scale(1.38); }
-  100% { transform: translateY(30px) scale(1); }
+/* Judge drifts to bottom-right beside winner name (left wins) */
+@keyframes judgeRestRight {
+  0%   { transform: translateX(0)    translateY(42vh) scale(1.38); }
+  100% { transform: translateX(28vw) translateY(74vh) scale(1.5); }
+}
+/* Judge drifts to bottom-left beside winner name (right wins) */
+@keyframes judgeRestLeft {
+  0%   { transform: translateX(0)     translateY(42vh) scale(1.38); }
+  100% { transform: translateX(-28vw) translateY(74vh) scale(1.5); }
+}
+/* Judge exits off the right edge from its resting position */
+@keyframes judgeExitRight {
+  0%   { transform: translateX(28vw)  translateY(74vh) scale(1.5); opacity: 1; }
+  100% { transform: translateX(110vw) translateY(74vh) scale(1.2); opacity: 0; }
+}
+/* Judge exits off the left edge from its resting position */
+@keyframes judgeExitLeft {
+  0%   { transform: translateX(-28vw)  translateY(74vh) scale(1.5); opacity: 1; }
+  100% { transform: translateX(-110vw) translateY(74vh) scale(1.2); opacity: 0; }
 }
 
 /* Card burst entrance on score reveal */
@@ -1618,18 +1662,14 @@ body.transparent-page #app {
 /* (borderRotate removed — judge card no longer uses rotating glow border) */
 
 
-/* ── Broadcast timer (top center bar) ─────────────── */
-.timer-overlay { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 100; width: 60%; padding: 16px 0 0 0; pointer-events: none; }
-.timer-bar-container { background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.1); padding: 8px 20px; clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); }
-.timer-progress-track { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-bottom: 6px; overflow: hidden; }
-.timer-progress-fill { height: 100%; background: var(--accent-color, #fff); transition: width 1s linear; border-radius: 2px; }
-.timer-fill-warning { background: #ef4444; animation: timer-pulse-bar 0.5s ease-in-out infinite alternate; }
-.timer-countdown { font-family: 'Anton SC', sans-serif; font-size: 24px; letter-spacing: 0.06em; color: var(--accent-color, #fff); text-align: center; text-shadow: 0 0 12px var(--accent-muted, rgba(255,255,255,0.25)); }
+/* ── Broadcast timer (text-only top-right) ───────── */
+.timer-overlay { position: absolute; top: 16px; right: 20px; z-index: 100; pointer-events: none; }
+.timer-countdown { font-family: 'Anton SC', sans-serif; font-size: 28px; letter-spacing: 0.08em; color: var(--accent-color, #fff); text-align: right; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
 .timer-text-warning { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5); animation: timer-pulse-text 0.5s ease-in-out infinite alternate; }
 .timer-enter-enter-active { animation: timer-slide-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .timer-enter-leave-active { animation: timer-slide-out 200ms ease-in; }
-@keyframes timer-slide-in { from { opacity: 0; transform: translateX(-50%) translateY(-100%); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-@keyframes timer-slide-out { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-100%); } }
+@keyframes timer-slide-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes timer-slide-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
 
 /* ── Format timer — full-width bottom bar (smoke mode only) ─────── */
 /* Per-round match timer lives at top-center (narrow centered bar). */
@@ -1712,10 +1752,12 @@ body.transparent-page #app {
 .slide-left-out  { animation: hardCutLeft  320ms cubic-bezier(0.55, 0, 1, 0) forwards; }
 .slide-right-out { animation: hardCutRight 320ms cubic-bezier(0.55, 0, 1, 0) forwards; }
 
-.slide-down       { animation: slideDown       480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
-.slide-up         { animation: slideUp         300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
-.judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2,  0,   0.3, 1) both; }
-.judge-retreat-top { animation: judgeRetreatTop 500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
-.judge-at-top      { transform: translateY(30px); }
+.slide-down        { animation: slideDown        480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
+.slide-up          { animation: slideUp          300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
+.judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2, 0, 0.3, 1) both; }
+.judge-rest-right  { animation: judgeRestRight  520ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
+.judge-rest-left   { animation: judgeRestLeft   520ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
+.judge-exit-right  { animation: judgeExitRight  280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
+.judge-exit-left   { animation: judgeExitLeft   280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
 </style>
 

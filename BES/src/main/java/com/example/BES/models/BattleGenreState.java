@@ -67,6 +67,9 @@ public class BattleGenreState {
     @Column(name = "format_timer_json", columnDefinition = "TEXT")
     private String formatTimerJson;
 
+    @Column(name = "logo_url", length = 512)
+    private String logoUrl;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }

@@ -6,7 +6,7 @@ import { useRoute } from 'vue-router'
 
 const bracketState   = ref(null)
 const lastBracketSnapshot = ref('')  // JSON diff guard
-const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
+const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
 const championReveal = ref(null)   // null = hidden; { genreName, championName } = showing
 const activePair     = ref(null)
 const currentGenre   = ref(null)
@@ -74,7 +74,7 @@ const isActiveMatch = (match) => {
 
 const slotClass = (match, slot, isFinal = false) => {
   if (match[2]) {
-    if (match[2] === match[slot]) return isFinal ? 'slot-winner' : (slot === 0 ? 'slot-winner-left' : 'slot-winner-right')
+    if (match[2] === match[slot]) return isFinal ? 'slot-winner' : 'slot-winner-round'
     if (match[slot]) return 'slot-loser'
     return ''
   }
@@ -103,40 +103,7 @@ const centerColWidth = computed(() => {
   return '185px'
 })
 
-const formatLabel = (key) => key === 'Top2' ? 'FINAL' : key.replace('Top', 'TOP ')
 
-// ── ticker ────────────────────────────────────────────────
-const nextMatch = computed(() => {
-  if (!bracketState.value?.rounds) return null
-  for (const key of roundKeys.value) {
-    for (const m of getMatches(key)) {
-      if (!m[2] && !isActiveMatch(m) && (m[0] || m[1])) return m
-    }
-  }
-  return null
-})
-
-const activeRoundLabel = computed(() => {
-  if (!activePair.value) return null
-  for (const key of roundKeys.value) {
-    if (getMatches(key).some(m => isActiveMatch(m))) return formatLabel(key)
-  }
-  return null
-})
-
-const tickerItems = computed(() => {
-  const items = []
-  if (activePair.value) {
-    if (activeRoundLabel.value) items.push({ type: 'label', text: activeRoundLabel.value })
-    items.push({ type: 'now', text: `${activePair.value.left}  ⚔  ${activePair.value.right}` })
-  }
-  if (nextMatch.value) {
-    items.push({ type: 'next', text: `${nextMatch.value[0] || '—'}  ⚔  ${nextMatch.value[1] || '—'}` })
-  }
-  if (currentGenre.value) items.push({ type: 'genre', text: currentGenre.value })
-  if (!items.length) items.push({ type: 'label', text: 'LIVE BATTLE' })
-  return items
-})
 
 // ── animation helpers ─────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -466,20 +433,11 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
       </div>
     </Transition>
 
-    <!-- ── Header ─────────────────────────────────────── -->
-    <header class="bracket-header">
-      <div class="header-brand">
-        <span class="brand-dot"></span>
-        <span class="brand-title">LIVE BRACKET</span>
-        <span class="brand-dot"></span>
-      </div>
-      <div v-if="activePair" class="active-pill">
-        <span class="pill-dot"></span>
-        {{ activePair.left }}
-        <span class="vs-sep">vs</span>
-        {{ activePair.right }}
-      </div>
-    </header>
+    <!-- ── Logo banner ────────────────────────────────── -->
+    <div v-if="overlayConfig.logoUrl || currentGenre" class="logo-banner">
+      <img v-if="overlayConfig.logoUrl" :src="overlayConfig.logoUrl" class="logo-banner-img" alt="Event logo" />
+      <span v-if="currentGenre" class="logo-banner-genre">{{ currentGenre }}</span>
+    </div>
 
     <!-- ── Empty state ────────────────────────────────── -->
     <div v-if="isEmpty" class="empty-state">
@@ -512,7 +470,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
       <!-- LEFT half -->
       <div class="bracket-half bracket-left">
         <div v-for="key in sideRoundKeys" :key="key" class="round-col">
-          <div class="round-label">{{ formatLabel(key) }}</div>
           <div class="matches-col">
             <div
               v-for="(match, mIdx) in leftMatches(key)" :key="mIdx"
@@ -554,7 +511,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 
       <!-- CENTER: Final + Champion -->
       <div class="center-col">
-        <div class="round-label">FINAL</div>
         <div class="final-area">
           <div v-if="finalMatch" class="final-match" :class="{ 'match-active': isActiveMatch(finalMatch) }">
             <div
@@ -589,7 +545,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
       <!-- RIGHT half -->
       <div class="bracket-half bracket-right">
         <div v-for="key in rightRoundKeys" :key="key" class="round-col">
-          <div class="round-label">{{ formatLabel(key) }}</div>
           <div class="matches-col">
             <div
               v-for="(match, mIdx) in rightMatches(key)" :key="mIdx"
@@ -629,31 +584,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
         </div>
       </div>
 
-    </div>
-
-    <!-- ── LED Ticker ─────────────────────────────────── -->
-    <div class="ticker-bar">
-      <div class="ticker-label">
-        <span class="ticker-dot"></span>
-        LIVE
-      </div>
-      <div class="ticker-track">
-        <div class="ticker-reel" :style="{ '--item-count': tickerItems.length }">
-          <template v-for="pass in 2" :key="pass">
-            <span
-              v-for="(item, idx) in tickerItems" :key="`${pass}-${idx}`"
-              class="ticker-item" :class="`ticker-${item.type}`"
-            >
-              <span v-if="item.type === 'now'"   class="ticker-tag">NOW BATTLING</span>
-              <span v-else-if="item.type === 'next'"  class="ticker-tag">NEXT UP</span>
-              <span v-else-if="item.type === 'genre'" class="ticker-tag">GENRE</span>
-              <span v-else-if="item.type === 'label'" class="ticker-tag">{{ item.text }}</span>
-              <span v-if="item.type !== 'label'" class="ticker-text">{{ item.text }}</span>
-              <span class="ticker-sep">◆</span>
-            </span>
-          </template>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -707,44 +637,36 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   );
 }
 
-/* ── Header ───────────────────────────────────────────── */
-.bracket-header {
-  flex-shrink: 0; height: var(--header-h);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  background: linear-gradient(135deg, rgba(6,8,20,0.98) 0%, rgba(8,10,26,0.95) 100%);
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  position: relative; z-index: 10;
+/* ── Logo banner ──────────────────────────────────────── */
+.logo-banner {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 32px 20px;
 }
-.header-brand { display: flex; align-items: center; gap: 10px; }
-.brand-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--c-accent);
-  box-shadow: 0 0 10px rgba(255,255,255,0.5), 0 0 22px rgba(255,255,255,0.2);
-  animation: dotPulse 2s ease-in-out infinite;
+.logo-banner-img {
+  max-height: 240px;
+  max-width: 720px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
 }
-.brand-title {
+.logo-banner-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: 13px; letter-spacing: 0.38em;
-  color: rgba(255,255,255,0.42);
+  font-size: 72px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  color: rgba(180,180,180,0.12);
+  text-align: center;
+  text-shadow: none;
 }
-.active-pill {
-  display: flex; align-items: center; gap: 8px;
-  font-family: 'Anton SC', sans-serif;
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: rgba(255,255,255,0.75);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 2px; padding: 4px 16px 4px 12px;
-  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
-}
-.pill-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: rgba(255,255,255,0.7); box-shadow: 0 0 6px rgba(255,255,255,0.5);
-  animation: dotPulse 1s ease-in-out infinite;
-}
-.vs-sep { color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 400; }
 
 /* ── Empty / Smoke ────────────────────────────────────── */
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
@@ -783,7 +705,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .mb-4 { margin-bottom: 16px; }
 
 /* ── Bracket layout ───────────────────────────────────── */
-.bracket-area  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); padding: 8px 16px 12px; overflow: hidden; min-height: 0; position: relative; z-index: 1; }
+.bracket-area  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); padding: 8px 16px 12px; overflow: hidden; min-height: 0; position: relative; z-index: 2; }
 .bracket-half  { flex: 1; display: flex; flex-direction: row; gap: var(--col-gap); min-width: 0; }
 .round-col     { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
 .matches-col   { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -854,25 +776,17 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 }
 .slot-winner .battler-name { color: #fde68a; }
 
-/* Non-final winner — keep their side color */
-.slot-winner-left {
-  background: color-mix(in srgb, var(--left-color) 20%, transparent) !important;
-  border-color: color-mix(in srgb, var(--left-color) 55%, transparent) !important;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--left-color) 25%, transparent) !important;
+/* Non-final winner — neutral white (not side color) */
+.slot-winner-round {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.30) !important;
+  box-shadow: 0 0 14px rgba(255,255,255,0.15) !important;
 }
-.slot-winner-left .battler-name {
-  color: color-mix(in srgb, var(--left-color) 85%, #fff) !important;
-}
-.slot-winner-right {
-  background: color-mix(in srgb, var(--right-color) 20%, transparent) !important;
-  border-color: color-mix(in srgb, var(--right-color) 55%, transparent) !important;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--right-color) 25%, transparent) !important;
-}
-.slot-winner-right .battler-name {
-  color: color-mix(in srgb, var(--right-color) 85%, #fff) !important;
+.slot-winner-round .battler-name {
+  color: rgba(255,255,255,0.95) !important;
 }
 
-.slot-loser { background: rgba(255,255,255,0.02) !important; border-color: rgba(255,255,255,0.03) !important; opacity: 0.42; }
+.slot-loser { background: rgba(255,255,255,0.02) !important; border-color: rgba(255,255,255,0.03) !important; opacity: 0.62; }
 .slot-loser  .battler-name { color: var(--c-lose-text); }
 
 .battler-name {
@@ -933,36 +847,6 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   color: rgba(255,255,255,0.3); opacity: 0.38;
 }
 
-/* ── LED Ticker ───────────────────────────────────────── */
-.ticker-bar {
-  flex-shrink: 0; height: 30px;
-  display: flex; align-items: stretch;
-  background: #030610;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  overflow: hidden; position: relative; z-index: 10;
-}
-.ticker-label {
-  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
-  padding: 0 18px 0 14px;
-  background: rgba(255,255,255,0.9);
-  font-family: 'Anton SC', sans-serif;
-  font-size: 10px; letter-spacing: 0.25em;
-  color: #060818; z-index: 1;
-  clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%);
-}
-.ticker-dot   { width: 5px; height: 5px; border-radius: 50%; background: #030610; animation: dotPulse 1s ease-in-out infinite; }
-.ticker-track { flex: 1; overflow: hidden; position: relative; mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%); }
-.ticker-reel  { display: inline-flex; align-items: center; white-space: nowrap; height: 100%; animation: tickerScroll calc(var(--item-count, 4) * 8s) linear infinite; }
-.ticker-item  { display: inline-flex; align-items: center; gap: 8px; padding: 0 6px; }
-.ticker-tag   { font-family: 'Anton SC', sans-serif; font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--c-muted); opacity: 0.62; }
-.ticker-now   .ticker-tag  { color: rgba(255,255,255,0.85); opacity: 1; }
-.ticker-next  .ticker-tag  { color: rgba(249,115,22,0.85); opacity: 1; }
-.ticker-genre .ticker-tag  { color: rgba(167,139,250,0.85); opacity: 1; }
-.ticker-text  { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--c-text); }
-.ticker-now   .ticker-text { color: rgba(255,255,255,0.85); }
-.ticker-next  .ticker-text { color: rgba(249,115,22,0.9); }
-.ticker-genre .ticker-text { color: rgba(167,139,250,0.9); }
-.ticker-sep   { font-size: 7px; color: var(--c-muted); opacity: 0.22; padding: 0 16px; }
 
 /* ── Champion Reveal Overlay ────────────────────────────── */
 .champ-overlay {
@@ -1036,9 +920,5 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 @keyframes dotPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.32; transform: scale(0.62); }
-}
-@keyframes tickerScroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
 }
 </style>

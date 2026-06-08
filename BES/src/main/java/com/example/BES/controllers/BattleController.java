@@ -405,6 +405,23 @@ public class BattleController {
         return ResponseEntity.ok(state);
     }
 
+    @PostMapping("/logo-upload")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> uploadLogo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String event) throws IOException {
+        String url = battleService.uploadLogoService(resolveEvent(event), file);
+        return ResponseEntity.ok(Map.of("logoUrl", url));
+    }
+
+    @DeleteMapping("/logo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteLogo(
+            @RequestParam(required = false) String event) throws IOException {
+        battleService.deleteLogoService(resolveEvent(event));
+        return ResponseEntity.ok(Map.of("message", "Logo deleted"));
+    }
+
     @GetMapping("/state")
     public ResponseEntity<?> getBattleState(@RequestParam(required = false) String event) {
         String eName = resolveEvent(event);

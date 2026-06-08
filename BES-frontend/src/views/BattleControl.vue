@@ -1,5 +1,5 @@
 <script setup>
-import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getGenreStateFromDb, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, deleteBattleLogo, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getGenreStateFromDb, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadBattleLogo, uploadImage } from '@/utils/api'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
@@ -35,7 +35,7 @@ const pendingRoundIdx = ref(null)        // the round index user wants to switch
 const finalTieBlocked = ref(false)
 const revealActive = ref(false)
 let skipSizeChangeClear = false          // guard: suppress clear when topSize changes programmatically
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
 const showRecoveryBanner = ref(false)
 let recoveryBannerTimer = null
 const recoveryState      = ref(null)
@@ -382,6 +382,17 @@ const onFileChange = async (e) => {
     }
   }
   e.target.value = ''
+}
+
+const onLogoUpload = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  await uploadBattleLogo(selectedEvent.value, file)
+  e.target.value = ''
+}
+
+const onLogoDelete = async () => {
+  await deleteBattleLogo(selectedEvent.value)
 }
 
 const resetJudgeVote = async () => {
@@ -2661,6 +2672,30 @@ onUnmounted(() => {
               <span class="overlay-toggle-track"></span>
             </label>
           </div>
+          <div class="overlay-setting-row overlay-setting-logo">
+            <span class="overlay-setting-label">Event Logo</span>
+            <div class="logo-upload-group">
+              <img
+                v-if="overlayConfig.logoUrl"
+                :src="overlayConfig.logoUrl"
+                class="logo-preview-thumb"
+                alt="Event logo"
+              />
+              <label class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 cursor-pointer">
+                <i class="pi pi-upload text-xs"></i>
+                {{ overlayConfig.logoUrl ? 'Replace' : 'Upload' }}
+                <input type="file" accept="image/*" @change="onLogoUpload" class="hidden" />
+              </label>
+              <button
+                v-if="overlayConfig.logoUrl"
+                @click="onLogoDelete"
+                class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5"
+              >
+                <i class="pi pi-trash text-xs"></i>
+                Remove
+              </button>
+            </div>
+          </div>
         </div>
         <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
       </details>
@@ -3091,5 +3126,15 @@ onUnmounted(() => {
     font-size: 13px;
     letter-spacing: 0.12em;
   }
+}
+
+.overlay-setting-logo { align-items: flex-start; padding-top: 6px; }
+.logo-upload-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.logo-preview-thumb {
+  width: 48px; height: 48px;
+  object-fit: contain;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
 }
 </style>
