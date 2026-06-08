@@ -465,6 +465,7 @@ public class EventController {
             } else {
                 checkinPreviewService.setPreview(eventName, dto.participantId);
             }
+            dto.eventName = eventName;
             messagingTemplate.convertAndSend("/topic/checkin-preview/", dto);
             return new ResponseEntity<>("ok", HttpStatus.OK);
         } catch (Exception e) {

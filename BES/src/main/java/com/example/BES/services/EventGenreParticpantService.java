@@ -220,7 +220,8 @@ public class EventGenreParticpantService {
                     "audition", participantInEventGenre.getAuditionNumber(),
                     "genre", participantInEventGenre.getEventGenre().getName(),
                     "name", participantInEventGenre.getDisplayName(),
-                    "judge", j != null ? j.getName() : ""));
+                    "judge", j != null ? j.getName() : "",
+                    "eventName", participantInEventGenre.getEvent().getEventName()));
         }
     }
 
