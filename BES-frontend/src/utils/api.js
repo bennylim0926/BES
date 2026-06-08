@@ -684,6 +684,16 @@ export const getBattleState = async (eventName = '') => {
   } catch (_e) { return null }
 }
 
+export const getGenreStateFromDb = async (eventName, genreName) => {
+  try {
+    const res = await fetch(
+      `${domain}/api/v1/battle/genre-state?event=${encodeURIComponent(eventName)}&genre=${encodeURIComponent(genreName)}`,
+      { credentials: 'include' }
+    )
+    return res.ok ? await res.json() : null
+  } catch (_e) { return null }
+}
+
 export const uploadImage = async(file)=>{
   try{
     const formData = new FormData();

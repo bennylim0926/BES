@@ -511,6 +511,65 @@ public class BattleService {
         return stateFor(resolveEvent(null)).activeGenreName;
     }
 
+    public Map<String, Object> getGenreStateFromDbService(String eventName, String genreName) {
+        Optional<BattleGenreState> stateOpt =
+            battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
+        if (stateOpt.isEmpty()) return new HashMap<>();
+        BattleGenreState db = stateOpt.get();
+
+        String genreFormat = null;
+        Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (ev != null) {
+            genreFormat = eventGenreRepo.findByEventAndName(ev, genreName)
+                .map(eg -> eg.getFormat()).orElse(null);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("genreName",   genreName);
+        result.put("genreFormat", genreFormat);
+        result.put("battlePhase", db.getBattlePhase() != null ? db.getBattlePhase() : "IDLE");
+        result.put("champion",    db.getChampion());
+        result.put("currentRoundIndex", db.getCurrentRoundIndex() != null ? db.getCurrentRoundIndex() : 0);
+
+        try {
+            // bracket
+            Map<String, Object> bracket = new HashMap<>();
+            if (db.getBracketJson() != null) {
+                bracket = objectMapper.readValue(db.getBracketJson(), new TypeReference<Map<String, Object>>(){});
+            }
+            if (db.getTopSize() != null) bracket.put("topSize", db.getTopSize());
+            result.put("bracket", bracket);
+
+            // currentPair
+            Map<String, Object> pair = new HashMap<>();
+            pair.put("left",   db.getCurrentPairLeft()  != null ? db.getCurrentPairLeft()  : "");
+            pair.put("right",  db.getCurrentPairRight() != null ? db.getCurrentPairRight() : "");
+            pair.put("isFinal", Boolean.TRUE.equals(db.getIsFinal()));
+            pair.put("leftMembers",  db.getCurrentPairLeftMembers()  != null
+                ? objectMapper.readValue(db.getCurrentPairLeftMembers(),  new TypeReference<List<String>>(){})
+                : new ArrayList<>());
+            pair.put("rightMembers", db.getCurrentPairRightMembers() != null
+                ? objectMapper.readValue(db.getCurrentPairRightMembers(), new TypeReference<List<String>>(){})
+                : new ArrayList<>());
+            result.put("currentPair", pair);
+
+            // judges
+            if (db.getJudgesJson() != null) {
+                result.put("judges", objectMapper.readValue(db.getJudgesJson(),
+                    new TypeReference<List<Object>>(){}));
+            }
+
+            // smoke battlers
+            if (db.getSmokeListJson() != null) {
+                result.put("smokeBattlers", objectMapper.readValue(db.getSmokeListJson(),
+                    new TypeReference<List<Object>>(){}));
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to read genre state from DB: " + e.getMessage());
+        }
+        return result;
+    }
+
     public void handleTimerPayload(String eventName, Map<String, Object> payload) {
         EventBattleState s = stateFor(eventName);
         s.lastTimerPayload = new HashMap<>(payload);

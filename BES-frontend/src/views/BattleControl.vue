@@ -1,5 +1,5 @@
 <script setup>
-import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
+import { addBattleJudge, addBattleGuest, battleJudgeVote, clearBattlePair, getBattleChampions, getBattleGuests, getBattleJudges, getBattlePhase, getBattleState, getGenreStateFromDb, getOverlayConfig, getParticipantScore, getPickupCrews, getRegisteredParticipantsByEvent, removeBattleGuest, removeBattleJudge, resetBattleVotes, revealChampion, dismissChampionReveal, setActiveGenre, setBattlePair, setBattlePhase, setBattleScore, setBracketState, setOverlayConfig, updateJudgeWeightage, updateSmokeList, uploadImage } from '@/utils/api'
 import { computed, onMounted, onUnmounted, ref, watch, toRaw } from 'vue'
 import { useDropdowns } from '@/utils/dropdown'
 import { useEventUtils } from '@/utils/eventUtils'
@@ -37,6 +37,7 @@ const revealActive = ref(false)
 let skipSizeChangeClear = false          // guard: suppress clear when topSize changes programmatically
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
 const showRecoveryBanner = ref(false)
+let recoveryBannerTimer = null
 const recoveryState      = ref(null)
 const genreChampions     = ref({})
 const lastAppliedState = ref('')  // JSON string of last applied /topic/battle/state snapshot
@@ -285,15 +286,18 @@ const handleEmceeStartRound = () => {
 }
 
 
-const canSwitchGenre = computed(() =>
-  battlePhase.value === 'IDLE' || battlePhase.value === 'DECIDED'
+// ── View-only genre tracking ───────────────────────────────────
+// liveGenreName: genre currently active on the backend (may differ from selectedGenre)
+// livePhase: battle phase of the live genre (updated from WS, independent of viewed genre)
+// liveEventName: event that owns liveGenreName — banner only shows within the same event
+const liveGenreName  = ref('')
+const liveEventName  = ref('')
+const livePhase      = ref('IDLE')
+const isViewingNonActive = computed(() =>
+  !!liveGenreName.value &&
+  selectedEvent.value === liveEventName.value &&
+  selectedGenre.value !== liveGenreName.value
 )
-
-const genreSwitchBlockReason = computed(() => {
-  if (battlePhase.value === 'LOCKED' || battlePhase.value === 'VOTING') return 'Finish this match first'
-  if (battlePhase.value === 'REVEALED') return 'Click Next to advance, then switch genres'
-  return ''
-})
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
@@ -1591,10 +1595,8 @@ const cancelRoundChange = () => {
   pendingRoundIdx.value = null
 }
 
-// Guard: block genre switch when battle is in progress
 const requestGenreChange = (genre) => {
   if (genre === selectedGenre.value) return
-  if (!canSwitchGenre.value) return  // hard block — tooltip on button explains why
   selectedGenre.value = genre
 }
 
@@ -1656,82 +1658,112 @@ watch([allJudgesVoted, tentativeWinner], ([voted, winner]) => {
 })
 
 watch(selectedGenre, async (newVal, oldVal) => {
-  // Dismiss before resetting revealActive — the check must happen while it's still true
+  if (!newVal) { pickupCrews.value = []; return }
+
+  const ACTIVE_PHASES = ['LOCKED', 'VOTING', 'REVEALED']
+  // View-only: switching to a genre that isn't the backend's live genre during an
+  // active battle. Skip setActiveGenre (would disrupt live battle) and all side-effecting
+  // calls (restoreAndBroadcastGenreBattle, syncJudgesForGenre, dismissChampionReveal).
+  // Instead load the viewed genre's state directly from DB via REST.
+  const sameEventAsLive = selectedEvent.value === liveEventName.value
+  const enteringViewOnly = oldVal &&
+    liveGenreName.value &&
+    sameEventAsLive &&
+    newVal !== liveGenreName.value &&
+    ACTIVE_PHASES.includes(livePhase.value)
+
+  // Returning to the live genre from view-only mode — normal active switch.
+  const returningToLive = oldVal &&
+    liveGenreName.value &&
+    sameEventAsLive &&
+    newVal === liveGenreName.value &&
+    ACTIVE_PHASES.includes(livePhase.value)
+
+  // ── Format detection (needed for both paths) ──────────────────────────────
+  const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
+  if (genreNeedsSmoke) {
+    if (Number(topSize.value) !== 7) { skipSizeChangeClear = true; topSize.value = 7 }
+  } else if (Number(topSize.value) === 7) {
+    skipSizeChangeClear = true; topSize.value = 16
+  }
+  localStorage.setItem("selectedGenre", newVal)
+  rounds.value = initRounds()
+  pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
+  placeGuestsInBracket()
+
+  if (enteringViewOnly) {
+    // ── View-only path ──────────────────────────────────────────────────────
+    // Reset local state so stale data from the previous genre doesn't bleed through.
+    lastAppliedState.value = ''
+    currentBattle.value = []
+    currentTop.value    = ''
+    currentRound.value  = 0
+    currentWinner.value = -2
+    battlePhase.value   = 'IDLE'
+
+    const viewedState = await getGenreStateFromDb(selectedEvent.value, newVal)
+    if (viewedState && Object.keys(viewedState).length > 0) {
+      hydrateFromState(viewedState)
+    }
+    // Ensure format is correct after hydration (same post-hydration guards as normal path)
+    const currentIsSmoke = Number(topSize.value) === 7
+    if (genreNeedsSmoke && !currentIsSmoke) {
+      skipSizeChangeClear = true; topSize.value = 7; rounds.value = initRounds()
+    } else if (!genreNeedsSmoke && currentIsSmoke) {
+      skipSizeChangeClear = true; topSize.value = 16; rounds.value = initRounds()
+    } else if (genreNeedsSmoke && !Array.isArray(rounds.value)) {
+      rounds.value = initRounds()
+    } else if (!genreNeedsSmoke && Array.isArray(rounds.value)) {
+      rounds.value = initRounds()
+    }
+    _restoreRoundTab()
+    return
+  }
+
+  // ── Normal / returning-to-live path ────────────────────────────────────────
+  // Only dismiss champion reveal when actually switching the backend's active genre.
   if (oldVal && revealActive.value) await dismissChampionReveal(selectedEvent.value)
   revealActive.value = false
-  if (newVal) {
-    // Restore per-genre topSize — smoke auto-detection takes priority, otherwise
-    // fetch from DB-backed state. Default to 16 on genre switch.
-    const genreNeedsSmoke = newVal.toLowerCase().includes('7 to smoke') || newVal.toLowerCase().includes('7tosmoke')
-    if (genreNeedsSmoke) {
-      if (Number(topSize.value) !== 7) {
-        skipSizeChangeClear = true
-        topSize.value = 7
-      }
-    } else if (Number(topSize.value) === 7) {
-      // Switching away from smoke: reset to standard default immediately so
-      // initRounds() produces a standard bracket. restoreAndBroadcastGenreBattle
-      // (below) calls getBattleState() AFTER setActiveGenre and will update
-      // topSize to the actual saved value for this genre via hydrateFromState.
-      skipSizeChangeClear = true
-      topSize.value = 16
+
+  if (oldVal) {
+    // Switch backend to new genre FIRST — persistActiveState() saves outgoing genre's state,
+    // loadGenreStateIntoMemory() loads incoming genre's state, broadcastStateSnapshot() pushes
+    // the full snapshot to all clients.
+    await setActiveGenre(selectedEvent.value, newVal)
+    if (returningToLive) liveGenreName.value = newVal
+    // Restore local BattleControl UI from the backend state just loaded.
+    // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
+    // from the last mutation, and pushing initRounds() would overwrite it.
+    await restoreAndBroadcastGenreBattle(newVal)
+    // Post-hydration: ensure the bracket format matches the genre.
+    const currentIsSmoke = Number(topSize.value) === 7
+    if (genreNeedsSmoke && !currentIsSmoke) {
+      skipSizeChangeClear = true; topSize.value = 7; rounds.value = initRounds()
+    } else if (!genreNeedsSmoke && currentIsSmoke) {
+      skipSizeChangeClear = true; topSize.value = 16; rounds.value = initRounds()
+    } else if (genreNeedsSmoke && !Array.isArray(rounds.value)) {
+      rounds.value = initRounds()
+    } else if (!genreNeedsSmoke && Array.isArray(rounds.value)) {
+      rounds.value = initRounds()
     }
-    localStorage.setItem("selectedGenre", newVal)
-    rounds.value = initRounds()
-    pickupCrews.value = await getPickupCrews(selectedEvent.value, newVal)
-    placeGuestsInBracket()
-    if (oldVal) {
-      // Switch backend to new genre FIRST — persistActiveState() saves outgoing genre's state,
-      // loadGenreStateIntoMemory() loads incoming genre's state, broadcastStateSnapshot() pushes
-      // the full snapshot to all clients.
-      await setActiveGenre(selectedEvent.value, newVal)
-      // Restore local BattleControl UI from the backend state just loaded.
-      // Do NOT call broadcastBracket() here — the DB already has the correct bracket data
-      // from the last mutation, and pushing initRounds() would overwrite it.
-      await restoreAndBroadcastGenreBattle(newVal)
-      // Post-hydration: ensure the bracket format matches the genre. The state
-      // hydration may have been gated (smoke-vs-standard mismatch) or the DB
-      // may not have had saved bracket data yet. In either case, initRounds()
-      // produces the right empty structure for the current format.
-      const currentIsSmoke = Number(topSize.value) === 7
-      if (genreNeedsSmoke && !currentIsSmoke) {
-        skipSizeChangeClear = true
-        topSize.value = 7
-        rounds.value = initRounds()
-      } else if (!genreNeedsSmoke && currentIsSmoke) {
-        skipSizeChangeClear = true
-        topSize.value = 16
-        rounds.value = initRounds()
-      } else if (genreNeedsSmoke && !Array.isArray(rounds.value)) {
-        // Format is correct (topSize=7) but rounds is a standard object —
-        // the state hydration was gated. Reset to smoke array.
-        rounds.value = initRounds()
-      } else if (!genreNeedsSmoke && Array.isArray(rounds.value)) {
-        // Format is correct (topSize≠7) but rounds is a smoke array —
-        // the state hydration was gated. Reset to standard object.
-        rounds.value = initRounds()
-      }
+  }
+  // Sync per-genre judges on genre switch.
+  // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
+  // oldVal check (truthy) skips the immediate fire and empty-string initialization cases.
+  if (mountJudgeSyncDone && oldVal) await syncJudgesForGenre(newVal, oldVal)
+  // Re-read authoritative phase from backend after restoration. The WS LOCKED
+  // message from setBattlePair can race past the local phase assignment inside
+  // restoreAndBroadcastGenreBattle. Brief delay lets WS messages flush first.
+  if (oldVal) {
+    await new Promise(r => setTimeout(r, 150))
+    const confirmed = await getBattlePhase()
+    if (confirmed?.phase) battlePhase.value = confirmed.phase
+    // Defensive: if this genre has a champion locked, force DECIDED regardless
+    // of what the backend returned (WS messages can corrupt the phase mid-switch).
+    if (genreChampions.value[newVal] && battlePhase.value !== 'DECIDED') {
+      await setBattlePhase('DECIDED', undefined, selectedEvent.value)
+      battlePhase.value = 'DECIDED'
     }
-    // Sync per-genre judges on genre switch.
-    // mountJudgeSyncDone guards against firing before onMounted loads battleJudges from API.
-    // oldVal check (truthy) skips the immediate fire and empty-string initialization cases.
-    if (mountJudgeSyncDone && oldVal) await syncJudgesForGenre(newVal, oldVal)
-    // Re-read authoritative phase from backend after restoration. The WS LOCKED
-    // message from setBattlePair can race past the local phase assignment inside
-    // restoreAndBroadcastGenreBattle. Brief delay lets WS messages flush first.
-    if (oldVal) {
-      await new Promise(r => setTimeout(r, 150))
-      const confirmed = await getBattlePhase()
-      if (confirmed?.phase) battlePhase.value = confirmed.phase
-      // Defensive: if this genre has a champion locked, force DECIDED regardless
-      // of what the backend returned (WS messages can corrupt the phase mid-switch).
-      if (genreChampions.value[newVal] && battlePhase.value !== 'DECIDED') {
-        await setBattlePhase('DECIDED', undefined, selectedEvent.value)
-        battlePhase.value = 'DECIDED'
-      }
-    }
-  } else {
-    pickupCrews.value = []
   }
 }, { immediate: true })
 
@@ -1826,57 +1858,103 @@ watch(rounds, () => {
 
 onMounted(async () => {
   initialiseDropdown()
-  // Tell the backend which event+genre is active on every load.
-  // watch(selectedGenre) only calls setActiveGenre when the genre CHANGES (oldVal truthy),
-  // so on initial load or after an event switch via EventSelector (which remounts this page),
-  // the backend still points at the previous event. Calling it here ensures the correct
-  // (eventName, genreName) DB row is loaded before any getBattleState/getBattlePhase reads.
-  if (selectedEvent.value && selectedGenre.value) {
-    const res = await setActiveGenre(selectedEvent.value, selectedGenre.value)
-    if (!res || !res.ok) {
-      console.error('[BattleControl] setActiveGenre failed — retrying once')
-      await new Promise(r => setTimeout(r, 200))
-      await setActiveGenre(selectedEvent.value, selectedGenre.value)
-    }
+
+  // ── Step 1: Discover the live genre BEFORE calling setActiveGenre ──────────
+  // This prevents a refresh while viewing a non-active genre from disrupting
+  // the live battle (if selectedGenre in localStorage !== backend's active genre).
+  const preCheckState = await getBattleState()
+  const backendLiveGenre = preCheckState?.genreName ?? ''
+  const backendLivePhase = preCheckState?.battlePhase ?? 'IDLE'
+  if (backendLiveGenre) {
+    liveGenreName.value  = backendLiveGenre
+    liveEventName.value  = selectedEvent.value
+    livePhase.value      = backendLivePhase
   }
-  // Round tab restored from localStorage (persisted across refresh/genre switch)
-  await fetchAllJudges(selectedEvent.value)
-  await fetchBattleGuests()
-  battleJudges.value = await getBattleJudges()
-  mountJudgeSyncDone = true
-  const savedConfig = await getOverlayConfig()
-  if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
-  if (selectedEvent.value) {
-    const champions = await getBattleChampions(selectedEvent.value)
-    // Merge: backend confirmed data takes precedence over initial ref value
-    // backend confirmed. Backend wins on conflict (official record).
-    if (champions && typeof champions === 'object') {
-      genreChampions.value = { ...genreChampions.value, ...champions }
+
+  const ACTIVE_PHASES = ['LOCKED', 'VOTING', 'REVEALED']
+  const isRefreshOnNonActive =
+    backendLiveGenre &&
+    selectedGenre.value &&
+    selectedGenre.value !== backendLiveGenre &&
+    ACTIVE_PHASES.includes(backendLivePhase)
+
+  if (isRefreshOnNonActive) {
+    // Refreshed while viewing a non-active genre — load the viewed genre from DB
+    // without calling setActiveGenre (which would disrupt the live battle).
+    await fetchAllJudges(selectedEvent.value)
+    await fetchBattleGuests()
+    mountJudgeSyncDone = true
+    const savedConfig = await getOverlayConfig()
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
+    if (selectedEvent.value) {
+      const champions = await getBattleChampions(selectedEvent.value)
+      if (champions && typeof champions === 'object') {
+        genreChampions.value = { ...genreChampions.value, ...champions }
+      }
     }
-  }
-  const phaseData = await getBattlePhase()
-  battlePhase.value = phaseData?.phase ?? 'IDLE'
-  // Auto-restore from backend state on refresh — always check regardless of local state
-  const battleState = await getBattleState()
-  if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
-    recoveryState.value = battleState
-    await jumpToRecoveredPair()   // restore silently — also sets the correct round tab
-    showRecoveryBanner.value = true  // then notify the operator
-    // jumpToRecoveredPair already set viewedRoundIdx to the correct round.
-    // Don't call _restoreRoundTab() here — it would read stale localStorage and override it.
-  } else {
-    // No active battle to recover. Still hydrate bracket data (rounds, topSize) from
-    // the backend — the bracket may have been pre-seeded before the battle started.
-    if (battleState) hydrateFromState(battleState)
-    // Restore the last-viewed round tab after bracket data is loaded.
+    const viewedState = await getGenreStateFromDb(selectedEvent.value, selectedGenre.value)
+    if (viewedState && Object.keys(viewedState).length > 0) {
+      hydrateFromState(viewedState)
+    }
     _restoreRoundTab()
+    smokeHydrationReady = true
+    wsClient.value = createClient()
+  } else {
+    // ── Normal path: selectedGenre matches live genre (or no active battle) ───
+    // Tell the backend which event+genre is active on every load.
+    // watch(selectedGenre) only calls setActiveGenre when the genre CHANGES (oldVal truthy),
+    // so on initial load or after an event switch via EventSelector (which remounts this page),
+    // the backend still points at the previous event. Calling it here ensures the correct
+    // (eventName, genreName) DB row is loaded before any getBattleState/getBattlePhase reads.
+    if (selectedEvent.value && selectedGenre.value) {
+      const res = await setActiveGenre(selectedEvent.value, selectedGenre.value)
+      if (!res || !res.ok) {
+        console.error('[BattleControl] setActiveGenre failed — retrying once')
+        await new Promise(r => setTimeout(r, 200))
+        await setActiveGenre(selectedEvent.value, selectedGenre.value)
+      }
+    }
+    await fetchAllJudges(selectedEvent.value)
+    await fetchBattleGuests()
+    battleJudges.value = await getBattleJudges()
+    mountJudgeSyncDone = true
+    const savedConfig = await getOverlayConfig()
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
+    if (selectedEvent.value) {
+      const champions = await getBattleChampions(selectedEvent.value)
+      if (champions && typeof champions === 'object') {
+        genreChampions.value = { ...genreChampions.value, ...champions }
+      }
+    }
+    const phaseData = await getBattlePhase()
+    battlePhase.value = phaseData?.phase ?? 'IDLE'
+    // Use the already-fetched preCheckState if it's for the correct genre;
+    // otherwise re-fetch (event switch scenario where genre match was reasserted).
+    const battleState = (preCheckState?.genreName === selectedGenre.value)
+      ? preCheckState
+      : await getBattleState()
+    if (battleState?.battlePhase && battleState.battlePhase !== 'IDLE' && battleState.currentPair?.left) {
+      recoveryState.value = battleState
+      await jumpToRecoveredPair()
+      showRecoveryBanner.value = true
+      clearTimeout(recoveryBannerTimer)
+      recoveryBannerTimer = setTimeout(() => { showRecoveryBanner.value = false }, 5000)
+    } else {
+      if (battleState) hydrateFromState(battleState)
+      _restoreRoundTab()
+    }
+    smokeHydrationReady = true
+    wsClient.value = createClient()
   }
-  smokeHydrationReady = true
-  wsClient.value = createClient()
   wsClient.value.onConnect = () => {
     // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
     // Diff logic prevents re-rendering already-current state.
     subscribeToChannel(wsClient.value, bcTopic('state'), (msg) => {
+      // Always track which genre/event the backend considers live (before genre filter).
+      if (msg.genreName) {
+        liveGenreName.value = msg.genreName
+        liveEventName.value = selectedEvent.value
+      }
       // Guard: ignore state broadcasts for a different genre, or when genre is
       // unset (empty/null). Prevents phase/champion leaking between formats.
       if (!msg.genreName || msg.genreName !== selectedGenre.value) return
@@ -1887,6 +1965,8 @@ onMounted(async () => {
     // Phase subscription — keep for real-time phase transitions
     wsClient.value.subscribe(bcTopic('phase'), (raw) => {
       const msg = JSON.parse(raw.body)
+      // Always track phase of the live genre for the view-only banner.
+      if (msg.genre && msg.genre === liveGenreName.value) livePhase.value = msg.phase
       // Guard: ignore phase broadcasts with missing/mismatched genre.
       // Prevents DECIDED phase from a finished smoke genre leaking into
       // a regular battle genre when switching between formats.
@@ -1916,6 +1996,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   _cleanupDrag()
+  clearTimeout(recoveryBannerTimer)
   for (const sub of Object.values(judgeVoteSubscriptions)) sub.unsubscribe?.()
   deactivateClient(wsClient.value)
 })
@@ -1976,33 +2057,45 @@ onUnmounted(() => {
       </a>
     </div>
 
-    <!-- Recovery banner -->
+    <!-- Recovery banner — auto-dismisses after 5s -->
     <Transition name="recovery-fade">
       <div
-        v-if="showRecoveryBanner && recoveryState"
+        v-if="showRecoveryBanner"
         class="recovery-banner"
-        role="alert"
+        role="status"
         aria-live="polite"
       >
-        <div class="recovery-body">
-          <span class="recovery-dot"></span>
-          <div class="recovery-text">
-            <span class="recovery-title">RESTORED</span>
-            <span class="recovery-detail">{{ recoveryState.currentPair?.left ?? '???' }} VS {{ recoveryState.currentPair?.right ?? '???' }}</span>
+        <span class="recovery-dot"></span>
+        <span class="recovery-title">SESSION RESTORED</span>
+      </div>
+    </Transition>
+
+    <!-- View-only banner — shown when viewing a non-active genre during an active battle -->
+    <Transition name="recovery-fade">
+      <div
+        v-if="isViewingNonActive"
+        class="view-only-banner"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="view-only-body">
+          <span class="view-only-dot"></span>
+          <div class="view-only-text">
+            <span class="view-only-label">LIVE</span>
+            <span class="view-only-detail">{{ liveGenreName }} — {{ livePhase }}</span>
           </div>
         </div>
-        <div class="recovery-actions">
-          <button class="recovery-btn recovery-btn-dismiss" @click="showRecoveryBanner = false">
-            DISMISS
-          </button>
-        </div>
+        <button
+          class="view-only-return-btn"
+          @click="requestGenreChange(liveGenreName)"
+        >RETURN TO LIVE</button>
       </div>
     </Transition>
 
     <!-- NOTE: Genre switcher is rendered inside LiveMatchPanel below -->
 
-    <!-- Setup panel — visible only to Admin/Organiser -->
-    <div v-if="isAdminOrOrganiser" class="card overflow-hidden">
+    <!-- Setup panel — hidden in view-only mode (mutations would target the live genre, not the viewed genre) -->
+    <div v-if="isAdminOrOrganiser && !isViewingNonActive" class="card overflow-hidden">
       <!-- Header — always visible, click to expand/collapse -->
       <div
         class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
@@ -2637,8 +2730,9 @@ onUnmounted(() => {
       :saveStatus="saveStatus"
       :finalTieBlocked="finalTieBlocked"
       :isReadonly="!isAdminOrOrganiser"
-      :canSwitchGenre="canSwitchGenre"
-      :genreSwitchBlockReason="genreSwitchBlockReason"
+      :isViewingNonActive="isViewingNonActive"
+      :liveGenreName="liveGenreName"
+      :livePhase="livePhase"
       :genreChampions="genreChampions"
       :stompClient="wsClient"
       :overlayConfig="overlayConfig"
@@ -2881,71 +2975,24 @@ onUnmounted(() => {
 .recovery-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 18px;
-  border-left: 3px solid rgba(245,158,11,0.85);
-  background: rgba(245,158,11,0.08);
+  gap: 10px;
+  padding: 10px 18px;
+  border-left: 3px solid rgba(52,211,153,0.85);
+  background: rgba(52,211,153,0.07);
   font-family: 'Anton SC', sans-serif;
-}
-.recovery-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
 }
 .recovery-dot {
   flex-shrink: 0;
-  width: 8px; height: 8px;
+  width: 7px; height: 7px;
   border-radius: 50%;
-  background: rgba(245,158,11,0.85);
-  box-shadow: 0 0 8px rgba(245,158,11,0.6), 0 0 16px rgba(245,158,11,0.3);
-  animation: recoveryPulse 1.8s ease-in-out infinite;
-}
-.recovery-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  background: rgba(52,211,153,0.9);
+  box-shadow: 0 0 8px rgba(52,211,153,0.6);
 }
 .recovery-title {
   font-size: 11px;
   letter-spacing: 0.18em;
-  color: rgba(245,158,11,0.85);
+  color: rgba(52,211,153,0.9);
   text-transform: uppercase;
-}
-.recovery-detail {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.75);
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.recovery-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.recovery-btn {
-  font-family: 'Anton SC', sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 6px 14px;
-  border: none;
-  cursor: pointer;
-  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
-  transition: background 0.2s, color 0.2s;
-}
-.recovery-btn-dismiss {
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.55);
-}
-.recovery-btn-dismiss:hover {
-  background: rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.75);
 }
 
 @keyframes recoveryPulse {
@@ -2957,6 +3004,71 @@ onUnmounted(() => {
 .recovery-fade-leave-active { transition: opacity 0.3s ease; }
 .recovery-fade-enter-from,
 .recovery-fade-leave-to { opacity: 0; }
+
+/* ── View-only banner ───────────────────────────────────────── */
+.view-only-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-left: 3px solid rgba(239,68,68,0.85);
+  background: rgba(239,68,68,0.07);
+  font-family: 'Anton SC', sans-serif;
+}
+.view-only-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.view-only-dot {
+  flex-shrink: 0;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(239,68,68,0.9);
+  box-shadow: 0 0 8px rgba(239,68,68,0.6), 0 0 16px rgba(239,68,68,0.3);
+  animation: recoveryPulse 1.2s ease-in-out infinite;
+}
+.view-only-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.view-only-label {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: rgba(239,68,68,0.9);
+  text-transform: uppercase;
+}
+.view-only-detail {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.view-only-return-btn {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  flex-shrink: 0;
+  background: rgba(239,68,68,0.12);
+  color: rgba(239,68,68,0.9);
+  border: 1px solid rgba(239,68,68,0.35);
+  cursor: pointer;
+  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+  transition: background 0.2s, color 0.2s;
+}
+.view-only-return-btn:hover {
+  background: rgba(239,68,68,0.22);
+  color: rgba(255,255,255,0.9);
+}
 
 /* ── Confirm modal — mobile responsiveness ───────────────────── */
 @media (max-width: 640px) {

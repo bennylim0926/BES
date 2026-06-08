@@ -19,8 +19,6 @@ const defaultProps = {
   saveStatus: 'idle',
   finalTieBlocked: false,
   isReadonly: false,
-  canSwitchGenre: true,
-  genreSwitchBlockReason: '',
   genreChampions: {},
   revealActive: false
 }
@@ -34,7 +32,7 @@ describe('LiveMatchPanel', () => {
 
   it('renders phase badge', () => {
     const wrapper = mount(LiveMatchPanel, { props: defaultProps })
-    expect(wrapper.text()).toContain('IDLE')
+    expect(wrapper.text()).toContain('Standby')
   })
 
   it('shows role guidance when readonly (Emcee)', () => {
@@ -55,14 +53,14 @@ describe('LiveMatchPanel', () => {
     const wrapper = mount(LiveMatchPanel, {
       props: { ...defaultProps, battlePhase: 'LOCKED', currentBattle: [{}] }
     })
-    expect(wrapper.text()).toContain('Open Voting')
+    expect(wrapper.text()).toContain('Start Judging')
   })
 
   it('renders GET SCORE button in VOTING phase (non-final)', () => {
     const wrapper = mount(LiveMatchPanel, {
       props: { ...defaultProps, battlePhase: 'VOTING', currentBattle: [{ isFinal: false }] }
     })
-    expect(wrapper.text()).toContain('Get Score')
+    expect(wrapper.text()).toContain('Reveal Result')
   })
 
   it('renders NEXT PAIR button in REVEALED phase', () => {

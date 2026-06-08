@@ -19,11 +19,12 @@ const topic = (path) => eventName.value
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
 
 // ── Battle state ────────────────────────────────────────────────────────────
-const battlePhase    = ref('IDLE')
-const leftName       = ref('')
-const rightName      = ref('')
-const revealedWinner = ref(-2)
-const battleJudges   = ref({ judges: [] })
+const battlePhase      = ref('IDLE')
+const leftName         = ref('')
+const rightName        = ref('')
+const revealedWinner   = ref(-2)
+const battleJudges     = ref({ judges: [] })
+const activeGenreName  = ref('')  // current genre in progress — shown in "not assigned" message
 
 // ── Judge identity ──────────────────────────────────────────────────────────
 const judgeId         = ref(null)   // number | null
@@ -69,6 +70,9 @@ const hydrateJudgeFromState = (state) => {
       }
     }
   }
+
+  // Genre name — track for "not assigned" message
+  if (state.genreName) activeGenreName.value = state.genreName
 
   // Judges — check if current judge was re-added after block
   if (state.judges?.length) {
@@ -313,7 +317,13 @@ onUnmounted(() => {
           class="phase-pill"
           :class="`phase-pill--${battlePhase.toLowerCase()}`"
           aria-live="polite"
-        >{{ battlePhase }}</span>
+        >{{
+          battlePhase === 'IDLE'     ? 'Standby'      :
+          battlePhase === 'LOCKED'   ? 'Battling'     :
+          battlePhase === 'VOTING'   ? 'Judging'      :
+          battlePhase === 'REVEALED' ? 'Result Shown'  :
+          battlePhase === 'DECIDED'  ? 'Champion Set'  : battlePhase
+        }}</span>
       </div>
 
       <div class="header-right" style="display:flex;align-items:center;gap:8px;">
@@ -344,8 +354,12 @@ onUnmounted(() => {
           class="panels-blocker"
           aria-live="polite"
         >
-          <span class="blocker-icon">{{ battlePhase === 'DECIDED' ? '⭐' : battlePhase === 'LOCKED' ? '🔒' : '⏳' }}</span>
-          <span class="blocker-text">{{ battlePhase === 'DECIDED' ? 'CHAMPION DECIDED' : battlePhase === 'LOCKED' ? 'WAITING FOR OPERATOR TO OPEN VOTING' : 'WAITING…' }}</span>
+          <span v-if="battlePhase === 'DECIDED'" class="blocker-icon">⭐</span>
+          <span class="blocker-text">{{
+            battlePhase === 'DECIDED' ? 'CHAMPION HAS BEEN DECIDED' :
+            battlePhase === 'LOCKED'  ? 'BATTLE IN PROGRESS — JUDGING OPENS SHORTLY' :
+            'NO ACTIVE BATTLE'
+          }}</span>
         </div>
       </Transition>
 
@@ -469,8 +483,10 @@ onUnmounted(() => {
           class="panels-blocker"
           aria-live="polite"
         >
-          <span class="blocker-icon">🚫</span>
-          <span class="blocker-text">NOT ASSIGNED TO THIS BATTLE</span>
+          <span class="blocker-text">
+            {{ activeGenreName ? `${activeGenreName} IS IN PROGRESS` : 'BATTLE IN PROGRESS' }}
+          </span>
+          <span class="blocker-sub">Please come back later.</span>
         </div>
       </Transition>
 
@@ -756,6 +772,17 @@ onUnmounted(() => {
   font-weight: 800;
   letter-spacing: 0.22em; text-transform: uppercase;
   color: rgba(251,191,36,0.85);
+  text-align: center;
+  padding: 0 24px;
+}
+.blocker-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(11px, 1.6vw, 14px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+  padding: 0 32px;
 }
 
 /* ── REVEALED banner ────────────────────────────────────────── */

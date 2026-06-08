@@ -396,6 +396,15 @@ public class BattleController {
         ));
     }
 
+    @GetMapping("/genre-state")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> getGenreState(
+            @RequestParam String event,
+            @RequestParam String genre) {
+        Map<String, Object> state = battleService.getGenreStateFromDbService(event, genre);
+        return ResponseEntity.ok(state);
+    }
+
     @GetMapping("/state")
     public ResponseEntity<?> getBattleState(@RequestParam(required = false) String event) {
         String eName = resolveEvent(event);
