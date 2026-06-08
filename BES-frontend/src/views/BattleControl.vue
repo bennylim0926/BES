@@ -289,10 +289,14 @@ const handleEmceeStartRound = () => {
 // ── View-only genre tracking ───────────────────────────────────
 // liveGenreName: genre currently active on the backend (may differ from selectedGenre)
 // livePhase: battle phase of the live genre (updated from WS, independent of viewed genre)
-const liveGenreName = ref('')
-const livePhase     = ref('IDLE')
+// liveEventName: event that owns liveGenreName — banner only shows within the same event
+const liveGenreName  = ref('')
+const liveEventName  = ref('')
+const livePhase      = ref('IDLE')
 const isViewingNonActive = computed(() =>
-  !!liveGenreName.value && selectedGenre.value !== liveGenreName.value
+  !!liveGenreName.value &&
+  selectedEvent.value === liveEventName.value &&
+  selectedGenre.value !== liveGenreName.value
 )
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
@@ -1661,14 +1665,17 @@ watch(selectedGenre, async (newVal, oldVal) => {
   // active battle. Skip setActiveGenre (would disrupt live battle) and all side-effecting
   // calls (restoreAndBroadcastGenreBattle, syncJudgesForGenre, dismissChampionReveal).
   // Instead load the viewed genre's state directly from DB via REST.
+  const sameEventAsLive = selectedEvent.value === liveEventName.value
   const enteringViewOnly = oldVal &&
     liveGenreName.value &&
+    sameEventAsLive &&
     newVal !== liveGenreName.value &&
     ACTIVE_PHASES.includes(livePhase.value)
 
   // Returning to the live genre from view-only mode — normal active switch.
   const returningToLive = oldVal &&
     liveGenreName.value &&
+    sameEventAsLive &&
     newVal === liveGenreName.value &&
     ACTIVE_PHASES.includes(livePhase.value)
 
@@ -1859,8 +1866,9 @@ onMounted(async () => {
   const backendLiveGenre = preCheckState?.genreName ?? ''
   const backendLivePhase = preCheckState?.battlePhase ?? 'IDLE'
   if (backendLiveGenre) {
-    liveGenreName.value = backendLiveGenre
-    livePhase.value     = backendLivePhase
+    liveGenreName.value  = backendLiveGenre
+    liveEventName.value  = selectedEvent.value
+    livePhase.value      = backendLivePhase
   }
 
   const ACTIVE_PHASES = ['LOCKED', 'VOTING', 'REVEALED']
@@ -1942,8 +1950,11 @@ onMounted(async () => {
     // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
     // Diff logic prevents re-rendering already-current state.
     subscribeToChannel(wsClient.value, bcTopic('state'), (msg) => {
-      // Always track which genre the backend considers live (before genre filter).
-      if (msg.genreName) liveGenreName.value = msg.genreName
+      // Always track which genre/event the backend considers live (before genre filter).
+      if (msg.genreName) {
+        liveGenreName.value = msg.genreName
+        liveEventName.value = selectedEvent.value
+      }
       // Guard: ignore state broadcasts for a different genre, or when genre is
       // unset (empty/null). Prevents phase/champion leaking between formats.
       if (!msg.genreName || msg.genreName !== selectedGenre.value) return
