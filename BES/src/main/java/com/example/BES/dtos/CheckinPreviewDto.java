@@ -9,6 +9,7 @@ public class CheckinPreviewDto {
     public List<String> memberNames;
     public List<GenreEntry> genres;
     public Boolean cancelled;
+    public String eventName;
 
     public static class GenreEntry {
         public String genreName;

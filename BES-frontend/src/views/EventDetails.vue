@@ -798,7 +798,7 @@ const copyTokenLink = (url) => {
 
 const auditionLinkCopied = ref(false)
 function copyAuditionScreenLink() {
-  copyToClipboard(window.location.origin + '/event/audition-number')
+  copyToClipboard(window.location.origin + '/event/audition-number?event=' + encodeURIComponent(props.eventName))
   auditionLinkCopied.value = true
   setTimeout(() => { auditionLinkCopied.value = false }, 2000)
 }
@@ -1078,6 +1078,7 @@ onMounted(async () => {
       }
     })
     subscribeToChannel(wsClient, '/topic/checkin-preview/', (msg) => {
+      if (msg.eventName && msg.eventName !== props.eventName) return
       if (!msg.participantId) return
       if (msg.cancelled) {
         delete previewingIds[msg.participantId]

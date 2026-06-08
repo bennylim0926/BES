@@ -38,7 +38,8 @@ function copyToClipboard(text) {
 }
 
 function copyAuditionScreenLink() {
-  copyToClipboard(window.location.origin + '/event/audition-number')
+  if (!authStore.activeEvent?.name) return
+  copyToClipboard(window.location.origin + '/event/audition-number?event=' + encodeURIComponent(authStore.activeEvent.name))
   linkCopied.value = true
   setTimeout(() => { linkCopied.value = false }, 2000)
 }
@@ -110,6 +111,8 @@ function goToEventDetails() {
           @click="copyAuditionScreenLink"
           class="nav-btn"
           :class="linkCopied ? 'nav-btn--copied' : ''"
+          :disabled="!authStore.activeEvent?.name"
+          :style="!authStore.activeEvent?.name ? 'opacity:0.35;cursor:not-allowed' : ''"
         >
           <i class="pi nav-btn-icon" :class="linkCopied ? 'pi-check' : 'pi-hashtag'"></i>
           <span class="nav-btn-label">{{ linkCopied ? 'Link Copied!' : 'Audition Screen' }}</span>

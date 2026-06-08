@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 
@@ -19,6 +20,9 @@ const rollingIntervals = {}         // { "${slotId}-${genreName}": intervalId }
 const modalTitle = ref('')
 const modalMessage = ref('')
 const showModal = ref(false)
+
+const route = useRoute()
+const activeEventName = computed(() => route.query.event || '')
 
 const wsClients = []
 
@@ -109,6 +113,7 @@ function processSlotQueue(slotId) {
 
 // ── WS Handlers ─────────────────────────────────────────────────────────────
 const onPreview = (msg) => {
+  if (msg.eventName && msg.eventName !== activeEventName.value) return
   if (msg.cancelled) {
     const id = slotKey(msg.participantId, msg.name)
     const idx = activeSlots.value.findIndex(s => s.slotId === id)
@@ -146,6 +151,7 @@ const onPreview = (msg) => {
 }
 
 const onReceiveAuditionNumber = (msg) => {
+  if (msg.eventName && msg.eventName !== activeEventName.value) return
   const id = slotKey(msg.participantId, msg.name)
   const slot = activeSlots.value.find(s => s.slotId === id)
   if (slot) {
@@ -165,6 +171,7 @@ const onReceiveAuditionNumber = (msg) => {
 }
 
 const onRepeatAudition = (msg) => {
+  if (msg.eventName && msg.eventName !== activeEventName.value) return
   const judgeLabel = msg.judge ? ` · Judge: ${msg.judge}` : ''
   modalTitle.value = `Hey ${msg.name}!`
   modalMessage.value = `Your audition number is ${msg.genre} #${msg.audition}${judgeLabel}`
@@ -192,6 +199,16 @@ onBeforeUnmount(() => {
   <div class="page-container">
     <div class="color-bleed"></div>
 
+    <!-- ── No event linked ───────────────────────────────────────────────── -->
+    <div v-if="!activeEventName" class="flex flex-col items-center justify-center py-24 text-center">
+      <div class="para-chip-sm w-16 h-16 flex items-center justify-center mb-4">
+        <i class="pi pi-link-slash text-content-muted text-2xl"></i>
+      </div>
+      <p class="type-body text-content-secondary">No event linked</p>
+      <p class="type-label text-content-muted mt-1">Open this screen from the Audition Screen button on Event Details</p>
+    </div>
+
+    <template v-else>
     <!-- ── Current Participants ────────────────────────────────────────── -->
     <div class="section-rule mb-4">
       <span class="section-rule-label">Current Participant</span>
@@ -352,6 +369,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </template>
+    </template> <!-- end v-else (activeEventName) -->
   </div>
 
   <ActionDoneModal
