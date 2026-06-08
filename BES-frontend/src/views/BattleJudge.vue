@@ -1,7 +1,7 @@
 <script setup>
 import { battleJudgeVote, getBattleJudges, getBattlePhase, getBattleState, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/utils/auth'
 import { useRoute, useRouter } from 'vue-router'
 
