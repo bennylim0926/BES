@@ -4,7 +4,14 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { getSmokeList, getOverlayConfig, getBattleJudges, getBattleState } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 import { useDelay } from '@/utils/utils'
+import { useRoute } from 'vue-router'
 import { barHeightPct, findScoreGainers } from '@/utils/smokeChartHelpers'
+
+const route = useRoute()
+const eventName = computed(() => route.query.event || '')
+const topic = (path) => eventName.value
+  ? `/topic/battle/${eventName.value}/${path}`
+  : `/topic/battle/${path}`
 
 const props = defineProps({
   bottomPad: { type: Number, default: 0 }
@@ -234,30 +241,30 @@ onMounted(async () => {
   document.documentElement.classList.add('transparent-page')
   document.body.classList.add('transparent-page')
 
-  const config = await getOverlayConfig()
+  const config = await getOverlayConfig(eventName.value)
   if (config?.leftColor !== undefined) overlayConfig.value = config
 
   const smoke = await getSmokeList()
   if (smoke?.list) smokeParticipants.value = smoke.list
 
-  battleJudges.value = await getBattleJudges()
+  battleJudges.value = await getBattleJudges(eventName.value)
 
   const cConfig = createClient(); clients.push(cConfig)
-  subscribeToChannel(cConfig, '/topic/battle/overlay-config', (msg) => {
+  subscribeToChannel(cConfig, topic('overlay-config'), (msg) => {
     if (msg?.leftColor !== undefined) overlayConfig.value = msg
   })
 
   const cSmoke = createClient(); clients.push(cSmoke)
-  subscribeToChannel(cSmoke, '/topic/battle/smoke', updateList)
+  subscribeToChannel(cSmoke, topic('smoke'), updateList)
 
   const cJudges = createClient(); clients.push(cJudges)
-  subscribeToChannel(cJudges, '/topic/battle/judges', updateBattleJudge)
+  subscribeToChannel(cJudges, topic('judges'), updateBattleJudge)
 
   const cScore = createClient(); clients.push(cScore)
-  subscribeToChannel(cScore, '/topic/battle/score', updateScore)
+  subscribeToChannel(cScore, topic('score'), updateScore)
 
   const cPhase = createClient(); clients.push(cPhase)
-  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
+  subscribeToChannel(cPhase, topic('phase'), (msg) => {
     if (!msg?.phase) return
     battlePhase.value = msg.phase
     if (msg.phase === 'LOCKED') showResult.value = false
@@ -266,19 +273,19 @@ onMounted(async () => {
   })
 
   const cReveal = createClient(); clients.push(cReveal)
-  subscribeToChannel(cReveal, '/topic/battle/champion-reveal', (msg) => {
+  subscribeToChannel(cReveal, topic('champion-reveal'), (msg) => {
     if (!msg) return
     if (msg.dismiss) { showChampion.value = false; return }
     if (msg.championName) showChampionFor(msg.championName)
   })
 
   const cState = createClient(); clients.push(cState)
-  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+  subscribeToChannel(cState, topic('state'), (msg) => {
     hydrateChartFromState(msg)
   })
 
   // Initial hydration + reconnect recovery
-  const initialState = await getBattleState()
+  const initialState = await getBattleState(eventName.value)
   if (initialState) hydrateChartFromState(initialState)
 })
 

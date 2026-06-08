@@ -7,6 +7,10 @@ import { useRoute } from 'vue-router'
 import Chart from './Chart.vue';
 
 const route = useRoute()
+const eventName = computed(() => route.query.event || '')
+const topic = (path) => eventName.value
+  ? `/topic/battle/${eventName.value}/${path}`
+  : `/topic/battle/${path}`
 
 // ── Overlay config (live from BattleControl + API) ─────────────────────────
 const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb' })
@@ -420,20 +424,20 @@ onMounted(async () => {
   document.body.classList.add('transparent-page')
 
   // Fetch initial overlay config (survives OBS refresh)
-  const config = await getOverlayConfig()
+  const config = await getOverlayConfig(eventName.value)
   if (config?.showImages !== undefined) overlayConfig.value = config
 
   // Live overlay config updates from BattleControl
   const cOverlay = createClient()
   clients.push(cOverlay)
-  subscribeToChannel(cOverlay, '/topic/battle/overlay-config', (msg) => {
+  subscribeToChannel(cOverlay, topic('overlay-config'), (msg) => {
     if (msg?.showImages !== undefined) overlayConfig.value = msg
   })
 
   // Phase subscription: track phase for stale-event guard; VOTING shows indicator
   const cPhase = createClient()
   clients.push(cPhase)
-  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
+  subscribeToChannel(cPhase, topic('phase'), (msg) => {
     if (!msg?.phase) return
     // Ignore phase messages from a different (inactive) genre — stale WS from a
     // genre switch can arrive late and corrupt the current genre's phase display.
@@ -464,7 +468,7 @@ onMounted(async () => {
 
   // Restore state from backend on mount — handles OBS refresh and genre switches.
   // Runs for both standard and smoke mode so genre-switch detection always works.
-  const state = await getBattleState()
+  const state = await getBattleState(eventName.value)
   if (state?.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
     activeGenreName.value = state.genreName
@@ -474,9 +478,9 @@ onMounted(async () => {
     if (state?.judges?.length) {
       battleJudges.value = { judges: state.judges }
     } else {
-      battleJudges.value = await getBattleJudges()
+      battleJudges.value = await getBattleJudges(eventName.value)
     }
-    const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair()
+    const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair(eventName.value)
     if (pair) await updateBattlePair(pair)
     // Restore winner visual state for REVEALED and DECIDED without replaying the score animation
     if ((state?.battlePhase === 'REVEALED' || state?.battlePhase === 'DECIDED') && state?.bracket?.rounds) {
@@ -489,20 +493,20 @@ onMounted(async () => {
   const cPair2   = createClient(); clients.push(cPair2)
   const cScore2  = createClient(); clients.push(cScore2)
   const cJudges2 = createClient(); clients.push(cJudges2)
-  subscribeToChannel(cPair2,   '/topic/battle/battle-pair', (msg) => {
+  subscribeToChannel(cPair2,   topic('battle-pair'), (msg) => {
     if (!isSmoke.value && (msg.left !== leftName.value || msg.right !== rightName.value)) {
       updateBattlePair(msg)
     }
   })
-  subscribeToChannel(cScore2,  '/topic/battle/score',       (msg) => { if (!isSmoke.value) updateScore(msg) })
-  subscribeToChannel(cJudges2, '/topic/battle/judges',      (msg) => { if (!isSmoke.value) updateBattleJudge(msg) })
+  subscribeToChannel(cScore2,  topic('score'),       (msg) => { if (!isSmoke.value) updateScore(msg) })
+  subscribeToChannel(cJudges2, topic('judges'),      (msg) => { if (!isSmoke.value) updateBattleJudge(msg) })
 
   // /topic/battle/bracket — fires when operator changes bracket format or size in BattleControl.
   // Use topSize to determine smoke mode (7 = smoke, anything else = standard).
   // Format change: overlay will receive phase → IDLE from BattleControl, triggering the
   // blank announcement. No manual wipe needed here.
   const cBracket = createClient(); clients.push(cBracket)
-  subscribeToChannel(cBracket, '/topic/battle/bracket', async (msg) => {
+  subscribeToChannel(cBracket, topic('bracket'), async (msg) => {
     if (!msg) return
     const wasSmoke = isSmoke.value
     const newTopSize = msg.topSize !== undefined ? Number(msg.topSize) : null
@@ -513,7 +517,7 @@ onMounted(async () => {
     // On format switch standard → smoke: Chart handles its own subscriptions.
     // On format switch smoke → standard: fetch current pair from backend to show something.
     if (wasSmoke && !isSmoke.value) {
-      const state = await getBattleState()
+      const state = await getBattleState(eventName.value)
       if (state?.currentPair?.left) await updateBattlePair(state.currentPair)
     }
   })
@@ -521,7 +525,7 @@ onMounted(async () => {
   // Champion reveal — re-plays the winner animation when organiser clicks Reveal Champion
   // after a refresh or genre switch (score already submitted, but overlay needs to animate).
   const cChampion = createClient(); clients.push(cChampion)
-  subscribeToChannel(cChampion, '/topic/battle/champion-reveal', async (msg) => {
+  subscribeToChannel(cChampion, topic('champion-reveal'), async (msg) => {
     if (!msg || msg.dismiss || isSmoke.value) return
     const champion = msg.championName
     if (!champion) return
@@ -531,7 +535,7 @@ onMounted(async () => {
     // animation below.
     let side = champion === leftName.value ? 0 : (champion === rightName.value ? 1 : -1)
     if (side === -1) {
-      const freshState = await getBattleState()
+      const freshState = await getBattleState(eventName.value)
       if (freshState?.currentPair?.left) {
         // Silent pair update: set refs directly, no entrance animation
         leftName.value    = freshState.currentPair.left
@@ -583,13 +587,13 @@ onMounted(async () => {
 
   // Full-state snapshot — hydrates on mount, genre switch, and reconnect recovery
   const cState = createClient(); clients.push(cState)
-  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+  subscribeToChannel(cState, topic('state'), (msg) => {
     hydrateOverlayFromState(msg)
   })
 
   // Broadcast timer (from BattleTimer.vue countdown)
   const cTimer = createClient(); clients.push(cTimer)
-  subscribeToChannel(cTimer, '/topic/battle/timer', (msg) => {
+  subscribeToChannel(cTimer, topic('timer'), (msg) => {
     const data = msg
     timerState.value = data
     if (data.running && !showTimer.value) {
@@ -607,7 +611,7 @@ onMounted(async () => {
 
   // Format timer (session-level 7-to-Smoke countdown)
   const cFormatTimer = createClient(); clients.push(cFormatTimer)
-  subscribeToChannel(cFormatTimer, '/topic/battle/format-timer', (msg) => {
+  subscribeToChannel(cFormatTimer, topic('format-timer'), (msg) => {
     formatTimerState.value = msg
     showFormatTimer.value = msg.running || msg.expired
   })

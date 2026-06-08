@@ -45,6 +45,9 @@ const recoveredFormatTimer = ref(null)   // { running, timeLeft, totalDuration, 
 const lmpRef               = ref(null)   // ref to LiveMatchPanel — for triggerFormatTimerStart
 const lastSetWinnerTime = ref(0)   // timestamp of last local setWinner call (prevents stale WS overwrites)
 let setWinnerCooldown = null       // timeout handle for clearing the cooldown
+const bcTopic = (path) => selectedEvent.value
+  ? `/topic/battle/${selectedEvent.value}/${path}`
+  : `/topic/battle/${path}`
 
 // Single entry point for full-state hydration from /topic/battle/state or REST API.
 // Diffs against lastAppliedState to skip no-op updates and prevent animation disruption.
@@ -300,7 +303,7 @@ const pushOverlayConfig = async () => {
     return
   }
   overlayConfigError.value = ''
-  await setOverlayConfig(overlayConfig.value)
+  await setOverlayConfig(overlayConfig.value, selectedEvent.value)
 }
 
 
@@ -380,7 +383,7 @@ const onFileChange = async (e) => {
 const resetJudgeVote = async () => {
   // Reset locally first so the panel shows WAITING immediately, before WS echo arrives
   ;(battleJudges.value?.judges ?? []).forEach(j => { j.vote = -3 })
-  await Promise.all(battleJudges.value.judges.map(j => battleJudgeVote(j.id, -3)))
+  await Promise.all(battleJudges.value.judges.map(j => battleJudgeVote(j.id, -3, selectedEvent.value)))
 }
 
 const currentBattlePair = computed(() => {
@@ -418,8 +421,8 @@ const initiateBattlePairAt = async (top, pairList, startIdx) => {
   currentBattle.value = [startIdx, pairList]
   const left = pairList[startIdx][0]
   const right = pairList[startIdx][1]
-  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right))
-  await setBattlePhase('LOCKED')
+  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right), selectedEvent.value)
+  await setBattlePhase('LOCKED', undefined, selectedEvent.value)
   battlePhase.value = 'LOCKED'
   currentRound.value = startIdx
   currentTop.value = top
@@ -438,9 +441,9 @@ const initiateBattlePair = async (top, pairList) => {
   revealActive.value = false
   await resetJudgeVote()
   if (isSmoke.value) {
-    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name))
+    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name), selectedEvent.value)
     await updateSmokePair()  // must await so smoke list is posted before overlay reloads
-    await setBattlePhase('LOCKED')
+    await setBattlePhase('LOCKED', undefined, selectedEvent.value)
     battlePhase.value = 'LOCKED'
     return
   }
@@ -453,8 +456,8 @@ const initiateBattlePair = async (top, pairList) => {
   currentBattle.value = [0, pairList]
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right))
-  await setBattlePhase('LOCKED')
+  await setBattlePair(left, right, top === 'Top2', getMembersFor(left), getMembersFor(right), selectedEvent.value)
+  await setBattlePhase('LOCKED', undefined, selectedEvent.value)
   battlePhase.value = 'LOCKED'
   currentRound.value = 0
   currentTop.value = top
@@ -469,8 +472,8 @@ const nextPair = async () => {
   await resetJudgeVote()
   if (isSmoke.value) {
     await update7toSmokeMatch(currentWinner.value)
-    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name))
-    await setBattlePhase('LOCKED')
+    await setBattlePair(rounds.value[0].name, rounds.value[1].name, false, getMembersFor(rounds.value[0].name), getMembersFor(rounds.value[1].name), selectedEvent.value)
+    await setBattlePhase('LOCKED', undefined, selectedEvent.value)
     battlePhase.value = 'LOCKED'
     currentWinner.value = -2
   } else {
@@ -478,15 +481,15 @@ const nextPair = async () => {
       currentBattle.value = [currentBattle.value[0] + 1, currentBattle.value[1]]
       const left = currentBattle?.value[1][currentBattle?.value[0]][0]
       const right = currentBattle?.value[1][currentBattle?.value[0]][1]
-      await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right))
-      await setBattlePhase('LOCKED')
+      await setBattlePair(left, right, currentTop.value === 'Top2', getMembersFor(left), getMembersFor(right), selectedEvent.value)
+      await setBattlePhase('LOCKED', undefined, selectedEvent.value)
       battlePhase.value = 'LOCKED'
       currentWinner.value = -2
       currentRound.value += 1
     
     } else {
-      await clearBattlePair()
-      await setBattlePhase('IDLE')
+      await clearBattlePair(selectedEvent.value)
+      await setBattlePhase('IDLE', undefined, selectedEvent.value)
       battlePhase.value = 'IDLE'
       currentWinner.value = -2
       currentBattle.value = []
@@ -820,9 +823,9 @@ const broadcastBracket = async () => {
   // fire before a genre switch, causing smokeBattlers to be stale).
   if (isSmoke.value) {
     const named = rounds.value.filter(r => r?.name)
-    await updateSmokeList(named)
+    await updateSmokeList(named, selectedEvent.value)
   }
-  return setBracketState(toRaw(rounds.value), topSize.value, currentRound.value)
+  return setBracketState(toRaw(rounds.value), topSize.value, currentRound.value, selectedEvent.value)
 }
 
 // Re-broadcast the current battle pair to the overlay if a bracket drag/drop changed
@@ -833,7 +836,7 @@ const reBroadcastCurrentPairIfActive = () => {
   const pair = currentBattlePair.value
   if (pair?.[0] && pair?.[1]) {
     setBattlePair(pair[0], pair[1], currentTop.value === 'Top2',
-      getMembersFor(pair[0]), getMembersFor(pair[1]))
+      getMembersFor(pair[0]), getMembersFor(pair[1]), selectedEvent.value)
   }
 }
 
@@ -1259,17 +1262,19 @@ const jumpToRecoveredPair = async () => {
       await setBattlePair(
         currentPair.left, currentPair.right, currentPair.isFinal,
         currentPair.leftMembers?.length ? currentPair.leftMembers : getMembersFor(currentPair.left),
-        currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right)
+        currentPair.rightMembers?.length ? currentPair.rightMembers : getMembersFor(currentPair.right),
+        selectedEvent.value
       )
     } else {
       await setBattlePair(currentPair.left, currentPair.right, false,
-        getMembersFor(currentPair.left), getMembersFor(currentPair.right))
+        getMembersFor(currentPair.left), getMembersFor(currentPair.right),
+        selectedEvent.value)
     }
   }
   // For VOTING recovery, skip setBattlePair — the backend already has the correct
   // pair from loadGenreStateIntoMemory(). Calling setBattlePair would force LOCKED
   // and broadcast it, clearing all judge votes unnecessarily. Just re-broadcast phase.
-  await setBattlePhase(phase)
+  await setBattlePhase(phase, undefined, selectedEvent.value)
   battlePhase.value = phase
   markSaved()
 }
@@ -1292,7 +1297,7 @@ const syncJudgesForGenre = async (_newGenre, _prevGenre) => {
 
 const submitAddBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
-  const res = await addBattleJudge(j?.judgeId)
+  const res = await addBattleJudge(j?.judgeId, 1, selectedEvent.value)
   if (res.status === 404) { console.log("No judge in database"); return }
   battleJudges.value = await getBattleJudges()
 
@@ -1300,14 +1305,14 @@ const submitAddBattleJudge = async (name) => {
 
 const submitUpdateJudgeWeightage = async (id, value) => {
   const weightage = Math.max(1, parseInt(value) || 1)
-  await updateJudgeWeightage(id, weightage)
+  await updateJudgeWeightage(id, weightage, selectedEvent.value)
   battleJudges.value = await getBattleJudges()
 
 }
 
 const submitRemoveBattleJudge = async (name) => {
   const j = allJudges.value.find(j => j.judgeName === name)
-  await removeBattleJudge(j?.judgeId)
+  await removeBattleJudge(j?.judgeId, selectedEvent.value)
   battleJudges.value = await getBattleJudges()
 
 }
@@ -1396,10 +1401,10 @@ const submitGetScore = async () => {
   const hasMinusThree = battleJudges?.value.judges.some(j => j.vote === -3)
   if (hasMinusThree) { currentWinner.value = -3; return }
   if (isSmoke.value) {
-    const res = await setBattleScore()
+    const res = await setBattleScore(false, selectedEvent.value)
     const data = await res.json()
     currentWinner.value = Number(data.winner)
-    await setBattlePhase('REVEALED')
+    await setBattlePhase('REVEALED', undefined, selectedEvent.value)
     battlePhase.value = 'REVEALED'
     // If format timer expired, fetch fresh battler scores (guaranteed up-to-date)
     // and resolve the session winner. Avoids race with WS-delivered rounds update.
@@ -1420,19 +1425,19 @@ const submitGetScore = async () => {
     await resetJudgeVote()
     // Re-broadcast same pair so the overlay hides the judge panel and resets battler animations
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight))
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight), selectedEvent.value)
     return
   }
   const left = currentBattle?.value[1][currentBattle?.value[0]][0]
   const right = currentBattle?.value[1][currentBattle?.value[0]][1]
   if (left === "" || right === "") return
   const isFinalMatch = !isSmoke.value && currentTop.value === 'Top2'
-  const res = await setBattleScore(isFinalMatch)
+  const res = await setBattleScore(isFinalMatch, selectedEvent.value)
   if (res?.status === 409) {
     finalTieBlocked.value = true
     // Re-broadcast same pair → overlay/bracket transitions to LOCKED (rematch state)
     const [rLeft, rRight] = currentBattlePair.value ?? []
-    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight))
+    if (rLeft && rRight) await setBattlePair(rLeft, rRight, isFinalInProgress.value, getMembersFor(rLeft), getMembersFor(rRight), selectedEvent.value)
     return
   }
   const data = await res.json()
@@ -1442,7 +1447,7 @@ const submitGetScore = async () => {
 }
 
 const startRevote = async () => {
-  await resetBattleVotes()
+  await resetBattleVotes(selectedEvent.value)
   await resetJudgeVote()   // reset to -3 so allJudgesVoted tracks the fresh round
   finalTieBlocked.value = false
   currentWinner.value = -2
@@ -1454,23 +1459,23 @@ const lockChampion = async () => {
     : currentBattlePair.value?.[1]
   if (!winner) return
   genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: winner }
-  await setBattlePhase('DECIDED', winner)
+  await setBattlePhase('DECIDED', winner, selectedEvent.value)
   battlePhase.value = 'DECIDED'
 }
 
 const handleForceSmokeWinner = async (battler) => {
   if (!battler?.name) return
   genreChampions.value = { ...genreChampions.value, [selectedGenre.value]: battler.name }
-  await setBattlePhase('DECIDED', battler.name)
+  await setBattlePhase('DECIDED', battler.name, selectedEvent.value)
   battlePhase.value = 'DECIDED'
-  await revealChampion(selectedGenre.value, battler.name)
+  await revealChampion(selectedGenre.value, battler.name, selectedEvent.value)
   revealActive.value = true
 }
 
 const unlockChampion = async () => {
   const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
   genreChampions.value = rest
-  await setBattlePhase('VOTING')
+  await setBattlePhase('VOTING', undefined, selectedEvent.value)
   battlePhase.value = 'VOTING'
 
 }
@@ -1488,9 +1493,9 @@ const revealChampionForGenre = async () => {
     if (side === -1) return
     setWinner(currentTop.value, currentRound.value, side)
     currentWinner.value = side
-    await revealChampion(selectedGenre.value, championName)
+    await revealChampion(selectedGenre.value, championName, selectedEvent.value)
     // Stay in DECIDED so the genre remains re-revealable forever
-    await setBattlePhase('DECIDED')
+    await setBattlePhase('DECIDED', undefined, selectedEvent.value)
     battlePhase.value = 'DECIDED'
   
     revealActive.value = true
@@ -1505,18 +1510,18 @@ const revealChampionForGenre = async () => {
     const side = champion === currentBattlePair.value[0] ? 0 : (champion === currentBattlePair.value[1] ? 1 : -1)
     if (side !== -1) currentWinner.value = side
   }
-  await revealChampion(selectedGenre.value, champion)
+  await revealChampion(selectedGenre.value, champion, selectedEvent.value)
   revealActive.value = true
 }
 
 const dismissReveal = async () => {
-  await dismissChampionReveal()
+  await dismissChampionReveal(selectedEvent.value)
   revealActive.value = false
 }
 
 const openVoting = async () => {
   markSaving()
-  await setBattlePhase('VOTING')
+  await setBattlePhase('VOTING', undefined, selectedEvent.value)
   battlePhase.value = 'VOTING'
 
   markSaved()
@@ -1532,12 +1537,12 @@ const confirmResetBracket = async () => {
   // setBracketStateService) see fresh scores instead of stale battlers.
   if (isSmoke.value) {
     const named = rounds.value.filter(r => r?.name)
-    await updateSmokeList(named)
+    await updateSmokeList(named, selectedEvent.value)
   }
 
   broadcastBracket()
-  await clearBattlePair()
-  await setBattlePhase('IDLE')
+  await clearBattlePair(selectedEvent.value)
+  await setBattlePhase('IDLE', undefined, selectedEvent.value)
   battlePhase.value = 'IDLE'
   currentWinner.value = -2
   currentBattle.value = []
@@ -1547,7 +1552,7 @@ const confirmResetBracket = async () => {
   finalTieBlocked.value = false
 
   // Clear champion tracking — both backend (DB) and local ref
-  await dismissChampionReveal()
+  await dismissChampionReveal(selectedEvent.value)
   revealActive.value = false
   const { [selectedGenre.value]: _removed, ...rest } = genreChampions.value
   genreChampions.value = rest
@@ -1652,7 +1657,7 @@ watch([allJudgesVoted, tentativeWinner], ([voted, winner]) => {
 
 watch(selectedGenre, async (newVal, oldVal) => {
   // Dismiss before resetting revealActive — the check must happen while it's still true
-  if (oldVal && revealActive.value) await dismissChampionReveal()
+  if (oldVal && revealActive.value) await dismissChampionReveal(selectedEvent.value)
   revealActive.value = false
   if (newVal) {
     // Restore per-genre topSize — smoke auto-detection takes priority, otherwise
@@ -1721,7 +1726,7 @@ watch(selectedGenre, async (newVal, oldVal) => {
       // Defensive: if this genre has a champion locked, force DECIDED regardless
       // of what the backend returned (WS messages can corrupt the phase mid-switch).
       if (genreChampions.value[newVal] && battlePhase.value !== 'DECIDED') {
-        await setBattlePhase('DECIDED')
+        await setBattlePhase('DECIDED', undefined, selectedEvent.value)
         battlePhase.value = 'DECIDED'
       }
     }
@@ -1745,8 +1750,8 @@ watch(topSize, async (newVal, oldVal) => {
   }
   currentWinner.value = -2
   if (oldVal && !programmatic) {
-    await clearBattlePair()
-    await setBattlePhase('IDLE')
+    await clearBattlePair(selectedEvent.value)
+    await setBattlePhase('IDLE', undefined, selectedEvent.value)
     battlePhase.value = 'IDLE'
     currentBattle.value = []
     currentTop.value = ''
@@ -1871,7 +1876,7 @@ onMounted(async () => {
   wsClient.value.onConnect = () => {
     // Subscribe to full state snapshots — used for initial hydration, genre switch, and reconnect recovery.
     // Diff logic prevents re-rendering already-current state.
-    subscribeToChannel(wsClient.value, '/topic/battle/state', (msg) => {
+    subscribeToChannel(wsClient.value, bcTopic('state'), (msg) => {
       // Guard: ignore state broadcasts for a different genre, or when genre is
       // unset (empty/null). Prevents phase/champion leaking between formats.
       if (!msg.genreName || msg.genreName !== selectedGenre.value) return
@@ -1880,7 +1885,7 @@ onMounted(async () => {
     })
 
     // Phase subscription — keep for real-time phase transitions
-    wsClient.value.subscribe('/topic/battle/phase', (raw) => {
+    wsClient.value.subscribe(bcTopic('phase'), (raw) => {
       const msg = JSON.parse(raw.body)
       // Guard: ignore phase broadcasts with missing/mismatched genre.
       // Prevents DECIDED phase from a finished smoke genre leaking into
@@ -1896,7 +1901,7 @@ onMounted(async () => {
     // single atomic getBattleJudges() call (no more remove+add loop causing
     // intermediate states). judgeSyncing guard prevents WS from racing with
     // the explicit fetch during genre switch.
-    wsClient.value.subscribe('/topic/battle/judges', (raw) => {
+    wsClient.value.subscribe(bcTopic('judges'), (raw) => {
       if (judgeSyncing) return
       const msg = JSON.parse(raw.body)
       if (msg?.judges) {

@@ -21,7 +21,8 @@ const props = defineProps({
   phase:         { type: String, default: 'IDLE' },
   stompClient:   { type: Object, default: null },
   presets:       { type: Array,  default: () => [30, 45, 60, 90] },
-  recoveryState: { type: Object, default: null }  // { running, timeLeft, totalDuration }
+  recoveryState: { type: Object, default: null },  // { running, timeLeft, totalDuration }
+  eventName:     { type: String, default: '' }
 })
 
 // ── Reactive state ──
@@ -152,7 +153,10 @@ onMounted(() => {
   if (!props.stompClient) return
   const doSubscribe = () => {
     if (timerSub) return
-    timerSub = props.stompClient.subscribe('/topic/battle/timer', (raw) => {
+    const timerTopic = props.eventName
+      ? `/topic/battle/${props.eventName}/timer`
+      : '/topic/battle/timer'
+    timerSub = props.stompClient.subscribe(timerTopic, (raw) => {
       try {
         const msg = JSON.parse(raw.body)
         if (msg && msg.running) { wsRecoveryAttempted = true; recoverFromState(msg) }
@@ -187,7 +191,10 @@ function publishState() {
   // Use REST API instead of STOMP — more reliable for writes.
   // Backend stores the payload and broadcasts to /topic/battle/timer for overlay + recovery.
   try {
-    fetch('/api/v1/battle/timer', {
+    const url = props.eventName
+      ? `/api/v1/battle/timer?event=${encodeURIComponent(props.eventName)}`
+      : '/api/v1/battle/timer'
+    fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

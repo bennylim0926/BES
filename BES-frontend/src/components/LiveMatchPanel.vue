@@ -460,6 +460,7 @@ const viewedPairList = computed(() => {
           :phase="battlePhase"
           :stomp-client="stompClient"
           :recovery-state="recoveryTimer"
+          :event-name="selectedEvent"
         />
       </div>
 
@@ -469,6 +470,7 @@ const viewedPairList = computed(() => {
           ref="smokeFormatTimerRef"
           :stomp-client="stompClient"
           :recovery-state="recoveryFormatTimer"
+          :event-name="selectedEvent"
         />
       </div>
 
