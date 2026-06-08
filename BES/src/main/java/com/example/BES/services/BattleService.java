@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -65,32 +66,19 @@ public class BattleService {
     private List<String> modes = Arrays.asList("Top32", "Top16", "7-to-Smoke");
     private String selectedMode;
 
-    private Object bracketState = null;
-    private Integer currentRoundIndex = 0;
-    private List<Battler> battlers = new ArrayList<>();
-    private String battlePhase = "IDLE";
-    private boolean currentIsFinal = false;
-    private Map<String, Object> overlayConfig = new HashMap<>(Map.of(
-        "showImages", true,
-        "leftColor",  "#dc2626",
-        "rightColor", "#2563eb"
-    ));
-    private BattlePair currentPair;
-    private final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
-    private String status;
+    private final ConcurrentHashMap<String, EventBattleState> eventStates = new ConcurrentHashMap<>();
 
     private String activeEventName;
-    private String activeGenreName;
-    private String genreFormat;
-    private String champion = null;
+    private String status;
 
-    BattleService() {
-        selectedMode = "";
-        currentPair = new BattlePair();
-        Battler left = new Battler();
-        Battler right = new Battler();
-        currentPair.leftBattler = left;
-        currentPair.rightBattler = right;
+    private EventBattleState stateFor(String eventName) {
+        return eventStates.computeIfAbsent(
+            eventName != null ? eventName : "", k -> new EventBattleState());
+    }
+
+    private String resolveEvent(String explicit) {
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        return activeEventName != null ? activeEventName : "";
     }
 
     @PostConstruct
@@ -99,8 +87,7 @@ public class BattleService {
             battleActiveGenreRepository.findById(1).ifPresent(active -> {
                 if (active.getEventName() != null && active.getGenreName() != null) {
                     activeEventName = active.getEventName();
-                    activeGenreName = active.getGenreName();
-                    loadGenreStateIntoMemory(activeEventName, activeGenreName);
+                    loadGenreStateIntoMemory(activeEventName, active.getGenreName());
                 }
             });
         } catch (Exception e) {
@@ -110,61 +97,66 @@ public class BattleService {
 
     public List<String> getModes() { return modes; }
 
-    public List<Battler> getSmokeBattlersService() { return battlers; }
+    public List<Battler> getSmokeBattlersService() {
+        return stateFor(resolveEvent(null)).battlers;
+    }
 
-    public void setSmokeBattlersService(SetSmokeBattlersDto dto) {
-        battlers = new ArrayList<>();
-        for (Battler battler : dto.getBattlers()) battlers.add(battler);
-        messagingTemplate.convertAndSend("/topic/battle/smoke", Map.of("battlers", battlers));
-        for (Battler battler : battlers) {
+    public void setSmokeBattlersService(String eventName, SetSmokeBattlersDto dto) {
+        EventBattleState s = stateFor(eventName);
+        s.battlers = new ArrayList<>(dto.getBattlers());
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/smoke",
+            Map.of("battlers", s.battlers));
+        for (Battler battler : s.battlers) {
             if (battler.getScore() != null && battler.getScore() >= 7) {
-                battlePhase = "DECIDED";
-                champion = battler.getName();
-                messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
-                    "phase", battlePhase,
-                    "genre", activeGenreName != null ? activeGenreName : "",
-                    "champion", champion
+                s.battlePhase = "DECIDED";
+                s.champion = battler.getName();
+                messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
+                    "phase",    s.battlePhase,
+                    "genre",    s.activeGenreName != null ? s.activeGenreName : "",
+                    "champion", s.champion
                 ));
                 break;
             }
         }
-        persistActiveState();
+        persistActiveState(eventName);
     }
 
-    public void setBattlerPairService(SetBattlerPairDto dto) {
-        getCurrentPair().leftBattler.setName(dto.getLeftBattler());
-        getCurrentPair().leftBattler.setScore(0);
-        getCurrentPair().leftBattler.setMembers(dto.getLeftMembers());
-        getCurrentPair().rightBattler.setName(dto.getRightBattler());
-        getCurrentPair().rightBattler.setScore(0);
-        getCurrentPair().rightBattler.setMembers(dto.getRightMembers());
-        currentIsFinal = dto.isFinal();
-        messagingTemplate.convertAndSend("/topic/battle/battle-pair", Map.of(
-            "left",         currentPair.getLeftBattler().getName(),
-            "leftScore",    currentPair.getLeftBattler().getScore(),
-            "leftMembers",  currentPair.getLeftBattler().getMembers(),
-            "right",        currentPair.getRightBattler().getName(),
-            "rightScore",   currentPair.getRightBattler().getScore(),
-            "rightMembers", currentPair.getRightBattler().getMembers(),
-            "isFinal",      currentIsFinal
+    public void setBattlerPairService(String eventName, SetBattlerPairDto dto) {
+        EventBattleState s = stateFor(eventName);
+        s.currentPair.getLeftBattler().setName(dto.getLeftBattler());
+        s.currentPair.getLeftBattler().setScore(0);
+        s.currentPair.getLeftBattler().setMembers(dto.getLeftMembers());
+        s.currentPair.getRightBattler().setName(dto.getRightBattler());
+        s.currentPair.getRightBattler().setScore(0);
+        s.currentPair.getRightBattler().setMembers(dto.getRightMembers());
+        s.currentIsFinal = dto.isFinal();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/battle-pair", Map.of(
+            "left",         s.currentPair.getLeftBattler().getName(),
+            "leftScore",    s.currentPair.getLeftBattler().getScore(),
+            "leftMembers",  s.currentPair.getLeftBattler().getMembers(),
+            "right",        s.currentPair.getRightBattler().getName(),
+            "rightScore",   s.currentPair.getRightBattler().getScore(),
+            "rightMembers", s.currentPair.getRightBattler().getMembers(),
+            "isFinal",      s.currentIsFinal
         ));
-        battlePhase = "LOCKED";
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
-            "phase", battlePhase,
-            "genre", activeGenreName != null ? activeGenreName : ""
+        s.battlePhase = "LOCKED";
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
+            "phase", s.battlePhase,
+            "genre", s.activeGenreName != null ? s.activeGenreName : ""
         ));
-        persistActiveState();
+        persistActiveState(eventName);
     }
 
-    public void clearBattlePairService() {
-        getCurrentPair().leftBattler.setName("");
-        getCurrentPair().leftBattler.setScore(0);
-        getCurrentPair().leftBattler.setMembers(new ArrayList<>());
-        getCurrentPair().rightBattler.setName("");
-        getCurrentPair().rightBattler.setScore(0);
-        getCurrentPair().rightBattler.setMembers(new ArrayList<>());
-        currentIsFinal = false;
-        messagingTemplate.convertAndSend("/topic/battle/battle-pair", Map.of(
+    public void clearBattlePairService(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        s.currentPair.getLeftBattler().setName("");
+        s.currentPair.getLeftBattler().setScore(0);
+        s.currentPair.getLeftBattler().setMembers(new ArrayList<>());
+        s.currentPair.getRightBattler().setName("");
+        s.currentPair.getRightBattler().setScore(0);
+        s.currentPair.getRightBattler().setMembers(new ArrayList<>());
+        s.currentIsFinal = false;
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/battle-pair", Map.of(
             "left",         "",
             "leftScore",    0,
             "leftMembers",  new ArrayList<>(),
@@ -173,127 +165,126 @@ public class BattleService {
             "rightMembers", new ArrayList<>(),
             "isFinal",      false
         ));
-        // Does NOT change phase — caller sets phase afterward
     }
 
-    public Integer setScoreService(boolean isFinal) {
+    public Integer setScoreService(String eventName, boolean isFinal) {
+        EventBattleState s = stateFor(eventName);
         int leftWeight, rightWeight;
-        synchronized (judges) {
-            leftWeight  = judges.stream().filter(j -> j.getVote() == 0).mapToInt(BattleJudge::getWeightage).sum();
-            rightWeight = judges.stream().filter(j -> j.getVote() == 1).mapToInt(BattleJudge::getWeightage).sum();
+        synchronized (s.judges) {
+            leftWeight  = s.judges.stream().filter(j -> j.getVote() == 0).mapToInt(BattleJudge::getWeightage).sum();
+            rightWeight = s.judges.stream().filter(j -> j.getVote() == 1).mapToInt(BattleJudge::getWeightage).sum();
         }
         Integer res;
         if (leftWeight == rightWeight) {
             if (isFinal) return -3;
             res = -1;
         } else if (leftWeight > rightWeight) {
-            currentPair.getLeftBattler().setScore(currentPair.leftBattler.getScore() + 1);
+            s.currentPair.getLeftBattler().setScore(s.currentPair.getLeftBattler().getScore() + 1);
             res = 0;
         } else {
-            currentPair.getRightBattler().setScore(currentPair.rightBattler.getScore() + 1);
+            s.currentPair.getRightBattler().setScore(s.currentPair.getRightBattler().getScore() + 1);
             res = 1;
         }
-        messagingTemplate.convertAndSend("/topic/battle/score", Map.of(
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/score", Map.of(
             "message", res,
-            "left",    currentPair.getLeftBattler().getScore(),
-            "right",   currentPair.getRightBattler().getScore()
+            "left",    s.currentPair.getLeftBattler().getScore(),
+            "right",   s.currentPair.getRightBattler().getScore()
         ));
         if (res == 0 || res == 1) {
-            // For smoke mode: persist the winner's score immediately so page-refresh
-            // shows the correct score before the Emcee clicks "Next".
-            if (res == 0 && battlers.size() > 0) {
-                battlers.get(0).setScore(battlers.get(0).getScore() + 1);
-            } else if (res == 1 && battlers.size() > 1) {
-                battlers.get(1).setScore(battlers.get(1).getScore() + 1);
+            if (res == 0 && !s.battlers.isEmpty()) {
+                s.battlers.get(0).setScore(s.battlers.get(0).getScore() + 1);
+            } else if (res == 1 && s.battlers.size() > 1) {
+                s.battlers.get(1).setScore(s.battlers.get(1).getScore() + 1);
             }
-            battlePhase = "REVEALED";
-            messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
-                "phase", battlePhase,
-                "genre", activeGenreName != null ? activeGenreName : ""
+            s.battlePhase = "REVEALED";
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
+                "phase", s.battlePhase,
+                "genre", s.activeGenreName != null ? s.activeGenreName : ""
             ));
-            persistActiveState();
+            persistActiveState(eventName);
         }
         return res;
     }
 
-    public Integer removeBattleJudgeService(SetJudgeDto dto) {
-        judges.removeIf(judge -> Objects.equals(judge.getId(), dto.getId()));
-        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
-        persistActiveState();
+    public Integer removeBattleJudgeService(String eventName, SetJudgeDto dto) {
+        EventBattleState s = stateFor(eventName);
+        s.judges.removeIf(judge -> Objects.equals(judge.getId(), dto.getId()));
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/judges",
+            Map.of("judges", s.judges));
+        persistActiveState(eventName);
         return dto.getId().intValue();
     }
 
-    public void updateJudgeWeightageService(UpdateJudgeWeightageDto dto) {
-        synchronized (judges) {
-            judges.stream()
+    public void updateJudgeWeightageService(String eventName, UpdateJudgeWeightageDto dto) {
+        EventBattleState s = stateFor(eventName);
+        synchronized (s.judges) {
+            s.judges.stream()
                 .filter(j -> j.getId().equals(dto.getId()))
                 .findFirst()
                 .ifPresent(j -> j.setWeightage(Math.max(1, dto.getWeightage())));
         }
-        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
-        persistActiveState();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/judges",
+            Map.of("judges", s.judges));
+        persistActiveState(eventName);
     }
 
-    public Integer setBattleJudgeService(SetJudgeDto dto) {
+    public Integer setBattleJudgeService(String eventName, SetJudgeDto dto) {
+        EventBattleState s = stateFor(eventName);
         Judge judge = judgeService.getJudgeById(dto.getId());
-        Integer code = -50;
-        if (judge != null) {
-            Boolean exists = judges.stream().anyMatch(j -> j.getName().equals(judge.getName()));
+        if (judge == null) return -1;
+        synchronized (s.judges) {
+            boolean exists = s.judges.stream().anyMatch(j -> j.getName().equals(judge.getName()));
             if (exists) return 0;
             BattleJudge battleJudge = new BattleJudge();
             battleJudge.setName(judge.getName());
             battleJudge.setVote(-3);
             battleJudge.setId(dto.getId());
             battleJudge.setWeightage(Math.max(1, dto.getWeightage()));
-            judges.add(battleJudge);
-            code = dto.getId().intValue();
-        } else {
-            return -1;
+            s.judges.add(battleJudge);
         }
-        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
-        persistActiveState();
-        return code;
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/judges",
+            Map.of("judges", s.judges));
+        persistActiveState(eventName);
+        return dto.getId().intValue();
     }
 
-    public Integer setVoteService(SetVoteDto dto) {
-        Integer code = -50;
-        Optional<BattleJudge> battleJude = judges.stream()
+    public Integer setVoteService(String eventName, SetVoteDto dto) {
+        EventBattleState s = stateFor(eventName);
+        Optional<BattleJudge> battleJudge = s.judges.stream()
             .filter(j -> j.getId().equals(dto.getId())).findFirst();
-        if (battleJude.isPresent()) {
-            battleJude.get().setVote(dto.getVote());
-        } else {
-            return -2;
-        }
-        code = dto.getVote();
+        if (battleJudge.isEmpty()) return -2;
+        battleJudge.get().setVote(dto.getVote());
+        Integer code = dto.getVote();
         messagingTemplate.convertAndSend(
             String.format("/topic/battle/vote/%d", dto.getId()),
             Map.of("vote", code, "judge", dto.getId())
         );
-        persistActiveState();
+        persistActiveState(eventName);
         return code;
     }
 
-    public void resetJudgeVotesService() {
-        synchronized (judges) {
-            for (BattleJudge judge : judges) judge.setVote(-3);
+    public void resetJudgeVotesService(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        synchronized (s.judges) {
+            for (BattleJudge judge : s.judges) judge.setVote(-3);
         }
-        messagingTemplate.convertAndSend("/topic/battle/judges", Map.of("judges", judges));
-        persistActiveState();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/judges",
+            Map.of("judges", s.judges));
+        persistActiveState(eventName);
     }
 
-    public Object getBracketState() { return bracketState; }
+    public Object getBracketState() { return stateFor(resolveEvent(null)).bracketState; }
 
-    public void setBracketStateService(SetBracketStateDto dto) {
+    public void setBracketStateService(String eventName, SetBracketStateDto dto) {
+        EventBattleState s = stateFor(eventName);
         Map<String, Object> state = new HashMap<>();
         state.put("topSize", dto.getTopSize());
         state.put("rounds", dto.getRounds());
-        this.bracketState = state;
-        if (dto.getCurrentRoundIndex() != null) {
-            this.currentRoundIndex = dto.getCurrentRoundIndex();
-        }
-        messagingTemplate.convertAndSend("/topic/battle/bracket", state);
-        persistActiveState();
-        broadcastStateSnapshot();
+        s.bracketState = state;
+        if (dto.getCurrentRoundIndex() != null) s.currentRoundIndex = dto.getCurrentRoundIndex();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/bracket", state);
+        persistActiveState(eventName);
+        broadcastStateSnapshot(eventName);
     }
 
     public String getSelectedMode() { return selectedMode; }
@@ -302,74 +293,108 @@ public class BattleService {
         this.selectedMode = dto.getMode();
     }
 
-    public BattlePair getCurrentPair() { return currentPair; }
+    public BattlePair getCurrentPair(String eventName) {
+        return stateFor(eventName).currentPair;
+    }
 
-    public void setCurrentPair(BattlePair currentPair) { this.currentPair = currentPair; }
+    public BattlePair getCurrentPair() {
+        return stateFor(resolveEvent(null)).currentPair;
+    }
 
-    public List<BattleJudge> getJudges() { return judges; }
+    public void setCurrentPair(String eventName, BattlePair pair) {
+        stateFor(eventName).currentPair = pair;
+    }
+
+    public List<BattleJudge> getJudges() {
+        return stateFor(resolveEvent(null)).judges;
+    }
+
+    public List<BattleJudge> getJudges(String eventName) {
+        return stateFor(eventName).judges;
+    }
 
     public void setJudges(List<BattleJudge> judges) {
-        synchronized (this.judges) { this.judges.clear(); this.judges.addAll(judges); }
+        EventBattleState s = stateFor(resolveEvent(null));
+        synchronized (s.judges) { s.judges.clear(); s.judges.addAll(judges); }
     }
 
     public String getStatus() { return status; }
 
     public void setStatus(String status) { this.status = status; }
 
-    public String getBattlePhase() { return battlePhase; }
-
-    public boolean isCurrentFinal() { return currentIsFinal; }
-
-    public void setBattlePhaseService(String phase) {
-        setBattlePhaseService(phase, null);
+    public String getBattlePhase() {
+        return stateFor(resolveEvent(null)).battlePhase;
     }
 
-    public void setBattlePhaseService(String phase, String championName) {
+    public String getBattlePhase(String eventName) {
+        return stateFor(eventName).battlePhase;
+    }
+
+    public boolean isCurrentFinal() {
+        return stateFor(resolveEvent(null)).currentIsFinal;
+    }
+
+    public boolean isCurrentFinal(String eventName) {
+        return stateFor(eventName).currentIsFinal;
+    }
+
+    public void setBattlePhaseService(String eventName, String phase) {
+        setBattlePhaseService(eventName, phase, null);
+    }
+
+    public void setBattlePhaseService(String eventName, String phase, String championName) {
         if ("REVEALED".equals(phase)) return;
-        // Prevent starting a round with zero judges
+        EventBattleState s = stateFor(eventName);
         if ("LOCKED".equals(phase)) {
-            synchronized (judges) {
-                if (judges.isEmpty()) {
+            synchronized (s.judges) {
+                if (s.judges.isEmpty()) {
                     throw new IllegalArgumentException(
                         "Cannot start round: no judges assigned. Add at least one judge first.");
                 }
             }
         }
-        battlePhase = phase;
-        if (championName != null) {
-            champion = championName;
-        }
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
-            "phase", battlePhase,
-            "genre", activeGenreName != null ? activeGenreName : "",
-            "champion", champion != null ? champion : ""
+        s.battlePhase = phase;
+        if (championName != null) s.champion = championName;
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
+            "phase",    s.battlePhase,
+            "genre",    s.activeGenreName != null ? s.activeGenreName : "",
+            "champion", s.champion != null ? s.champion : ""
         ));
-        persistActiveState();
+        persistActiveState(eventName);
     }
 
-    public Map<String, Object> getOverlayConfig() { return overlayConfig; }
+    public Map<String, Object> getOverlayConfig() {
+        return stateFor(resolveEvent(null)).overlayConfig;
+    }
 
-    public void setOverlayConfigService(SetOverlayConfigDto dto) {
+    public Map<String, Object> getOverlayConfig(String eventName) {
+        return stateFor(eventName).overlayConfig;
+    }
+
+    public void setOverlayConfigService(String eventName, SetOverlayConfigDto dto) {
+        EventBattleState s = stateFor(eventName);
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put("showImages", dto.isShowImages());
         newConfig.put("leftColor",  dto.getLeftColor());
         newConfig.put("rightColor", dto.getRightColor());
-        overlayConfig = newConfig;
-        messagingTemplate.convertAndSend("/topic/battle/overlay-config", newConfig);
+        s.overlayConfig = newConfig;
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/overlay-config", newConfig);
     }
 
-    public void broadcastChampionReveal(ChampionRevealDto dto) {
+    public void broadcastChampionReveal(String eventName, ChampionRevealDto dto) {
+        EventBattleState s = stateFor(eventName);
         if (dto.isDismiss()) {
-            champion = null;
-            persistActiveState();
-            messagingTemplate.convertAndSend("/topic/battle/champion-reveal", Map.of("dismiss", true));
+            s.champion = null;
+            persistActiveState(eventName);
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/champion-reveal",
+                Map.of("dismiss", true));
         } else {
-            champion = dto.getChampionName() != null ? dto.getChampionName() : "";
-            persistActiveState();
-            messagingTemplate.convertAndSend("/topic/battle/champion-reveal", Map.of(
-                "dismiss",       false,
-                "genreName",     dto.getGenreName()    != null ? dto.getGenreName()    : "",
-                "championName",  champion
+            s.champion = dto.getChampionName() != null ? dto.getChampionName() : "";
+            persistActiveState(eventName);
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/champion-reveal", Map.of(
+                "dismiss",      false,
+                "genreName",    dto.getGenreName()    != null ? dto.getGenreName()    : "",
+                "championName", s.champion
             ));
         }
     }
@@ -387,20 +412,18 @@ public class BattleService {
     @Transactional
     public void setResolvedParticipants(String eventName, String genreName, List<String> participants) {
         try {
-            BattleGenreState s = battleGenreStateRepository
+            BattleGenreState st = battleGenreStateRepository
                 .findByEventNameAndGenreName(eventName, genreName)
                 .orElse(new BattleGenreState());
-            s.setEventName(eventName);
-            s.setGenreName(genreName);
-            s.setResolvedParticipantsJson(
+            st.setEventName(eventName);
+            st.setGenreName(genreName);
+            st.setResolvedParticipantsJson(
                 participants != null ? objectMapper.writeValueAsString(participants) : null);
-            s.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(s);
-            // Broadcast updated full state so BattleControl in other tabs sees the change.
-            // Only broadcast if the update was for the currently active genre.
-            if (eventName != null && eventName.equals(activeEventName)
-                && genreName != null && genreName.equals(activeGenreName)) {
-                broadcastStateSnapshot();
+            st.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(st);
+            EventBattleState s = stateFor(eventName);
+            if (genreName != null && genreName.equals(s.activeGenreName)) {
+                broadcastStateSnapshot(eventName);
             }
         } catch (Exception e) {
             System.err.println("Failed to save resolved participants: " + e.getMessage());
@@ -409,86 +432,74 @@ public class BattleService {
 
     @Transactional
     public void switchActiveGenreService(SetActiveGenreDto dto) {
-        persistActiveState();
+        if (activeEventName != null) persistActiveState(activeEventName);
+
         BattleActiveGenre active = battleActiveGenreRepository.findById(1)
             .orElse(new BattleActiveGenre(1, null, null));
         active.setEventName(dto.getEventName());
         active.setGenreName(dto.getGenreName());
         battleActiveGenreRepository.save(active);
         activeEventName = dto.getEventName();
-        activeGenreName = dto.getGenreName();
-        loadGenreStateIntoMemory(activeEventName, activeGenreName);
-        broadcastStateSnapshot();
-        // Broadcast judges so BattleJudge clients can re-check assignment immediately
-        synchronized (judges) {
-            messagingTemplate.convertAndSend("/topic/battle/judges",
-                Map.of("judges", new ArrayList<>(judges)));
+        loadGenreStateIntoMemory(activeEventName, dto.getGenreName());
+        broadcastStateSnapshot(activeEventName);
+
+        EventBattleState s = stateFor(activeEventName);
+        synchronized (s.judges) {
+            messagingTemplate.convertAndSend("/topic/battle/" + activeEventName + "/judges",
+                Map.of("judges", new ArrayList<>(s.judges)));
         }
-        messagingTemplate.convertAndSend("/topic/battle/phase", Map.of(
-            "phase", battlePhase,
-            "genre", activeGenreName != null ? activeGenreName : ""
+        messagingTemplate.convertAndSend("/topic/battle/" + activeEventName + "/phase", Map.of(
+            "phase", s.battlePhase,
+            "genre", s.activeGenreName != null ? s.activeGenreName : ""
         ));
     }
 
-    public Map<String, Object> getBattleStateService() {
-        if (activeEventName == null || activeGenreName == null) return new HashMap<>();
+    public Map<String, Object> getBattleStateService(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        if (s.activeGenreName == null) return new HashMap<>();
         Map<String, Object> state = new HashMap<>();
-        state.put("eventName", activeEventName);
-        state.put("genreName", activeGenreName);
-        state.put("genreFormat", genreFormat);
-        state.put("bracket", bracketState);
-        state.put("currentRoundIndex", currentRoundIndex);
+        state.put("eventName",      eventName);
+        state.put("genreName",      s.activeGenreName);
+        state.put("genreFormat",    s.genreFormat);
+        state.put("bracket",        s.bracketState);
+        state.put("currentRoundIndex", s.currentRoundIndex);
         Map<String, Object> pair = new HashMap<>();
-        pair.put("left",         currentPair.getLeftBattler().getName());
-        pair.put("leftMembers",  currentPair.getLeftBattler().getMembers());
-        pair.put("right",        currentPair.getRightBattler().getName());
-        pair.put("rightMembers", currentPair.getRightBattler().getMembers());
-        pair.put("isFinal",      currentIsFinal);
+        pair.put("left",         s.currentPair.getLeftBattler().getName());
+        pair.put("leftMembers",  s.currentPair.getLeftBattler().getMembers());
+        pair.put("right",        s.currentPair.getRightBattler().getName());
+        pair.put("rightMembers", s.currentPair.getRightBattler().getMembers());
+        pair.put("isFinal",      s.currentIsFinal);
         state.put("currentPair", pair);
-        state.put("battlePhase", battlePhase);
-        state.put("champion", champion);
-        // Restore tie-breaker resolved list from DB if present
+        state.put("battlePhase", s.battlePhase);
+        state.put("champion",    s.champion);
         String resolvedJson = null;
-        if (activeEventName != null && activeGenreName != null) {
+        if (s.activeGenreName != null) {
             var st = battleGenreStateRepository
-                .findByEventNameAndGenreName(activeEventName, activeGenreName).orElse(null);
+                .findByEventNameAndGenreName(eventName, s.activeGenreName).orElse(null);
             if (st != null) resolvedJson = st.getResolvedParticipantsJson();
         }
         state.put("resolvedParticipants", resolvedJson != null ? resolvedJson : "");
-        synchronized (judges) {
-            state.put("judges", new ArrayList<>(judges));
+        synchronized (s.judges) {
+            state.put("judges", new ArrayList<>(s.judges));
         }
-        if (!battlers.isEmpty()) {
-            state.put("smokeBattlers", new ArrayList<>(battlers));
-        }
-        // Recoverable per-round timer state — recalculate timeLeft from elapsed wall-clock
-        if (lastTimerPayload != null) {
-            Map<String, Object> timer = new HashMap<>(lastTimerPayload);
+        if (!s.battlers.isEmpty()) state.put("smokeBattlers", new ArrayList<>(s.battlers));
+        if (s.lastTimerPayload != null) {
+            Map<String, Object> timer = new HashMap<>(s.lastTimerPayload);
             if (Boolean.TRUE.equals(timer.get("running"))) {
-                long elapsedSec = (System.currentTimeMillis() - timerLastUpdated) / 1000;
-                int currentLeft = ((Number) timer.getOrDefault("timeLeft", 0)).intValue();
-                int adjusted = Math.max(0, currentLeft - (int) elapsedSec);
+                long elapsedSec = (System.currentTimeMillis() - s.timerLastUpdated) / 1000;
+                int adjusted = Math.max(0, ((Number) timer.getOrDefault("timeLeft", 0)).intValue() - (int) elapsedSec);
                 timer.put("timeLeft", adjusted);
-                if (adjusted <= 0) {
-                    timer.put("running", false);
-                    timer.put("timeLeft", 0);
-                }
+                if (adjusted <= 0) { timer.put("running", false); timer.put("timeLeft", 0); }
             }
             state.put("timer", timer);
         }
-        // Recoverable format timer state — recalculate timeLeft from elapsed wall-clock
-        if (lastFormatTimerPayload != null) {
-            Map<String, Object> ft = new HashMap<>(lastFormatTimerPayload);
+        if (s.lastFormatTimerPayload != null) {
+            Map<String, Object> ft = new HashMap<>(s.lastFormatTimerPayload);
             if (Boolean.TRUE.equals(ft.get("running"))) {
-                long elapsedSec = (System.currentTimeMillis() - formatTimerLastUpdated) / 1000;
-                int currentLeft = ((Number) ft.getOrDefault("timeLeft", 0)).intValue();
-                int adjusted = Math.max(0, currentLeft - (int) elapsedSec);
+                long elapsedSec = (System.currentTimeMillis() - s.formatTimerLastUpdated) / 1000;
+                int adjusted = Math.max(0, ((Number) ft.getOrDefault("timeLeft", 0)).intValue() - (int) elapsedSec);
                 ft.put("timeLeft", adjusted);
-                if (adjusted <= 0) {
-                    ft.put("running", false);
-                    ft.put("timeLeft", 0);
-                    ft.put("expired", true);
-                }
+                if (adjusted <= 0) { ft.put("running", false); ft.put("timeLeft", 0); ft.put("expired", true); }
             }
             state.put("formatTimer", ft);
         }
@@ -496,173 +507,200 @@ public class BattleService {
     }
 
     public String getActiveEventName() { return activeEventName; }
-    public String getActiveGenreName() { return activeGenreName; }
-
-    // ── Per-round timer state recovery ──────────────────────────────
-    private Map<String, Object> lastTimerPayload = null;
-    private long timerLastUpdated = 0;
-
-    public void handleTimerPayload(Map<String, Object> payload) {
-        this.lastTimerPayload = new HashMap<>(payload);
-        this.timerLastUpdated = System.currentTimeMillis();
-        messagingTemplate.convertAndSend("/topic/battle/timer", payload);
+    public String getActiveGenreName() {
+        return stateFor(resolveEvent(null)).activeGenreName;
     }
 
-    /** Rebroadcast timer state to WS topic (used by REST state endpoint for page-refresh recovery). */
-    public void rebroadcastTimer(Object timerState) {
+    public void handleTimerPayload(String eventName, Map<String, Object> payload) {
+        EventBattleState s = stateFor(eventName);
+        s.lastTimerPayload = new HashMap<>(payload);
+        s.timerLastUpdated = System.currentTimeMillis();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/timer", payload);
+    }
+
+    public void rebroadcastTimer(String eventName, Object timerState) {
         if (timerState != null) {
-            messagingTemplate.convertAndSend("/topic/battle/timer", timerState);
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/timer", timerState);
         }
     }
 
-    // ── Format timer state (7-to-Smoke session-level countdown) ─────
-    private Map<String, Object> lastFormatTimerPayload = null;
-    private long formatTimerLastUpdated = 0;
-
-    public void handleFormatTimerPayload(Map<String, Object> payload) {
-        this.lastFormatTimerPayload = new HashMap<>(payload);
-        this.formatTimerLastUpdated = System.currentTimeMillis();
-        messagingTemplate.convertAndSend("/topic/battle/format-timer", payload);
-        persistFormatTimer();
+    public void handleFormatTimerPayload(String eventName, Map<String, Object> payload) {
+        EventBattleState s = stateFor(eventName);
+        s.lastFormatTimerPayload = new HashMap<>(payload);
+        s.formatTimerLastUpdated = System.currentTimeMillis();
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/format-timer", payload);
+        persistFormatTimer(eventName);
     }
 
-    private void persistFormatTimer() {
-        if (activeEventName == null || activeGenreName == null || lastFormatTimerPayload == null) return;
+    private void persistFormatTimer(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        if (activeEventName == null || s.activeGenreName == null || s.lastFormatTimerPayload == null) return;
         try {
-            BattleGenreState s = battleGenreStateRepository
-                .findByEventNameAndGenreName(activeEventName, activeGenreName)
-                .orElse(null);
-            if (s == null) return;
-            s.setFormatTimerJson(objectMapper.writeValueAsString(lastFormatTimerPayload));
-            s.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(s);
+            BattleGenreState st = battleGenreStateRepository
+                .findByEventNameAndGenreName(eventName, s.activeGenreName).orElse(null);
+            if (st == null) return;
+            st.setFormatTimerJson(objectMapper.writeValueAsString(s.lastFormatTimerPayload));
+            st.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(st);
         } catch (Exception e) {
             System.err.println("Failed to persist format timer: " + e.getMessage());
         }
     }
 
-    private void persistActiveState() {
-        if (activeEventName == null || activeGenreName == null) return;
+    private void persistActiveState(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        if (s.activeGenreName == null) return;
         try {
-            BattleGenreState s = battleGenreStateRepository
-                .findByEventNameAndGenreName(activeEventName, activeGenreName)
+            BattleGenreState st = battleGenreStateRepository
+                .findByEventNameAndGenreName(eventName, s.activeGenreName)
                 .orElse(new BattleGenreState());
-            s.setEventName(activeEventName);
-            s.setGenreName(activeGenreName);
-            s.setBracketJson(bracketState != null ? objectMapper.writeValueAsString(bracketState) : null);
-            if (bracketState instanceof Map) {
-                Object ts = ((Map<?, ?>) bracketState).get("topSize");
+            st.setEventName(eventName);
+            st.setGenreName(s.activeGenreName);
+            st.setBracketJson(s.bracketState != null ? objectMapper.writeValueAsString(s.bracketState) : null);
+            if (s.bracketState instanceof Map) {
+                Object ts = ((Map<?, ?>) s.bracketState).get("topSize");
                 if (ts != null) {
-                    try { s.setTopSize(Integer.parseInt(ts.toString())); }
+                    try { st.setTopSize(Integer.parseInt(ts.toString())); }
                     catch (NumberFormatException ignored) {}
                 }
             }
-            s.setCurrentRoundIndex(currentRoundIndex);
-            s.setCurrentPairLeft(currentPair.getLeftBattler().getName());
-            s.setCurrentPairLeftMembers(
-                objectMapper.writeValueAsString(currentPair.getLeftBattler().getMembers()));
-            s.setCurrentPairRight(currentPair.getRightBattler().getName());
-            s.setCurrentPairRightMembers(
-                objectMapper.writeValueAsString(currentPair.getRightBattler().getMembers()));
-            s.setIsFinal(currentIsFinal);
-            s.setBattlePhase(battlePhase);
-            s.setChampion(champion);
-            s.setSmokeListJson(objectMapper.writeValueAsString(new ArrayList<>(battlers)));
-            synchronized (judges) {
-                s.setJudgesJson(objectMapper.writeValueAsString(new ArrayList<>(judges)));
+            st.setCurrentRoundIndex(s.currentRoundIndex);
+            st.setCurrentPairLeft(s.currentPair.getLeftBattler().getName());
+            st.setCurrentPairLeftMembers(
+                objectMapper.writeValueAsString(s.currentPair.getLeftBattler().getMembers()));
+            st.setCurrentPairRight(s.currentPair.getRightBattler().getName());
+            st.setCurrentPairRightMembers(
+                objectMapper.writeValueAsString(s.currentPair.getRightBattler().getMembers()));
+            st.setIsFinal(s.currentIsFinal);
+            st.setBattlePhase(s.battlePhase);
+            st.setChampion(s.champion);
+            st.setSmokeListJson(objectMapper.writeValueAsString(new ArrayList<>(s.battlers)));
+            synchronized (s.judges) {
+                st.setJudgesJson(objectMapper.writeValueAsString(new ArrayList<>(s.judges)));
             }
-            if (lastFormatTimerPayload != null) {
-                s.setFormatTimerJson(objectMapper.writeValueAsString(lastFormatTimerPayload));
+            if (s.lastFormatTimerPayload != null) {
+                st.setFormatTimerJson(objectMapper.writeValueAsString(s.lastFormatTimerPayload));
             }
-            s.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(s);
+            st.setUpdatedAt(LocalDateTime.now());
+            battleGenreStateRepository.save(st);
         } catch (Exception e) {
             System.err.println("Failed to persist battle state: " + e.getMessage());
         }
     }
 
     private void loadGenreStateIntoMemory(String eventName, String genreName) {
-        // Resolve the genre format from the EventGenre table so the frontend
-        // can detect smoke mode without fragile name-based heuristics.
-        genreFormat = null;
+        EventBattleState s = stateFor(eventName);
+        s.activeGenreName = genreName;
+        s.genreFormat = null;
         if (eventName != null && genreName != null) {
             Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
             if (ev != null) {
                 eventGenreRepo.findByEventAndName(ev, genreName)
-                    .ifPresent(eg -> genreFormat = eg.getFormat());
+                    .ifPresent(eg -> s.genreFormat = eg.getFormat());
             }
         }
         Optional<BattleGenreState> stateOpt =
             battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
-        if (stateOpt.isEmpty()) { resetToDefaults(); return; }
-        BattleGenreState s = stateOpt.get();
+        if (stateOpt.isEmpty()) { resetToDefaults(eventName); return; }
+        BattleGenreState dbState = stateOpt.get();
         try {
-            bracketState = s.getBracketJson() != null
-                ? objectMapper.readValue(s.getBracketJson(), Map.class) : null;
-            currentRoundIndex = s.getCurrentRoundIndex() != null ? s.getCurrentRoundIndex() : 0;
-            currentPair.getLeftBattler().setName(s.getCurrentPairLeft() != null ? s.getCurrentPairLeft() : "");
-            currentPair.getLeftBattler().setScore(0);
-            currentPair.getLeftBattler().setMembers(s.getCurrentPairLeftMembers() != null
-                ? objectMapper.readValue(s.getCurrentPairLeftMembers(), new TypeReference<List<String>>(){})
+            s.bracketState = dbState.getBracketJson() != null
+                ? objectMapper.readValue(dbState.getBracketJson(), Map.class) : null;
+            s.currentRoundIndex = dbState.getCurrentRoundIndex() != null ? dbState.getCurrentRoundIndex() : 0;
+            s.currentPair.getLeftBattler().setName(
+                dbState.getCurrentPairLeft() != null ? dbState.getCurrentPairLeft() : "");
+            s.currentPair.getLeftBattler().setScore(0);
+            s.currentPair.getLeftBattler().setMembers(dbState.getCurrentPairLeftMembers() != null
+                ? objectMapper.readValue(dbState.getCurrentPairLeftMembers(), new TypeReference<List<String>>(){})
                 : new ArrayList<>());
-            currentPair.getRightBattler().setName(s.getCurrentPairRight() != null ? s.getCurrentPairRight() : "");
-            currentPair.getRightBattler().setScore(0);
-            currentPair.getRightBattler().setMembers(s.getCurrentPairRightMembers() != null
-                ? objectMapper.readValue(s.getCurrentPairRightMembers(), new TypeReference<List<String>>(){})
+            s.currentPair.getRightBattler().setName(
+                dbState.getCurrentPairRight() != null ? dbState.getCurrentPairRight() : "");
+            s.currentPair.getRightBattler().setScore(0);
+            s.currentPair.getRightBattler().setMembers(dbState.getCurrentPairRightMembers() != null
+                ? objectMapper.readValue(dbState.getCurrentPairRightMembers(), new TypeReference<List<String>>(){})
                 : new ArrayList<>());
-            currentIsFinal = Boolean.TRUE.equals(s.getIsFinal());
-            battlePhase = s.getBattlePhase() != null ? s.getBattlePhase() : "IDLE";
-            champion = s.getChampion();
-            battlers = s.getSmokeListJson() != null
-                ? objectMapper.readValue(s.getSmokeListJson(), new TypeReference<List<Battler>>(){})
+            s.currentIsFinal = Boolean.TRUE.equals(dbState.getIsFinal());
+            s.battlePhase = dbState.getBattlePhase() != null ? dbState.getBattlePhase() : "IDLE";
+            s.champion = dbState.getChampion();
+            s.battlers = dbState.getSmokeListJson() != null
+                ? objectMapper.readValue(dbState.getSmokeListJson(), new TypeReference<List<Battler>>(){})
                 : new ArrayList<>();
-            synchronized (judges) {
-                judges.clear();
-                if (s.getJudgesJson() != null) {
+            synchronized (s.judges) {
+                s.judges.clear();
+                if (dbState.getJudgesJson() != null) {
                     List<BattleJudge> restored =
-                        objectMapper.readValue(s.getJudgesJson(), new TypeReference<List<BattleJudge>>(){});
-                    judges.addAll(restored);
+                        objectMapper.readValue(dbState.getJudgesJson(), new TypeReference<List<BattleJudge>>(){});
+                    s.judges.addAll(restored);
                 }
             }
-            if (s.getFormatTimerJson() != null) {
-                lastFormatTimerPayload = objectMapper.readValue(
-                    s.getFormatTimerJson(), new TypeReference<Map<String, Object>>(){});
-                formatTimerLastUpdated = System.currentTimeMillis();
+            if (dbState.getFormatTimerJson() != null) {
+                s.lastFormatTimerPayload = objectMapper.readValue(
+                    dbState.getFormatTimerJson(), new TypeReference<Map<String, Object>>(){});
+                s.formatTimerLastUpdated = System.currentTimeMillis();
             } else {
-                lastFormatTimerPayload = null;
+                s.lastFormatTimerPayload = null;
             }
         } catch (Exception e) {
             System.err.println("Failed to load genre state from DB: " + e.getMessage());
-            resetToDefaults();
+            resetToDefaults(eventName);
         }
     }
 
-    private void resetToDefaults() {
-        bracketState = null;
-        currentRoundIndex = 0;
-        currentPair.getLeftBattler().setName("");
-        currentPair.getLeftBattler().setScore(0);
-        currentPair.getLeftBattler().setMembers(new ArrayList<>());
-        currentPair.getRightBattler().setName("");
-        currentPair.getRightBattler().setScore(0);
-        currentPair.getRightBattler().setMembers(new ArrayList<>());
-        currentIsFinal = false;
-        battlePhase = "IDLE";
-        champion = null;
-        battlers = new ArrayList<>();
-        synchronized (judges) { judges.clear(); }
-        lastFormatTimerPayload = null;
-        formatTimerLastUpdated = 0;
+    private void resetToDefaults(String eventName) {
+        EventBattleState s = stateFor(eventName);
+        s.bracketState = null;
+        s.currentRoundIndex = 0;
+        s.currentPair.getLeftBattler().setName("");
+        s.currentPair.getLeftBattler().setScore(0);
+        s.currentPair.getLeftBattler().setMembers(new ArrayList<>());
+        s.currentPair.getRightBattler().setName("");
+        s.currentPair.getRightBattler().setScore(0);
+        s.currentPair.getRightBattler().setMembers(new ArrayList<>());
+        s.currentIsFinal = false;
+        s.battlePhase = "IDLE";
+        s.champion = null;
+        s.battlers = new ArrayList<>();
+        synchronized (s.judges) { s.judges.clear(); }
+        s.lastFormatTimerPayload = null;
+        s.formatTimerLastUpdated = 0;
     }
 
-    private void broadcastStateSnapshot() {
-        Map<String, Object> state = getBattleStateService();
-        messagingTemplate.convertAndSend("/topic/battle/state", state);
+    private void broadcastStateSnapshot(String eventName) {
+        Map<String, Object> state = getBattleStateService(eventName);
+        messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/state", state);
         if (state.containsKey("timer")) {
-            messagingTemplate.convertAndSend("/topic/battle/timer", state.get("timer"));
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/timer", state.get("timer"));
         }
         if (state.containsKey("formatTimer")) {
-            messagingTemplate.convertAndSend("/topic/battle/format-timer", state.get("formatTimer"));
+            messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/format-timer", state.get("formatTimer"));
+        }
+    }
+
+    public static class EventBattleState {
+        Object bracketState = null;
+        Integer currentRoundIndex = 0;
+        List<Battler> battlers = new ArrayList<>();
+        String battlePhase = "IDLE";
+        boolean currentIsFinal = false;
+        BattlePair currentPair;
+        final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
+        String activeGenreName;
+        String genreFormat;
+        String champion = null;
+        Map<String, Object> lastTimerPayload = null;
+        long timerLastUpdated = 0;
+        Map<String, Object> lastFormatTimerPayload = null;
+        long formatTimerLastUpdated = 0;
+        Map<String, Object> overlayConfig = new HashMap<>(Map.of(
+            "showImages", true,
+            "leftColor",  "#dc2626",
+            "rightColor", "#2563eb"
+        ));
+
+        EventBattleState() {
+            currentPair = new BattlePair();
+            currentPair.setLeftBattler(new Battler());
+            currentPair.setRightBattler(new Battler());
         }
     }
 
@@ -696,7 +734,7 @@ public class BattleService {
         }
     }
 
-    public class BattlePair {
+    public static class BattlePair {
         private Battler leftBattler;
         private Battler rightBattler;
         public Battler getLeftBattler() { return leftBattler; }

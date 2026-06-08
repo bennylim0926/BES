@@ -3,9 +3,17 @@ import { battleJudgeVote, getBattleJudges, getBattlePhase, getBattleState, getCu
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/utils/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
+// eventName derived from the judge's auth session (already tied to one event).
+// ?event= URL param takes priority for edge cases; session event is the default.
+const authStore = useAuthStore()
+const eventName = ref(route.query.event || authStore.activeEvent?.name || '')
+const topic = (path) => eventName.value
+  ? `/topic/battle/${eventName.value}/${path}`
+  : `/topic/battle/${path}`
 
 // ── Overlay config ──────────────────────────────────────────────────────────
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
@@ -164,22 +172,22 @@ function setupVoteSubscription() {
 // ── Mount ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
   // 1. Overlay colors
-  const config = await getOverlayConfig()
+  const config = await getOverlayConfig(eventName.value)
   if (config?.leftColor) overlayConfig.value = config
 
   // 2. Phase
-  const phaseData = await getBattlePhase()
+  const phaseData = await getBattlePhase(eventName.value)
   battlePhase.value = phaseData?.phase ?? 'IDLE'
 
   // 3. Current pair (must come before vote restore so key is correct)
-  const pairData = await getCurrentBattlePair()
+  const pairData = await getCurrentBattlePair(eventName.value)
   if (pairData) {
     leftName.value  = pairData.left  ?? ''
     rightName.value = pairData.right ?? ''
   }
 
   // 4. Judges + identity
-  battleJudges.value = await getBattleJudges()
+  battleJudges.value = await getBattleJudges(eventName.value)
   loadJudgeIdentity(battleJudges.value?.judges ?? [])
 
   // 5. Restore vote from backend judges list if available, fall back to localStorage
@@ -200,11 +208,11 @@ onMounted(async () => {
   const cScore   = createClient(); wsClients.push(cScore)
   const cJudges  = createClient(); wsClients.push(cJudges)
 
-  subscribeToChannel(cOverlay, '/topic/battle/overlay-config', (msg) => {
+  subscribeToChannel(cOverlay, topic('overlay-config'), (msg) => {
     if (msg?.leftColor) overlayConfig.value = msg
   })
 
-  subscribeToChannel(cPhase, '/topic/battle/phase', (msg) => {
+  subscribeToChannel(cPhase, topic('phase'), (msg) => {
     if (!msg?.phase) return
     const prev = battlePhase.value
     battlePhase.value = msg.phase
@@ -214,7 +222,7 @@ onMounted(async () => {
     }
   })
 
-  subscribeToChannel(cPair, '/topic/battle/battle-pair', (msg) => {
+  subscribeToChannel(cPair, topic('battle-pair'), (msg) => {
     const newLeft  = msg.left  ?? ''
     const newRight = msg.right ?? ''
     if (newLeft !== leftName.value || newRight !== rightName.value) {
@@ -224,11 +232,11 @@ onMounted(async () => {
     }
   })
 
-  subscribeToChannel(cScore, '/topic/battle/score', (msg) => {
+  subscribeToChannel(cScore, topic('score'), (msg) => {
     revealedWinner.value = msg.message
   })
 
-  subscribeToChannel(cJudges, '/topic/battle/judges', (msg) => {
+  subscribeToChannel(cJudges, topic('judges'), (msg) => {
     battleJudges.value = msg
     const authStore = useAuthStore()
     const judges = msg?.judges ?? []
@@ -269,12 +277,12 @@ onMounted(async () => {
 
   // Full-state snapshot for initial hydration and reconnect recovery
   const cState = createClient(); wsClients.push(cState)
-  subscribeToChannel(cState, '/topic/battle/state', (msg) => {
+  subscribeToChannel(cState, topic('state'), (msg) => {
     hydrateJudgeFromState(msg)
   })
 
   // Initial hydration + reconnect recovery
-  const initialState = await getBattleState()
+  const initialState = await getBattleState(eventName.value)
   if (initialState) hydrateJudgeFromState(initialState)
 })
 

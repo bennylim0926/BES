@@ -12,7 +12,8 @@ import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 
 const props = defineProps({
   stompClient:   { type: Object, default: null },
-  recoveryState: { type: Object, default: null }
+  recoveryState: { type: Object, default: null },
+  eventName:     { type: String, default: '' }
 })
 
 const emit = defineEmits(['expired'])
@@ -122,7 +123,10 @@ defineExpose({ isExpired, autoStartIfIdle, resetTimer, selectedMinutes })
 // ── Backend sync ─────────────────────────────────────────────────────
 function publishState() {
   try {
-    fetch('/api/v1/battle/format-timer', {
+    const url = props.eventName
+      ? `/api/v1/battle/format-timer?event=${encodeURIComponent(props.eventName)}`
+      : '/api/v1/battle/format-timer'
+    fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -168,7 +172,10 @@ onMounted(() => {
   if (!props.stompClient) return
   const doSubscribe = () => {
     if (fmtSub) return
-    fmtSub = props.stompClient.subscribe('/topic/battle/format-timer', (raw) => {
+    const fmtTopic = props.eventName
+      ? `/topic/battle/${props.eventName}/format-timer`
+      : '/topic/battle/format-timer'
+    fmtSub = props.stompClient.subscribe(fmtTopic, (raw) => {
       try {
         const msg = JSON.parse(raw.body)
         if (msg) recoverFromState(msg)

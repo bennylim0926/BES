@@ -9,6 +9,9 @@ public class SetJudgeDto {
 
     @Min(1)
     private int weightage = 1;
+    private String eventName;
+
+    public String getEventName() { return eventName; }
 
     public Long getId() { return id; }
     public int getWeightage() { return weightage; }

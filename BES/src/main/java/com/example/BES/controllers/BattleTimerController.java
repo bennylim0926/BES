@@ -16,6 +16,11 @@ public class BattleTimerController {
 
     @MessageMapping("/battle/timer")
     public void handleTimerState(Map<String, Object> payload) {
-        battleService.handleTimerPayload(payload);
+        String eventName = payload != null ? (String) payload.get("eventName") : null;
+        if (eventName == null || eventName.isBlank()) {
+            eventName = battleService.getActiveEventName();
+        }
+        if (eventName == null) eventName = "";
+        battleService.handleTimerPayload(eventName, payload);
     }
 }

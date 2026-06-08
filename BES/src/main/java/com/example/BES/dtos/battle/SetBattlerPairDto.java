@@ -14,6 +14,9 @@ public class SetBattlerPairDto {
     private boolean isFinal;
     private List<String> leftMembers;
     private List<String> rightMembers;
+    private String eventName;
+
+    public String getEventName() { return eventName; }
 
     public String getLeftBattler() { return leftBattler; }
     public String getRightBattler() { return rightBattler; }

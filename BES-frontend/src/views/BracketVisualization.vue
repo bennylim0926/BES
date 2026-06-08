@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { getBattleState, getBracketState, getOverlayConfig } from '@/utils/api'
 import { createClient } from '@/utils/websocket'
+import { useRoute } from 'vue-router'
 
 const bracketState   = ref(null)
 const lastBracketSnapshot = ref('')  // JSON diff guard
@@ -10,6 +11,9 @@ const championReveal = ref(null)   // null = hidden; { genreName, championName }
 const activePair     = ref(null)
 const currentGenre   = ref(null)
 let   wsClient       = null
+const route = useRoute()
+const eventName = ref(route.query.event || '')
+const topic = (path) => `/topic/battle/${eventName.value}/${path}`
 
 // ── animation state ──────────────────────────────────────
 const pendingBracket  = ref(null)
@@ -290,7 +294,7 @@ function getActiveMatchInfo() {
 // ── lifecycle ─────────────────────────────────────────────
 onMounted(async () => {
   // Restore state from backend — authoritative source for bracket/pair/genre
-  const battleState = await getBattleState()
+  const battleState = await getBattleState(eventName.value)
   if (battleState?.bracket && (battleState.bracket.topSize || battleState.bracket.rounds)) {
     bracketState.value = battleState.bracket
   }
@@ -302,17 +306,17 @@ onMounted(async () => {
   }
 
   if (!bracketState.value) {
-    const state = await getBracketState()
+    const state = await getBracketState(eventName.value)
     if (state && (state.topSize || state.rounds)) bracketState.value = state
   }
 
-  const cfg = await getOverlayConfig()
+  const cfg = await getOverlayConfig(eventName.value)
   if (cfg) overlayConfig.value = cfg
 
   wsClient = createClient()
   wsClient.onConnect = () => {
 
-    wsClient.subscribe('/topic/battle/state', (msg) => {
+    wsClient.subscribe(topic('state'), (msg) => {
       // Diff guard: compare raw body string to skip no-op updates.
       // Avoids unnecessary JSON.parse + JSON.stringify round-trip on every message.
       if (msg.body === lastBracketSnapshot.value) return
@@ -336,7 +340,7 @@ onMounted(async () => {
       }
     })
 
-    wsClient.subscribe('/topic/battle/bracket', (msg) => {
+    wsClient.subscribe(topic('bracket'), (msg) => {
       if (msg.body === lastBracketBody) return
       lastBracketBody = msg.body
       const newState = JSON.parse(msg.body)
@@ -351,12 +355,12 @@ onMounted(async () => {
       }
     })
 
-    wsClient.subscribe('/topic/battle/battle-pair', (msg) => {
+    wsClient.subscribe(topic('battle-pair'), (msg) => {
       const data = JSON.parse(msg.body)
       activePair.value = { left: data.left, right: data.right }
     })
 
-    wsClient.subscribe('/topic/battle/phase', () => {
+    wsClient.subscribe(topic('phase'), () => {
       // Phase subscription for future phase-aware bracket display
     })
 
@@ -365,12 +369,12 @@ onMounted(async () => {
       currentGenre.value = data.genre ?? data.message ?? null
     })
 
-    wsClient.subscribe('/topic/battle/overlay-config', (msg) => {
+    wsClient.subscribe(topic('overlay-config'), (msg) => {
       const cfg = JSON.parse(msg.body)
       overlayConfig.value = cfg
     })
 
-    wsClient.subscribe('/topic/battle/champion-reveal', (msg) => {
+    wsClient.subscribe(topic('champion-reveal'), (msg) => {
       const data = JSON.parse(msg.body)
       if (data.dismiss) {
         championReveal.value = null
@@ -379,7 +383,7 @@ onMounted(async () => {
       }
     })
 
-    wsClient.subscribe('/topic/battle/score', (msg) => {
+    wsClient.subscribe(topic('score'), (msg) => {
       const data = JSON.parse(msg.body)
       if (data.message !== 0 && data.message !== 1) return
       if (animRunning) return
@@ -422,7 +426,7 @@ onMounted(async () => {
     })
 
     // Re-hydrate on reconnect — REST covers gap while WS was disconnected
-    getBattleState().then(state => {
+    getBattleState(eventName.value).then(state => {
       if (state && (state.bracket?.topSize || state.bracket?.rounds)) {
         if (state.bracket && !animRunning) {
           const incoming = JSON.stringify(state.bracket)

@@ -57,6 +57,12 @@ public class BattleController {
     @Autowired
     BattleService battleService;
 
+    private String resolveEvent(String dtoEventName) {
+        return (dtoEventName != null && !dtoEventName.isBlank())
+            ? dtoEventName
+            : battleService.getActiveEventName() != null ? battleService.getActiveEventName() : "";
+    }
+
     @GetMapping("/modes")
     public ResponseEntity<?> getAllModes(){
         return ResponseEntity.ok(
@@ -111,7 +117,7 @@ public class BattleController {
     @PostMapping("/battle-pair")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattlerPair(@Valid @RequestBody SetBattlerPairDto dto){
-        battleService.setBattlerPairService(dto);
+        battleService.setBattlerPairService(resolveEvent(dto.getEventName()), dto);
         return ResponseEntity.ok(Map.of(
             "message", "successfully set the battle pair",
             "left", battleService.getCurrentPair().getLeftBattler().getName(),
@@ -121,31 +127,36 @@ public class BattleController {
 
     @DeleteMapping("/battle-pair")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> clearBattlePair(){
-        battleService.clearBattlePairService();
+    public ResponseEntity<?> clearBattlePair(@RequestParam(required = false) String event){
+        battleService.clearBattlePairService(resolveEvent(event));
         return ResponseEntity.ok(Map.of(
             "message", "battle pair cleared"
         ));
     }
 
     @PostMapping("/timer")
-    public ResponseEntity<?> updateTimer(@RequestBody Map<String, Object> payload) {
-        battleService.handleTimerPayload(payload);
+    public ResponseEntity<?> updateTimer(
+            @RequestParam(required = false) String event,
+            @RequestBody Map<String, Object> payload) {
+        battleService.handleTimerPayload(resolveEvent(event), payload);
         return ResponseEntity.ok(Map.of("message", "Timer updated"));
     }
 
     @PostMapping("/format-timer")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> updateFormatTimer(@RequestBody Map<String, Object> payload) {
-        battleService.handleFormatTimerPayload(payload);
+    public ResponseEntity<?> updateFormatTimer(
+            @RequestParam(required = false) String event,
+            @RequestBody Map<String, Object> payload) {
+        battleService.handleFormatTimerPayload(resolveEvent(event), payload);
         return ResponseEntity.ok(Map.of("message", "Format timer updated"));
     }
 
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){
+        String eName = resolveEvent(dto != null ? dto.getEventName() : null);
         boolean isFinal = dto != null && dto.isFinal();
-        Integer code = battleService.setScoreService(isFinal);
+        Integer code = battleService.setScoreService(eName, isFinal);
         if(code == -2){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 Map.of("message", "No judge found")
@@ -160,28 +171,28 @@ public class BattleController {
             return ResponseEntity.ok(Map.of(
                 "message", "Left side get one point",
                 "winner", 0,
-                "current score", battleService.getCurrentPair().getLeftBattler().getScore()
+                "current score", battleService.getCurrentPair(eName).getLeftBattler().getScore()
             ));
         }else {
             return ResponseEntity.ok(Map.of(
                 "message", "Right side get one point",
                 "winner", 1,
-                "current score", battleService.getCurrentPair().getRightBattler().getScore()
+                "current score", battleService.getCurrentPair(eName).getRightBattler().getScore()
             ));
         }
     }
 
     @PostMapping("/revote")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> revote(){
-        battleService.resetJudgeVotesService();
+    public ResponseEntity<?> revote(@RequestParam(required = false) String event){
+        battleService.resetJudgeVotesService(resolveEvent(event));
         return ResponseEntity.ok(Map.of("message", "Judge votes reset"));
     }
 
     @PostMapping("/champion-reveal")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> championReveal(@RequestBody ChampionRevealDto dto){
-        battleService.broadcastChampionReveal(dto);
+        battleService.broadcastChampionReveal(resolveEvent(dto.getEventName()), dto);
         return ResponseEntity.ok(Map.of("message", "Champion reveal broadcast"));
     }
 
@@ -191,9 +202,9 @@ public class BattleController {
     }
 
     @GetMapping("/judges")
-    public ResponseEntity<?> getAllBattleJudges(){
+    public ResponseEntity<?> getAllBattleJudges(@RequestParam(required = false) String event){
         return ResponseEntity.ok(Map.of(
-            "judges",battleService.getJudges()
+            "judges", battleService.getJudges(resolveEvent(event))
         ));
     }
     
@@ -201,14 +212,14 @@ public class BattleController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> removeBattleJudge(@Valid @RequestBody SetJudgeDto dto){
         return ResponseEntity.ok(Map.of(
-            "judge removed",battleService.removeBattleJudgeService(dto)
+            "judge removed", battleService.removeBattleJudgeService(resolveEvent(dto.getEventName()), dto)
         ));
     }
 
     @PostMapping("/judge")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setJudge(@Valid @RequestBody SetJudgeDto dto){
-        Integer status = battleService.setBattleJudgeService(dto);
+        Integer status = battleService.setBattleJudgeService(resolveEvent(dto.getEventName()), dto);
         if(status == -1) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             Map.of(
                 "message", "Judge not found"
@@ -227,13 +238,13 @@ public class BattleController {
     @PostMapping("/judge/weightage")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> updateJudgeWeightage(@Valid @RequestBody UpdateJudgeWeightageDto dto) {
-        battleService.updateJudgeWeightageService(dto);
+        battleService.updateJudgeWeightageService(resolveEvent(dto.getEventName()), dto);
         return ResponseEntity.ok(Map.of("message", "Weightage updated"));
     }
 
     @PostMapping("/vote")
     public ResponseEntity<?> submitVote(@Valid @RequestBody SetVoteDto dto){
-        Integer vote = battleService.setVoteService(dto);
+        Integer vote = battleService.setVoteService(resolveEvent(dto.getEventName()), dto);
         if(vote == -2){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 Map.of("message", "Judge not found")
@@ -326,7 +337,7 @@ public class BattleController {
     @PostMapping("/smoke")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setSmokeList(@Valid @RequestBody SetSmokeBattlersDto dto){
-        battleService.setSmokeBattlersService(dto);
+        battleService.setSmokeBattlersService(resolveEvent(dto.getEventName()), dto);
         return ResponseEntity.ok(Map.of(
             "message", "List updated"
         ));
@@ -340,7 +351,7 @@ public class BattleController {
     @PostMapping("/phase")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
-        battleService.setBattlePhaseService(dto.getPhase(), dto.getChampion());
+        battleService.setBattlePhaseService(resolveEvent(dto.getEventName()), dto.getPhase(), dto.getChampion());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
 
@@ -354,20 +365,20 @@ public class BattleController {
     @PostMapping("/bracket")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
-        battleService.setBracketStateService(dto);
+        battleService.setBracketStateService(resolveEvent(dto.getEventName()), dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));
     }
 
     @GetMapping("/overlay-config")
-    public ResponseEntity<?> getOverlayConfig() {
-        return ResponseEntity.ok(battleService.getOverlayConfig());
+    public ResponseEntity<?> getOverlayConfig(@RequestParam(required = false) String event) {
+        return ResponseEntity.ok(battleService.getOverlayConfig(resolveEvent(event)));
     }
 
     @PostMapping("/overlay-config")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setOverlayConfig(@Valid @RequestBody SetOverlayConfigDto dto) {
-        battleService.setOverlayConfigService(dto);
-        return ResponseEntity.ok(battleService.getOverlayConfig());
+        battleService.setOverlayConfigService(resolveEvent(dto.getEventName()), dto);
+        return ResponseEntity.ok(battleService.getOverlayConfig(resolveEvent(dto.getEventName())));
     }
 
     @PostMapping("/active-genre")
@@ -386,12 +397,11 @@ public class BattleController {
     }
 
     @GetMapping("/state")
-    public ResponseEntity<?> getBattleState() {
-        Map<String, Object> state = battleService.getBattleStateService();
-        // Also push timer to WS topic so BattleTimer recovers on page refresh.
-        // GET is a poll — no broadcast would otherwise reach the fresh subscription.
+    public ResponseEntity<?> getBattleState(@RequestParam(required = false) String event) {
+        String eName = resolveEvent(event);
+        Map<String, Object> state = battleService.getBattleStateService(eName);
         if (state.containsKey("timer")) {
-            battleService.rebroadcastTimer(state.get("timer"));
+            battleService.rebroadcastTimer(eName, state.get("timer"));
         }
         return ResponseEntity.ok(state);
     }
