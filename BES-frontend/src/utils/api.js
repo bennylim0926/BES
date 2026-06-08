@@ -673,12 +673,6 @@ export const setActiveGenre = async (eventName, genreName) => {
   } catch (e) { console.error(e) }
 }
 
-export const getActiveGenre = async () => {
-  try {
-    const res = await fetch(`${domain}/api/v1/battle/active-genre`, { credentials: 'include' })
-    return res.ok ? await res.json() : null
-  } catch (_e) { return null }
-}
 
 export const getBattleState = async (eventName = '') => {
   try {
