@@ -37,6 +37,11 @@ import com.example.BES.models.EventGenreParticipantMember;
 import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
+import com.example.BES.models.EventParticipantTeamMember;
+import com.example.BES.respositories.AuditionFeedbackRepository;
+import com.example.BES.respositories.EventParticipantTeamMemberRepo;
+import com.example.BES.respositories.ScoreRepo;
+import com.example.BES.dtos.UpdateParticipantDto;
 
 @Service
 public class EventGenreParticpantService {
@@ -68,6 +73,15 @@ public class EventGenreParticpantService {
 
     @Autowired
     EventGenreParticipantMemberRepo egpMemberRepo;
+
+    @Autowired
+    ScoreRepo scoreRepo;
+
+    @Autowired
+    AuditionFeedbackRepository auditionFeedbackRepository;
+
+    @Autowired
+    EventParticipantTeamMemberRepo eventParticipantTeamMemberRepo;
 
     public EventGenreParticipant addWalkInToEventGenreParticipant(
             Participant p, String genre, EventParticipant ep,
@@ -561,6 +575,89 @@ public class EventGenreParticpantService {
                         "eventName", d.eventName));
             }
         }
+    }
+
+    @Transactional
+    public void deleteParticipantFromEvent(long participantId, long eventId) {
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event == null || participant == null) return;
+
+        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
+        for (EventGenreParticipant egp : egps) {
+            scoreRepo.deleteAll(scoreRepo.findByEventGenreParticipant(egp));
+            auditionFeedbackRepository.deleteAll(auditionFeedbackRepository.findByEventGenreParticipant(egp));
+        }
+
+        repo.deleteAll(egps);
+
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+        if (ep != null) {
+            eventParticipantTeamMemberRepo.deleteByEventParticipant(ep);
+            eventParticipantRepo.delete(ep);
+        }
+
+        List<EventParticipant> remaining = eventParticipantRepo.findByParticipant(participant);
+        if (remaining.isEmpty()) {
+            participantRepo.delete(participant);
+        }
+    }
+
+    @Transactional
+    public void updateParticipant(long participantId, long eventId, UpdateParticipantDto dto) {
+        if (dto.name == null || dto.name.isBlank())
+            throw new IllegalArgumentException("Name must not be empty");
+
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event == null || participant == null)
+            throw new RuntimeException("Event or Participant not found");
+
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+
+        boolean isTeam = ep != null && ep.getTeamName() != null && !ep.getTeamName().isBlank();
+
+        String trimmedName = dto.name.trim();
+        if (isTeam) {
+            boolean duplicate = eventParticipantRepo.findByEvent(event).stream()
+                .filter(e -> !e.getParticipant().getParticipantId().equals(participantId))
+                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getTeamName()));
+            if (duplicate)
+                throw new IllegalStateException("A team with this name already exists in this event");
+        } else {
+            boolean duplicate = eventParticipantRepo.findByEvent(event).stream()
+                .filter(e -> !e.getParticipant().getParticipantId().equals(participantId))
+                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getParticipant().getParticipantName()));
+            if (duplicate)
+                throw new IllegalStateException("A participant with this name already exists in this event");
+        }
+
+        if (isTeam) {
+            ep.setTeamName(trimmedName);
+            ep.setDisplayName(trimmedName);
+            eventParticipantRepo.save(ep);
+            eventParticipantTeamMemberRepo.deleteByEventParticipant(ep);
+            if (dto.memberNames != null) {
+                List<EventParticipantTeamMember> newMembers = dto.memberNames.stream()
+                    .filter(m -> m != null && !m.isBlank())
+                    .map(m -> new EventParticipantTeamMember(ep, m.trim()))
+                    .collect(java.util.stream.Collectors.toList());
+                eventParticipantTeamMemberRepo.saveAll(newMembers);
+            }
+        } else {
+            participant.setParticipantName(trimmedName);
+            participantRepo.save(participant);
+            if (ep != null) {
+                ep.setDisplayName(trimmedName);
+                eventParticipantRepo.save(ep);
+            }
+        }
+
+        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
+        for (EventGenreParticipant egp : egps) {
+            egp.setDisplayName(trimmedName);
+        }
+        repo.saveAll(egps);
     }
 
     private boolean isTeamFormat(String fmt) {

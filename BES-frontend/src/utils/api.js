@@ -916,6 +916,43 @@ export const removeParticipantGenre = async (participantId, eventId, genreId) =>
   }
 }
 
+export const deleteParticipantFromEvent = async (participantId, eventId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participant/${participantId}/${eventId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const updateParticipant = async (participantId, eventId, { name, memberNames = [] }) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participant/${participantId}/${eventId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, memberNames })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+export const updateParticipantsJudge = async (eventId, updatedList) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/participants-judge/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updatedList })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
 export const addGenreToParticipant = async (participantId, eventId, genreName, entryMode, teamName, teamMembers) => {
   try {
     return await fetch(`${domain}/api/v1/event/participant-genre`, {
