@@ -1,5 +1,5 @@
 <script setup>
-import { battleJudgeVote, getBattleJudges, getBattlePhase, getBattleState, getCurrentBattlePair, getOverlayConfig } from '@/utils/api'
+import { battleJudgeVote, getBattleJudges, getBattlePhase, getBattleState, getCurrentBattlePair, getOverlayConfig, getActiveGenre } from '@/utils/api'
 import { subscribeToChannel, createClient, deactivateClient } from '@/utils/websocket'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/utils/auth'
@@ -7,10 +7,10 @@ import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
-const eventName = computed(() => route.query.event || '')
-const topic = (path) => eventName.value
-  ? `/topic/battle/${eventName.value}/${path}`
-  : `/topic/battle/${path}`
+// Judges access via QR/link and shouldn't need to know the event name — resolve from
+// ?event= param first, then fall back to the server's currently active battle event.
+const eventName = ref(route.query.event || '')
+const topic = (path) => `/topic/battle/${eventName.value}/${path}`
 
 // ── Overlay config ──────────────────────────────────────────────────────────
 const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
@@ -168,6 +168,13 @@ function setupVoteSubscription() {
 
 // ── Mount ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  // Resolve event: ?event= param wins; fall back to server's active battle event.
+  // Judges receive links/QR codes and shouldn't need the event name baked in.
+  if (!eventName.value) {
+    const active = await getActiveGenre()
+    if (active?.eventName) eventName.value = active.eventName
+  }
+
   // 1. Overlay colors
   const config = await getOverlayConfig(eventName.value)
   if (config?.leftColor) overlayConfig.value = config
