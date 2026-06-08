@@ -4,6 +4,9 @@ public class SetBracketStateDto {
     private String topSize;
     private Object rounds;
     private Integer currentRoundIndex;
+    private String eventName;
+
+    public String getEventName() { return eventName; }
 
     public String getTopSize() {
         return topSize;

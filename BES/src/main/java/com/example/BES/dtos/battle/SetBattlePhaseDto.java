@@ -8,6 +8,9 @@ public class SetBattlePhaseDto {
     private String phase;
 
     private String champion;
+    private String eventName;
+
+    public String getEventName() { return eventName; }
 
     public String getPhase() {
         return phase;

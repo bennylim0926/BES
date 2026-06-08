@@ -25,6 +25,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BattleServiceTest {
 
+    private static final String E = "TestEvent";
+
     @Mock
     JudgeService judgeService;
 
@@ -36,7 +38,7 @@ class BattleServiceTest {
 
     @Test
     void initialPhaseIsIDLE() {
-        assertThat(service.getBattlePhase()).isEqualTo("IDLE");
+        assertThat(service.getBattlePhase(E)).isEqualTo("IDLE");
     }
 
     @Test
@@ -45,44 +47,42 @@ class BattleServiceTest {
         when(dto.getLeftBattler()).thenReturn("Alice");
         when(dto.getRightBattler()).thenReturn("Bob");
 
-        service.setBattlerPairService(dto);
+        service.setBattlerPairService(E, dto);
 
-        assertThat(service.getCurrentPair().getLeftBattler().getName()).isEqualTo("Alice");
-        assertThat(service.getCurrentPair().getRightBattler().getName()).isEqualTo("Bob");
-        assertThat(service.getBattlePhase()).isEqualTo("LOCKED");
+        assertThat(service.getCurrentPair(E).getLeftBattler().getName()).isEqualTo("Alice");
+        assertThat(service.getCurrentPair(E).getRightBattler().getName()).isEqualTo("Bob");
+        assertThat(service.getBattlePhase(E)).isEqualTo("LOCKED");
     }
 
     @Test
     void setBattlePhase_cannotManuallySetREVEALED() {
-        service.setBattlePhaseService("REVEALED");
+        service.setBattlePhaseService(E, "REVEALED");
 
-        assertThat(service.getBattlePhase()).isEqualTo("IDLE");
+        assertThat(service.getBattlePhase(E)).isEqualTo("IDLE");
     }
 
     @Test
     void setBattlePhase_setsVOTING() {
-        service.setBattlePhaseService("VOTING");
+        service.setBattlePhaseService(E, "VOTING");
 
-        assertThat(service.getBattlePhase()).isEqualTo("VOTING");
+        assertThat(service.getBattlePhase(E)).isEqualTo("VOTING");
     }
 
     @Test
     void setScore_returnsMinusOneWhenNoJudges() {
-        // Empty judges list: score list is empty, frequency(0)==frequency(1) → tie → returns -1
-        assertThat(service.setScoreService(false)).isEqualTo(-1);
+        assertThat(service.setScoreService(E, false)).isEqualTo(-1);
     }
 
     @Test
     void setScore_finalTie_returnsMinusThreeToSignalBlock() {
-        // empty judges → tie, isFinal=true → returns -3 (blocked)
-        assertThat(service.setScoreService(true)).isEqualTo(-3);
-        verify(messagingTemplate, never()).convertAndSend(eq("/topic/battle/score"), any(Map.class));
+        assertThat(service.setScoreService(E, true)).isEqualTo(-3);
+        verify(messagingTemplate, never()).convertAndSend(
+            eq("/topic/battle/" + E + "/score"), any(Map.class));
     }
 
     @Test
     void setScore_nonFinalTie_returnsMinusOne() {
-        // empty judges → tie, isFinal=false → normal tie return -1
-        assertThat(service.setScoreService(false)).isEqualTo(-1);
+        assertThat(service.setScoreService(E, false)).isEqualTo(-1);
     }
 
     @Test
@@ -94,15 +94,15 @@ class BattleServiceTest {
 
         SetJudgeDto jDto = mock(SetJudgeDto.class);
         when(jDto.getId()).thenReturn(10L);
-        service.setBattleJudgeService(jDto);
+        service.setBattleJudgeService(E, jDto);
 
         SetVoteDto vDto = mock(SetVoteDto.class);
         when(vDto.getId()).thenReturn(10L);
         when(vDto.getVote()).thenReturn(0);
-        service.setVoteService(vDto);
+        service.setVoteService(E, vDto);
 
-        assertThat(service.setScoreService(true)).isEqualTo(0);
-        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
+        assertThat(service.setScoreService(E, true)).isEqualTo(0);
+        assertThat(service.getBattlePhase(E)).isEqualTo("REVEALED");
     }
 
     @Test
@@ -114,17 +114,17 @@ class BattleServiceTest {
 
         SetJudgeDto jDto = mock(SetJudgeDto.class);
         when(jDto.getId()).thenReturn(1L);
-        service.setBattleJudgeService(jDto);
+        service.setBattleJudgeService(E, jDto);
 
         SetVoteDto vDto = mock(SetVoteDto.class);
         when(vDto.getId()).thenReturn(1L);
-        when(vDto.getVote()).thenReturn(0); // vote for left
-        service.setVoteService(vDto);
+        when(vDto.getVote()).thenReturn(0);
+        service.setVoteService(E, vDto);
 
-        Integer result = service.setScoreService(false);
+        Integer result = service.setScoreService(E, false);
 
         assertThat(result).isEqualTo(0);
-        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
+        assertThat(service.getBattlePhase(E)).isEqualTo("REVEALED");
     }
 
     @Test
@@ -136,15 +136,15 @@ class BattleServiceTest {
 
         SetJudgeDto jDto = mock(SetJudgeDto.class);
         when(jDto.getId()).thenReturn(2L);
-        service.setBattleJudgeService(jDto);
+        service.setBattleJudgeService(E, jDto);
 
         SetVoteDto vDto = mock(SetVoteDto.class);
         when(vDto.getId()).thenReturn(2L);
-        when(vDto.getVote()).thenReturn(1); // vote for right
-        service.setVoteService(vDto);
+        when(vDto.getVote()).thenReturn(1);
+        service.setVoteService(E, vDto);
 
-        assertThat(service.setScoreService(false)).isEqualTo(1);
-        assertThat(service.getBattlePhase()).isEqualTo("REVEALED");
+        assertThat(service.setScoreService(E, false)).isEqualTo(1);
+        assertThat(service.getBattlePhase(E)).isEqualTo("REVEALED");
     }
 
     @Test
@@ -156,11 +156,11 @@ class BattleServiceTest {
 
         SetJudgeDto dto = mock(SetJudgeDto.class);
         when(dto.getId()).thenReturn(1L);
-        service.setBattleJudgeService(dto);
+        service.setBattleJudgeService(E, dto);
 
-        Integer result = service.setBattleJudgeService(dto);
+        Integer result = service.setBattleJudgeService(E, dto);
 
-        assertThat(result).isEqualTo(0); // already exists
+        assertThat(result).isEqualTo(0);
     }
 
     @Test
@@ -170,7 +170,7 @@ class BattleServiceTest {
         SetJudgeDto dto = mock(SetJudgeDto.class);
         when(dto.getId()).thenReturn(99L);
 
-        assertThat(service.setBattleJudgeService(dto)).isEqualTo(-1);
+        assertThat(service.setBattleJudgeService(E, dto)).isEqualTo(-1);
     }
 
     @Test
@@ -182,28 +182,27 @@ class BattleServiceTest {
 
         SetJudgeDto addDto = mock(SetJudgeDto.class);
         when(addDto.getId()).thenReturn(1L);
-        service.setBattleJudgeService(addDto);
-        assertThat(service.getJudges()).hasSize(1);
+        service.setBattleJudgeService(E, addDto);
+        assertThat(service.getJudges(E)).hasSize(1);
 
         SetJudgeDto removeDto = mock(SetJudgeDto.class);
         when(removeDto.getId()).thenReturn(1L);
-        service.removeBattleJudgeService(removeDto);
+        service.removeBattleJudgeService(E, removeDto);
 
-        assertThat(service.getJudges()).isEmpty();
+        assertThat(service.getJudges(E)).isEmpty();
     }
 
     @Test
     void setVote_returnsMinusTwoWhenJudgeNotInList() {
-        // judges list is empty, stream filter never calls dto.getId() — use lenient to avoid UnnecessaryStubbingException
         SetVoteDto dto = mock(SetVoteDto.class);
         lenient().when(dto.getId()).thenReturn(99L);
 
-        assertThat(service.setVoteService(dto)).isEqualTo(-2);
+        assertThat(service.setVoteService(E, dto)).isEqualTo(-2);
     }
 
     @Test
     void getOverlayConfig_returnsDefaults() {
-        Map<String, Object> config = service.getOverlayConfig();
+        Map<String, Object> config = service.getOverlayConfig(E);
         assertThat(config.get("showImages")).isEqualTo(true);
         assertThat(config.get("leftColor")).isEqualTo("#dc2626");
         assertThat(config.get("rightColor")).isEqualTo("#2563eb");
@@ -216,9 +215,9 @@ class BattleServiceTest {
         when(dto.getLeftColor()).thenReturn("#ff0000");
         when(dto.getRightColor()).thenReturn("#0000ff");
 
-        service.setOverlayConfigService(dto);
+        service.setOverlayConfigService(E, dto);
 
-        Map<String, Object> config = service.getOverlayConfig();
+        Map<String, Object> config = service.getOverlayConfig(E);
         assertThat(config.get("showImages")).isEqualTo(false);
         assertThat(config.get("leftColor")).isEqualTo("#ff0000");
         assertThat(config.get("rightColor")).isEqualTo("#0000ff");
@@ -231,10 +230,10 @@ class BattleServiceTest {
         when(dto.getLeftColor()).thenReturn("#aabbcc");
         when(dto.getRightColor()).thenReturn("#112233");
 
-        service.setOverlayConfigService(dto);
+        service.setOverlayConfigService(E, dto);
 
         verify(messagingTemplate).convertAndSend(
-            eq("/topic/battle/overlay-config"),
+            eq("/topic/battle/" + E + "/overlay-config"),
             any(Map.class)
         );
     }
@@ -248,18 +247,18 @@ class BattleServiceTest {
 
         SetJudgeDto addDto = mock(SetJudgeDto.class);
         when(addDto.getId()).thenReturn(5L);
-        service.setBattleJudgeService(addDto);
+        service.setBattleJudgeService(E, addDto);
 
         SetVoteDto voteDto = mock(SetVoteDto.class);
         when(voteDto.getId()).thenReturn(5L);
         when(voteDto.getVote()).thenReturn(0);
-        service.setVoteService(voteDto);
+        service.setVoteService(E, voteDto);
 
-        service.resetJudgeVotesService();
+        service.resetJudgeVotesService(E);
 
-        assertThat(service.getJudges().get(0).getVote()).isEqualTo(-3);
+        assertThat(service.getJudges(E).get(0).getVote()).isEqualTo(-3);
         verify(messagingTemplate, atLeastOnce()).convertAndSend(
-            eq("/topic/battle/judges"), any(Map.class));
+            eq("/topic/battle/" + E + "/judges"), any(Map.class));
     }
 
     @Test
@@ -269,9 +268,9 @@ class BattleServiceTest {
         when(dto.getRightBattler()).thenReturn("W10");
         when(dto.isFinal()).thenReturn(true);
 
-        service.setBattlerPairService(dto);
+        service.setBattlerPairService(E, dto);
 
-        assertThat(service.isCurrentFinal()).isTrue();
+        assertThat(service.isCurrentFinal(E)).isTrue();
     }
 
     @Test
@@ -281,9 +280,9 @@ class BattleServiceTest {
         when(dto.getRightBattler()).thenReturn("Bob");
         when(dto.isFinal()).thenReturn(false);
 
-        service.setBattlerPairService(dto);
+        service.setBattlerPairService(E, dto);
 
-        assertThat(service.isCurrentFinal()).isFalse();
+        assertThat(service.isCurrentFinal(E)).isFalse();
     }
 
     @Test
@@ -293,10 +292,10 @@ class BattleServiceTest {
         when(dto.getRightBattler()).thenReturn("W10");
         when(dto.isFinal()).thenReturn(true);
 
-        service.setBattlerPairService(dto);
+        service.setBattlerPairService(E, dto);
 
         verify(messagingTemplate).convertAndSend(
-            eq("/topic/battle/battle-pair"),
+            eq("/topic/battle/" + E + "/battle-pair"),
             argThat((Map<String, Object> m) -> Boolean.TRUE.equals(m.get("isFinal")))
         );
     }
@@ -308,10 +307,10 @@ class BattleServiceTest {
         when(dto.getChampionName()).thenReturn("PULSE");
         when(dto.isDismiss()).thenReturn(false);
 
-        service.broadcastChampionReveal(dto);
+        service.broadcastChampionReveal(E, dto);
 
         verify(messagingTemplate).convertAndSend(
-            eq("/topic/battle/champion-reveal"),
+            eq("/topic/battle/" + E + "/champion-reveal"),
             any(Map.class)
         );
     }
@@ -326,19 +325,19 @@ class BattleServiceTest {
         SetJudgeDto dtoA = mock(SetJudgeDto.class);
         when(dtoA.getId()).thenReturn(10L);
         when(dtoA.getWeightage()).thenReturn(2);
-        service.setBattleJudgeService(dtoA);
+        service.setBattleJudgeService(E, dtoA);
 
         SetJudgeDto dtoB = mock(SetJudgeDto.class);
         when(dtoB.getId()).thenReturn(11L);
         when(dtoB.getWeightage()).thenReturn(1);
-        service.setBattleJudgeService(dtoB);
+        service.setBattleJudgeService(E, dtoB);
 
         SetVoteDto vA = mock(SetVoteDto.class); when(vA.getId()).thenReturn(10L); when(vA.getVote()).thenReturn(0);
         SetVoteDto vB = mock(SetVoteDto.class); when(vB.getId()).thenReturn(11L); when(vB.getVote()).thenReturn(1);
-        service.setVoteService(vA);
-        service.setVoteService(vB);
+        service.setVoteService(E, vA);
+        service.setVoteService(E, vB);
 
-        assertThat(service.setScoreService(false)).isEqualTo(0);
+        assertThat(service.setScoreService(E, false)).isEqualTo(0);
     }
 
     @Test
@@ -351,19 +350,19 @@ class BattleServiceTest {
         SetJudgeDto dtoA = mock(SetJudgeDto.class);
         when(dtoA.getId()).thenReturn(12L);
         when(dtoA.getWeightage()).thenReturn(2);
-        service.setBattleJudgeService(dtoA);
+        service.setBattleJudgeService(E, dtoA);
 
         SetJudgeDto dtoB = mock(SetJudgeDto.class);
         when(dtoB.getId()).thenReturn(13L);
         when(dtoB.getWeightage()).thenReturn(2);
-        service.setBattleJudgeService(dtoB);
+        service.setBattleJudgeService(E, dtoB);
 
         SetVoteDto vA = mock(SetVoteDto.class); when(vA.getId()).thenReturn(12L); when(vA.getVote()).thenReturn(0);
         SetVoteDto vB = mock(SetVoteDto.class); when(vB.getId()).thenReturn(13L); when(vB.getVote()).thenReturn(1);
-        service.setVoteService(vA);
-        service.setVoteService(vB);
+        service.setVoteService(E, vA);
+        service.setVoteService(E, vB);
 
-        assertThat(service.setScoreService(false)).isEqualTo(-1);
+        assertThat(service.setScoreService(E, false)).isEqualTo(-1);
     }
 
     @Test
@@ -373,15 +372,38 @@ class BattleServiceTest {
 
         SetJudgeDto addDto = mock(SetJudgeDto.class);
         when(addDto.getId()).thenReturn(14L);
-        service.setBattleJudgeService(addDto);
+        service.setBattleJudgeService(E, addDto);
 
         UpdateJudgeWeightageDto updateDto = mock(UpdateJudgeWeightageDto.class);
         when(updateDto.getId()).thenReturn(14L);
         when(updateDto.getWeightage()).thenReturn(3);
-        service.updateJudgeWeightageService(updateDto);
+        service.updateJudgeWeightageService(E, updateDto);
 
-        assertThat(service.getJudges().get(0).getWeightage()).isEqualTo(3);
+        assertThat(service.getJudges(E).get(0).getWeightage()).isEqualTo(3);
         verify(messagingTemplate, atLeastOnce()).convertAndSend(
-            eq("/topic/battle/judges"), any(Map.class));
+            eq("/topic/battle/" + E + "/judges"), any(Map.class));
+    }
+
+    @Test
+    void twoEvents_statesAreIsolated() {
+        SetBattlerPairDto dtoA = mock(SetBattlerPairDto.class);
+        when(dtoA.getLeftBattler()).thenReturn("Alice");
+        when(dtoA.getRightBattler()).thenReturn("Bob");
+        lenient().when(dtoA.getLeftMembers()).thenReturn(new java.util.ArrayList<>());
+        lenient().when(dtoA.getRightMembers()).thenReturn(new java.util.ArrayList<>());
+
+        SetBattlerPairDto dtoB = mock(SetBattlerPairDto.class);
+        when(dtoB.getLeftBattler()).thenReturn("Charlie");
+        when(dtoB.getRightBattler()).thenReturn("Dave");
+        lenient().when(dtoB.getLeftMembers()).thenReturn(new java.util.ArrayList<>());
+        lenient().when(dtoB.getRightMembers()).thenReturn(new java.util.ArrayList<>());
+
+        service.setBattlerPairService("EventAlpha", dtoA);
+        service.setBattlerPairService("EventBeta", dtoB);
+
+        assertThat(service.getCurrentPair("EventAlpha").getLeftBattler().getName()).isEqualTo("Alice");
+        assertThat(service.getCurrentPair("EventBeta").getLeftBattler().getName()).isEqualTo("Charlie");
+        assertThat(service.getBattlePhase("EventAlpha")).isEqualTo("LOCKED");
+        assertThat(service.getBattlePhase("EventBeta")).isEqualTo("LOCKED");
     }
 }

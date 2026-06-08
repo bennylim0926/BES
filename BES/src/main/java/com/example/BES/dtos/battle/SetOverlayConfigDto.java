@@ -15,6 +15,9 @@ public class SetOverlayConfigDto {
     @NotNull
     @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "rightColor must be a valid 6-digit hex color")
     private String rightColor;
+    private String eventName;
+
+    public String getEventName() { return eventName; }
 
     public Boolean isShowImages() { return showImages; }
     public String getLeftColor()  { return leftColor; }

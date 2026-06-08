@@ -9,7 +9,10 @@ public class SetVoteDto {
     private Long id;
     @NotNull @Min(-3) @Max(1)
     private Integer vote;
-    
+    private String eventName;
+
+    public String getEventName() { return eventName; }
+
     public Long getId() {
         return id;
     }
