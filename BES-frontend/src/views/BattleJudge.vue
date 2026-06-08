@@ -7,10 +7,10 @@ import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
-// eventName must be provided via ?event= param — passed automatically by the
-// BattleControl "Judge View" link. Without it, subscriptions use a dead flat
-// topic and receive nothing (same behaviour as Overlay/Bracket).
-const eventName = ref(route.query.event || '')
+// eventName derived from the judge's auth session (already tied to one event).
+// ?event= URL param takes priority for edge cases; session event is the default.
+const authStore = useAuthStore()
+const eventName = ref(route.query.event || authStore.activeEvent?.name || '')
 const topic = (path) => eventName.value
   ? `/topic/battle/${eventName.value}/${path}`
   : `/topic/battle/${path}`
