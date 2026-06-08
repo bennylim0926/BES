@@ -426,7 +426,7 @@ onMounted(async () => {
     })
 
     // Re-hydrate on reconnect — REST covers gap while WS was disconnected
-    getBattleState().then(state => {
+    getBattleState(eventName.value).then(state => {
       if (state && (state.bracket?.topSize || state.bracket?.rounds)) {
         if (state.bracket && !animRunning) {
           const incoming = JSON.stringify(state.bracket)
