@@ -33,8 +33,9 @@ const props = defineProps({
   saveStatus:                { type: String,  default: 'idle' },
   finalTieBlocked:           { type: Boolean, default: false },
   isReadonly:                { type: Boolean, default: false },
-  canSwitchGenre:            { type: Boolean, default: true },
-  genreSwitchBlockReason:    { type: String,  default: '' },
+  isViewingNonActive:        { type: Boolean, default: false },
+  liveGenreName:             { type: String,  default: '' },
+  livePhase:                 { type: String,  default: 'IDLE' },
   genreChampions:            { type: Object,  default: () => ({}) },
   stompClient:               { type: Object,  default: null },
   overlayConfig:             { type: Object,  default: () => ({ leftColor: '#dc2626', rightColor: '#2563eb' }) },
@@ -121,8 +122,26 @@ defineExpose({ triggerFormatTimerStart, formatTimerSelectedMinutes, isFormatTime
 // Returns 'champion' | 'active' | 'idle'
 function genreStatusDot(g) {
   if (props.genreChampions[g]) return 'champion'
+  // In view-only mode selectedGenre is the viewed genre, not the live one.
+  // Use liveGenreName + livePhase to correctly mark the live genre's dot.
+  if (props.isViewingNonActive && props.liveGenreName) {
+    if (g === props.liveGenreName && ['LOCKED', 'VOTING', 'REVEALED'].includes(props.livePhase)) return 'active'
+    return 'idle'
+  }
   const phase = g === props.selectedGenre ? props.battlePhase : 'IDLE'
   if (['LOCKED', 'VOTING', 'REVEALED'].includes(phase)) return 'active'
+  return 'idle'
+}
+
+// ── Round tab status ──────────────────────────────────────────────
+// Returns 'done' | 'active' | 'idle'
+function roundTabStatus(roundKey) {
+  if (!props.rounds || typeof props.rounds !== 'object' || Array.isArray(props.rounds)) return 'idle'
+  const matchList = props.rounds[roundKey]
+  if (!Array.isArray(matchList) || matchList.length === 0) return 'idle'
+  if (props.currentTop === roundKey && props.battlePhase !== 'IDLE') return 'active'
+  const filled = matchList.filter(m => m[0] || m[1])
+  if (filled.length > 0 && filled.every(m => m[2])) return 'done'
   return 'idle'
 }
 
@@ -190,9 +209,9 @@ const nextBattlePair = computed(() => {
 
 // ── Winner announcement display ──────────────────────────────────
 const winnerAnnouncement = computed(() => {
-  if (props.currentBattle.length === 0) return 'Choose a round to start'
-  if (props.currentWinner === -2) return 'Battle is ongoing'
-  if (props.currentWinner === -3) return 'Judges are not ready yet'
+  if (props.currentBattle.length === 0) return 'Select a match from the bracket to begin'
+  if (props.currentWinner === -2) return 'Battle in progress'
+  if (props.currentWinner === -3) return "Judges haven't voted yet"
   if (props.currentWinner === -1) return "It's a tie"
   if (props.currentWinner === 0 || props.currentWinner === 1) {
     const name = currentBattlePairNames.value?.[props.currentWinner]
@@ -296,6 +315,11 @@ const viewedPairList = computed(() => {
     <!-- Genre switcher -->
     <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
       <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
+      <span
+        v-if="isViewingNonActive"
+        class="type-label px-2 py-0.5"
+        style="font-size:9px;letter-spacing:0.22em;color:rgba(239,68,68,0.85);border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.07);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+      >VIEW ONLY</span>
       <div class="flex flex-wrap gap-2">
         <button
           v-for="g in uniqueGenres"
@@ -305,12 +329,8 @@ const viewedPairList = computed(() => {
           :class="[
             selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
-              : !canSwitchGenre && g !== selectedGenre
-                ? 'text-content-muted/40 cursor-not-allowed'
-                : 'text-content-muted hover:text-content-primary'
+              : 'text-content-muted hover:text-content-primary'
           ]"
-          :title="g !== selectedGenre && !canSwitchGenre ? genreSwitchBlockReason : ''"
-          :disabled="g !== selectedGenre && !canSwitchGenre"
         >
           <template v-if="genreStatusDot(g) === 'champion'">
             <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
@@ -324,11 +344,6 @@ const viewedPairList = computed(() => {
           {{ g }}
         </button>
       </div>
-      <span
-        v-if="uniqueGenres.length > 1 && !canSwitchGenre"
-        class="type-label text-amber-400/70"
-        style="font-size:10px;letter-spacing:0.12em"
-      >{{ genreSwitchBlockReason }}</span>
     </div>
 
     <!-- Live match card -->
@@ -368,7 +383,13 @@ const viewedPairList = computed(() => {
                 : battlePhase === 'VOTING'
                   ? 'text-amber-400'
                   : 'text-gray-400'"
-          >{{ battlePhase }}</span>
+          >{{
+            battlePhase === 'IDLE'     ? 'Standby'      :
+            battlePhase === 'LOCKED'   ? 'Battling'     :
+            battlePhase === 'VOTING'   ? 'Judging'      :
+            battlePhase === 'REVEALED' ? 'Result Shown'  :
+            battlePhase === 'DECIDED'  ? 'Champion Set'  : battlePhase
+          }}</span>
         </div>
 
         <!-- Save state indicator -->
@@ -408,10 +429,10 @@ const viewedPairList = computed(() => {
         <div class="w-2 h-2 rounded-full" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.8)"></div>
         <span class="type-body flex-1 text-amber-400"><i class="pi pi-exclamation-triangle mr-2"></i>TIE in Final — Revote required</span>
         <button
-          v-if="!isReadonly"
+          v-if="!isReadonly && !isViewingNonActive"
           @click="$emit('submit-revote')"
           class="para-chip-sm px-3 py-1.5 type-label text-accent transition-all"
-        >START REVOTE</button>
+        >REVOTE</button>
       </div>
 
       <!-- Winner announcement / champion locked -->
@@ -429,7 +450,7 @@ const viewedPairList = computed(() => {
           class="type-label text-content-muted block mt-1"
           style="font-size:9px;letter-spacing:0.22em"
         >
-          FINAL · {{ isReadonly ? 'WAITING FOR ORGANISER' : 'ORGANISER ONLY' }} — NOT REVEALED YET
+          {{ isReadonly ? 'CHAMPION LOCKED — ORGANISER WILL ANNOUNCE SHORTLY' : 'CHAMPION LOCKED — CLICK REVEAL CHAMPION BELOW' }}
         </span>
       </div>
       <div
@@ -454,7 +475,7 @@ const viewedPairList = computed(() => {
       </div>
 
       <!-- BattleTimer (LOCKED: timer counts down independently; Emcee opens voting manually) -->
-      <div v-if="!isReadonly || battlePhase === 'LOCKED' || battlePhase === 'VOTING'" class="mb-4">
+      <div v-if="(!isReadonly || battlePhase === 'LOCKED' || battlePhase === 'VOTING') && !isViewingNonActive" class="mb-4">
         <BattleTimer
           ref="battleTimerRef"
           :phase="battlePhase"
@@ -465,7 +486,7 @@ const viewedPairList = computed(() => {
       </div>
 
       <!-- 7-to-Smoke format timer (session-level countdown) -->
-      <div v-if="isSmoke" class="mb-4">
+      <div v-if="isSmoke && !isViewingNonActive" class="mb-4">
         <SmokeFormatTimer
           ref="smokeFormatTimerRef"
           :stomp-client="stompClient"
@@ -480,7 +501,7 @@ const viewedPairList = computed(() => {
           <span class="section-rule-label">QUEUE</span>
           <!-- Start Round — organiser: direct start; Emcee: same emit path -->
           <button
-            v-if="battlePhase === 'IDLE' && rounds.some(r => r?.name)"
+            v-if="battlePhase === 'IDLE' && rounds.some(r => r?.name) && !isViewingNonActive"
             @click="$emit('start-round')"
             class="ml-2 para-chip-sm px-2.5 py-1 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all inline-flex items-center gap-1"
             style="font-size:10px"
@@ -525,7 +546,7 @@ const viewedPairList = computed(() => {
           <span class="section-rule-label">BRACKET</span>
           <!-- Start All button — IDLE phase, current round has filled matches -->
           <button
-            v-if="battlePhase === 'IDLE' && viewedPairList.some(m => m[0] && m[1])"
+            v-if="battlePhase === 'IDLE' && viewedPairList.some(m => m[0] && m[1]) && !isViewingNonActive"
             @click="$emit('request-start-all', viewedRoundKey, viewedPairList)"
             class="ml-2 para-chip-sm px-2.5 py-1 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[color:var(--accent-subtle)] transition-all inline-flex items-center gap-1"
             style="font-size:10px"
@@ -542,11 +563,21 @@ const viewedPairList = computed(() => {
             v-for="(name, idx) in roundNames"
             :key="idx"
             @click="$emit('set-round', idx)"
-            class="para-chip-sm px-2.5 py-1 type-label transition-all duration-150 text-[10px]"
+            class="para-chip-sm px-2.5 py-1 type-label transition-all duration-150 text-[10px] inline-flex items-center gap-1"
             :class="activeRoundIdx === idx
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
           >
+            <i
+              v-if="roundTabStatus(name) === 'done'"
+              class="pi pi-check"
+              style="font-size:8px;color:#34d399"
+            ></i>
+            <span
+              v-else-if="roundTabStatus(name) === 'active'"
+              class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"
+              style="box-shadow:0 0 6px rgba(245,158,11,0.7);animation:pulse 1s ease-in-out infinite"
+            ></span>
             {{ name.replace('Top', 'TOP ') }}
           </button>
         </div>
@@ -573,7 +604,7 @@ const viewedPairList = computed(() => {
 
             <!-- Left WIN button (organiser only) -->
             <button
-              v-if="!isReadonly && match[0]"
+              v-if="!isReadonly && !isViewingNonActive && match[0]"
               @click="$emit('set-winner', viewedRoundKey, mIdx, 0)"
               class="flex-shrink-0 px-1.5 py-1 transition-colors"
               :class="match[2] === match[0] ? 'text-amber-400' : 'text-surface-600 hover:text-amber-400 hover:bg-amber-500/10'"
@@ -584,7 +615,7 @@ const viewedPairList = computed(() => {
 
             <!-- Right WIN button (organiser only) -->
             <button
-              v-if="!isReadonly && match[1]"
+              v-if="!isReadonly && !isViewingNonActive && match[1]"
               @click="$emit('set-winner', viewedRoundKey, mIdx, 1)"
               class="flex-shrink-0 px-1.5 py-1 transition-colors"
               :class="match[2] === match[1] ? 'text-amber-400' : 'text-surface-600 hover:text-amber-400 hover:bg-amber-500/10'"
@@ -599,7 +630,7 @@ const viewedPairList = computed(() => {
 
             <!-- Start from here (IDLE, both slots filled) -->
             <button
-              v-if="battlePhase === 'IDLE' && match[0] && match[1]"
+              v-if="battlePhase === 'IDLE' && match[0] && match[1] && !isViewingNonActive"
               @click="$emit('request-start-at', viewedRoundKey, viewedPairList, mIdx)"
               class="flex-shrink-0 ml-1 px-1.5 py-1 text-surface-600 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
               title="Start from this match"
@@ -790,7 +821,7 @@ const viewedPairList = computed(() => {
       </div>
 
       <!-- Phase action buttons -->
-      <div v-if="currentBattle.length > 0 && !isReadonly" class="flex flex-wrap gap-3 sm:gap-2">
+      <div v-if="currentBattle.length > 0 && !isReadonly && !isViewingNonActive" class="flex flex-wrap gap-3 sm:gap-2">
         <!-- LOCKED: open voting -->
         <button
           v-if="battlePhase === 'LOCKED'"
@@ -798,7 +829,7 @@ const viewedPairList = computed(() => {
           class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
           <i class="pi pi-lock-open text-xs"></i>
-          Open Voting
+          Start Judging
         </button>
 
         <!-- VOTING: non-final, not all voted, or tie → Get Score / Rematch -->
@@ -809,10 +840,10 @@ const viewedPairList = computed(() => {
           :class="allJudgesVoted
             ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
             : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
-          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
+          :title="allJudgesVoted ? '' : 'All judges must vote first'"
         >
           <i class="pi pi-bolt text-xs"></i>
-          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
+          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Reveal Result' }}
         </button>
 
         <!-- VOTING + final + all judges voted → Lock Champion -->
@@ -827,7 +858,7 @@ const viewedPairList = computed(() => {
           :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
         >
           <i class="pi pi-lock text-xs"></i>
-          Lock Champion
+          Confirm Champion
         </button>
 
         <!-- DECIDED: champion locked, ready to reveal or unlock for revote -->
@@ -847,24 +878,24 @@ const viewedPairList = computed(() => {
             class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
           >
             <i class="pi pi-times text-xs"></i>
-            Dismiss Reveal
+            Hide Overlay
           </button>
           <button
             @click="$emit('unlock-champion')"
             class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 text-content-muted hover:text-content-primary transition-all flex-1 sm:flex-none justify-center"
           >
             <i class="pi pi-unlock text-xs"></i>
-            Unlock
+            Reset Final
           </button>
         </template>
 
-        <!-- REVEALED: next only -->
+        <!-- REVEALED: advance to next match or end bracket -->
         <template v-if="battlePhase === 'REVEALED'">
           <button
             @click="$emit('next-pair')"
             class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
           >
-            Next
+            {{ isFinalInProgress ? 'End Battle' : 'Next Match' }}
             <i class="pi pi-chevron-right text-xs"></i>
           </button>
         </template>
@@ -884,7 +915,7 @@ const viewedPairList = computed(() => {
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 transition-all"
         >
           <i class="pi pi-times text-xs"></i>
-          Dismiss Reveal
+          Hide Overlay
         </button>
       </div>
 
@@ -897,7 +928,7 @@ const viewedPairList = computed(() => {
           class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
           <i class="pi pi-lock-open text-xs"></i>
-          Open Voting
+          Start Judging
         </button>
 
         <!-- VOTING: Get Score / Rematch -->
@@ -908,10 +939,10 @@ const viewedPairList = computed(() => {
           :class="allJudgesVoted
             ? 'bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center'
             : 'bg-surface-700/30 para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all cursor-not-allowed opacity-50 flex-1 sm:flex-none justify-center'"
-          :title="allJudgesVoted ? '' : 'Waiting for all judges to vote'"
+          :title="allJudgesVoted ? '' : 'All judges must vote first'"
         >
           <i class="pi pi-bolt text-xs"></i>
-          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Get Score' }}
+          {{ (Number(currentWinner) === -1 && !isSmoke) ? 'Rematch' : 'Reveal Result' }}
         </button>
 
         <!-- VOTING + final + all judges voted → Lock Champion (regular battle only) -->
@@ -926,7 +957,7 @@ const viewedPairList = computed(() => {
           :title="showFinalReveal ? 'Lock the champion' : 'Cannot lock — result is a tie'"
         >
           <i class="pi pi-lock text-xs"></i>
-          Lock Champion
+          Confirm Champion
         </button>
 
         <!-- DECIDED: reveal champion (regular battle only — smoke auto-reveals) -->
@@ -944,7 +975,7 @@ const viewedPairList = computed(() => {
           class="para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
           <i class="pi pi-times text-xs"></i>
-          Dismiss Reveal
+          Hide Overlay
         </button>
         <button
           v-if="!isSmoke && battlePhase === 'DECIDED'"
@@ -955,13 +986,13 @@ const viewedPairList = computed(() => {
           Unlock
         </button>
 
-        <!-- REVEALED: next pair -->
+        <!-- REVEALED: advance to next match or end bracket -->
         <button
           v-if="battlePhase === 'REVEALED'"
           @click="$emit('next-pair')"
           class="bg-accent para-chip-sm px-5 sm:px-4 py-3.5 sm:py-2 type-label inline-flex items-center gap-1.5 transition-all flex-1 sm:flex-none justify-center"
         >
-          Next
+          {{ isFinalInProgress ? 'End Battle' : 'Next Match' }}
           <i class="pi pi-chevron-right text-xs"></i>
         </button>
       </div>
@@ -975,7 +1006,7 @@ const viewedPairList = computed(() => {
         class="w-full py-4 sm:py-3 text-center"
       >
         <span class="type-label text-content-muted">
-          {{ isReadonly ? 'Waiting for organiser to start a battle...' : 'Seed the bracket in Setup above, then use the Bracket to start rounds.' }}
+          {{ isReadonly ? 'Waiting for organiser to start...' : 'Set up the bracket above, then press ▶ to start a match.' }}
         </span>
       </div>
     </div>
