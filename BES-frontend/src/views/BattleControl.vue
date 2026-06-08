@@ -1935,7 +1935,7 @@ onUnmounted(() => {
     <!-- Quick access links -->
     <div v-if="isAdminOrOrganiser" class="flex flex-wrap gap-2">
       <a
-        href="/battle/overlay"
+        :href="selectedEvent ? `/battle/overlay?event=${encodeURIComponent(selectedEvent)}` : '/battle/overlay'"
         target="_blank"
         rel="noopener noreferrer"
         class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
@@ -1945,7 +1945,7 @@ onUnmounted(() => {
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
-        href="/battle/overlay?isSmoke=true"
+        :href="selectedEvent ? `/battle/overlay?event=${encodeURIComponent(selectedEvent)}&isSmoke=true` : '/battle/overlay?isSmoke=true'"
         target="_blank"
         rel="noopener noreferrer"
         class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
@@ -1955,7 +1955,7 @@ onUnmounted(() => {
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
-        href="/battle/judge"
+        :href="selectedEvent ? `/battle/judge?event=${encodeURIComponent(selectedEvent)}` : '/battle/judge'"
         target="_blank"
         rel="noopener noreferrer"
         class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
@@ -1965,7 +1965,7 @@ onUnmounted(() => {
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
-        href="/battle/bracket"
+        :href="selectedEvent ? `/battle/bracket?event=${encodeURIComponent(selectedEvent)}` : '/battle/bracket'"
         target="_blank"
         rel="noopener noreferrer"
         class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
