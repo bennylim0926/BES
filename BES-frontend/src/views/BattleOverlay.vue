@@ -160,10 +160,9 @@ const hasCustomWeightage = computed(() =>
 
 const judgePanelClass = computed(() => {
   if (isSmoke.value) return 'smoke-judge-always-on'
-  const classes = [judgeAnim.value]
-  if (judgeRestSide.value === 'right') classes.push('judge-at-bottom', 'judge-at-bottom-right')
-  if (judgeRestSide.value === 'left') classes.push('judge-at-bottom', 'judge-at-bottom-left')
-  return classes.filter(Boolean).join(' ')
+  if (judgeRestSide.value === 'right') return 'judge-rest-right'
+  if (judgeRestSide.value === 'left')  return 'judge-rest-left'
+  return judgeAnim.value
 })
 
 // ── Entrance animation ─────────────────────────────────────────────────────
@@ -237,11 +236,11 @@ const updateBattlePair = async (msg) => {
   // STANDARD MODE: if the judge panel is visible, clean it up before the new pair
   if (!hideJudgeDecision.value) {
     glitching.value = true
-    // Exit from the side the panel is resting on
-    if (judgeRestSide.value === 'right') {
-      judgeAnim.value = 'judge-exit-right'
-    } else if (judgeRestSide.value === 'left') {
-      judgeAnim.value = 'judge-exit-left'
+    // Exit from the side the panel is resting on; clear rest first so judgePanelClass uses judgeAnim
+    if (judgeRestSide.value) {
+      const exitSide = judgeRestSide.value
+      judgeRestSide.value = null
+      judgeAnim.value = exitSide === 'right' ? 'judge-exit-right' : 'judge-exit-left'
     } else {
       judgeAnim.value = 'slide-up'
     }
@@ -377,13 +376,11 @@ const updateScore = async (msg) => {
 
     currentWinner.value = msg.message
 
-    // Determine which side to rest on based on winner
-    const restSide = msg.message === 0 ? 'right' : 'left'
-    judgeAnim.value = restSide === 'right' ? 'judge-retreat-right' : 'judge-retreat-left'
+    // Panel retreats to beside winner name
+    judgeAnim.value = ''
+    judgeRestSide.value = msg.message === 0 ? 'right' : 'left'
     await useDelay().wait(550)
     if (!ok()) return
-    judgeAnim.value = ''
-    judgeRestSide.value = restSide
   }
 
   if (msg.message === 0) {
@@ -689,7 +686,7 @@ onUnmounted(() => {
     <!-- Logo watermark + genre — top center -->
     <div class="logo-watermark">
       <img v-if="logoUrl" :src="logoUrl" class="logo-wm-img" alt="Event logo" />
-      <span v-if="activeGenreName" class="logo-wm-genre">{{ activeGenreName }}</span>
+      <span v-if="activeGenreName && !isBlank" class="logo-wm-genre">{{ activeGenreName }}</span>
     </div>
 
     <!-- Screen-reader live region -->
@@ -952,23 +949,32 @@ onUnmounted(() => {
 /* ── Logo watermark — top center ────────────────────────────── */
 .logo-watermark {
   position: absolute;
-  top: 16px; left: 50%;
+  top: 0;
+  left: 50%;
   transform: translateX(-50%);
-  z-index: 90;
-  display: flex; align-items: center; gap: 12px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 32px 20px;
   pointer-events: none;
 }
 .logo-wm-img {
-  height: 40px; width: auto;
+  max-height: 240px;
+  max-width: 720px;
+  width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+  filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
 }
 .logo-wm-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: 13px; letter-spacing: 0.3em;
-  color: rgba(255,255,255,0.50);
+  font-size: 72px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  color: rgba(255,255,255,0.07);
+  text-align: center;
+  text-shadow: 2px 2px 0 rgba(255,255,255,0.1);
 }
 
 /* ── Screen-reader only ─────────────────────────────────────── */
@@ -1247,6 +1253,7 @@ onUnmounted(() => {
   height: 100vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
+  z-index: 2;
   /* CSS transition for winner expand */
   transition: left 420ms cubic-bezier(0.2, 0, 0.3, 1),
               width 420ms cubic-bezier(0.2, 0, 0.3, 1);
@@ -1599,25 +1606,25 @@ onUnmounted(() => {
   100% { transform: translateY(42vh)  scale(1.38); opacity: 1; }
 }
 
-/* Judge scales back down while retreating to right (left wins) */
-@keyframes judgeRetreatRight {
-  0%   { transform: translateY(42vh) translateX(0) scale(1.38); }
-  100% { transform: translateY(0) translateX(0) scale(1); }
+/* Judge drifts to bottom-right beside winner name (left wins) */
+@keyframes judgeRestRight {
+  0%   { transform: translateX(0)    translateY(42vh) scale(1.38); }
+  100% { transform: translateX(28vw) translateY(74vh) scale(1.5); }
 }
-/* Judge scales back down while retreating to left (right wins) */
-@keyframes judgeRetreatLeft {
-  0%   { transform: translateY(42vh) translateX(0) scale(1.38); }
-  100% { transform: translateY(0) translateX(0) scale(1); }
+/* Judge drifts to bottom-left beside winner name (right wins) */
+@keyframes judgeRestLeft {
+  0%   { transform: translateX(0)     translateY(42vh) scale(1.38); }
+  100% { transform: translateX(-28vw) translateY(74vh) scale(1.5); }
 }
-/* Judge slides off to the right */
+/* Judge exits off the right edge from its resting position */
 @keyframes judgeExitRight {
-  from { transform: translateY(0) translateX(0); }
-  to   { transform: translateY(0) translateX(120%); }
+  0%   { transform: translateX(28vw)  translateY(74vh) scale(1.5); opacity: 1; }
+  100% { transform: translateX(110vw) translateY(74vh) scale(1.2); opacity: 0; }
 }
-/* Judge slides off to the left */
+/* Judge exits off the left edge from its resting position */
 @keyframes judgeExitLeft {
-  from { transform: translateY(0) translateX(0); }
-  to   { transform: translateY(0) translateX(-120%); }
+  0%   { transform: translateX(-28vw)  translateY(74vh) scale(1.5); opacity: 1; }
+  100% { transform: translateX(-110vw) translateY(74vh) scale(1.2); opacity: 0; }
 }
 
 /* Card burst entrance on score reveal */
@@ -1747,17 +1754,10 @@ onUnmounted(() => {
 
 .slide-down        { animation: slideDown        480ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards; }
 .slide-up          { animation: slideUp          300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
-.judge-slam-center  { animation: judgeSlamCenter  680ms cubic-bezier(0.2,  0,   0.3, 1) both; }
-.judge-retreat-right { animation: judgeRetreatRight 500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
-.judge-retreat-left  { animation: judgeRetreatLeft  500ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
-.judge-exit-right    { animation: judgeExitRight    300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
-.judge-exit-left     { animation: judgeExitLeft     300ms cubic-bezier(0.2,  0,   1,   0) forwards; }
-.judge-at-bottom {
-  transform: translateY(0) !important;
-  position: absolute;
-  bottom: 30px;
-}
-.judge-at-bottom-right { right: 30px; left: auto; }
-.judge-at-bottom-left  { left: 30px; right: auto; }
+.judge-slam-center { animation: judgeSlamCenter 680ms cubic-bezier(0.2, 0, 0.3, 1) both; }
+.judge-rest-right  { animation: judgeRestRight  520ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
+.judge-rest-left   { animation: judgeRestLeft   520ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
+.judge-exit-right  { animation: judgeExitRight  280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
+.judge-exit-left   { animation: judgeExitLeft   280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
 </style>
 
