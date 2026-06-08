@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { getBattleState, getBracketState, getOverlayConfig, getActiveGenre } from '@/utils/api'
+import { getBattleState, getBracketState, getOverlayConfig } from '@/utils/api'
 import { createClient } from '@/utils/websocket'
 import { useRoute } from 'vue-router'
 
@@ -293,12 +293,6 @@ function getActiveMatchInfo() {
 
 // ── lifecycle ─────────────────────────────────────────────
 onMounted(async () => {
-  // Resolve event: ?event= URL param takes priority; fall back to the server's active event.
-  if (!eventName.value) {
-    const active = await getActiveGenre()
-    if (active?.eventName) eventName.value = active.eventName
-  }
-
   // Restore state from backend — authoritative source for bracket/pair/genre
   const battleState = await getBattleState(eventName.value)
   if (battleState?.bracket && (battleState.bracket.topSize || battleState.bracket.rounds)) {

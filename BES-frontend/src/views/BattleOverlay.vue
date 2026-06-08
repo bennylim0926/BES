@@ -1,5 +1,5 @@
 <script setup>
-import { getBattleJudges, getBattleState, getCurrentBattlePair, getImage, getOverlayConfig, getActiveGenre } from '@/utils/api';
+import { getBattleJudges, getBattleState, getCurrentBattlePair, getImage, getOverlayConfig } from '@/utils/api';
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket';
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useDelay } from '@/utils/utils';
@@ -421,13 +421,6 @@ const restoreRevealedState = (rounds) => {
 onMounted(async () => {
   document.documentElement.classList.add('transparent-page')
   document.body.classList.add('transparent-page')
-
-  // Resolve event: ?event= URL param takes priority; fall back to the server's active event.
-  // This means the overlay works both with an explicit event URL and without one.
-  if (!eventName.value) {
-    const active = await getActiveGenre()
-    if (active?.eventName) eventName.value = active.eventName
-  }
 
   // Fetch initial overlay config (survives OBS refresh)
   const config = await getOverlayConfig(eventName.value)
