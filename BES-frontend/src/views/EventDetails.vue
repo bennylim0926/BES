@@ -1479,47 +1479,42 @@ onUnmounted(() => {
       <span class="section-rule-label">Categories</span>
       <div class="section-rule-line"></div>
     </div>
-    <p class="type-label text-content-muted mb-4" style="font-size:10px;text-transform:none;letter-spacing:0.03em;">
+    <p class="type-label text-content-muted mb-4" style="text-transform:none;letter-spacing:0.03em;">
       Categories are competition formats within each genre (e.g. Popping 1v1, Popping 7 to Smoke).
       Names must match your Google Sheet column values exactly.
     </p>
 
     <!-- Sheet suggestions strip — only when sheet is connected -->
     <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 para-chip">
-      <p class="type-label text-content-muted mb-2" style="font-size:10px;">FROM YOUR SHEET — click to add as a category</p>
+      <p class="type-label text-content-muted mb-3">FROM YOUR SHEET — click to add as a category</p>
       <div class="flex flex-wrap gap-2">
         <span
           v-for="cat in allSheetSuggestions"
           :key="cat"
         >
-          <!-- Covered: greyed, not clickable -->
+          <!-- Covered: visible but muted with strikethrough -->
           <span
             v-if="suggestionCoveredSet.has(cat)"
-            class="type-label text-content-muted line-through opacity-40"
-            style="font-size:10px;"
+            class="para-chip-sm px-3 py-1 type-label text-content-muted opacity-40 line-through"
           >{{ cat }}</span>
-          <!-- Uncovered: clickable, shows genre picker -->
-          <span
-            v-else
-            class="relative"
-          >
+          <!-- Uncovered: clearly clickable button -->
+          <span v-else class="relative">
             <button
               @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
-              class="para-chip-sm px-2.5 py-1 type-label text-content-secondary hover:text-accent transition-colors"
-              style="font-size:10px;border-style:dashed;"
+              class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-colors"
+              style="border-style:dashed;"
             >+ {{ cat }}</button>
             <!-- Inline genre picker -->
             <div
               v-if="pendingSuggestionCat === cat"
               class="absolute top-full left-0 mt-1 z-50 bg-surface-800 border border-surface-600 para-chip p-2 min-w-[160px]"
             >
-              <p class="type-label text-content-muted mb-1.5" style="font-size:9px;">ADD TO GENRE:</p>
+              <p class="type-label text-content-muted mb-1.5">ADD TO GENRE:</p>
               <button
                 v-for="group in divisionsByGenre"
                 :key="group.genreId"
                 @click="addSuggestionToGenre(group.genreId, group.label)"
-                class="block w-full text-left px-2 py-1.5 type-body text-content-secondary hover:text-accent transition-colors"
-                style="font-size:11px;"
+                class="block w-full text-left px-2 py-2 type-body text-content-secondary hover:text-accent transition-colors"
               >{{ group.label }}</button>
             </div>
           </span>
@@ -1538,7 +1533,7 @@ onUnmounted(() => {
         <!-- Division rows -->
         <div v-for="div in group.divisions" :key="div.eventGenreId">
           <div
-            class="para-chip p-3 flex flex-col gap-2"
+            class="para-chip px-3 py-2.5"
             :class="sheetCategories.length > 0
               ? (matchCounts[div.eventGenreId] || 0) > 0
                 ? (div.participantCount >= (matchCounts[div.eventGenreId] || 0)
@@ -1547,80 +1542,68 @@ onUnmounted(() => {
                 : 'border-l-[3px] border-l-amber-500'
               : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
           >
-            <!-- Mobile: stacked (name row, then actions row); Tablet+: single inline row -->
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
-              <!-- Name + count badges row -->
+            <!-- Single inline row: name+counts left, controls right -->
+            <div class="flex items-center gap-2">
+              <!-- Left: name + counts -->
               <div class="flex items-center gap-2 flex-1 min-w-0">
                 <template v-if="divRenameActive !== div.eventGenreId">
                   <button
                     @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-                    class="type-body text-content-secondary hover:text-accent text-left break-words min-w-0 flex-1 transition-colors text-sm sm:text-xs"
-                    style="overflow-wrap:break-word;word-break:break-word"
+                    class="type-body text-content-secondary hover:text-accent text-left min-w-0 transition-colors"
+                    style="overflow-wrap:break-word;word-break:break-word;font-size:13px;"
+                    title="Click to rename"
                   >{{ div.name }}</button>
+                  <!-- Match count dots -->
+                  <div class="flex items-center gap-2 shrink-0">
+                    <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
+                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+                      <span class="type-label">{{ div.participantCount }}</span>
+                    </div>
+                    <div v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0" class="flex items-center gap-1 text-amber-400">
+                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                      <span class="type-label">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
+                    </div>
+                    <div v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0" class="flex items-center gap-1 text-amber-400">
+                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                      <span class="type-label">0</span>
+                    </div>
+                  </div>
                 </template>
                 <template v-else>
                   <input
                     v-model="divRenameInput"
                     type="text"
                     class="input-base flex-1 min-w-0"
-                    placeholder="Division name"
+                    placeholder="Category name"
                     @keyup.enter="saveDivisionName(div)"
                     @keyup.escape="divRenameActive = null"
                     @blur="saveDivisionName(div)"
                   />
                 </template>
-
-                <!-- Match count badges -->
-                <div class="flex items-center gap-2 shrink-0">
-                  <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
-                    <span class="type-label text-xs">{{ div.participantCount }}</span>
-                  </div>
-                  <div
-                    v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0"
-                    class="flex items-center gap-1 text-amber-400"
-                  >
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                    <span class="type-label text-xs">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
-                  </div>
-                  <div
-                    v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0"
-                    class="flex items-center gap-1 text-amber-400"
-                  >
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                    <span class="type-label text-xs">0</span>
-                  </div>
-                </div>
               </div>
 
-              <!-- Actions row: format dropdown + icon buttons -->
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <!-- Format dropdown -->
+              <!-- Right: format + solo + remove (never wraps) -->
+              <div class="flex items-center gap-1.5 shrink-0">
                 <select
                   :value="div.format || ''"
                   @change="saveDivisionFormat(div, $event.target.value)"
-                  class="shrink-0 text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
+                  class="text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
                 >
                   <option value="">No format</option>
                   <template v-for="opt in divFormatOptions" :key="opt">
                     <option v-if="opt" :value="opt">{{ opt }}</option>
                   </template>
                 </select>
-
-
-                <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
                 <button
                   v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
                   @click="askToggleSolo(div)"
                   :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label transition-colors"
+                  class="para-chip-sm px-2 py-1 type-label transition-colors"
                   :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
                 >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
-
-                <!-- Remove -->
                 <button
                   @click="askRemoveDivision(div)"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-red-400 transition-colors"
+                  class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors"
                   title="Remove category"
                 ><i class="pi pi-times text-xs"></i></button>
               </div>
@@ -1708,29 +1691,27 @@ onUnmounted(() => {
           <!-- Assigned categories -->
           <div>
             <p class="type-label text-content-muted mb-1">CATEGORIES</p>
-            <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1 mb-1.5">
+            <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1.5 mb-1.5">
               <span
                 v-for="cat in categoriesAssignedToJudge(j.judgeId)"
                 :key="cat.eventGenreId"
-                class="inline-flex items-center gap-1 para-chip-sm px-1.5 py-0.5 type-label text-content-muted"
-                style="font-size:9px;"
+                class="inline-flex items-center gap-1.5 para-chip-sm px-2 py-1 type-label text-content-muted"
               >
                 {{ cat.name }}
                 <button
                   @click="submitRemoveJudge(cat.eventGenreId, j.judgeId)"
                   class="hover:text-red-400 transition-colors leading-none"
-                ><i class="pi pi-times" style="font-size:0.45rem"></i></button>
+                ><i class="pi pi-times text-xs"></i></button>
               </span>
             </div>
-            <p v-else class="type-label text-amber-400 mb-1.5" style="font-size:9px;">No categories assigned yet</p>
+            <p v-else class="type-label text-amber-400 mb-1.5">No categories assigned yet</p>
           </div>
 
           <!-- Assign dropdown -->
           <div v-if="categoriesUnassignedToJudge(j.judgeId).length > 0" class="relative">
             <button
               @click="openJudgeCardDropdown = openJudgeCardDropdown === j.judgeId ? null : j.judgeId"
-              class="para-chip-sm px-2 py-1 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all w-full text-left"
-              style="font-size:9px;"
+              class="para-chip-sm px-3 py-2 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all w-full text-left"
             ><i class="pi pi-plus text-xs mr-1"></i> Assign category</button>
             <div
               v-if="openJudgeCardDropdown === j.judgeId"
@@ -1740,8 +1721,7 @@ onUnmounted(() => {
                 v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
                 :key="cat.eventGenreId"
                 @click="submitAssignJudge(cat.eventGenreId, j.judgeId); openJudgeCardDropdown = null"
-                class="block w-full text-left px-3 py-1.5 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
-                style="font-size:11px;"
+                class="block w-full text-left px-3 py-2 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
               >+ {{ cat.name }}</button>
             </div>
           </div>
@@ -1847,18 +1827,18 @@ onUnmounted(() => {
             ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
           </div>
           <template v-if="criteriaByGenre[g.name]?.length">
-            <div class="flex flex-wrap gap-1.5">
+            <div class="flex flex-wrap gap-2">
               <span
                 v-for="c in criteriaByGenre[g.name]"
                 :key="c.id"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
+                class="para-chip-sm px-3 py-1 type-label text-content-secondary inline-flex items-center gap-1.5"
               >
                 {{ c.name }}
-                <span v-if="c.weight != null" class="font-source text-primary-400">×{{ c.weight }}</span>
+                <span v-if="c.weight != null" class="text-content-muted">×{{ c.weight }}</span>
               </span>
             </div>
           </template>
-          <span v-else class="text-xs text-content-muted">Default — single 0–10 score</span>
+          <span v-else class="type-label text-content-muted">Default — single 0–10 score</span>
         </div>
 
         <div class="h-px bg-surface-700/40"></div>
