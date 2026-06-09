@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -53,6 +54,7 @@ import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.dtos.UpdateParticipantGenreDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
+import com.example.BES.dtos.UpdateParticipantDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.dtos.AddBattleGuestDto;
@@ -628,6 +630,39 @@ public class EventController {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Delete Participant From Event", description = "Removes a participant from an event entirely — all genres, scores, feedback, team members")
+    @DeleteMapping("/participant/{participantId}/{eventId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteParticipantFromEvent(
+            @PathVariable Long participantId,
+            @PathVariable Long eventId) {
+        try {
+            eventGenreParticipantService.deleteParticipantFromEvent(participantId, eventId);
+            return ResponseEntity.ok(gson.toJson("Participant deleted"));
+        } catch (Exception e) {
+            log.error("Error deleting participant", e);
+            return new ResponseEntity<>(gson.toJson("Error deleting participant"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Operation(summary = "Update Participant", description = "Updates participant name (solo) or team name + members (team)")
+    @PutMapping("/participant/{participantId}/{eventId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateParticipant(
+            @PathVariable Long participantId,
+            @PathVariable Long eventId,
+            @RequestBody UpdateParticipantDto dto) {
+        try {
+            eventGenreParticipantService.updateParticipant(participantId, eventId, dto);
+            return ResponseEntity.ok(gson.toJson("Participant updated"));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.UNPROCESSABLE_ENTITY);
+        } catch (Exception e) {
+            log.error("Error updating participant", e);
+            return new ResponseEntity<>(gson.toJson("Error updating participant"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -37,6 +37,11 @@ import com.example.BES.models.EventGenreParticipantMember;
 import com.example.BES.respositories.EventGenreParticipantMemberRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ParticipantRepo;
+import com.example.BES.models.EventParticipantTeamMember;
+import com.example.BES.respositories.AuditionFeedbackRepository;
+import com.example.BES.respositories.EventParticipantTeamMemberRepo;
+import com.example.BES.respositories.ScoreRepo;
+import com.example.BES.dtos.UpdateParticipantDto;
 
 @Service
 public class EventGenreParticpantService {
@@ -68,6 +73,15 @@ public class EventGenreParticpantService {
 
     @Autowired
     EventGenreParticipantMemberRepo egpMemberRepo;
+
+    @Autowired
+    ScoreRepo scoreRepo;
+
+    @Autowired
+    AuditionFeedbackRepository auditionFeedbackRepository;
+
+    @Autowired
+    EventParticipantTeamMemberRepo eventParticipantTeamMemberRepo;
 
     public EventGenreParticipant addWalkInToEventGenreParticipant(
             Participant p, String genre, EventParticipant ep,
@@ -560,6 +574,112 @@ public class EventGenreParticpantService {
                         "judge", j != null ? j.getName() : "",
                         "eventName", d.eventName));
             }
+        }
+    }
+
+    @Transactional
+    public void deleteParticipantFromEvent(long participantId, long eventId) {
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event == null || participant == null) return;
+
+        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
+        for (EventGenreParticipant egp : egps) {
+            scoreRepo.deleteAll(scoreRepo.findByEventGenreParticipant(egp));
+            auditionFeedbackRepository.deleteAll(auditionFeedbackRepository.findByEventGenreParticipant(egp));
+        }
+
+        repo.deleteAll(egps);
+
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+        if (ep != null) {
+            eventParticipantTeamMemberRepo.deleteByEventParticipant(ep);
+            eventParticipantRepo.delete(ep);
+        }
+
+        List<EventParticipant> remaining = eventParticipantRepo.findByParticipant(participant);
+        if (remaining.isEmpty()) {
+            participantRepo.delete(participant);
+        }
+    }
+
+    @Transactional
+    public void updateParticipant(long participantId, long eventId, UpdateParticipantDto dto) {
+        if (dto.name == null || dto.name.isBlank())
+            throw new IllegalArgumentException("Name must not be empty");
+
+        Event event = eventRepo.findById(eventId).orElse(null);
+        Participant participant = participantRepo.findById(participantId).orElse(null);
+        if (event == null || participant == null)
+            throw new RuntimeException("Event or Participant not found");
+
+        EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
+
+        // ep.teamName is not set for sheet-imported teams — also check EGP format
+        boolean isTeam = (ep != null && ep.getTeamName() != null && !ep.getTeamName().isBlank())
+            || egps.stream().anyMatch(egp -> isTeamFormat(egp.getFormat()));
+
+        String trimmedName = dto.name.trim();
+        if (isTeam) {
+            boolean duplicate = eventParticipantRepo.findByEvent(event).stream()
+                .filter(e -> !e.getParticipant().getParticipantId().equals(participantId))
+                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getTeamName()));
+            if (duplicate)
+                throw new IllegalStateException("A team with this name already exists in this event");
+        } else {
+            boolean duplicate = eventParticipantRepo.findByEvent(event).stream()
+                .filter(e -> !e.getParticipant().getParticipantId().equals(participantId))
+                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getParticipant().getParticipantName()));
+            if (duplicate)
+                throw new IllegalStateException("A participant with this name already exists in this event");
+        }
+
+        if (isTeam) {
+            List<String> additionalMembers = dto.memberNames == null
+                ? new ArrayList<>()
+                : dto.memberNames.stream()
+                    .skip(1) // index 0 = participant.name, always prepended on read — only store the rest
+                    .filter(m -> m != null && !m.isBlank())
+                    .map(String::trim)
+                    .collect(java.util.stream.Collectors.toList());
+
+            // Update leader name (index 0) — keeps participant.participantName and ep.stageName in sync
+            // so both the edit modal and check-in card show the same value
+            if (dto.memberNames != null && !dto.memberNames.isEmpty()) {
+                String leaderName = dto.memberNames.get(0).trim();
+                if (!leaderName.isEmpty()) {
+                    participant.setParticipantName(leaderName);
+                    participantRepo.save(participant);
+                    ep.setStageName(leaderName);
+                }
+            }
+
+            // EP-level: use collection management so orphanRemoval fires correctly
+            ep.setTeamName(trimmedName);
+            ep.setDisplayName(trimmedName);
+            ep.getTeamMembers().clear();
+            additionalMembers.forEach(m -> ep.getTeamMembers().add(new EventParticipantTeamMember(ep, m)));
+            eventParticipantRepo.save(ep);
+
+            // EGP-level: same pattern — clear + re-add via collection, not repo delete
+            for (EventGenreParticipant egp : egps) {
+                egp.setDisplayName(trimmedName);
+                egp.getMembers().clear();
+                additionalMembers.forEach(m -> egp.getMembers().add(new EventGenreParticipantMember(egp, m)));
+            }
+            repo.saveAll(egps);
+        } else {
+            participant.setParticipantName(trimmedName);
+            participantRepo.save(participant);
+            if (ep != null) {
+                ep.setDisplayName(trimmedName);
+                eventParticipantRepo.save(ep);
+            }
+            for (EventGenreParticipant egp : egps) {
+                egp.setDisplayName(trimmedName);
+            }
+            repo.saveAll(egps);
         }
     }
 
