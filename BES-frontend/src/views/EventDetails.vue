@@ -1284,9 +1284,18 @@ onUnmounted(() => {
       </div>
       <div class="stat-card relative">
         <div class="corner-bar-tl"></div>
-        <div class="type-stat" :class="unverifiedParticipants.length > 0 ? 'text-red-400' : ''">{{ unverifiedParticipants.length }}</div>
-        <div class="type-label">Pending Verification</div>
-        <div class="type-label text-content-muted mt-1">{{ totalVerified }} verified</div>
+        <template v-if="unverifiedParticipants.length > 0">
+          <div class="type-stat text-amber-400">{{ unverifiedParticipants.length }}</div>
+          <div class="type-label text-amber-400">Pending Verification</div>
+          <div class="type-label text-content-muted mt-1">{{ totalVerified }} verified</div>
+        </template>
+        <template v-else>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+            <div class="type-stat" style="font-size:28px;">All Verified</div>
+          </div>
+          <div class="type-label text-content-muted">{{ totalVerified }} participants</div>
+        </template>
       </div>
     </div>
 
@@ -1545,7 +1554,7 @@ onUnmounted(() => {
                 <template v-if="divRenameActive !== div.eventGenreId">
                   <button
                     @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-                    class="type-body text-content-secondary hover:text-accent text-left break-words min-w-0 flex-1 transition-colors"
+                    class="type-body text-content-secondary hover:text-accent text-left break-words min-w-0 flex-1 transition-colors text-sm sm:text-xs"
                     style="overflow-wrap:break-word;word-break:break-word"
                   >{{ div.name }}</button>
                 </template>
@@ -1598,14 +1607,6 @@ onUnmounted(() => {
                   </template>
                 </select>
 
-                <!-- Alias toggle — text link, shown after the remove button -->
-                <button
-                  v-if="divAliasExpanded !== div.eventGenreId && !(div.sheetAliases && div.sheetAliases.split(',').filter(Boolean).length)"
-                  @click="divAliasExpanded = div.eventGenreId; divAliasInput = ''"
-                  class="type-label text-content-muted hover:text-accent transition-colors"
-                  style="font-size:9px;letter-spacing:0.1em;text-decoration:underline;text-underline-offset:2px;"
-                  title="Add a sheet alias manually if the category name doesn't match your sheet exactly"
-                >aliases</button>
 
                 <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
                 <button
@@ -1625,29 +1626,6 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Alias chips (always visible if exist) -->
-            <div v-if="div.sheetAliases && div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean).length" class="flex flex-wrap gap-1">
-              <span
-                v-for="alias in div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean)"
-                :key="alias"
-                class="type-label text-content-muted bg-surface-600/30 px-1.5 py-0.5 para-chip text-xs normal-case flex items-center gap-1"
-              >
-                {{ alias }}
-                <button @click="removeAlias(div, alias)" class="text-content-muted hover:text-red-400 leading-none"><i class="pi pi-times" style="font-size:0.5rem"></i></button>
-              </span>
-            </div>
-
-            <!-- Add alias input row -->
-            <div v-if="divAliasExpanded === div.eventGenreId" class="flex gap-1.5 items-center">
-              <input
-                v-model="divAliasInput"
-                type="text"
-                placeholder="Add alias…"
-                class="input-base flex-1"
-                @keyup.enter="addAlias(div)"
-              />
-              <button @click="addAlias(div)" class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-accent"><i class="pi pi-plus text-xs"></i></button>
-            </div>
           </div>
         </div>
 
@@ -1718,7 +1696,7 @@ onUnmounted(() => {
                   ? 'box-shadow:0 0 5px rgba(245,158,11,0.5)'
                   : 'box-shadow:0 0 5px rgba(52,211,153,0.5)'"
               ></span>
-              <span class="type-body text-content-secondary text-xs">{{ j.judgeName }}</span>
+              <span class="type-body text-content-secondary text-sm sm:text-xs">{{ j.judgeName }}</span>
             </div>
             <button
               @click="askRemoveJudgeGlobal(j)"
@@ -1729,7 +1707,7 @@ onUnmounted(() => {
 
           <!-- Assigned categories -->
           <div>
-            <p class="type-label text-content-muted mb-1" style="font-size:9px;">CATEGORIES</p>
+            <p class="type-label text-content-muted mb-1">CATEGORIES</p>
             <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1 mb-1.5">
               <span
                 v-for="cat in categoriesAssignedToJudge(j.judgeId)"
@@ -1818,16 +1796,23 @@ onUnmounted(() => {
         <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))">
           <div>
             <div class="section-rule mb-3">
-              <span class="section-rule-label" style="font-size:9px;">Roster Status</span>
+              <span class="section-rule-label">Roster Status</span>
               <div class="section-rule-line"></div>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="badge-neutral text-xs">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }} total</span>
-              <span class="badge-success">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }} registered</span>
+              <span class="para-chip-sm px-2.5 py-1 type-label text-content-secondary">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }} total</span>
+              <span class="para-chip-sm px-2.5 py-1 type-label" style="border-color:rgba(52,211,153,0.35);color:#34d399;">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+                {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }} registered
+              </span>
               <span
                 v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
-                class="badge-danger"
-              >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }} unregistered</span>
+                class="para-chip-sm px-2.5 py-1 type-label"
+                style="border-color:rgba(245,158,11,0.35);color:#f59e0b;"
+              >
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
+                {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }} unregistered
+              </span>
             </div>
 
             <!-- Unregistered list -->
@@ -1836,7 +1821,8 @@ onUnmounted(() => {
                 <span
                   v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
                   :key="p.participantName"
-                  class="badge-danger font-source"
+                  class="para-chip-sm px-2 py-0.5 type-label text-amber-400"
+                  style="border-color:rgba(245,158,11,0.25);font-size:10px;"
                 >{{ p.participantName }}</span>
               </div>
             </div>
@@ -1852,7 +1838,7 @@ onUnmounted(() => {
         <div>
           <div class="flex items-center gap-2 mb-2">
             <div class="section-rule mb-0 flex-1">
-              <span class="section-rule-label" style="font-size:9px;">Scoring Criteria</span>
+              <span class="section-rule-label">Scoring Criteria</span>
               <div class="section-rule-line"></div>
             </div>
             <button
@@ -1880,9 +1866,9 @@ onUnmounted(() => {
         <!-- JUDGES (read-only) -->
         <div>
           <div class="section-rule mb-2">
-            <span class="section-rule-label" style="font-size:9px;">Judges</span>
+            <span class="section-rule-label">Judges</span>
             <div class="section-rule-line"></div>
-            <span class="type-label text-content-muted" style="font-size:9px;white-space:nowrap;">manage in judge pool above</span>
+            <span class="type-label text-content-muted" style="white-space:nowrap;">manage in judge pool above</span>
           </div>
           <div v-if="(divisionJudges[g.name] || []).length > 0" class="flex flex-wrap gap-2">
             <span
