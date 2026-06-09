@@ -1275,10 +1275,10 @@ onUnmounted(() => {
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
       <div class="stat-card relative">
         <div class="corner-bar-tl"></div>
-        <div class="type-stat">{{ (totalParticipants || 0) + totalWalkIn }}</div>
+        <div class="type-stat">{{ totalVerified + totalWalkIn }}</div>
         <div class="type-label">Total</div>
         <div class="flex gap-3 mt-1">
-          <span class="type-label text-content-muted">Form: {{ totalParticipants || 0 }}</span>
+          <span class="type-label text-content-muted">Form: {{ totalVerified }}</span>
           <span class="type-label text-content-muted">Walk-in: {{ totalWalkIn }}</span>
         </div>
       </div>
@@ -1658,12 +1658,12 @@ onUnmounted(() => {
         Add your judges here first — then assign them to categories below.
       </p>
 
-      <div class="flex flex-wrap gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <!-- Per-judge card -->
         <div
           v-for="j in allEventJudges"
           :key="j.judgeId"
-          class="para-chip p-3 flex flex-col gap-2 min-w-[160px] flex-1"
+          class="para-chip p-3 flex flex-col gap-2"
           :class="categoriesAssignedToJudge(j.judgeId).length === 0
             ? 'border-l-[3px] border-l-amber-500 bg-amber-950/10'
             : 'border-l-[3px] border-l-emerald-500/40'"
@@ -1707,28 +1707,23 @@ onUnmounted(() => {
             <p v-else class="type-label text-amber-400 mb-1.5">No categories assigned yet</p>
           </div>
 
-          <!-- Assign dropdown -->
-          <div v-if="categoriesUnassignedToJudge(j.judgeId).length > 0" class="relative">
-            <button
-              @click="openJudgeCardDropdown = openJudgeCardDropdown === j.judgeId ? null : j.judgeId"
-              class="para-chip-sm px-3 py-2 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all w-full text-left"
-            ><i class="pi pi-plus text-xs mr-1"></i> Assign category</button>
-            <div
-              v-if="openJudgeCardDropdown === j.judgeId"
-              class="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-600 para-chip p-1.5 z-50 min-w-[160px] max-h-48 overflow-y-auto"
-            >
-              <button
-                v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
-                :key="cat.eventGenreId"
-                @click="submitAssignJudge(cat.eventGenreId, j.judgeId); openJudgeCardDropdown = null"
-                class="block w-full text-left px-3 py-2 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
-              >+ {{ cat.name }}</button>
-            </div>
-          </div>
+          <!-- Assign — native select avoids clip-path clipping -->
+          <select
+            v-if="categoriesUnassignedToJudge(j.judgeId).length > 0"
+            @change="submitAssignJudge(Number($event.target.value), j.judgeId); $event.target.value = ''"
+            class="w-full px-3 py-2 type-label text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
+          >
+            <option value="" disabled selected>+ Assign category</option>
+            <option
+              v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
+              :key="cat.eventGenreId"
+              :value="cat.eventGenreId"
+            >{{ cat.name }}</option>
+          </select>
         </div>
 
         <!-- Add judge card -->
-        <div class="para-chip p-3 flex flex-col items-center justify-center gap-2 min-w-[140px] flex-1" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
+        <div class="para-chip p-3 flex flex-col items-center justify-center gap-2" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
           <div class="flex items-center gap-1.5 w-full">
             <input
               v-model="globalJudgeInput"

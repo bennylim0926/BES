@@ -178,9 +178,8 @@ const applyToAllGenres = async () => {
               :key="tab"
               @click="activeTab = tab"
               class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label transition-all duration-150"
-              :class="activeTab === tab
-                ? 'bg-accent text-surface-900 border-accent'
-                : 'text-content-muted hover:text-content-primary'"
+              :class="activeTab === tab ? 'text-surface-900' : 'text-content-muted hover:text-content-primary'"
+              :style="activeTab === tab ? 'background:var(--accent-color);border-color:var(--accent-color)' : ''"
             >
               <i v-if="tab === 'event-level'" class="pi pi-globe text-[10px]" />
               {{ tab === 'event-level' ? 'Event Default' : tab }}
