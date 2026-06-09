@@ -614,8 +614,11 @@ public class EventGenreParticpantService {
             throw new RuntimeException("Event or Participant not found");
 
         EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
+        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
 
-        boolean isTeam = ep != null && ep.getTeamName() != null && !ep.getTeamName().isBlank();
+        // ep.teamName is not set for sheet-imported teams — also check EGP format
+        boolean isTeam = (ep != null && ep.getTeamName() != null && !ep.getTeamName().isBlank())
+            || egps.stream().anyMatch(egp -> isTeamFormat(egp.getFormat()));
 
         String trimmedName = dto.name.trim();
         if (isTeam) {
@@ -633,17 +636,39 @@ public class EventGenreParticpantService {
         }
 
         if (isTeam) {
+            List<String> additionalMembers = dto.memberNames == null
+                ? new ArrayList<>()
+                : dto.memberNames.stream()
+                    .skip(1) // index 0 = participant.name, always prepended on read — only store the rest
+                    .filter(m -> m != null && !m.isBlank())
+                    .map(String::trim)
+                    .collect(java.util.stream.Collectors.toList());
+
+            // Update leader name (index 0) — keeps participant.participantName and ep.stageName in sync
+            // so both the edit modal and check-in card show the same value
+            if (dto.memberNames != null && !dto.memberNames.isEmpty()) {
+                String leaderName = dto.memberNames.get(0).trim();
+                if (!leaderName.isEmpty()) {
+                    participant.setParticipantName(leaderName);
+                    participantRepo.save(participant);
+                    ep.setStageName(leaderName);
+                }
+            }
+
+            // EP-level: use collection management so orphanRemoval fires correctly
             ep.setTeamName(trimmedName);
             ep.setDisplayName(trimmedName);
+            ep.getTeamMembers().clear();
+            additionalMembers.forEach(m -> ep.getTeamMembers().add(new EventParticipantTeamMember(ep, m)));
             eventParticipantRepo.save(ep);
-            eventParticipantTeamMemberRepo.deleteByEventParticipant(ep);
-            if (dto.memberNames != null) {
-                List<EventParticipantTeamMember> newMembers = dto.memberNames.stream()
-                    .filter(m -> m != null && !m.isBlank())
-                    .map(m -> new EventParticipantTeamMember(ep, m.trim()))
-                    .collect(java.util.stream.Collectors.toList());
-                eventParticipantTeamMemberRepo.saveAll(newMembers);
+
+            // EGP-level: same pattern — clear + re-add via collection, not repo delete
+            for (EventGenreParticipant egp : egps) {
+                egp.setDisplayName(trimmedName);
+                egp.getMembers().clear();
+                additionalMembers.forEach(m -> egp.getMembers().add(new EventGenreParticipantMember(egp, m)));
             }
+            repo.saveAll(egps);
         } else {
             participant.setParticipantName(trimmedName);
             participantRepo.save(participant);
@@ -651,13 +676,11 @@ public class EventGenreParticpantService {
                 ep.setDisplayName(trimmedName);
                 eventParticipantRepo.save(ep);
             }
+            for (EventGenreParticipant egp : egps) {
+                egp.setDisplayName(trimmedName);
+            }
+            repo.saveAll(egps);
         }
-
-        List<EventGenreParticipant> egps = repo.findByEventIdAndParticipantId(eventId, participantId);
-        for (EventGenreParticipant egp : egps) {
-            egp.setDisplayName(trimmedName);
-        }
-        repo.saveAll(egps);
     }
 
     private boolean isTeamFormat(String fmt) {

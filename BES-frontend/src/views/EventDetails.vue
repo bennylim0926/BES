@@ -2045,14 +2045,14 @@ onUnmounted(() => {
                   <span v-else class="text-content-muted">Ref code</span>
                 </span>
               </div>
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
+                <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <span>{{ p.memberNames.join(', ') }}</span>
+              </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
                 <span v-for="e in p.entries" :key="e.genre" class="badge-neutral capitalize">
                   {{ e.genre }}<span style="color:var(--accent-color);margin-left:0.25rem">#{{ e.auditionNumber }}</span>
                 </span>
-              </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-label text-content-muted mt-0.5">
-                <i class="pi pi-users" style="font-size:0.65rem"></i>
-                <span>{{ p.memberNames.join(', ') }}</span>
               </div>
             </div>
           </template>

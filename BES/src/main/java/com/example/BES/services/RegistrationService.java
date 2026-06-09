@@ -229,11 +229,17 @@ public class RegistrationService {
             String stage = ep.getStageName();
             String display = ep.getDisplayName();
             String name = ep.getParticipant().getParticipantName();
-            dto.label = (stage != null && !stage.isBlank()) ? stage
-                      : (display != null && !display.isBlank()) ? display
-                      : name;
             List<EventGenreParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
+            // Use EGP team name as label for team entries; fall back to EP stage/display/participant name
+            String egpTeamName = egps.stream()
+                .map(EventGenreParticipant::getTeamName)
+                .filter(t -> t != null && !t.isBlank())
+                .findFirst().orElse(null);
+            dto.label = (egpTeamName != null) ? egpTeamName
+                      : (stage != null && !stage.isBlank()) ? stage
+                      : (display != null && !display.isBlank()) ? display
+                      : name;
             // Collect unique member names from EGP members (primary) or EventParticipantTeamMember (fallback)
             java.util.LinkedHashSet<String> memberSet = new java.util.LinkedHashSet<>();
             for (EventGenreParticipant egp : egps) {
@@ -250,7 +256,17 @@ public class RegistrationService {
                     .filter(n -> n != null && !n.isBlank())
                     .forEach(memberSet::add);
             }
-            dto.memberNames = new ArrayList<>(memberSet);
+            // Prepend the leader name (participant name) so memberNames is [leader, member2, ...]
+            // consistent with how the registered list builds member display
+            if (!memberSet.isEmpty()) {
+                String leader = (stage != null && !stage.isBlank()) ? stage : name;
+                java.util.LinkedHashSet<String> fullSet = new java.util.LinkedHashSet<>();
+                fullSet.add(leader);
+                fullSet.addAll(memberSet);
+                dto.memberNames = new ArrayList<>(fullSet);
+            } else {
+                dto.memberNames = new ArrayList<>(memberSet);
+            }
             dto.genres = egps.stream().map(egp -> {
                 GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
                 gs.genreName = egp.getEventGenre().getName();

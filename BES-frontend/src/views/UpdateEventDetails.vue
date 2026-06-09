@@ -3,7 +3,6 @@ import { onMounted, ref, computed } from 'vue'
 import { useAuthStore } from '@/utils/auth'
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import ActionDoneModal from './ActionDoneModal.vue'
 import {
   getRegisteredParticipantsByEvent,
   deleteParticipantFromEvent,
@@ -43,6 +42,23 @@ const filtered = computed(() => {
 
 const expanded = ref(new Set())
 const toggle   = (id) => expanded.value.has(id) ? expanded.value.delete(id) : expanded.value.add(id)
+
+const selectedIds  = ref(new Set())
+const allSelected  = computed(() =>
+  filtered.value.length > 0 && filtered.value.every(p => selectedIds.value.has(p.participantId))
+)
+const toggleSelect  = (id) => {
+  const s = new Set(selectedIds.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedIds.value = s
+}
+const toggleAll = () => {
+  if (allSelected.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(filtered.value.map(p => p.participantId))
+  }
+}
 
 const editTarget  = ref(null)
 const editName    = ref('')
@@ -94,6 +110,23 @@ const submitEdit = async () => {
 }
 
 const confirmState = ref({ show: false, title: '', message: '', onConfirm: null })
+
+const confirmBulkDelete = () => {
+  const ids = [...selectedIds.value]
+  const targets = participants.value.filter(p => ids.includes(p.participantId))
+  confirmState.value = {
+    show: true,
+    title: `Delete ${ids.length} Participant${ids.length > 1 ? 's' : ''}`,
+    message: `Permanently remove ${ids.length} participant${ids.length > 1 ? 's' : ''} from ${selectedEvent.value}? All genre entries, audition numbers, scores and feedback will be deleted. This cannot be undone.`,
+    onConfirm: async () => {
+      await Promise.all(targets.map(p => deleteParticipantFromEvent(p.participantId, p.eventId)))
+      confirmState.value.show = false
+      selectedIds.value = new Set()
+      await reload()
+      openToast(`${ids.length} participant${ids.length > 1 ? 's' : ''} removed`)
+    }
+  }
+}
 
 const confirmDeleteParticipant = (p) => {
   const genreList = p.genres.map(g => g.genreName).join(', ')
@@ -246,6 +279,21 @@ onMounted(async () => {
         <div class="section-rule-line"></div>
       </div>
 
+      <!-- Bulk action bar -->
+      <Transition name="bulk-bar">
+        <div v-if="selectedIds.size > 0" class="bulk-bar mb-3">
+          <span class="type-label text-content-muted">
+            <span class="text-accent">{{ selectedIds.size }}</span> selected
+          </span>
+          <button class="btn-action danger" @click="confirmBulkDelete">
+            <i class="pi pi-trash"></i> Delete Selected
+          </button>
+          <button class="btn-action" @click="selectedIds = new Set()">
+            Clear
+          </button>
+        </div>
+      </Transition>
+
       <div v-if="filtered.length === 0" class="empty-state">
         <i class="pi pi-users text-2xl text-content-muted mb-2"></i>
         <p class="type-body text-content-secondary">No participants found</p>
@@ -253,6 +301,7 @@ onMounted(async () => {
 
       <div v-else class="participant-table">
         <div class="pt-header">
+          <input type="checkbox" class="row-check" :checked="allSelected" @change="toggleAll" />
           <div class="pt-col-expand"></div>
           <div class="pt-col-name">Name</div>
           <div class="pt-col-format">Format</div>
@@ -261,7 +310,13 @@ onMounted(async () => {
         </div>
 
         <template v-for="p in filtered" :key="p.participantId">
-          <div class="pt-row">
+          <div class="pt-row" :class="selectedIds.has(p.participantId) && 'selected'">
+            <input
+              type="checkbox"
+              class="row-check"
+              :checked="selectedIds.has(p.participantId)"
+              @change="toggleSelect(p.participantId)"
+            />
             <button class="expand-btn" @click="toggle(p.participantId)">
               {{ expanded.has(p.participantId) ? '▾' : '▸' }}
             </button>
@@ -424,7 +479,7 @@ onMounted(async () => {
 .participant-table { display: flex; flex-direction: column; gap: 2px; }
 .pt-header {
   display: grid;
-  grid-template-columns: 32px 1fr auto auto auto;
+  grid-template-columns: 20px 32px 1fr auto auto auto;
   gap: 8px; align-items: center;
   padding: 6px 12px;
   font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
@@ -433,7 +488,7 @@ onMounted(async () => {
 }
 .pt-row {
   display: grid;
-  grid-template-columns: 32px 1fr auto auto auto;
+  grid-template-columns: 20px 32px 1fr auto auto auto;
   gap: 8px; align-items: center;
   padding: 10px 12px;
   background: rgba(255,255,255,0.03);
@@ -441,6 +496,16 @@ onMounted(async () => {
   transition: background 0.15s;
 }
 .pt-row:hover { background: rgba(255,255,255,0.05); }
+.pt-row.selected { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.row-check { width: 14px; height: 14px; accent-color: var(--accent-color); cursor: pointer; flex-shrink: 0; }
+.bulk-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.bulk-bar-enter-active, .bulk-bar-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.bulk-bar-enter-from, .bulk-bar-leave-to { opacity: 0; transform: translateY(-4px); }
 .pt-subrow {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 12px 8px 44px;
@@ -573,10 +638,10 @@ onMounted(async () => {
 @media (max-width: 640px) {
   .pt-header { display: none; }
   .pt-row {
-    grid-template-columns: 32px 1fr;
+    grid-template-columns: 20px 32px 1fr;
     grid-template-rows: auto auto;
   }
-  .pt-col-format, .pt-col-genres { grid-column: 2; }
+  .pt-col-format, .pt-col-genres { grid-column: 2 / -1; }
   .pt-col-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .pt-subrow { padding-left: 12px; }
 }
