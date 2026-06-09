@@ -571,7 +571,7 @@ const matchCounts = computed(() => {
     }
     let count = 0
     for (const cat of cats) {
-      if (names.some(n => cat.includes(n))) count++
+      if (names.some(n => cat === n)) count++
     }
     counts[div.eventGenreId] = count
   }
@@ -587,7 +587,7 @@ const unmatchedSheetValues = computed(() => {
       names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
     }
     for (const cat of sheetCategories.value) {
-      if (names.some(n => cat.toLowerCase().includes(n))) matched.add(cat.toLowerCase())
+      if (names.some(n => cat.toLowerCase() === n)) matched.add(cat.toLowerCase())
     }
   }
   const unique = [...new Set(sheetCategories.value.map(s => s.toLowerCase()))]
