@@ -14,7 +14,7 @@ public class ParticipantService {
     ParticipantRepo repo;
 
     public Participant addParticpantService(AddParticipantDto dto){
-        return repo.findFirstByParticipantName(dto.getParticipantName()).orElseGet(() -> {
+        return repo.findFirstByParticipantNameIgnoreCase(dto.getParticipantName()).orElseGet(() -> {
             Participant participant = new Participant();
             participant.setParticipantName(dto.getParticipantName());
             return repo.save(participant);
@@ -22,7 +22,7 @@ public class ParticipantService {
     }
 
     public Participant addWalkInService(AddWalkInDto dto){
-        Participant participant = repo.findFirstByParticipantName(dto.name).orElse(new Participant());
+        Participant participant = repo.findFirstByParticipantNameIgnoreCase(dto.name).orElse(new Participant());
         if(participant.getParticipantName() == null){;
             participant.setParticipantName(dto.name);
             participant = repo.save(participant);

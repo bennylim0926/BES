@@ -28,6 +28,7 @@ const judgingMode = ref("SOLO")
 const eventDivisions = ref([]) // { eventGenreId, name } for current event — used to map division name → ID
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
+const isEmcee = ref(false)
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -47,6 +48,7 @@ const dynamicRole = async () => {
   if (authority === "ROLE_EMCEE") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
+    isEmcee.value = true
   } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
@@ -355,11 +357,12 @@ const submitScore = async (eventName, genreName, judgeName, participantList) => 
     if (hasCriteria && obj.criteriaScores) {
       return {
         participantName: obj.participantName,
+        auditionNumber: obj.auditionNumber,
         score: null,
         aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(obj.criteriaScores[c.name] ?? 0) }))
       }
     }
-    return { participantName: obj.participantName, score: parseFloat(obj.score) }
+    return { participantName: obj.participantName, auditionNumber: obj.auditionNumber, score: parseFloat(obj.score) }
   })
   if (p.length === 0) {
     openModal("No Participants", "No participants found for this judge/genre combination. Select a judge filter to view your assigned participants.", "warning")
@@ -433,9 +436,9 @@ watch([selectedEvent, selectedGenre], loadCriteria, { immediate: true })
 
 // ── Auto-save on score change ─────────────────────────────────────────────────
 const autoSaveTimers = {}
-const clearSaving = (auditionNumber, genreName, submitted = false) => {
+const clearSaving = (auditionNumber, genreName, participantName, submitted = false) => {
   participants.value = participants.value.map(p =>
-    p.auditionNumber === auditionNumber && p.genreName === genreName
+    p.auditionNumber === auditionNumber && p.genreName === genreName && p.participantName === participantName
       ? { ...p, saving: false, submitted }
       : p
   )
@@ -443,27 +446,27 @@ const clearSaving = (auditionNumber, genreName, submitted = false) => {
 const autoSave = (card) => {
   const { auditionNumber, genreName, participantName } = card
   participants.value = participants.value.map(p =>
-    p.auditionNumber === auditionNumber && p.genreName === genreName
+    p.auditionNumber === auditionNumber && p.genreName === genreName && p.participantName === participantName
       ? { ...p, saving: true, submitted: false }
       : p
   )
-  clearTimeout(autoSaveTimers[auditionNumber])
-  autoSaveTimers[auditionNumber] = setTimeout(async () => {
+  clearTimeout(autoSaveTimers[participantName])
+  autoSaveTimers[participantName] = setTimeout(async () => {
     if (!currentJudge.value || !selectedEvent.value || !selectedGenre.value) {
-      clearSaving(auditionNumber, genreName)
+      clearSaving(auditionNumber, genreName, participantName)
       return
     }
-    const fresh = participants.value.find(p => p.auditionNumber === auditionNumber && p.genreName === genreName)
-    if (!fresh) { clearSaving(auditionNumber, genreName); return }
+    const fresh = participants.value.find(p => p.auditionNumber === auditionNumber && p.genreName === genreName && p.participantName === participantName)
+    if (!fresh) { clearSaving(auditionNumber, genreName, participantName); return }
     const hasCrit = criteria.value.length > 0
     const payload = hasCrit && fresh.criteriaScores
-      ? { participantName, score: null, aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(fresh.criteriaScores[c.name] ?? 0) })) }
-      : { participantName, score: parseFloat(fresh.score) }
+      ? { participantName, auditionNumber, score: null, aspects: criteria.value.map(c => ({ aspect: c.name, score: parseFloat(fresh.criteriaScores[c.name] ?? 0) })) }
+      : { participantName, auditionNumber, score: parseFloat(fresh.score) }
     try {
       const res = await submitParticipantScore(selectedEvent.value, selectedGenre.value, currentJudge.value, [payload])
-      clearSaving(auditionNumber, genreName, !!res?.ok)
+      clearSaving(auditionNumber, genreName, participantName, !!res?.ok)
     } catch {
-      clearSaving(auditionNumber, genreName)
+      clearSaving(auditionNumber, genreName, participantName)
     }
   }, 600)
 }
@@ -710,21 +713,40 @@ onMounted(async () => {
           class="text-accent hover:text-content-primary transition-colors whitespace-nowrap"
         >← SESSION</button>
         <span v-if="isJudgeSession" class="text-content-muted opacity-30">·</span>
-        <span class="text-accent">{{ selectedEvent }}</span>
-        <span class="text-content-muted opacity-30">·</span>
+        <span v-if="isAdmin || isOrganiser" class="text-accent">{{ selectedEvent }}</span>
+        <span v-if="isAdmin || isOrganiser" class="text-content-muted opacity-30">·</span>
         <span>{{ selectedGenre }}</span>
-        <span class="text-content-muted opacity-30">·</span>
-        <span class="uppercase tracking-widest">{{ judgingMode }}</span>
+        <template v-if="isAdmin || isOrganiser">
+          <span class="text-content-muted opacity-30">·</span>
+          <span class="uppercase tracking-widest">{{ judgingMode }}</span>
+        </template>
         <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span v-if="!isJudgeSession">{{ selectedRole }}</span>
       </div>
-      <button
-        @click="showFilters = !showFilters"
-        class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all flex-shrink-0"
-        style="min-width:44px"
-      >
-        <i class="pi pi-sliders-h text-sm sm:text-xs"></i>
-      </button>
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <template v-if="selectedRole === 'Judge' || isJudgeSession">
+          <button
+            @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
+            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
+            style="min-width:44px"
+            title="Reset scores"
+          ><i class="pi pi-undo text-sm sm:text-xs"></i></button>
+          <button
+            @click="showMiniMenu = true"
+            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
+            style="min-width:44px"
+            title="Go to participant"
+          ><i class="pi pi-search text-sm sm:text-xs"></i></button>
+        </template>
+        <button
+          v-if="isAdmin || isOrganiser"
+          @click="showFilters = !showFilters"
+          class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
+          style="min-width:44px"
+        >
+          <i class="pi pi-sliders-h text-sm sm:text-xs"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Page header (no active session yet) -->
@@ -775,10 +797,10 @@ onMounted(async () => {
               >{{ r }}</button>
             </div>
           </div>
-          <span v-if="!isJudgeSession" class="text-surface-600 select-none hidden sm:inline">|</span>
+          <span v-if="!isJudgeSession && (isAdmin || isOrganiser)" class="text-surface-600 select-none hidden sm:inline">|</span>
 
-          <!-- Genre toggle -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <!-- Genre toggle (hidden for session judges — locked to assigned genre) -->
+          <div v-if="isAdmin || isOrganiser || isEmcee" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Genre</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
@@ -875,28 +897,7 @@ onMounted(async () => {
       >DISMISS</button>
     </div>
 
-    <!-- Role-aware guidance -->
-    <div
-      v-if="selectedRole === 'Judge'"
-      class="px-4 py-3 mb-4 type-label"
-      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
-    >
-      You are scoring as <strong style="color:var(--accent-color)">{{ currentJudge || 'yourself' }}</strong>.
-      Swipe through audition cards and tap a score to save.
-    </div>
-    <div
-      v-else-if="selectedRole === 'Emcee'"
-      class="px-4 py-3 mb-4 type-label"
-      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
-    >
-      You are viewing as Emcee. Track participant progress, scores, and the audition flow.
-    </div>
-
     <!-- Emcee view: Timer + round view -->
-    <div class="section-rule mb-4">
-      <span class="section-rule-label">Participants</span>
-      <div class="section-rule-line"></div>
-    </div>
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView

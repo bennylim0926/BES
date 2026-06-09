@@ -24,9 +24,24 @@ const totalWeight = computed(() => {
   return props.criteria.reduce((sum, c) => sum + (c.weight ?? 1), 0)
 })
 
+const haptic = () => navigator.vibrate?.(8)
+
+const pressedKey = ref(null)
+const wholeBtnStyle = (key) => ({
+  clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)',
+  background: pressedKey.value === key ? 'rgb(245,158,11)' : 'rgba(255,255,255,0.05)',
+  color: pressedKey.value === key ? '#fff' : undefined,
+})
+const decimalBtnStyle = (key) => ({
+  clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)',
+  background: pressedKey.value === key ? 'rgb(245,158,11)' : 'rgba(245,158,11,0.06)',
+  color: pressedKey.value === key ? '#fff' : undefined,
+})
+
 function criteriaScore(card, criterionName) { return card.criteriaScores?.[criterionName] ?? 0 }
 
 function setCriteriaScore(card, criterionName, value) {
+  haptic()
   if (!card.criteriaScores) card.criteriaScores = {}
   card.criteriaScores[criterionName] = value
   card.score = computeAggregate(card)
@@ -34,6 +49,7 @@ function setCriteriaScore(card, criterionName, value) {
 }
 
 function setSingleScore(card, value) {
+  haptic()
   card.score = value
   emit('score-change', card)
 }
@@ -88,7 +104,7 @@ const updateCriteriaDecimal = (card, criterionName, num) => {
   setCriteriaScore(card, criterionName, newVal)
 }
 
-const aggregateDisplay = computed(() => {
+const _aggregateDisplay = computed(() => {
   if (!hasCriteria.value) return null
   const card = props.cards[currentIndex.value]
   if (!card) return null
@@ -100,13 +116,13 @@ onMounted(observeCards)
 </script>
 
 <template>
-  <div class="w-full relative h-full bg-surface-900 touch-manipulation" style="padding-bottom: 72px; overflow: hidden;">
+  <div class="w-full relative h-full bg-surface-900 touch-manipulation" style="overflow: hidden;">
 
     <!-- Card scroll area -->
     <div
       ref="scrollRef"
       v-if="props.cards && props.cards.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pt-2 pb-4 items-center h-full"
+      class="cards-scroll-container flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pt-1 pb-2 items-center h-full"
       style="scrollbar-width: none; overflow-y: hidden;"
     >
       <div
@@ -119,7 +135,7 @@ onMounted(observeCards)
       >
         <!-- Score card -->
         <div
-          class="card-hover p-3 relative transition-[border-color,box-shadow] duration-200"
+          class="card-hover p-2 relative transition-[border-color,box-shadow] duration-200"
           :class="[idx === currentIndex ? (card.submitted ? 'border-emerald-500/50' : card.saving ? 'border-accent/40' : 'border-[color:var(--accent-muted)]') : 'border-white/5 opacity-40']"
           :style="idx === currentIndex
             ? { boxShadow: card.submitted ? '0 0 0 1px rgba(16,185,129,0.4), 0 8px 32px rgba(0,0,0,0.7)' : card.saving ? '0 0 0 1px var(--accent-muted), 0 0 24px var(--accent-subtle), 0 8px 32px rgba(0,0,0,0.7)' : '0 0 0 1px var(--accent-muted), 0 8px 32px rgba(0,0,0,0.7)' }
@@ -170,61 +186,9 @@ onMounted(observeCards)
 
               <!-- Feedback + criteria (scrollable if needed) -->
               <div class="score-card-info-scroll">
-                <!-- Feedback button -->
-                <div class="flex justify-center mb-2">
-                  <button
-                    @click.stop="emit('open-feedback', card)"
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
-                    :class="feedbackData?.get(card.auditionNumber)
-                      ? 'text-green-400 border-green-500/35'
-                      : 'text-content-muted hover:text-content-primary'"
-                  >
-                    <i class="pi pi-comment text-xs" />
-                    {{ feedbackData?.get(card.auditionNumber) ? 'Edit' : 'Feedback' }}
-                    <span v-if="feedbackData?.get(card.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
-                  </button>
-                </div>
-
-                <!-- Feedback preview: compact on mobile, full on tablet+ -->
-                <template v-if="feedbackData?.get(card.auditionNumber)">
-                  <!-- Mobile: compact summary -->
-                  <div
-                    class="md:hidden mb-2 px-3 py-2 border border-green-500/25 bg-emerald-500/[0.06]"
-                    style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                  >
-                    <div class="flex items-center gap-2">
-                      <i class="pi pi-tags text-xs text-emerald-400/70 flex-shrink-0"></i>
-                      <span class="type-body text-content-primary" style="font-size: 13px">
-                        {{ feedbackData.get(card.auditionNumber).tagLabels?.length || 0 }} tag{{ feedbackData.get(card.auditionNumber).tagLabels?.length !== 1 ? 's' : '' }}
-                        <template v-if="feedbackData.get(card.auditionNumber).note"> · note added</template>
-                      </span>
-                    </div>
-                  </div>
-                  <!-- Tablet+: full tag chips + note -->
-                  <div
-                    class="hidden md:block mb-2 p-2 border border-green-500/25 bg-emerald-500/[0.06]"
-                    style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                  >
-                    <div v-if="feedbackData.get(card.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
-                      <span
-                        v-for="tag in feedbackData.get(card.auditionNumber).tagLabels"
-                        :key="tag.id"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
-                        style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-                      >
-                        {{ tag.label }}
-                        <button @click.stop="emit('remove-tag', { auditionNumber: card.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
-                          <i class="pi pi-times text-[9px]" />
-                        </button>
-                      </span>
-                    </div>
-                    <div v-if="feedbackData.get(card.auditionNumber).note" class="text-xs text-white/65">{{ feedbackData.get(card.auditionNumber).note }}</div>
-                  </div>
-                </template>
-
                 <!-- Criteria scores summary — clickable, active row highlighted -->
                 <template v-if="hasCriteria">
-                  <div class="h-px mb-2 bg-white/5"></div>
+                  <div class="h-px mb-1 bg-white/5"></div>
                   <div class="flex flex-col gap-1.5">
                     <button
                       v-for="criterion in criteria"
@@ -245,7 +209,7 @@ onMounted(observeCards)
                         <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
                       </div>
                       <span
-                        class="font-source tabular-nums font-bold leading-none"
+                        class="font-bold leading-none"
                         style="font-size: 1.6rem"
                         :class="criteriaScore(card, criterion.name) > 0 ? 'text-accent' : 'text-white/15'"
                       >{{ criteriaScore(card, criterion.name) > 0 ? criteriaScore(card, criterion.name) : '—' }}</span>
@@ -262,69 +226,74 @@ onMounted(observeCards)
               <!-- ── Multi-criteria mode ── -->
               <template v-if="hasCriteria">
                 <!-- Criterion selector — lives in keypad column for easy reach -->
-                <div class="flex gap-2 mb-3 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
+                <div class="criteria-selector-tabs flex gap-2 mb-2 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
                   <button
                     v-for="criterion in criteria"
                     :key="'sel-'+criterion.id"
                     @click="setActiveCriterion(idx, criterion.name)"
-                    class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 para-chip transition-all duration-150 active:scale-95"
+                    class="flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-3 py-2.5 para-chip transition-all duration-150 active:scale-95 min-w-[64px]"
                     :class="getActiveCriterion(idx) === criterion.name
-                      ? 'bg-accent border-accent'
-                      : criteriaScore(card, criterion.name) > 0
-                        ? 'border-accent/40 text-accent/80'
-                        : 'border-white/10 text-content-muted hover:text-content-primary'"
+                      ? 'border-accent'
+                      : 'border-white/[0.08]'"
                     :style="getActiveCriterion(idx) === criterion.name
-                      ? 'box-shadow: 0 0 14px var(--accent-muted)'
-                      : ''"
+                      ? 'background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
+                      : 'background: rgba(255,255,255,0.06)'"
                   >
-                    <span class="type-label leading-none"
-                      :class="getActiveCriterion(idx) === criterion.name ? 'text-surface-900' : ''"
+                    <span class="criteria-tab-label type-label leading-none" style="color: inherit;"
                     >{{ criterion.name }}</span>
                     <span
-                      v-if="criteriaScore(card, criterion.name) > 0"
-                      class="font-source tabular-nums text-sm font-bold leading-none"
-                      :class="getActiveCriterion(idx) === criterion.name ? 'text-surface-900' : 'text-accent'"
-                    >{{ criteriaScore(card, criterion.name) }}</span>
-                    <span v-else class="inline-block w-2 h-2 rounded-full bg-white/15 shrink-0"></span>
+                      class="criteria-tab-score font-bold leading-none mt-0.5"
+                      style="font-size: 1.5rem; color: inherit;"
+                      :class="getActiveCriterion(idx) === criterion.name
+                        ? ''
+                        : criteriaScore(card, criterion.name) > 0
+                          ? 'text-white/55'
+                          : 'text-white/15'"
+                    >{{ criteriaScore(card, criterion.name) > 0 ? criteriaScore(card, criterion.name) : '—' }}</span>
                   </button>
                 </div>
 
                 <template v-for="criterion in criteria" :key="criterion.id">
                   <div v-if="getActiveCriterion(idx) === criterion.name">
-                    <button
-
-                      @click="setCriteriaScore(card, criterion.name, 10)"
-                      class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
-                      style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                    >10 — Full Score</button>
+                    <div class="action-btn-row flex gap-1.5 mb-2">
+                      <button
+                        @click="setCriteriaScore(card, criterion.name, 10)"
+                        class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
+                        style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
+                      >10 — Full</button>
+                      <button
+                        @click.stop="emit('open-feedback', card)"
+                        class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
+                        :class="feedbackData?.get(card.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"
+                      >
+                        <i class="pi text-xs" :class="feedbackData?.get(card.auditionNumber) ? 'pi-check-circle' : 'pi-comment'" />
+                        {{ feedbackData?.get(card.auditionNumber) ? 'Edit' : 'Feedback' }}
+                      </button>
+                    </div>
                     <div class="grid grid-cols-2 gap-1.5">
-                      <div class="rounded-xl p-1.5 bg-white/[0.03] border border-white/[0.05]">
-                        <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1.5 text-center">Whole</div>
+                      <div class="rounded-xl p-1 bg-white/[0.03] border border-white/[0.05]">
+                        <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1 text-center">Whole</div>
                         <div class="grid grid-cols-3 gap-1">
                           <button
                             v-for="value in 9" :key="'w'+criterion.name+value"
-                            
                             @click="setCriteriaScore(card, criterion.name, Number(value))"
-                            class="py-4 text-sm font-bold transition-all duration-100 active:scale-95 disabled:opacity-20"
-                            :class="Math.floor(criteriaScore(card, criterion.name)) === value && criteriaScore(card, criterion.name) === value ? 'text-black' : 'text-white/55 hover:text-white'"
-                            :style="Math.floor(criteriaScore(card, criterion.name)) === value && criteriaScore(card, criterion.name) === value
-                              ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                              : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(255,255,255,0.05);'"
+                            @touchstart.passive="pressedKey = 'w'+value"
+                            @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                            class="keypad-btn py-5 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95 disabled:opacity-20"
+                            :style="wholeBtnStyle('w'+value)"
                           >{{ value }}</button>
                         </div>
                       </div>
-                      <div class="rounded-xl p-1.5 bg-amber-500/[0.03] border border-amber-500/[0.10]">
-                        <div class="text-[9px] font-bold text-amber-400/35 uppercase tracking-widest mb-1.5 text-center">Decimal</div>
+                      <div class="rounded-xl p-1 bg-amber-500/[0.03] border border-amber-500/[0.10]">
+                        <div class="text-[9px] font-bold text-amber-400/35 uppercase tracking-widest mb-1 text-center">Decimal</div>
                         <div class="grid grid-cols-3 gap-1">
                           <button
                             v-for="value in 9" :key="'d'+criterion.name+value"
-                            
                             @click="updateCriteriaDecimal(card, criterion.name, value)"
-                            class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95 disabled:opacity-20"
-                            :class="(criteriaScore(card, criterion.name) * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
-                            :style="(criteriaScore(card, criterion.name) * 10 % 10).toFixed(0) == value
-                              ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                              : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.06);'"
+                            @touchstart.passive="pressedKey = 'd'+value"
+                            @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                            class="keypad-btn py-5 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95 disabled:opacity-20"
+                            :style="decimalBtnStyle('d'+value)"
                           >.{{ value }}</button>
                         </div>
                       </div>
@@ -335,25 +304,32 @@ onMounted(observeCards)
 
               <!-- ── Single-score mode ── -->
               <template v-else>
-                <button
-                  
-                  @click="setSingleScore(card, 10)"
-                  class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
-                  style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                >10 — Full Score</button>
+                <div class="action-btn-row flex gap-1.5 mb-2">
+                  <button
+                    @click="setSingleScore(card, 10)"
+                    class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
+                    style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
+                  >10 — Full</button>
+                  <button
+                    @click.stop="emit('open-feedback', card)"
+                    class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
+                    :class="feedbackData?.get(card.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"
+                  >
+                    <i class="pi text-xs" :class="feedbackData?.get(card.auditionNumber) ? 'pi-check-circle' : 'pi-comment'" />
+                    {{ feedbackData?.get(card.auditionNumber) ? 'Edit' : 'Feedback' }}
+                  </button>
+                </div>
                 <div class="grid grid-cols-2 gap-1.5">
                   <div class="rounded-xl p-1.5 bg-white/[0.03] border border-white/[0.05]">
                     <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1.5 text-center">Whole</div>
                     <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9" :key="'w'+value"
-
                         @click="setSingleScore(card, Number(value))"
-                        class="py-4 text-sm font-bold transition-all duration-100 active:scale-95 disabled:opacity-20"
-                        :class="Math.floor(card.score) === value && card.score === value ? 'text-black' : 'text-white/55 hover:text-white'"
-                        :style="Math.floor(card.score) === value && card.score === value
-                          ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                          : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(255,255,255,0.05);'"
+                        @touchstart.passive="pressedKey = 'w'+value"
+                        @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                        class="keypad-btn py-5 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95 disabled:opacity-20"
+                        :style="wholeBtnStyle('w'+value)"
                       >{{ value }}</button>
                     </div>
                   </div>
@@ -362,13 +338,11 @@ onMounted(observeCards)
                     <div class="grid grid-cols-3 gap-1">
                       <button
                         v-for="value in 9" :key="'d'+value"
-                        
                         @click="setSingleScore(card, updateDecimal(card.score, value))"
-                        class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95 disabled:opacity-20"
-                        :class="(card.score * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
-                        :style="(card.score * 10 % 10).toFixed(0) == value
-                          ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                          : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.06);'"
+                        @touchstart.passive="pressedKey = 'd'+value"
+                        @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                        class="keypad-btn py-5 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95 disabled:opacity-20"
+                        :style="decimalBtnStyle('d'+value)"
                       >.{{ value }}</button>
                     </div>
                   </div>
@@ -381,32 +355,13 @@ onMounted(observeCards)
         </div>
 
         <!-- Swipe dots -->
-        <div class="flex justify-center gap-1 mt-2">
+        <div class="flex justify-center gap-1 mt-1">
           <div
             v-for="(_, i) in props.cards" :key="i"
             class="h-1 rounded-full transition-all duration-300"
             :class="i === currentIndex ? 'w-6 bg-amber-400' : 'w-1.5 bg-white/12'"
           ></div>
         </div>
-      </div>
-    </div>
-
-    <!-- ── Sticky bottom action bar ── -->
-    <div
-      class="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 px-4 py-3 border-t border-white/[0.07] bg-surface-900"
-    >
-      <button
-        @click="emit('reset')"
-        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
-      ><i class="pi pi-undo text-xs"></i> Reset</button>
-
-      <button
-        @click="emit('jump')"
-        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
-      ><i class="pi pi-search text-xs"></i> Go To</button>
-
-      <div v-if="hasCriteria && aggregateDisplay !== null" class="ml-auto text-xs font-bold text-amber-400/40 shrink-0 font-source tabular-nums">
-        AVG {{ aggregateDisplay }}
       </div>
     </div>
 
@@ -430,6 +385,19 @@ onMounted(observeCards)
   text-align: center;
 }
 
+/* ── Keypad button: amber flash on press, releases back ─────────────── */
+.keypad-btn:active {
+  background: rgba(245, 158, 11, 0.45) !important;
+  color: #fff !important;
+}
+
+/* ── Portrait: hide duplicate criteria list ─────────────────────────── */
+@media (orientation: portrait) {
+  .score-card-info-scroll {
+    display: none;
+  }
+}
+
 /* ── Landscape: info left, keypad right ─────────────────────────────── */
 @media (orientation: landscape) {
   .score-card-body {
@@ -437,6 +405,35 @@ onMounted(observeCards)
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;
     align-items: stretch;
+  }
+}
+
+/* ── Tablet landscape: bigger keypad, bottom-aligned, bigger tab text ── */
+@media (orientation: landscape) and (min-width: 768px) {
+  .cards-scroll-container {
+    align-items: flex-end;
+  }
+  .score-card-body {
+    grid-template-columns: 2fr 3fr;
+  }
+  .criteria-selector-tabs {
+    display: none;
+  }
+  .keypad-btn {
+    padding-top: 1.75rem;
+    padding-bottom: 1.75rem;
+  }
+  .action-btn-row > button {
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
+    font-size: 1rem;
+  }
+  .criteria-tab-label {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+  }
+  .criteria-tab-score {
+    font-size: 2rem;
   }
 }
 </style>

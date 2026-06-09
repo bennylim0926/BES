@@ -1,10 +1,11 @@
 <script setup>
 defineProps({
-  show:        { type: Boolean, default: false },
-  title:       { type: String,  default: 'Notification' },
-  variant:     { type: String,  default: 'info' },
-  acceptLabel: { type: String,  default: 'OK' },
-  scrollable:  { type: Boolean, default: false }
+  show:          { type: Boolean, default: false },
+  title:         { type: String,  default: 'Notification' },
+  variant:       { type: String,  default: 'info' },
+  acceptLabel:   { type: String,  default: 'OK' },
+  scrollable:    { type: Boolean, default: false },
+  disableAccept: { type: Boolean, default: false }
 })
 
 defineEmits(['close', 'accept'])
@@ -60,7 +61,9 @@ defineEmits(['close', 'accept'])
           <div class="flex-shrink-0 px-8 pb-8 pt-4 border-t border-surface-600/30">
             <button
               @click="$emit('accept')"
-              class="para-chip type-label px-6 py-3 w-full border-2 border-accent text-accent hover:bg-accent hover:text-surface-900 transition-colors"
+              class="para-chip type-label px-6 py-3 w-full border-2 transition-colors"
+              :class="disableAccept ? 'border-surface-600 text-content-muted cursor-not-allowed opacity-40' : 'border-accent text-accent hover:bg-accent hover:text-surface-900'"
+              :disabled="disableAccept"
             >{{ acceptLabel }}</button>
           </div>
         </template>
@@ -81,7 +84,9 @@ defineEmits(['close', 'accept'])
           </div>
           <button
             @click="$emit('accept')"
-            class="para-chip type-label px-6 py-3 w-full border-2 border-accent text-accent hover:bg-accent hover:text-surface-900 transition-colors"
+            class="para-chip type-label px-6 py-3 w-full border-2 transition-colors"
+            :class="disableAccept ? 'border-surface-600 text-content-muted cursor-not-allowed opacity-40' : 'border-accent text-accent hover:bg-accent hover:text-surface-900'"
+            :disabled="disableAccept"
           >{{ acceptLabel }}</button>
         </template>
       </div>

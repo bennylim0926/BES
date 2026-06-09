@@ -340,21 +340,26 @@ public class EventController {
     @Operation(summary = "Add Walk-in Participant", description = "Registers a new walk-in participant into an event")
     @PostMapping("/walkins/")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
-    public ResponseEntity<String> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
+    public ResponseEntity<?> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
-            Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
-            eventGenreParticipantService.addWalkInToEventGenreParticipant(
-                p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
+            Map<String, String> result = registerService.addWalkIn(dto);
             Map<String, Object> walkinMsg = new java.util.HashMap<>();
             walkinMsg.put("eventName", dto.eventName);
             messagingTemplate.convertAndSend("/topic/walkin/", walkinMsg);
-            return new ResponseEntity<>(gson.toJson("Added walkin"), HttpStatus.CREATED);
+            HttpStatus status = "created".equals(result.get("status")) ? HttpStatus.CREATED : HttpStatus.OK;
+            return new ResponseEntity<>(result, status);
         } catch (IllegalArgumentException e) {
-            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
+            Map<String, String> error = new java.util.HashMap<>();
+            error.put("status", "error");
+            error.put("genre", dto.genre);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             log.error("Error adding walk-in", e);
-            return new ResponseEntity<>(gson.toJson("Error adding participant"), HttpStatus.BAD_REQUEST);
+            Map<String, String> error = new java.util.HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Error adding participant");
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
     }
 

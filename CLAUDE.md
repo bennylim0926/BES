@@ -247,7 +247,7 @@ Scoring only:
 | Pickup crew formation | `/event/crew-formation` | Form named crews from individual participants |
 | Access code | `EventDetails` | Per-event access code, visible to organiser |
 | Judging mode | `EventDetails` | Default (single score) or custom criteria mode |
-| Judge scoring card | `SwipeableCardsV2` | Minimal padding for mobile; `py-4` keypad buttons, `w-[97%]` card width, `p-2` card padding — do not increase these |
+| Judge scoring card | `SwipeableCardsV2` | `py-5` keypad buttons, `py-3` "10 — Full Score" button, `w-[97%]` card width, `p-2` card padding. Reset/GoTo live in the AuditionList context bar (not in the card). |
 | Event selector grid | `EventSelector` | ≤4 events → 1 col, 5+ events → 2-col grid; no scroll. Always passes `?redirect=` back to originating page |
 
 ## Battle Endpoint Permission Matrix

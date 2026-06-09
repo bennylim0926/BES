@@ -22,6 +22,8 @@ const showError = ref(false)
 const showNoDivisionError = ref(false)
 const showSuccess = ref(false)
 const showSubmitError = ref(false)
+const showAllExisting = ref(false)
+const walkinResult = ref({ created: [], existing: [], failed: [] })
 
 const entryModes = reactive({})
 const teamNames = reactive({})
@@ -86,25 +88,44 @@ const groupedDivisions = computed(() => {
   return Object.values(groups)
 })
 
+const formTouched = ref(false)
+
+const canSubmit = computed(() => {
+  if (name.value.trim() === '') return false
+  if (createTable.genres.length === 0) return false
+  for (const g of createTable.genres) {
+    if (isTeamFormat(g) && entryModes[g] !== 'solo') {
+      const tName = (teamNames[g] || '').trim()
+      if (tName === '') return false
+      const count = additionalMembersCountForGenre(g)
+      for (let i = 0; i < count; i++) {
+        if (!(teamMemberNames[g] || [])[i]?.trim()) return false
+      }
+    }
+  }
+  return true
+})
+
 const submitNewEntry = async () => {
-  if (name.value.trim() === "") {
-    showError.value = true
-    return
-  }
-  if (createTable.genres.length === 0) {
-    showNoDivisionError.value = true
-    return
-  }
-  let failed = false
+  // Validation guard — button is disabled, but double-check in case of bypass
+  if (!canSubmit.value) return
+
+  const results = { created: [], existing: [], failed: [] }
   for (const g of createTable.genres) {
     const mode = entryModes[g] || 'team'
     const members = mode === 'solo' ? [] : (teamMemberNames[g] || []).filter(m => m.trim() !== "")
     const tName = mode === 'solo' ? '' : (teamNames[g] || '')
     try {
       const res = await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
-      if (!res || !res.ok) failed = true
+      if (!res || !res.ok) {
+        results.failed.push(g)
+      } else {
+        const body = await res.json().catch(() => null)
+        if (body?.status === 'created') results.created.push(g)
+        else results.existing.push(g)
+      }
     } catch {
-      failed = true
+      results.failed.push(g)
     }
   }
   name.value = ""
@@ -112,8 +133,11 @@ const submitNewEntry = async () => {
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
   emit("createNewEntry")
-  if (failed) {
+  walkinResult.value = results
+  if (results.failed.length > 0) {
     showSubmitError.value = true
+  } else if (results.created.length === 0 && results.existing.length > 0) {
+    showAllExisting.value = true
   } else {
     showSuccess.value = true
   }
@@ -149,6 +173,7 @@ onMounted(async () => {
     variant="info"
     acceptLabel="Add Participant"
     :scrollable="true"
+    :disableAccept="!canSubmit"
     @accept="submitNewEntry"
     @close="$emit('close')"
   >
@@ -163,6 +188,8 @@ onMounted(async () => {
           type="text"
           placeholder="Enter stage name…"
           class="input-base"
+          :class="formTouched && !name.trim() ? '!border-red-400/60' : ''"
+          @input="formTouched = true"
           @keyup.enter="submitNewEntry"
         />
       </div>
@@ -250,6 +277,8 @@ onMounted(async () => {
                 type="text"
                 placeholder="Enter team name…"
                 class="input-base"
+                :class="formTouched && !(teamNames[g] || '').trim() ? '!border-red-400/60' : ''"
+                @input="formTouched = true"
               />
             </div>
             <div>
@@ -264,10 +293,11 @@ onMounted(async () => {
                   v-for="i in additionalMembersCountForGenre(g)"
                   :key="i"
                   :value="(teamMemberNames[g] || [])[i - 1] || ''"
-                  @input="updateMemberName(g, i - 1, $event.target.value)"
+                  @input="updateMemberName(g, i - 1, $event.target.value); formTouched = true"
                   type="text"
                   :placeholder="`Member ${i + 1} stage name…`"
                   class="input-base"
+                  :class="formTouched && !((teamMemberNames[g] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
                 />
               </div>
             </div>
@@ -299,13 +329,33 @@ onMounted(async () => {
 
   <ActionDoneModal
     :show="showSuccess"
-    title="Participant Added"
+    title="Participant Processed"
     variant="info"
     acceptLabel="Done"
     @accept="() => { showSuccess = false; $emit('close') }"
     @close="() => { showSuccess = false; $emit('close') }"
   >
-    <p class="type-body text-content-secondary">The participant has been added successfully.</p>
+    <div class="space-y-2">
+      <p v-if="walkinResult.created.length > 0" class="type-body text-emerald-400">
+        ✅ Added to: {{ walkinResult.created.join(', ') }}
+      </p>
+      <p v-if="walkinResult.existing.length > 0" class="type-body text-content-muted">
+        ℹ️ Already in: {{ walkinResult.existing.join(', ') }}
+      </p>
+    </div>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showAllExisting"
+    title="Already Registered"
+    variant="info"
+    acceptLabel="Done"
+    @accept="() => { showAllExisting = false; $emit('close') }"
+    @close="() => { showAllExisting = false; $emit('close') }"
+  >
+    <p class="type-body text-content-muted">
+      ℹ️ {{ walkinResult.existing.join(', ') }} — already registered.
+    </p>
   </ActionDoneModal>
 
   <ActionDoneModal
@@ -315,6 +365,16 @@ onMounted(async () => {
     @accept="showSubmitError = false"
     @close="showSubmitError = false"
   >
-    <p class="type-body text-content-secondary">One or more divisions could not be registered. Please check the details and try again.</p>
+    <div class="space-y-2">
+      <p v-if="walkinResult.created.length > 0" class="type-body text-emerald-400">
+        ✅ Added to: {{ walkinResult.created.join(', ') }}
+      </p>
+      <p v-if="walkinResult.existing.length > 0" class="type-body text-content-muted">
+        ℹ️ Already in: {{ walkinResult.existing.join(', ') }}
+      </p>
+      <p v-if="walkinResult.failed.length > 0" class="type-body text-red-400">
+        ❌ Failed: {{ walkinResult.failed.join(', ') }}
+      </p>
+    </div>
   </ActionDoneModal>
 </template>

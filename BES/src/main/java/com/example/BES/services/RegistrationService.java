@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
+import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.dtos.ImportResultDto;
@@ -64,6 +66,21 @@ public class RegistrationService {
     @Autowired
     EventGenreRepo eventGenreRepo;
 
+    @Autowired
+    EventParticpantService eventParticipantService;
+
+    @Autowired
+    EventGenreParticpantService eventGenreParticipantService;
+
+    @Transactional
+    public Map<String, String> addWalkIn(AddWalkInDto dto) {
+        Participant p = participantService.addWalkInService(dto);
+        EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
+        if (ep == null) throw new RuntimeException("Event not found: " + dto.eventName);
+        return eventGenreParticipantService.addWalkInToEventGenreParticipant(
+            p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
+    }
+
     public ImportResultDto addParticipantToEvent(AddParticipantToEventDto dto) throws IOException {
         Event event = eventRepo.findByEventName(dto.eventName).orElse(null);
         if (event == null) throw new NullPointerException("event is null");
@@ -77,8 +94,8 @@ public class RegistrationService {
             .collect(Collectors.toList());
         if (!divisionsWithoutFormat.isEmpty()) {
             ImportResultDto blocked = new ImportResultDto();
-            blocked.errors.add(new ImportResultDto.SkippedRow(0, "—",
-                "Import blocked: set a format for these divisions first: " + String.join(", ", divisionsWithoutFormat)));
+            blocked.addError(0, "—",
+                "Import blocked: set a format for these divisions first: " + String.join(", ", divisionsWithoutFormat));
             return blocked;
         }
 
@@ -94,8 +111,8 @@ public class RegistrationService {
                     String entryType = participant.getEntryType();
                     boolean soloBlocked = isSoloBlockedForAnyGenre(participant.getGenres(), allDivisions);
                     if ((entryType == null || entryType.isBlank()) && soloBlocked) {
-                        result.errors.add(new ImportResultDto.SkippedRow(rowNumber, participantName,
-                            "Solo entry not allowed for this division — ENTRY_TYPE required"));
+                        result.addError(rowNumber, participantName,
+                            "Solo entry not allowed for this division — ENTRY_TYPE required");
                         result.skipped++;
                         rowNumber++;
                         continue;
@@ -107,6 +124,16 @@ public class RegistrationService {
                 }
 
                 Participant toAddParticipant = participantService.addParticpantService(participant);
+
+                // Detect case-insensitive match
+                String sheetName = participant.getParticipantName();
+                String savedName = toAddParticipant.getParticipantName();
+                if (savedName != null && !savedName.equals(sheetName)) {
+                    result.addInfo(rowNumber, sheetName,
+                        "Sheet name '" + sheetName + "' matched existing participant '"
+                        + savedName + "'");
+                }
+
                 EventParticipant ep = eventParticipantRepo
                     .findByEventAndParticipant(event, toAddParticipant).orElse(null);
 
@@ -123,15 +150,28 @@ public class RegistrationService {
                     ep.setScreenshotUrl(participant.getScreenshotUrl());
                     ep.setReferenceCode(ReferenceCodeUtil.generate());
                     eventParticipantRepo.save(ep);
+                } else {
+                    result.addInfo(rowNumber, participantName,
+                        "Already exists — stage name, team members, and removed genres were NOT updated. Use Update Details to edit.");
                 }
 
-                if (participant.getGenres() != null) {
+                if (participant.getGenres() != null && !participant.getGenres().isEmpty()) {
+                    boolean anyGenreMatched = false;
                     for (String genreName : participant.getGenres()) {
                         EventGenre eg = findMatchingDivision(allDivisions, genreName);
-                        if (eg == null) continue;
+                        if (eg == null) {
+                            result.addWarning(rowNumber, participantName,
+                                "Genre '" + genreName + "' didn't match any division — skipped");
+                            continue;
+                        }
+                        anyGenreMatched = true;
                         EventGenreParticipantId id = new EventGenreParticipantId(
                             event.getEventId(), eg.getId(), toAddParticipant.getParticipantId());
-                        if (eventGenreParticipantRepo.existsById(id)) continue;
+                        if (eventGenreParticipantRepo.existsById(id)) {
+                            result.addInfo(rowNumber, participantName,
+                                "Already in " + eg.getName() + " — skipped");
+                            continue;
+                        }
                         EventGenreParticipant egp = new EventGenreParticipant();
                         egp.setId(id);
                         egp.setEvent(event);
@@ -143,15 +183,30 @@ public class RegistrationService {
                         boolean isTeamEntry = isTeamFormat && "team".equals(participant.getEntryType());
 
                         if (isTeamEntry) {
+                            String teamDisplayName = participant.getTeamName();
+                            long clash = eventGenreParticipantRepo.countByDisplayNameForOtherParticipant(
+                                event.getEventId(), eg.getId(), teamDisplayName,
+                                toAddParticipant.getParticipantId());
+                            if (clash > 0) {
+                                result.addError(rowNumber, participantName,
+                                    "Team name '" + teamDisplayName + "' already exists in " + eg.getName()
+                                    + " under a different participant");
+                                continue;
+                            }
                             egp.setFormat(effectiveFormat);
-                            egp.setTeamName(participant.getTeamName());
-                            egp.setDisplayName(participant.getTeamName());
+                            egp.setTeamName(teamDisplayName);
+                            egp.setDisplayName(teamDisplayName);
                         } else {
                             egp.setFormat(isTeamFormat ? null : effectiveFormat);
                             egp.setDisplayName(orElse(participant.getStageName(), participant.getParticipantName()));
                         }
 
                         EventGenreParticipant savedEgp = eventGenreParticipantRepo.save(egp);
+
+                        if (!isNew) {
+                            result.addInfo(rowNumber, participantName,
+                                "Added to " + eg.getName());
+                        }
 
                         if (isTeamEntry && participant.getMemberNames() != null) {
                             for (String memberName : participant.getMemberNames()) {
@@ -162,11 +217,16 @@ public class RegistrationService {
                             }
                         }
                     }
+                    if (!anyGenreMatched) {
+                        result.addError(rowNumber, participantName,
+                            "No valid genre found — participant not assigned to any division");
+                        result.skipped++;
+                    }
                 }
                 if (isNew) result.imported++; else result.existing++;
 
             } catch (IllegalArgumentException e) {
-                result.errors.add(new ImportResultDto.SkippedRow(rowNumber, participantName, e.getMessage()));
+                result.addError(rowNumber, participantName, e.getMessage());
                 result.skipped++;
             }
             rowNumber++;
