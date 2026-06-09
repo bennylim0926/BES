@@ -91,8 +91,8 @@ const confirmNo = () => {
   confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, confirmLabel: 'Confirm', destructive: true }
 }
 const askRemoveDivision = (div) => askConfirm(
-  'Remove Division?',
-  `"${div.name}" will be permanently deleted. Participants already enrolled will block this action — remove them first.`,
+  'Remove Category?',
+  `"${div.name}" will be permanently removed. Participants already enrolled will block this action — remove them first.`,
   () => removeDivisionFromSection(div.eventGenreId)
 )
 const askRemoveJudge = (g, j) => askConfirm(
@@ -108,7 +108,7 @@ const askRemoveJudgeGlobal = (j) => askConfirm(
 const askToggleSolo = (div) => askConfirm(
   div.soloAllowed ? 'Block Solo Entries?' : 'Allow Solo Entries?',
   div.soloAllowed
-    ? `Participants registering for "${div.name}" will no longer be able to select Solo (pickup crew).`
+    ? `Participants in "${div.name}" will no longer be able to register as Solo (pickup crew).`
     : `Solo entries will be permitted for "${div.name}".`,
   () => toggleSoloAllowed(div)
 )
@@ -661,7 +661,7 @@ const addDivisionToGroup = async (genreId, genreLabel) => {
 const removeDivisionFromSection = async (divId) => {
   const res = await deleteDivision(props.eventName, divId)
   if (res && !res.ok) {
-    openModal('Cannot Delete Division', 'This division still has participants enrolled. Remove all participants from the division before deleting it.', 'error')
+    openModal('Cannot Delete Category', 'Remove all participants from the category before deleting it.', 'error')
     return
   }
   eventGenres.value = eventGenres.value.filter(d => d.eventGenreId !== divId)
@@ -1402,10 +1402,14 @@ onUnmounted(() => {
   <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
 
-    <div class="section-rule mb-4">
-      <span class="section-rule-label">Divisions</span>
+    <div class="section-rule mb-3">
+      <span class="section-rule-label">Categories</span>
       <div class="section-rule-line"></div>
     </div>
+    <p class="type-label text-content-muted mb-4" style="font-size:10px;text-transform:none;letter-spacing:0.03em;">
+      Categories are competition formats within each genre (e.g. Popping 1v1, Popping 7 to Smoke).
+      Names must match your Google Sheet column values exactly.
+    </p>
 
     <div class="space-y-4">
       <div v-for="group in divisionsByGenre" :key="group.genreId" class="space-y-2">
@@ -1507,7 +1511,7 @@ onUnmounted(() => {
                 <button
                   @click="askRemoveDivision(div)"
                   class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-red-400 transition-colors"
-                  title="Remove division"
+                  title="Remove category"
                 ><i class="pi pi-times text-xs"></i></button>
               </div>
             </div>
@@ -1542,7 +1546,7 @@ onUnmounted(() => {
         <button
           @click="addDivisionToGroup(group.genreId, group.label)"
           class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all"
-        >+ Add {{ group.label }} division</button>
+        >+ Add {{ group.label }} category</button>
       </div>
     </div>
 
