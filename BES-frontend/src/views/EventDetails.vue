@@ -1569,12 +1569,14 @@ onUnmounted(() => {
                   </template>
                 </select>
 
-                <!-- Alias toggle -->
+                <!-- Alias toggle — text link, shown after the remove button -->
                 <button
-                  @click="divAliasExpanded = divAliasExpanded === div.eventGenreId ? null : div.eventGenreId"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-accent transition-colors"
-                  title="Sheet aliases"
-                ><i class="pi pi-tags text-xs"></i></button>
+                  v-if="divAliasExpanded !== div.eventGenreId && !(div.sheetAliases && div.sheetAliases.split(',').filter(Boolean).length)"
+                  @click="divAliasExpanded = div.eventGenreId; divAliasInput = ''"
+                  class="type-label text-content-muted hover:text-accent transition-colors"
+                  style="font-size:9px;letter-spacing:0.1em;text-decoration:underline;text-underline-offset:2px;"
+                  title="Add a sheet alias manually if the category name doesn't match your sheet exactly"
+                >aliases</button>
 
                 <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
                 <button
