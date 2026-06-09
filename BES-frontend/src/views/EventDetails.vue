@@ -599,6 +599,14 @@ const allSheetSuggestions = computed(() => {
   return [...new Set(sheetCategories.value)]
 })
 
+// True when any category has more sheet matches than imported participants
+const hasUnimportedParticipants = computed(() => {
+  if (!sheetCategories.value.length) return false
+  return eventGenres.value.some(div =>
+    (matchCounts.value[div.eventGenreId] || 0) > div.participantCount
+  ) || unmatchedSheetValues.value.length > 0
+})
+
 const suggestionCoveredSet = computed(() => {
   const covered = new Set()
   for (const div of eventGenres.value) {
@@ -1227,9 +1235,17 @@ onUnmounted(() => {
           v-if="!isHelper"
           @click="refreshParticipant"
           :disabled="loading"
-          class="flex items-center gap-2 px-4 py-2 bg-accent para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          :class="hasUnimportedParticipants && !loading
+            ? 'border-amber-500/60 text-amber-400'
+            : 'bg-accent'"
         >
-          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin' : 'pi-cloud-download'"></i>
+          <span
+            v-if="hasUnimportedParticipants && !loading"
+            class="inline-block w-2 h-2 rounded-full bg-amber-400 shrink-0"
+            style="box-shadow:0 0 6px rgba(245,158,11,0.7)"
+          ></span>
+          <i v-else class="pi text-sm" :class="loading ? 'pi-spinner pi-spin' : 'pi-cloud-download'"></i>
           {{ loading ? 'Importing…' : 'Import from Sheets' }}
         </button>
       </div>
@@ -1272,16 +1288,7 @@ onUnmounted(() => {
     <template v-if="activeTab === 'setup'">
 
     <!-- Stat strip -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-      <div class="stat-card relative">
-        <div class="corner-bar-tl"></div>
-        <div class="type-stat">{{ totalVerified + totalWalkIn }}</div>
-        <div class="type-label">Total</div>
-        <div class="flex gap-3 mt-1">
-          <span class="type-label text-content-muted">Form: {{ totalVerified }}</span>
-          <span class="type-label text-content-muted">Walk-in: {{ totalWalkIn }}</span>
-        </div>
-      </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6" style="max-width:360px;">
       <div class="stat-card relative">
         <div class="corner-bar-tl"></div>
         <template v-if="unverifiedParticipants.length > 0">
