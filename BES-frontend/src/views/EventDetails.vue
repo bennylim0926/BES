@@ -1287,14 +1287,14 @@ onUnmounted(() => {
         <template v-if="unverifiedParticipants.length > 0">
           <div class="type-stat text-amber-400">{{ unverifiedParticipants.length }}</div>
           <div class="type-label text-amber-400">Pending Verification</div>
-          <div class="type-label text-content-muted mt-1">{{ totalVerified }} verified</div>
+          <div class="type-label text-content-muted mt-1">{{ totalVerified }} form sign-ups verified</div>
         </template>
         <template v-else>
           <div class="flex items-center gap-2 mb-1">
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
             <div class="type-stat" style="font-size:28px;">All Verified</div>
           </div>
-          <div class="type-label text-content-muted">{{ totalVerified }} participants</div>
+          <div class="type-label text-content-muted">{{ totalVerified }} form sign-ups</div>
         </template>
       </div>
     </div>
