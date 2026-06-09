@@ -28,6 +28,7 @@ const judgingMode = ref("SOLO")
 const eventDivisions = ref([]) // { eventGenreId, name } for current event — used to map division name → ID
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
+const isEmcee = ref(false)
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -47,6 +48,7 @@ const dynamicRole = async () => {
   if (authority === "ROLE_EMCEE") {
     roles.value = ["Emcee"]
     selectedRole.value = "Emcee"
+    isEmcee.value = true
   } else if (authority === "ROLE_JUDGE") {
     roles.value = ["Judge"]
     selectedRole.value = "Judge"
@@ -797,8 +799,8 @@ onMounted(async () => {
           </div>
           <span v-if="!isJudgeSession && (isAdmin || isOrganiser)" class="text-surface-600 select-none hidden sm:inline">|</span>
 
-          <!-- Genre toggle -->
-          <div v-if="isAdmin || isOrganiser" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <!-- Genre toggle (hidden for session judges — locked to assigned genre) -->
+          <div v-if="isAdmin || isOrganiser || isEmcee" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Genre</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
