@@ -18,6 +18,8 @@ const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("success")
 const modalErrors = ref([])
+const modalWarnings = ref([])
+const modalInfo = ref([])
 const genreOptions = ref(null)
 const eventGenres = ref([])
 const tableExist = ref(true)
@@ -63,6 +65,8 @@ const reloadOnClose = ref(false)
 const handleAccept = () => {
   showModal.value = false
   modalErrors.value = []
+  modalWarnings.value = []
+  modalInfo.value = []
   if (reloadOnClose.value) window.location.reload()
 }
 
@@ -139,11 +143,13 @@ function additionalMemberCount(fmt) {
 }
 
 
-const openModal = (title, message, variant = 'success', errors = []) => {
+const openModal = (title, message, variant = 'success', errors = [], warnings = [], info = []) => {
   modalTitle.value = title
   modalMessage.value = message
   modalVariant.value = variant
   modalErrors.value = errors
+  modalWarnings.value = warnings
+  modalInfo.value = info
   showModal.value = true
 }
 
@@ -394,10 +400,13 @@ const refreshParticipant = async () => {
         const existing = r?.existing ?? 0
         const skipped = r?.skipped ?? r?.SKIPPED ?? 0
         const errors = r?.errors ?? r?.ERRORS ?? []
+        const warnings = r?.warnings ?? []
+        const info = r?.info ?? []
         let msg = `${imported} new participant${imported !== 1 ? 's' : ''} added`
         if (existing > 0) msg += `, ${existing} already existed`
         if (skipped > 0) msg += `, ${skipped} skipped`
-        openModal('Import Complete', msg, errors.length > 0 ? 'warning' : 'success', errors)
+        const hasDetails = errors.length > 0 || warnings.length > 0 || info.length > 0
+        openModal('Import Complete', msg, hasDetails ? 'warning' : 'success', errors, warnings, info)
       })
     } else if (createEventResponse.status == 404) {
       createEventResponse.json().then(result => {
@@ -2076,14 +2085,37 @@ onUnmounted(() => {
   >
     <p class="type-body text-content-secondary">{{ modalMessage }}</p>
     <div v-if="modalErrors.length > 0" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
+      <div class="type-label text-xs text-red-400/80 mb-1">Errors</div>
       <div
-        v-for="(e, i) in modalErrors.slice(0, 5)"
-        :key="i"
-        class="type-label text-xs text-amber-400/80 bg-amber-400/5 border-l-2 border-amber-400/40 px-2 py-1 normal-case"
+        v-for="(e, i) in modalErrors.slice(0, 8)"
+        :key="'err-' + i"
+        class="type-label text-xs text-red-400/80 bg-red-400/5 border-l-2 border-red-400/40 px-2 py-1 normal-case"
       >Row {{ e.row }}: <span class="text-content-secondary">{{ e.name }}</span> — {{ e.reason }}</div>
-      <div v-if="modalErrors.length > 5" class="type-label text-xs text-content-muted normal-case px-2">
-        ... and {{ modalErrors.length - 5 }} more skipped
+      <div v-if="modalErrors.length > 8" class="type-label text-xs text-content-muted normal-case px-2">
+        ... and {{ modalErrors.length - 8 }} more errors
       </div>
+    </div>
+    <div v-if="modalWarnings.length > 0" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
+      <div class="type-label text-xs text-amber-400/80 mb-1">Warnings</div>
+      <div
+        v-for="(w, i) in modalWarnings.slice(0, 5)"
+        :key="'warn-' + i"
+        class="type-label text-xs text-amber-400/80 bg-amber-400/5 border-l-2 border-amber-400/40 px-2 py-1 normal-case"
+      >Row {{ w.row }}: <span class="text-content-secondary">{{ w.name }}</span> — {{ w.reason }}</div>
+      <div v-if="modalWarnings.length > 5" class="type-label text-xs text-content-muted normal-case px-2">
+        ... and {{ modalWarnings.length - 5 }} more warnings
+      </div>
+    </div>
+    <div v-if="modalInfo.length > 0 && modalInfo.length <= 10" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
+      <div class="type-label text-xs text-content-muted mb-1">Info</div>
+      <div
+        v-for="(inf, i) in modalInfo"
+        :key="'info-' + i"
+        class="type-label text-xs text-content-muted bg-white/2 border-l-2 border-white/10 px-2 py-1 normal-case"
+      >Row {{ inf.row }}: <span class="text-content-secondary">{{ inf.name }}</span> — {{ inf.reason }}</div>
+    </div>
+    <div v-if="modalInfo.length > 10" class="mt-2 type-label text-xs text-content-muted normal-case px-2">
+      ... and {{ modalInfo.length - 10 }} more info items
     </div>
   </ActionDoneModal>
 

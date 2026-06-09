@@ -25,9 +25,24 @@ const totalWeight = computed(() => {
   return props.criteria.reduce((sum, c) => sum + (c.weight ?? 1), 0)
 })
 
+const haptic = () => navigator.vibrate?.(8)
+
+const pressedKey = ref(null)
+const wholeBtnStyle = (key) => ({
+  clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)',
+  background: pressedKey.value === key ? 'rgb(245,158,11)' : 'rgba(255,255,255,0.05)',
+  color: pressedKey.value === key ? '#fff' : undefined,
+})
+const decimalBtnStyle = (key) => ({
+  clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)',
+  background: pressedKey.value === key ? 'rgb(245,158,11)' : 'rgba(245,158,11,0.06)',
+  color: pressedKey.value === key ? '#fff' : undefined,
+})
+
 function criteriaScore(card, criterionName) { return card.criteriaScores?.[criterionName] ?? 0 }
 
 function setCriteriaScore(card, criterionName, value) {
+  haptic()
   if (!card.criteriaScores) card.criteriaScores = {}
   card.criteriaScores[criterionName] = value
   card.score = computeAggregate(card)
@@ -35,6 +50,7 @@ function setCriteriaScore(card, criterionName, value) {
 }
 
 function setSingleScore(card, value) {
+  haptic()
   card.score = value
   emit('score-change', card)
 }
@@ -118,10 +134,10 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 </script>
 
 <template>
-  <div class="w-full relative h-full bg-surface-900 touch-manipulation" style="padding-bottom: 72px; overflow: hidden;">
+  <div class="w-full relative h-full bg-surface-900 touch-manipulation" style="overflow: hidden;">
 
     <!-- Pair dots -->
-    <div v-if="pairs.length > 1" class="flex justify-center gap-1 py-2">
+    <div v-if="pairs.length > 1" class="flex justify-center gap-1 py-1">
       <div
         v-for="(_, i) in pairs" :key="i"
         class="h-1 rounded-full transition-all duration-300"
@@ -153,7 +169,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
         >
 
           <!-- Round label -->
-          <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center justify-between mb-2 px-1">
             <div class="corner-bar-tl"></div>
             <span class="type-label text-content-muted">
               Round {{ pairIdx + 1 }} of {{ pairs.length }}
@@ -162,10 +178,10 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
           </div>
 
           <!-- ── Participant selector: detail area + audition buttons ── -->
-          <div class="flex gap-2 mb-3">
+          <div class="flex gap-2 mb-2">
             <!-- Full detail container for active participant -->
             <div
-              class="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 para-chip-sm transition-all duration-200"
+              class="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 para-chip-sm transition-all duration-200"
               :class="isActivePair(pairIdx) ? 'border-[color:var(--accent-muted)]' : 'opacity-40'"
             >
               <template v-if="activeCard && isActivePair(pairIdx)">
@@ -189,7 +205,6 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                     :class="activeCard.submitted ? 'text-emerald-400' : activeCard.score === 0 ? 'text-content-muted' : 'text-accent'"
                   >{{ activeCard.score === 0 ? '—' : activeCard.score }}</div>
                 </div>
-                <span v-if="feedbackData?.get(activeCard.auditionNumber)" class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 self-start mt-1"></span>
               </template>
               <template v-else>
                 <span class="type-label text-content-muted italic">Select a participant</span>
@@ -203,19 +218,23 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 :key="slotIdx"
                 @click="activeParticipantNum = card.auditionNumber"
                 :disabled="card._placeholder"
-                class="flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 para-chip-sm transition-all duration-150 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed min-w-0"
+                class="flex-shrink-0 flex flex-col items-center justify-center px-3 py-2 para-chip-sm transition-all duration-150 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed min-w-0"
                 :class="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
                   ? ''
-                  : 'text-content-muted hover:text-content-primary'"
+                  : !card._placeholder && card.submitted
+                    ? 'text-emerald-300 border-emerald-500/50'
+                    : !card._placeholder && card.saving
+                      ? 'text-amber-300 border-amber-400/50'
+                      : 'text-white/70 border-white/30'"
                 :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
                   ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
-                  : 'font-size: 1.6rem'"
+                  : !card._placeholder && card.submitted
+                    ? 'font-size: 1.6rem; background: rgba(52,211,153,0.12); box-shadow: 0 0 8px rgba(52,211,153,0.2)'
+                    : !card._placeholder && card.saving
+                      ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
+                      : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
               >
                 <span class="type-stat leading-none" style="font-size: 1.6rem; color: inherit">#{{ card.auditionNumber }}</span>
-                <!-- Save state dot -->
-                <span v-if="!card._placeholder && card.submitted" class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(52,211,153,0.5)"></span>
-                <i v-else-if="!card._placeholder && card.saving" class="pi pi-spin pi-spinner flex-shrink-0" style="font-size: 10px; color: var(--accent-color); opacity: 0.6"></i>
-                <span v-else class="w-1.5 h-1.5 flex-shrink-0"></span>
               </button>
             </div>
           </div>
@@ -230,58 +249,6 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
                 <!-- Scrollable: feedback + criteria -->
                 <div class="pair-card-info-scroll">
-                  <!-- Feedback button -->
-                  <div class="flex justify-center mb-2">
-                    <button
-                      @click.stop="emit('open-feedback', activeCard)"
-                      class="flex items-center gap-1.5 px-2.5 py-1.5 para-chip-sm type-label transition-all duration-150"
-                      :class="feedbackData?.get(activeCard.auditionNumber)
-                        ? 'text-green-400 border-green-500/35'
-                        : 'text-content-muted hover:text-content-primary'"
-                    >
-                      <i class="pi pi-comment text-xs" />
-                      {{ feedbackData?.get(activeCard.auditionNumber) ? 'Edit' : 'Feedback' }}
-                      <span v-if="feedbackData?.get(activeCard.auditionNumber)" class="ml-1 w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
-                    </button>
-                  </div>
-
-                  <!-- Feedback preview: compact on mobile, full on tablet+ -->
-                  <template v-if="feedbackData?.get(activeCard.auditionNumber)">
-                    <!-- Mobile: compact summary -->
-                    <div
-                      class="md:hidden mb-2 px-3 py-2 border border-green-500/25 bg-emerald-500/[0.06]"
-                      style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                    >
-                      <div class="flex items-center gap-2">
-                        <i class="pi pi-tags text-xs text-emerald-400/70 flex-shrink-0"></i>
-                        <span class="type-body text-content-primary" style="font-size: 13px">
-                          {{ feedbackData.get(activeCard.auditionNumber).tagLabels?.length || 0 }} tag{{ feedbackData.get(activeCard.auditionNumber).tagLabels?.length !== 1 ? 's' : '' }}
-                          <template v-if="feedbackData.get(activeCard.auditionNumber).note"> · note added</template>
-                        </span>
-                      </div>
-                    </div>
-                    <!-- Tablet+: full tag chips + note -->
-                    <div
-                      class="hidden md:block mb-2 p-2 border border-green-500/25 bg-emerald-500/[0.06]"
-                      style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                    >
-                      <div v-if="feedbackData.get(activeCard.auditionNumber).tagLabels?.length" class="flex flex-wrap gap-1.5 mb-1">
-                        <span
-                          v-for="tag in feedbackData.get(activeCard.auditionNumber).tagLabels"
-                          :key="tag.id"
-                          class="inline-flex items-center gap-1 px-2 py-0.5 type-label bg-white/[0.12] text-content-primary border border-white/20"
-                          style="clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-                        >
-                          {{ tag.label }}
-                          <button @click.stop="emit('remove-tag', { auditionNumber: activeCard.auditionNumber, tagId: tag.id })" class="text-content-muted hover:text-content-primary transition-colors">
-                            <i class="pi pi-times text-[9px]" />
-                          </button>
-                        </span>
-                      </div>
-                      <div v-if="feedbackData.get(activeCard.auditionNumber).note" class="text-xs text-white/65">{{ feedbackData.get(activeCard.auditionNumber).note }}</div>
-                    </div>
-                  </template>
-
                   <!-- Criteria scores summary — clickable, active row highlighted -->
                   <template v-if="hasCriteria">
                     <div class="h-px mb-2 bg-white/5"></div>
@@ -321,12 +288,12 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <!-- Multi-criteria mode -->
                 <template v-if="hasCriteria">
                   <!-- Criterion selector chips — in keypad column for easy reach -->
-                  <div class="flex gap-2 mb-3 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
+                  <div class="flex gap-2 mb-2 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
                     <button
                       v-for="criterion in criteria"
                       :key="'sel-'+criterion.id"
                       @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
-                      class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 para-chip transition-all duration-150 active:scale-95"
+                      class="flex-shrink-0 flex items-center gap-2 px-3 py-2 para-chip transition-all duration-150 active:scale-95"
                       :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
                         ? 'bg-accent border-accent'
                         : criteriaScore(activeCard, criterion.name) > 0
@@ -350,37 +317,45 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
                   <template v-for="criterion in criteria" :key="criterion.id">
                     <div v-if="getActiveCriterion(activeCard.auditionNumber) === criterion.name">
-                      <button
-                        @click="setCriteriaScore(activeCard, criterion.name, 10)"
-                        class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
-                        style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                      >10 — Full Score</button>
+                      <div class="flex gap-1.5 mb-2">
+                        <button
+                          @click="setCriteriaScore(activeCard, criterion.name, 10)"
+                          class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
+                          style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
+                        >10 — Full</button>
+                        <button
+                          @click.stop="emit('open-feedback', activeCard)"
+                          class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
+                          :class="feedbackData?.get(activeCard.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"
+                        >
+                          <i class="pi text-xs" :class="feedbackData?.get(activeCard.auditionNumber) ? 'pi-check-circle' : 'pi-comment'" />
+                          {{ feedbackData?.get(activeCard.auditionNumber) ? 'Edit' : 'Feedback' }}
+                        </button>
+                      </div>
                       <div class="grid grid-cols-2 gap-1.5">
-                        <div class="rounded-xl p-1.5 bg-white/[0.03] border border-white/[0.05]">
-                          <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1.5 text-center">Whole</div>
+                        <div class="rounded-xl p-1 bg-white/[0.03] border border-white/[0.05]">
+                          <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1 text-center">Whole</div>
                           <div class="grid grid-cols-3 gap-1">
                             <button
                               v-for="value in 9" :key="'w'+criterion.name+value"
                               @click="setCriteriaScore(activeCard, criterion.name, Number(value))"
-                              class="py-4 text-sm font-bold transition-all duration-100 active:scale-95"
-                              :class="Math.floor(criteriaScore(activeCard, criterion.name)) === value && criteriaScore(activeCard, criterion.name) === value ? 'text-black' : 'text-white/55 hover:text-white'"
-                              :style="Math.floor(criteriaScore(activeCard, criterion.name)) === value && criteriaScore(activeCard, criterion.name) === value
-                                ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                                : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(255,255,255,0.05);'"
+                              @touchstart.passive="pressedKey = 'w'+value"
+                              @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                              class="keypad-btn py-6 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
+                              :style="wholeBtnStyle('w'+value)"
                             >{{ value }}</button>
                           </div>
                         </div>
-                        <div class="rounded-xl p-1.5 bg-amber-500/[0.03] border border-amber-500/[0.10]">
-                          <div class="text-[9px] font-bold text-amber-400/35 uppercase tracking-widest mb-1.5 text-center">Decimal</div>
+                        <div class="rounded-xl p-1 bg-amber-500/[0.03] border border-amber-500/[0.10]">
+                          <div class="text-[9px] font-bold text-amber-400/35 uppercase tracking-widest mb-1 text-center">Decimal</div>
                           <div class="grid grid-cols-3 gap-1">
                             <button
                               v-for="value in 9" :key="'d'+criterion.name+value"
                               @click="updateCriteriaDecimal(activeCard, criterion.name, value)"
-                              class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95"
-                              :class="(criteriaScore(activeCard, criterion.name) * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
-                              :style="(criteriaScore(activeCard, criterion.name) * 10 % 10).toFixed(0) == value
-                                ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                                : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.06);'"
+                              @touchstart.passive="pressedKey = 'd'+value"
+                              @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                              class="keypad-btn py-6 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
+                              :style="decimalBtnStyle('d'+value)"
                             >.{{ value }}</button>
                           </div>
                         </div>
@@ -391,11 +366,21 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
                 <!-- Single-score mode -->
                 <template v-else>
-                  <button
-                    @click="setSingleScore(activeCard, 10)"
-                    class="w-full py-2 mb-2 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
-                    style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                  >10 — Full Score</button>
+                  <div class="flex gap-1.5 mb-2">
+                    <button
+                      @click="setSingleScore(activeCard, 10)"
+                      class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
+                      style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
+                    >10 — Full</button>
+                    <button
+                      @click.stop="emit('open-feedback', activeCard)"
+                      class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
+                      :class="feedbackData?.get(activeCard.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"
+                    >
+                      <i class="pi text-xs" :class="feedbackData?.get(activeCard.auditionNumber) ? 'pi-check-circle' : 'pi-comment'" />
+                      {{ feedbackData?.get(activeCard.auditionNumber) ? 'Edit' : 'Feedback' }}
+                    </button>
+                  </div>
                   <div class="grid grid-cols-2 gap-1.5">
                     <div class="rounded-xl p-1.5 bg-white/[0.03] border border-white/[0.05]">
                       <div class="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1.5 text-center">Whole</div>
@@ -403,11 +388,10 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                         <button
                           v-for="value in 9" :key="'w'+value"
                           @click="setSingleScore(activeCard, Number(value))"
-                          class="py-4 text-sm font-bold transition-all duration-100 active:scale-95"
-                          :class="Math.floor(activeCard.score) === value && activeCard.score === value ? 'text-black' : 'text-white/55 hover:text-white'"
-                          :style="Math.floor(activeCard.score) === value && activeCard.score === value
-                            ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                            : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(255,255,255,0.05);'"
+                          @touchstart.passive="pressedKey = 'w'+value"
+                          @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                          class="keypad-btn py-6 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
+                          :style="wholeBtnStyle('w'+value)"
                         >{{ value }}</button>
                       </div>
                     </div>
@@ -417,11 +401,10 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                         <button
                           v-for="value in 9" :key="'d'+value"
                           @click="setSingleScore(activeCard, updateDecimal(activeCard.score, value))"
-                          class="py-4 text-sm font-semibold transition-all duration-100 active:scale-95"
-                          :class="(activeCard.score * 10 % 10).toFixed(0) == value ? 'text-black' : 'text-amber-300/45 hover:text-amber-300'"
-                          :style="(activeCard.score * 10 % 10).toFixed(0) == value
-                            ? 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgb(245,158,11);'
-                            : 'clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.06);'"
+                          @touchstart.passive="pressedKey = 'd'+value"
+                          @touchend="pressedKey = null" @touchcancel="pressedKey = null"
+                          class="keypad-btn py-6 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
+                          :style="decimalBtnStyle('d'+value)"
                         >.{{ value }}</button>
                       </div>
                     </div>
@@ -439,25 +422,6 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
           </div>
 
         </div>
-      </div>
-    </div>
-
-    <!-- ── Sticky bottom action bar ── -->
-    <div
-      class="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 px-4 py-3 border-t border-white/[0.07] bg-surface-900"
-    >
-      <button
-        @click="emit('reset')"
-        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
-      ><i class="pi pi-undo text-xs"></i> Reset</button>
-
-      <button
-        @click="emit('jump')"
-        class="flex items-center gap-1.5 px-4 py-2.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-all duration-150 active:scale-95"
-      ><i class="pi pi-search text-xs"></i> Go To</button>
-
-      <div v-if="hasCriteria && aggregateDisplay !== null" class="ml-auto text-xs font-bold text-amber-400/40 shrink-0 font-source tabular-nums">
-        AVG {{ aggregateDisplay }}
       </div>
     </div>
 
@@ -479,6 +443,12 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+/* ── Keypad button: amber flash on press, releases back ─────────────── */
+.keypad-btn:active {
+  background: rgba(245, 158, 11, 0.45) !important;
+  color: #fff !important;
 }
 
 /* ── Landscape: info left, keypad right ─────────────────────────────── */

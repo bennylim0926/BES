@@ -386,13 +386,13 @@ onMounted(async () => {
         <div class="modal-body">
           <div class="field">
             <label class="field-label">
-              {{ editTarget?.isTeam ? 'Team Name' : 'Name' }}
+              {{ editTarget?.isTeam ? 'Team Name' : 'Display Name' }}
               <span class="required">*</span>
             </label>
             <input
               v-model="editName"
               class="field-input"
-              :placeholder="editTarget?.isTeam ? 'Team name' : 'Participant name'"
+              :placeholder="editTarget?.isTeam ? 'Team name' : 'Display name'"
             />
           </div>
 

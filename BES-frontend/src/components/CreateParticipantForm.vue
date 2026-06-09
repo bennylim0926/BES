@@ -22,6 +22,8 @@ const showError = ref(false)
 const showNoDivisionError = ref(false)
 const showSuccess = ref(false)
 const showSubmitError = ref(false)
+const showAllExisting = ref(false)
+const walkinResult = ref({ created: [], existing: [], failed: [] })
 
 const entryModes = reactive({})
 const teamNames = reactive({})
@@ -95,16 +97,22 @@ const submitNewEntry = async () => {
     showNoDivisionError.value = true
     return
   }
-  let failed = false
+  const results = { created: [], existing: [], failed: [] }
   for (const g of createTable.genres) {
     const mode = entryModes[g] || 'team'
     const members = mode === 'solo' ? [] : (teamMemberNames[g] || []).filter(m => m.trim() !== "")
     const tName = mode === 'solo' ? '' : (teamNames[g] || '')
     try {
       const res = await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
-      if (!res || !res.ok) failed = true
+      if (!res || !res.ok) {
+        results.failed.push(g)
+      } else {
+        const body = await res.json().catch(() => null)
+        if (body?.status === 'created') results.created.push(g)
+        else results.existing.push(g)
+      }
     } catch {
-      failed = true
+      results.failed.push(g)
     }
   }
   name.value = ""
@@ -112,8 +120,11 @@ const submitNewEntry = async () => {
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
   emit("createNewEntry")
-  if (failed) {
+  walkinResult.value = results
+  if (results.failed.length > 0) {
     showSubmitError.value = true
+  } else if (results.created.length === 0 && results.existing.length > 0) {
+    showAllExisting.value = true
   } else {
     showSuccess.value = true
   }
@@ -299,13 +310,33 @@ onMounted(async () => {
 
   <ActionDoneModal
     :show="showSuccess"
-    title="Participant Added"
+    title="Participant Processed"
     variant="info"
     acceptLabel="Done"
     @accept="() => { showSuccess = false; $emit('close') }"
     @close="() => { showSuccess = false; $emit('close') }"
   >
-    <p class="type-body text-content-secondary">The participant has been added successfully.</p>
+    <div class="space-y-2">
+      <p v-if="walkinResult.created.length > 0" class="type-body text-emerald-400">
+        ✅ Added to: {{ walkinResult.created.join(', ') }}
+      </p>
+      <p v-if="walkinResult.existing.length > 0" class="type-body text-content-muted">
+        ℹ️ Already in: {{ walkinResult.existing.join(', ') }}
+      </p>
+    </div>
+  </ActionDoneModal>
+
+  <ActionDoneModal
+    :show="showAllExisting"
+    title="Already Registered"
+    variant="info"
+    acceptLabel="Done"
+    @accept="() => { showAllExisting = false; $emit('close') }"
+    @close="() => { showAllExisting = false; $emit('close') }"
+  >
+    <p class="type-body text-content-muted">
+      ℹ️ {{ walkinResult.existing.join(', ') }} — already registered.
+    </p>
   </ActionDoneModal>
 
   <ActionDoneModal
@@ -315,6 +346,16 @@ onMounted(async () => {
     @accept="showSubmitError = false"
     @close="showSubmitError = false"
   >
-    <p class="type-body text-content-secondary">One or more divisions could not be registered. Please check the details and try again.</p>
+    <div class="space-y-2">
+      <p v-if="walkinResult.created.length > 0" class="type-body text-emerald-400">
+        ✅ Added to: {{ walkinResult.created.join(', ') }}
+      </p>
+      <p v-if="walkinResult.existing.length > 0" class="type-body text-content-muted">
+        ℹ️ Already in: {{ walkinResult.existing.join(', ') }}
+      </p>
+      <p v-if="walkinResult.failed.length > 0" class="type-body text-red-400">
+        ❌ Failed: {{ walkinResult.failed.join(', ') }}
+      </p>
+    </div>
   </ActionDoneModal>
 </template>

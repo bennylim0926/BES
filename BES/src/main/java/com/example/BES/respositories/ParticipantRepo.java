@@ -10,4 +10,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 @Repository
 public interface ParticipantRepo extends JpaRepository<Participant, Long>{
     Optional<Participant> findFirstByParticipantName(String participantName);
+    Optional<Participant> findFirstByParticipantNameIgnoreCase(String participantName);
 }

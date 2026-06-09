@@ -83,7 +83,7 @@ public class EventGenreParticpantService {
     @Autowired
     EventParticipantTeamMemberRepo eventParticipantTeamMemberRepo;
 
-    public EventGenreParticipant addWalkInToEventGenreParticipant(
+    public Map<String, String> addWalkInToEventGenreParticipant(
             Participant p, String genre, EventParticipant ep,
             String judgeName, String entryMode, String teamName, List<String> teamMembers) {
 
@@ -94,7 +94,8 @@ public class EventGenreParticpantService {
         Judge j = judgeRepo.findFirstByName(judgeName).orElse(null);
         EventGenreParticipantId id = new EventGenreParticipantId(ep.getEvent().getEventId(), eg.getId(), p.getParticipantId());
         EventGenreParticipant egp = repo.findById(id).orElse(null);
-        if (egp == null) {
+        boolean isNew = egp == null;
+        if (isNew) {
             egp = new EventGenreParticipant();
             egp.setId(id);
             egp.setJudge(j);
@@ -121,12 +122,16 @@ public class EventGenreParticpantService {
         if (!"solo".equalsIgnoreCase(entryMode) && isTeamFormat(saved.getFormat())
                 && teamMembers != null) {
             for (String memberName : teamMembers) {
-                if (memberName != null && !memberName.isBlank()) {
+                if (memberName != null && !memberName.isBlank()
+                        && !egpMemberRepo.existsByEventGenreParticipantAndMemberName(saved, memberName)) {
                     egpMemberRepo.save(new EventGenreParticipantMember(saved, memberName));
                 }
             }
         }
-        return saved;
+        Map<String, String> result = new java.util.HashMap<>();
+        result.put("status", isNew ? "created" : "existing");
+        result.put("genre", genre);
+        return result;
     }
 
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
@@ -622,9 +627,11 @@ public class EventGenreParticpantService {
 
         String trimmedName = dto.name.trim();
         if (isTeam) {
+            // Check both teamName (walk-in) and displayName (sheet-imported teams have null teamName)
             boolean duplicate = eventParticipantRepo.findByEvent(event).stream()
                 .filter(e -> !e.getParticipant().getParticipantId().equals(participantId))
-                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getTeamName()));
+                .anyMatch(e -> trimmedName.equalsIgnoreCase(e.getTeamName())
+                    || trimmedName.equalsIgnoreCase(e.getDisplayName()));
             if (duplicate)
                 throw new IllegalStateException("A team with this name already exists in this event");
         } else {
@@ -644,13 +651,10 @@ public class EventGenreParticpantService {
                     .map(String::trim)
                     .collect(java.util.stream.Collectors.toList());
 
-            // Update leader name (index 0) — keeps participant.participantName and ep.stageName in sync
-            // so both the edit modal and check-in card show the same value
+            // Update leader name (index 0) — ep.stageName tracks the display name
             if (dto.memberNames != null && !dto.memberNames.isEmpty()) {
                 String leaderName = dto.memberNames.get(0).trim();
                 if (!leaderName.isEmpty()) {
-                    participant.setParticipantName(leaderName);
-                    participantRepo.save(participant);
                     ep.setStageName(leaderName);
                 }
             }
@@ -670,10 +674,9 @@ public class EventGenreParticpantService {
             }
             repo.saveAll(egps);
         } else {
-            participant.setParticipantName(trimmedName);
-            participantRepo.save(participant);
             if (ep != null) {
                 ep.setDisplayName(trimmedName);
+                ep.setStageName(trimmedName);
                 eventParticipantRepo.save(ep);
             }
             for (EventGenreParticipant egp : egps) {

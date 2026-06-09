@@ -52,8 +52,13 @@ public class ScoreService {
     @Transactional
     public void updateParticipantScoreService(UpdateParticipantsScoreDto dto) {
         for (ParticipantScoreDto d : dto.participantScore) {
-            EventGenreParticipant record = eventGenreParticpantRepo
-                    .findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName).orElse(null);
+            EventGenreParticipant record = (d.auditionNumber != null)
+                    ? eventGenreParticpantRepo
+                            .findByEventNameAndGenreNameAndAuditionNumber(dto.eventName, dto.genreName, d.auditionNumber)
+                            .orElse(null)
+                    : eventGenreParticpantRepo
+                            .findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName)
+                            .orElse(null);
             Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
 

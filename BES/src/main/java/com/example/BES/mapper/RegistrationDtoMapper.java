@@ -24,18 +24,24 @@ public class RegistrationDtoMapper {
         Integer stageNameIdx = colIndexMap.get(SheetHeader.STAGE_NAME);
         Integer teamNameIdx = colIndexMap.get(SheetHeader.TEAM_NAME);
 
-        // Fallback: if no primary name column, use team name as participant identity
-        if (nameIdx == null && teamNameIdx != null) {
-            nameIdx = teamNameIdx;
+        // Fallback chain: Name → Stage Name → Team Name → skip row
+        if (nameIdx == null) {
+            if (stageNameIdx != null) {
+                nameIdx = stageNameIdx;
+            } else if (teamNameIdx != null) {
+                nameIdx = teamNameIdx;
+            } else {
+                return dto; // no identity column — skip row
+            }
         }
 
-        if (nameIdx == null) return dto;
         if (row.size() <= nameIdx) return dto;
 
         dto.setParticipantName(row.get(nameIdx));
 
-        // Stage name: dedicated column if present, otherwise single name doubles as stage name
-        if (stageNameIdx != null && row.size() > stageNameIdx && !row.get(stageNameIdx).isBlank()) {
+        // Stage name: dedicated column if present and different from identity, otherwise identity doubles as stage name
+        if (stageNameIdx != null && !stageNameIdx.equals(nameIdx)
+                && row.size() > stageNameIdx && !row.get(stageNameIdx).isBlank()) {
             dto.setStageName(row.get(stageNameIdx));
         } else {
             dto.setStageName(row.get(nameIdx));

@@ -160,13 +160,18 @@ public class EventControllerIntegrationTest {
 
         when(participantService.addWalkInService(any())).thenReturn(p);
         when(eventParticipantService.addNewWalkInInEventService(any(), any())).thenReturn(ep);
-        when(eventGenreParticipantService.addWalkInToEventGenreParticipant(any(), any(), any(), any(), any(), any(), any())).thenReturn(egp);
+        Map<String, String> walkinResult = new java.util.HashMap<>();
+        walkinResult.put("status", "created");
+        walkinResult.put("genre", "Test Genre");
+        when(eventGenreParticipantService.addWalkInToEventGenreParticipant(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(walkinResult);
 
         mockMvc.perform(post("/api/v1/event/walkins/")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value("Added walkin"));
+                .andExpect(jsonPath("$.status").value("created"))
+                .andExpect(jsonPath("$.genre").value("Test Genre"));
     }
 
     @Test
