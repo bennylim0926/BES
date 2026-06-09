@@ -1292,7 +1292,7 @@ onUnmounted(() => {
         <template v-else>
           <div class="flex items-center gap-2 mb-1">
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
-            <div class="type-stat" style="font-size:28px;">All Verified</div>
+            <div class="type-stat" style="font-size:36px;">All Verified</div>
           </div>
           <div class="type-label text-content-muted">{{ totalVerified }} form sign-ups</div>
         </template>
@@ -1527,7 +1527,7 @@ onUnmounted(() => {
         <!-- Genre group header -->
         <div class="flex items-center gap-2">
           <span class="type-section-header text-content-secondary">{{ group.label }}</span>
-          <span class="badge-neutral type-label px-2 py-0.5 text-xs">{{ group.divisions.length }}</span>
+          <span class="badge-neutral type-label px-2 py-0.5 text-sm">{{ group.divisions.length }}</span>
         </div>
 
         <!-- Division rows -->
@@ -1550,7 +1550,7 @@ onUnmounted(() => {
                   <button
                     @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
                     class="type-body text-content-secondary hover:text-accent text-left min-w-0 transition-colors"
-                    style="overflow-wrap:break-word;word-break:break-word;font-size:13px;"
+                    style="overflow-wrap:break-word;word-break:break-word;font-size:16px;"
                     title="Click to rename"
                   >{{ div.name }}</button>
                   <!-- Match count dots -->
@@ -1627,13 +1627,13 @@ onUnmounted(() => {
     >
       <div class="flex items-center gap-2 mb-2">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow: 0 0 6px rgba(251,191,36,0.6)"></span>
-        <span class="type-label text-amber-400 text-xs">Unmatched sheet values</span>
+        <span class="type-label text-amber-400 text-sm">Unmatched sheet values</span>
       </div>
       <div class="flex flex-wrap gap-1">
         <span
           v-for="val in unmatchedSheetValues"
           :key="val"
-          class="type-label text-content-muted bg-amber-950/30 px-1.5 py-0.5 para-chip text-xs normal-case"
+          class="type-label text-content-muted bg-amber-950/30 px-2 py-1 para-chip text-sm normal-case"
         >{{ val }}</span>
       </div>
     </div>
@@ -1654,7 +1654,7 @@ onUnmounted(() => {
         <span class="section-rule-label">Judge Pool</span>
         <div class="section-rule-line"></div>
       </div>
-      <p class="type-label text-content-muted mb-4" style="font-size:10px;text-transform:none;letter-spacing:0.03em;">
+      <p class="type-label text-content-muted mb-4" style="text-transform:none;letter-spacing:0.03em;">
         Add your judges here first — then assign them to categories below.
       </p>
 
@@ -1730,7 +1730,7 @@ onUnmounted(() => {
               type="text"
               placeholder="Judge name…"
               autocomplete="off"
-              class="bg-transparent type-body placeholder:text-content-muted focus:outline-none flex-1 min-w-0 text-xs"
+              class="bg-transparent type-body placeholder:text-content-muted focus:outline-none flex-1 min-w-0 text-sm"
               @keyup.enter="submitAddJudgeGlobal()"
             />
             <button
@@ -1739,7 +1739,7 @@ onUnmounted(() => {
               title="Add judge"
             ><i class="pi pi-plus text-xs"></i></button>
           </div>
-          <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" style="font-size:9px;">No judges yet</span>
+          <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" >No judges yet</span>
         </div>
       </div>
     </div>
@@ -1758,7 +1758,7 @@ onUnmounted(() => {
         {{ g.name }}
         <span
           v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))"
-          class="ml-1.5 text-xs font-normal opacity-60"
+          class="ml-1.5 text-sm font-normal opacity-60"
         >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
       </button>
     </div>
@@ -1797,7 +1797,7 @@ onUnmounted(() => {
                   v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
                   :key="p.participantName"
                   class="para-chip-sm px-2 py-0.5 type-label text-amber-400"
-                  style="border-color:rgba(245,158,11,0.25);font-size:10px;"
+                  style="border-color:rgba(245,158,11,0.25);"
                 >{{ p.participantName }}</span>
               </div>
             </div>
@@ -1852,7 +1852,7 @@ onUnmounted(() => {
               class="flex items-center gap-1.5 para-chip px-2.5 py-1"
             >
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-              <span class="type-body text-content-secondary text-xs">{{ j.judgeName }}</span>
+              <span class="type-body text-content-secondary text-sm">{{ j.judgeName }}</span>
             </span>
           </div>
           <span v-else class="text-xs text-content-muted">None assigned — add in Judge Pool above</span>
@@ -1869,7 +1869,7 @@ onUnmounted(() => {
     <div class="section-rule mb-4">
       <span class="section-rule-label">Session Links</span>
       <div class="section-rule-line"></div>
-      <span class="type-label text-content-muted" style="font-size:9px;white-space:nowrap;">auto-generated · refresh to extend</span>
+      <span class="type-label text-content-muted" style="white-space:nowrap;">auto-generated · refresh to extend</span>
     </div>
 
     <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
@@ -1882,13 +1882,13 @@ onUnmounted(() => {
         class="para-chip px-3 py-2 flex items-center gap-3"
       >
         <span
-          class="badge-neutral text-xs shrink-0"
+          class="badge-neutral text-sm shrink-0"
           :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
         >{{ t.role }}</span>
-        <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
+        <span v-if="t.judgeName" class="type-body text-content-secondary text-sm truncate">{{ t.judgeName }}</span>
         <span class="flex-1"></span>
         <span
-          class="type-label text-xs shrink-0"
+          class="type-label text-sm shrink-0"
           :class="isExpiryWarning(t.expiresAt) ? 'text-amber-400' : 'text-content-muted'"
         >
           {{ formatExpiry(t.expiresAt) }}
@@ -1906,7 +1906,7 @@ onUnmounted(() => {
           title="Copy link"
         ><i class="pi text-xs" :class="copiedTokenId === t.tokenId ? 'pi-check' : 'pi-copy'"></i></button>
       </div>
-      <p class="type-label text-content-muted mt-3" style="font-size:9px;">Judge links are removed automatically when a judge is deleted.</p>
+      <p class="type-label text-content-muted mt-3" >Judge links are removed automatically when a judge is deleted.</p>
     </div>
   </div>
 
