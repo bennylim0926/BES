@@ -111,6 +111,7 @@ const remove = async (id) => {
 
 // ── Apply to all genres ───────────────────────────────────────────────────────
 const applyingAll = ref(false)
+const appliedAll = ref(false)
 
 const applyToAllGenres = async () => {
   if (!activeCriteria.value.length) return
@@ -135,6 +136,8 @@ const applyToAllGenres = async () => {
   }))
 
   applyingAll.value = false
+  appliedAll.value = true
+  setTimeout(() => { appliedAll.value = false }, 1500)
 }
 </script>
 
@@ -331,18 +334,20 @@ const applyToAllGenres = async () => {
 
             <div class="flex-1" />
 
-            <!-- Apply to all genres (not shown on Event Default tab) -->
+            <!-- Copy to all genres (not shown on Event Default tab) -->
             <button
               v-if="activeTab !== 'event-level' && genres.length > 1"
               @click="applyToAllGenres"
               :disabled="applyingAll || activeCriteria.length === 0"
-              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent text-content-muted hover:text-accent
+              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent
                      disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-              title="Copy these criteria to all other genres and Event Default"
+              :class="appliedAll ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
+              title="Replaces criteria in all other genres with these"
             >
               <i v-if="applyingAll" class="pi pi-spin pi-spinner text-xs" />
+              <i v-else-if="appliedAll" class="pi pi-check text-xs" />
               <i v-else class="pi pi-copy text-xs" />
-              Apply to all genres
+              {{ appliedAll ? 'Copied!' : 'Copy to all genres' }}
             </button>
           </div>
         </div>
