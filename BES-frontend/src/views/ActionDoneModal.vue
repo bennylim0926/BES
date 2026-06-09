@@ -5,7 +5,8 @@ defineProps({
   variant:       { type: String,  default: 'info' },
   acceptLabel:   { type: String,  default: 'OK' },
   scrollable:    { type: Boolean, default: false },
-  disableAccept: { type: Boolean, default: false }
+  disableAccept: { type: Boolean, default: false },
+  wide:          { type: Boolean, default: false }
 })
 
 defineEmits(['close', 'accept'])
@@ -30,8 +31,8 @@ defineEmits(['close', 'accept'])
       ></div>
 
       <div
-        class="card-hover relative max-w-sm w-full mx-4"
-        :class="scrollable ? 'flex flex-col p-0' : 'p-8'"
+        class="card-hover relative w-full mx-4"
+        :class="[wide ? 'max-w-lg' : 'max-w-sm', scrollable ? 'flex flex-col p-0' : 'p-8']"
         :style="scrollable ? 'max-height:90dvh' : ''"
       >
         <div class="corner-bar-tl"></div>

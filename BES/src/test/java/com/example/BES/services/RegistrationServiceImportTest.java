@@ -68,7 +68,7 @@ class RegistrationServiceImportTest {
         assertThat(result.imported).isEqualTo(0);
         assertThat(result.skipped).isEqualTo(1);
         assertThat(result.errors).hasSize(1);
-        assertThat(result.errors.get(0).reason).contains("ENTRY_TYPE");
+        assertThat(result.errors.get(0).reason).contains("entry type");
         assertThat(result.errors.get(0).name).isEqualTo("Alice");
         assertThat(result.errors.get(0).row).isEqualTo(2);
     }

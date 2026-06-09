@@ -20,6 +20,7 @@ const modalVariant = ref("success")
 const modalErrors = ref([])
 const modalWarnings = ref([])
 const modalInfo = ref([])
+const importCounts = ref(null) // { imported, existing, skipped } — set only during sheet import
 const genreOptions = ref(null)
 const eventGenres = ref([])
 const tableExist = ref(true)
@@ -62,11 +63,18 @@ const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', '
 const showModal = ref(false)
 const importError = ref('')
 const reloadOnClose = ref(false)
+const skippedExpanded = ref(false)
+const modalScrollable = computed(() =>
+  modalErrors.value.length > 0 || modalWarnings.value.length > 0 || modalInfo.value.length > 0
+)
+
 const handleAccept = () => {
   showModal.value = false
   modalErrors.value = []
   modalWarnings.value = []
   modalInfo.value = []
+  importCounts.value = null
+  skippedExpanded.value = false
   if (reloadOnClose.value) window.location.reload()
 }
 
@@ -402,11 +410,8 @@ const refreshParticipant = async () => {
         const errors = r?.errors ?? r?.ERRORS ?? []
         const warnings = r?.warnings ?? []
         const info = r?.info ?? []
-        let msg = `${imported} new participant${imported !== 1 ? 's' : ''} added`
-        if (existing > 0) msg += `, ${existing} already existed`
-        if (skipped > 0) msg += `, ${skipped} skipped`
-        const hasDetails = errors.length > 0 || warnings.length > 0 || info.length > 0
-        openModal('Import Complete', msg, hasDetails ? 'warning' : 'success', errors, warnings, info)
+        importCounts.value = { imported, existing, skipped }
+        openModal('Import Complete', '', 'success', errors, warnings, info)
       })
     } else if (createEventResponse.status == 404) {
       createEventResponse.json().then(result => {
@@ -2080,42 +2085,78 @@ onUnmounted(() => {
     :show="showModal"
     :title="modalTitle"
     :variant="modalVariant"
+    :scrollable="modalScrollable"
+    :wide="modalScrollable"
     @accept="handleAccept"
     @close="handleAccept"
   >
-    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
-    <div v-if="modalErrors.length > 0" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
-      <div class="type-label text-xs text-red-400/80 mb-1">Errors</div>
-      <div
-        v-for="(e, i) in modalErrors.slice(0, 8)"
-        :key="'err-' + i"
-        class="type-label text-xs text-red-400/80 bg-red-400/5 border-l-2 border-red-400/40 px-2 py-1 normal-case"
-      >Row {{ e.row }}: <span class="text-content-secondary">{{ e.name }}</span> — {{ e.reason }}</div>
-      <div v-if="modalErrors.length > 8" class="type-label text-xs text-content-muted normal-case px-2">
-        ... and {{ modalErrors.length - 8 }} more errors
+    <!-- Import summary badges -->
+    <template v-if="importCounts">
+      <div class="flex flex-wrap gap-2 mb-5">
+        <span v-if="importCounts.imported > 0" class="badge badge-success px-4 py-1.5 text-sm uppercase tracking-wide">{{ importCounts.imported }} added</span>
+        <span v-if="importCounts.existing > 0" class="badge badge-neutral px-4 py-1.5 text-sm uppercase tracking-wide">{{ importCounts.existing }} existing</span>
+        <span v-if="importCounts.skipped > 0" class="badge badge-warning px-4 py-1.5 text-sm uppercase tracking-wide">{{ importCounts.skipped }} error</span>
+        <span v-if="importCounts.imported === 0 && importCounts.existing === 0 && importCounts.skipped === 0" class="text-sm text-content-muted uppercase tracking-wide">No participants found in sheet.</span>
+      </div>
+    </template>
+    <template v-else>
+      <p class="type-body text-content-secondary" :class="modalScrollable ? '' : 'mb-0'">{{ modalMessage }}</p>
+    </template>
+
+    <!-- Errors -->
+    <div v-if="modalErrors.length > 0" class="mb-4">
+      <div class="section-rule mb-2">
+        <span class="section-rule-label" style="color:#ef4444">errors</span>
+        <span class="badge badge-danger type-label px-2 py-0.5 ml-1">{{ modalErrors.length }}</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <div class="space-y-1.5">
+        <div
+          v-for="(e, i) in modalErrors.slice(0, 20)"
+          :key="'err-'+i"
+          class="px-3 py-3 border-l-2 border-red-400/40 bg-red-400/5"
+        >
+          <div class="flex gap-2 items-center">
+            <span class="text-xs flex-shrink-0 uppercase tracking-wider" style="color:#ef4444;opacity:0.7">R{{ e.row }}</span>
+            <span class="text-sm text-content-secondary uppercase tracking-wide flex-1">{{ e.name }}</span>
+          </div>
+          <div class="text-xs uppercase tracking-wide mt-1 pl-7" style="color:#ef4444;opacity:0.8">{{ e.reason }}</div>
+        </div>
+        <div v-if="modalErrors.length > 20" class="text-xs text-content-muted uppercase tracking-wide px-3 py-1">
+          + {{ modalErrors.length - 20 }} more errors
+        </div>
       </div>
     </div>
-    <div v-if="modalWarnings.length > 0" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
-      <div class="type-label text-xs text-amber-400/80 mb-1">Warnings</div>
-      <div
-        v-for="(w, i) in modalWarnings.slice(0, 5)"
-        :key="'warn-' + i"
-        class="type-label text-xs text-amber-400/80 bg-amber-400/5 border-l-2 border-amber-400/40 px-2 py-1 normal-case"
-      >Row {{ w.row }}: <span class="text-content-secondary">{{ w.name }}</span> — {{ w.reason }}</div>
-      <div v-if="modalWarnings.length > 5" class="type-label text-xs text-content-muted normal-case px-2">
-        ... and {{ modalWarnings.length - 5 }} more warnings
+
+    <!-- Skipped (collapsible) -->
+    <div v-if="modalWarnings.length > 0" class="mb-2">
+      <button
+        class="section-rule mb-2 w-full text-left cursor-pointer"
+        @click="skippedExpanded = !skippedExpanded"
+      >
+        <span class="section-rule-label" style="color:#f59e0b">skipped</span>
+        <span class="badge badge-warning type-label px-2 py-0.5 ml-1">{{ modalWarnings.length }}</span>
+        <div class="section-rule-line"></div>
+        <span class="text-xs uppercase tracking-wider flex-shrink-0" style="color:#f59e0b;opacity:0.6">
+          {{ skippedExpanded ? '▲' : '▼' }}
+        </span>
+      </button>
+      <div v-if="skippedExpanded" class="space-y-1.5">
+        <div
+          v-for="(w, i) in modalWarnings.slice(0, 20)"
+          :key="'warn-'+i"
+          class="px-3 py-3 border-l-2 border-amber-400/40 bg-amber-400/5"
+        >
+          <div class="flex gap-2 items-center">
+            <span class="text-xs flex-shrink-0 uppercase tracking-wider" style="color:#f59e0b;opacity:0.7">R{{ w.row }}</span>
+            <span class="text-sm text-content-secondary uppercase tracking-wide flex-1">{{ w.name }}</span>
+          </div>
+          <div class="text-xs uppercase tracking-wide mt-1 pl-7" style="color:#f59e0b;opacity:0.8">{{ w.reason }}</div>
+        </div>
+        <div v-if="modalWarnings.length > 20" class="text-xs text-content-muted uppercase tracking-wide px-3 py-1">
+          + {{ modalWarnings.length - 20 }} more
+        </div>
       </div>
-    </div>
-    <div v-if="modalInfo.length > 0 && modalInfo.length <= 10" class="mt-3 space-y-1 max-h-48 overflow-y-auto">
-      <div class="type-label text-xs text-content-muted mb-1">Info</div>
-      <div
-        v-for="(inf, i) in modalInfo"
-        :key="'info-' + i"
-        class="type-label text-xs text-content-muted bg-white/2 border-l-2 border-white/10 px-2 py-1 normal-case"
-      >Row {{ inf.row }}: <span class="text-content-secondary">{{ inf.name }}</span> — {{ inf.reason }}</div>
-    </div>
-    <div v-if="modalInfo.length > 10" class="mt-2 type-label text-xs text-content-muted normal-case px-2">
-      ... and {{ modalInfo.length - 10 }} more info items
     </div>
   </ActionDoneModal>
 
