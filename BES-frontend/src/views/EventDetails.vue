@@ -746,12 +746,23 @@ const submitAddJudgeGlobal = async () => {
   if (!globalJudgeInput.value.trim()) return
   const res = await addJudgeToEvent(props.eventName, globalJudgeInput.value.trim())
   if (res?.ok) {
-    allEventJudges.value = await res.json()
+    const judges = await res.json()
+    allEventJudges.value = judges
+    // Auto-generate session token for the new judge
+    const newJudge = judges[judges.length - 1]
+    if (newJudge && dbEventId.value) {
+      await generateToken('JUDGE', dbEventId.value, newJudge.judgeId)
+      await loadSessionTokens()
+    }
   }
   globalJudgeInput.value = ''
 }
 
 const submitRemoveJudgeGlobal = async (judgeId) => {
+  // Revoke session token for this judge before removing them
+  const judgeToken = sessionTokens.value.find(t => t.role === 'JUDGE' && t.judgeId === judgeId)
+  if (judgeToken) await revokeSessionToken(judgeToken.tokenId)
+
   const res = await removeEventJudge(props.eventName, judgeId)
   if (res?.ok) {
     allEventJudges.value = await res.json()
@@ -760,6 +771,7 @@ const submitRemoveJudgeGlobal = async (judgeId) => {
         divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
       }
     }
+    await loadSessionTokens()
   }
 }
 
@@ -791,11 +803,9 @@ watch(activeGenreTab, async (tabName) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Session Links ──────────────────────────────────────────────────────────
-const sessionLinksExpanded = ref(false)
 const sessionTokens = ref([])
 const sessionTokensLoading = ref(false)
-const selectedJudgeId = ref('')
-const generatingRole = ref(null)
+const copiedTokenId = ref(null)
 
 const isAdminOrOrganiser = computed(() => {
   const auth = authStore.user?.role?.[0]?.authority
@@ -828,20 +838,20 @@ const loadSessionTokens = async () => {
   if (!dbEventId.value) return
   sessionTokensLoading.value = true
   sessionTokens.value = await getSessionTokens(dbEventId.value)
+  // Auto-generate permanent roles if missing
+  const hasEmcee = sessionTokens.value.some(t => t.role === 'EMCEE')
+  const hasHelper = sessionTokens.value.some(t => t.role === 'HELPER')
+  if (!hasEmcee) await generateToken('EMCEE', dbEventId.value, null)
+  if (!hasHelper) await generateToken('HELPER', dbEventId.value, null)
+  if (!hasEmcee || !hasHelper) {
+    sessionTokens.value = await getSessionTokens(dbEventId.value)
+  }
   sessionTokensLoading.value = false
 }
 
-const handleGenerateToken = async (role) => {
-  if (!dbEventId.value) return
-  let judgeId = null
-  if (role === 'JUDGE') {
-    judgeId = Number(selectedJudgeId.value)
-    if (!judgeId) return
-  }
-  generatingRole.value = role
-  await generateToken(role, dbEventId.value, judgeId)
-  generatingRole.value = null
-  selectedJudgeId.value = ''
+const handleRefreshToken = async (token) => {
+  await revokeSessionToken(token.tokenId)
+  await generateToken(token.role, dbEventId.value, token.judgeId ?? null)
   await loadSessionTokens()
 }
 
@@ -865,8 +875,10 @@ function copyToClipboard(text) {
   document.body.removeChild(ta)
 }
 
-const copyTokenLink = (url) => {
+const copyTokenLink = (url, tokenId) => {
   copyToClipboard(window.location.origin + url)
+  copiedTokenId.value = tokenId
+  setTimeout(() => { copiedTokenId.value = null }, 2000)
 }
 
 const auditionLinkCopied = ref(false)
@@ -881,9 +893,9 @@ const formatExpiry = (expiresAt) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-watch(sessionLinksExpanded, async (val) => {
-  if (val) await loadSessionTokens()
-})
+const isExpiryWarning = (expiresAt) => {
+  return (new Date(expiresAt) - Date.now()) < 3 * 24 * 60 * 60 * 1000
+}
 // ───────────────────────────────────────────────────────────────────────────
 
 const toggleUnverifiedSelect = (participantId) => {
@@ -1889,92 +1901,51 @@ onUnmounted(() => {
     </template>
   </div>
 
-  <!-- Session Links -->
+  <!-- Session Links — always visible, auto-generated -->
   <div v-if="isAdminOrOrganiser && tableExist" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
-    <button
-      @click="sessionLinksExpanded = !sessionLinksExpanded"
-      :aria-expanded="sessionLinksExpanded"
-      class="w-full flex items-center justify-between text-left"
-    >
-      <div class="flex items-center gap-3">
-        <i class="pi pi-link text-xs" style="color:var(--accent-color)"></i>
-        <span class="type-body text-content-secondary">Session Links</span>
-        <span class="badge-accent">{{ sessionTokens.length }}</span>
-      </div>
-      <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-         :class="{ 'rotate-180': sessionLinksExpanded }"></i>
-    </button>
-    <div v-if="sessionLinksExpanded" class="mt-4 pt-4 border-t border-surface-600/30">
-      <!-- Generate row -->
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          @click="handleGenerateToken('EMCEE')"
-          :disabled="generatingRole === 'EMCEE'"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          EMCEE
-        </button>
-        <button
-          @click="handleGenerateToken('HELPER')"
-          :disabled="generatingRole === 'HELPER'"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          HELPER
-        </button>
-        <select
-          v-model="selectedJudgeId"
-          class="input-base type-label"
-          style="width:auto;min-width:7rem"
-        >
-          <option value="">Select judge…</option>
-          <option v-for="j in allUniqueJudges" :key="j.judgeId" :value="j.judgeId">
-            {{ j.judgeName }}
-          </option>
-        </select>
-        <button
-          @click="handleGenerateToken('JUDGE')"
-          :disabled="generatingRole === 'JUDGE' || !selectedJudgeId"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          JUDGE
-        </button>
-      </div>
 
-      <!-- Token list -->
-      <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
-        <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
-      </div>
-      <div v-else-if="sessionTokens.length === 0" class="type-label text-content-muted py-4">
-        No active session links
-      </div>
-      <div v-else class="space-y-2">
-        <div
-          v-for="t in sessionTokens"
-          :key="t.tokenId"
-          class="para-chip px-3 py-2 flex items-center gap-3"
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Session Links</span>
+      <div class="section-rule-line"></div>
+      <span class="type-label text-content-muted" style="font-size:9px;white-space:nowrap;">auto-generated · refresh to extend</span>
+    </div>
+
+    <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
+      <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
+    </div>
+    <div v-else class="space-y-2">
+      <div
+        v-for="t in sessionTokens"
+        :key="t.tokenId"
+        class="para-chip px-3 py-2 flex items-center gap-3"
+      >
+        <span
+          class="badge-neutral text-xs shrink-0"
+          :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
+        >{{ t.role }}</span>
+        <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
+        <span class="flex-1"></span>
+        <span
+          class="type-label text-xs shrink-0"
+          :class="isExpiryWarning(t.expiresAt) ? 'text-amber-400' : 'text-content-muted'"
         >
-          <span
-            class="badge-neutral text-xs shrink-0"
-            :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
-          >{{ t.role }}</span>
-          <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
-          <span class="type-label text-content-muted text-xs shrink-0 ml-auto">{{ formatExpiry(t.expiresAt) }}</span>
-          <button
-            @click="copyTokenLink(t.url)"
-            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
-            title="Copy link"
-          ><i class="pi pi-copy text-xs"></i></button>
-          <button
-            @click="handleRevokeToken(t.tokenId)"
-            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors shrink-0"
-            title="Revoke"
-          ><i class="pi pi-trash text-xs"></i></button>
-        </div>
+          {{ formatExpiry(t.expiresAt) }}
+          <span v-if="isExpiryWarning(t.expiresAt)"> ⚠</span>
+        </span>
+        <button
+          @click="handleRefreshToken(t)"
+          class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
+          title="Refresh link (extends expiry)"
+        ><i class="pi pi-refresh text-xs"></i></button>
+        <button
+          @click="copyTokenLink(t.url, t.tokenId)"
+          class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
+          :class="copiedTokenId === t.tokenId ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
+          title="Copy link"
+        ><i class="pi text-xs" :class="copiedTokenId === t.tokenId ? 'pi-check' : 'pi-copy'"></i></button>
       </div>
+      <p class="type-label text-content-muted mt-3" style="font-size:9px;">Judge links are removed automatically when a judge is deleted.</p>
     </div>
   </div>
 
