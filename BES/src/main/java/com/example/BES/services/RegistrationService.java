@@ -112,7 +112,7 @@ public class RegistrationService {
                     boolean soloBlocked = isSoloBlockedForAnyGenre(participant.getGenres(), allDivisions);
                     if ((entryType == null || entryType.isBlank()) && soloBlocked) {
                         result.addError(rowNumber, participantName,
-                            "Solo entry not allowed for this division — ENTRY_TYPE required");
+                            "Solo not allowed — entry type required");
                         result.skipped++;
                         rowNumber++;
                         continue;
@@ -124,15 +124,6 @@ public class RegistrationService {
                 }
 
                 Participant toAddParticipant = participantService.addParticpantService(participant);
-
-                // Detect case-insensitive match
-                String sheetName = participant.getParticipantName();
-                String savedName = toAddParticipant.getParticipantName();
-                if (savedName != null && !savedName.equals(sheetName)) {
-                    result.addInfo(rowNumber, sheetName,
-                        "Sheet name '" + sheetName + "' matched existing participant '"
-                        + savedName + "'");
-                }
 
                 EventParticipant ep = eventParticipantRepo
                     .findByEventAndParticipant(event, toAddParticipant).orElse(null);
@@ -150,9 +141,6 @@ public class RegistrationService {
                     ep.setScreenshotUrl(participant.getScreenshotUrl());
                     ep.setReferenceCode(ReferenceCodeUtil.generate());
                     eventParticipantRepo.save(ep);
-                } else {
-                    result.addInfo(rowNumber, participantName,
-                        "Already exists — stage name, team members, and removed genres were NOT updated. Use Update Details to edit.");
                 }
 
                 if (participant.getGenres() != null && !participant.getGenres().isEmpty()) {
@@ -161,14 +149,14 @@ public class RegistrationService {
                         EventGenre eg = findMatchingDivision(allDivisions, genreName);
                         if (eg == null) {
                             result.addWarning(rowNumber, participantName,
-                                "Genre '" + genreName + "' didn't match any division — skipped");
+                                "'" + genreName + "' not found — skipped");
                             continue;
                         }
                         anyGenreMatched = true;
                         EventGenreParticipantId id = new EventGenreParticipantId(
                             event.getEventId(), eg.getId(), toAddParticipant.getParticipantId());
                         if (eventGenreParticipantRepo.existsById(id)) {
-                            result.addInfo(rowNumber, participantName,
+                            result.addWarning(rowNumber, participantName,
                                 "Already in " + eg.getName() + " — skipped");
                             continue;
                         }
@@ -189,8 +177,7 @@ public class RegistrationService {
                                 toAddParticipant.getParticipantId());
                             if (clash > 0) {
                                 result.addError(rowNumber, participantName,
-                                    "Team name '" + teamDisplayName + "' already exists in " + eg.getName()
-                                    + " under a different participant");
+                                    "Team name '" + teamDisplayName + "' already taken in " + eg.getName());
                                 continue;
                             }
                             egp.setFormat(effectiveFormat);
@@ -203,11 +190,6 @@ public class RegistrationService {
 
                         EventGenreParticipant savedEgp = eventGenreParticipantRepo.save(egp);
 
-                        if (!isNew) {
-                            result.addInfo(rowNumber, participantName,
-                                "Added to " + eg.getName());
-                        }
-
                         if (isTeamEntry && participant.getMemberNames() != null) {
                             for (String memberName : participant.getMemberNames()) {
                                 if (memberName != null && !memberName.isBlank()
@@ -219,7 +201,7 @@ public class RegistrationService {
                     }
                     if (!anyGenreMatched) {
                         result.addError(rowNumber, participantName,
-                            "No valid genre found — participant not assigned to any division");
+                            "No matching division found");
                         result.skipped++;
                     }
                 }
