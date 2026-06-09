@@ -294,7 +294,13 @@ public class EventGenreParticpantService {
                 List<EventGenreParticipantMember> egpMembers = res.getMembers();
                 if (egpMembers != null && !egpMembers.isEmpty()) {
                     List<String> memberList = new ArrayList<>();
-                    memberList.add(res.getParticipant().getParticipantName());
+                    // Use EP stageName for leader, same as memberNamesMap fallback
+                    List<String> epMembers = memberNamesMap.get(pid);
+                    if (epMembers != null && !epMembers.isEmpty()) {
+                        memberList.add(epMembers.get(0));
+                    } else {
+                        memberList.add(res.getParticipant().getParticipantName());
+                    }
                     egpMembers.stream().map(EventGenreParticipantMember::getMemberName).forEach(memberList::add);
                     dto.memberNames = memberList;
                 } else {
