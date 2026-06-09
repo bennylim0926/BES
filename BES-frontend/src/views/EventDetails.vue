@@ -609,6 +609,13 @@ const saveDivisionName = async (div) => {
 const saveDivisionFormat = async (div, format) => {
   await updateEventGenreFormat(props.eventName, div.eventGenreId, format || null)
   div.format = format || null
+  // Team formats default to no solo
+  if (format && /^\d+v\d+$/i.test(format) && format.toLowerCase() !== '1v1') {
+    if (div.soloAllowed !== false) {
+      await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, false)
+      div.soloAllowed = false
+    }
+  }
 }
 
 const addAlias = async (div) => {
