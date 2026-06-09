@@ -3,6 +3,7 @@ package com.example.BES.services;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
+import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.dtos.ImportResultDto;
@@ -63,6 +65,21 @@ public class RegistrationService {
 
     @Autowired
     EventGenreRepo eventGenreRepo;
+
+    @Autowired
+    EventParticpantService eventParticipantService;
+
+    @Autowired
+    EventGenreParticpantService eventGenreParticipantService;
+
+    @Transactional
+    public Map<String, String> addWalkIn(AddWalkInDto dto) {
+        Participant p = participantService.addWalkInService(dto);
+        EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
+        if (ep == null) throw new RuntimeException("Event not found: " + dto.eventName);
+        return eventGenreParticipantService.addWalkInToEventGenreParticipant(
+            p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
+    }
 
     public ImportResultDto addParticipantToEvent(AddParticipantToEventDto dto) throws IOException {
         Event event = eventRepo.findByEventName(dto.eventName).orElse(null);

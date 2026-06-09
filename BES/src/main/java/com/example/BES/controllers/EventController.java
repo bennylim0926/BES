@@ -342,10 +342,7 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<?> addWalkInToSystem(@Valid @RequestBody AddWalkInDto dto) {
         try {
-            Participant p = participantService.addWalkInService(dto);
-            EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
-            Map<String, String> result = eventGenreParticipantService.addWalkInToEventGenreParticipant(
-                p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
+            Map<String, String> result = registerService.addWalkIn(dto);
             Map<String, Object> walkinMsg = new java.util.HashMap<>();
             walkinMsg.put("eventName", dto.eventName);
             messagingTemplate.convertAndSend("/topic/walkin/", walkinMsg);
