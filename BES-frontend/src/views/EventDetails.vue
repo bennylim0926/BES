@@ -1717,106 +1717,87 @@ onUnmounted(() => {
     <template v-for="g in eventGenres" :key="g.name + '-content'">
       <div v-if="activeGenreTab === g.name" class="p-5 space-y-4">
 
-        <!-- Participant counts (only when data available) -->
+        <!-- ROSTER STATUS -->
         <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
-            <span class="badge-success">
-              Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }}
-            </span>
-            <span
-              v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
-              class="badge-danger"
-            >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }}</span>
-          </div>
-
-          <!-- Unregistered list -->
-          <div v-if="getUnregistered(normalizeGenreName(g.name)).unregistered.length > 0">
-            <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1.5">Unregistered Participants</p>
-            <div class="flex flex-wrap gap-2">
+          <div>
+            <div class="section-rule mb-3">
+              <span class="section-rule-label" style="font-size:9px;">Roster Status</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="badge-neutral text-xs">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }} total</span>
+              <span class="badge-success">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }} registered</span>
               <span
-                v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
-                :key="p.participantName"
-                class="badge-danger font-source"
-              >{{ p.participantName }}</span>
+                v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
+                class="badge-danger"
+              >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }} unregistered</span>
+            </div>
+
+            <!-- Unregistered list -->
+            <div v-if="getUnregistered(normalizeGenreName(g.name)).unregistered.length > 0" class="mt-2">
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
+                  :key="p.participantName"
+                  class="badge-danger font-source"
+                >{{ p.participantName }}</span>
+              </div>
+            </div>
+            <div v-else class="flex items-center gap-2 type-body text-emerald-400 mt-2">
+              <i class="pi pi-check-circle"></i>
+              <span>All participants registered</span>
             </div>
           </div>
-          <div v-else class="flex items-center gap-2 type-body text-emerald-400">
-            <i class="pi pi-check-circle"></i>
-            <span>All participants registered</span>
-          </div>
-
           <div class="h-px bg-surface-700/40"></div>
         </template>
 
-        <!-- Scoring Criteria -->
-        <div class="grid grid-cols-1 gap-3">
-
-          <!-- Scoring Criteria -->
-          <div class="flex flex-col gap-2 p-3 para-chip">
-            <div class="flex items-center justify-between">
-              <p class="type-label text-content-muted">Scoring Criteria</p>
-              <button
-                @click="showCriteriaModal = true"
-                class="para-chip-sm px-2.5 py-1 type-label"
-              ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
+        <!-- SCORING CRITERIA -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <div class="section-rule mb-0 flex-1">
+              <span class="section-rule-label" style="font-size:9px;">Scoring Criteria</span>
+              <div class="section-rule-line"></div>
             </div>
-            <template v-if="criteriaByGenre[g.name]?.length">
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="c in criteriaByGenre[g.name]"
-                  :key="c.id"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
-                >
-                  {{ c.name }}
-                  <span v-if="c.weight != null" class="font-source text-primary-400">×{{ c.weight }}</span>
-                </span>
-              </div>
-            </template>
-            <span v-else class="text-xs text-content-muted">Default (single score)</span>
+            <button
+              @click="showCriteriaModal = true"
+              class="para-chip-sm px-2.5 py-1 type-label shrink-0"
+            ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
           </div>
+          <template v-if="criteriaByGenre[g.name]?.length">
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="c in criteriaByGenre[g.name]"
+                :key="c.id"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
+              >
+                {{ c.name }}
+                <span v-if="c.weight != null" class="font-source text-primary-400">×{{ c.weight }}</span>
+              </span>
+            </div>
+          </template>
+          <span v-else class="text-xs text-content-muted">Default — single 0–10 score</span>
         </div>
 
-        <!-- Judges (per division) -->
+        <div class="h-px bg-surface-700/40"></div>
+
+        <!-- JUDGES (read-only) -->
         <div>
-          <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
-            Judges
-          </p>
-          <div class="flex flex-wrap items-center gap-2">
-            <div
+          <div class="section-rule mb-2">
+            <span class="section-rule-label" style="font-size:9px;">Judges</span>
+            <div class="section-rule-line"></div>
+            <span class="type-label text-content-muted" style="font-size:9px;white-space:nowrap;">manage in judge pool above</span>
+          </div>
+          <div v-if="(divisionJudges[g.name] || []).length > 0" class="flex flex-wrap gap-2">
+            <span
               v-for="j in (divisionJudges[g.name] || [])"
               :key="j.judgeId"
-              class="flex items-center gap-2 para-chip px-2.5 py-1"
+              class="flex items-center gap-1.5 para-chip px-2.5 py-1"
             >
-              <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
-              <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
-              <button
-                @click="askRemoveJudge(g, j)"
-                class="type-label text-content-muted hover:text-content-primary transition-colors"
-                title="Remove from division"
-              ><i class="pi pi-times text-xs"></i></button>
-            </div>
-
-            <!-- Assign from pool dropdown -->
-            <div v-if="unassignedJudges(g.name).length > 0" class="relative">
-              <button
-                @click="toggleAssignDropdown(g.name)"
-                class="para-chip px-2 py-1 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all"
-                title="Assign judge from pool"
-              ><i class="pi pi-plus text-xs"></i> Assign</button>
-              <div
-                v-if="openAssignDropdown === g.name"
-                class="absolute bottom-full left-0 mb-1 bg-surface-800 border border-surface-600 para-chip p-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto"
-              >
-                <button
-                  v-for="j in unassignedJudges(g.name)"
-                  :key="j.judgeId"
-                  @click="submitAssignJudge(g.eventGenreId, j.judgeId); openAssignDropdown = null"
-                  class="block w-full text-left px-3 py-1.5 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
-                >+ {{ j.judgeName }}</button>
-              </div>
-            </div>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+              <span class="type-body text-content-secondary text-xs">{{ j.judgeName }}</span>
+            </span>
           </div>
+          <span v-else class="text-xs text-content-muted">None assigned — add in Judge Pool above</span>
         </div>
 
       </div>
