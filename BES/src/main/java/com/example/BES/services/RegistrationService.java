@@ -127,10 +127,11 @@ public class RegistrationService {
 
                 // Detect case-insensitive match
                 String sheetName = participant.getParticipantName();
-                if (!toAddParticipant.getParticipantName().equals(sheetName)) {
+                String savedName = toAddParticipant.getParticipantName();
+                if (savedName != null && !savedName.equals(sheetName)) {
                     result.addInfo(rowNumber, sheetName,
                         "Sheet name '" + sheetName + "' matched existing participant '"
-                        + toAddParticipant.getParticipantName() + "'");
+                        + savedName + "'");
                 }
 
                 EventParticipant ep = eventParticipantRepo

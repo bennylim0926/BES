@@ -897,28 +897,7 @@ onMounted(async () => {
       >DISMISS</button>
     </div>
 
-    <!-- Role-aware guidance -->
-    <div
-      v-if="selectedRole === 'Judge'"
-      class="px-4 py-3 mb-4 type-label"
-      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
-    >
-      You are scoring as <strong style="color:var(--accent-color)">{{ currentJudge || 'yourself' }}</strong>.
-      Swipe through audition cards and tap a score to save.
-    </div>
-    <div
-      v-else-if="selectedRole === 'Emcee'"
-      class="px-4 py-3 mb-4 type-label"
-      style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)"
-    >
-      You are viewing as Emcee. Track participant progress, scores, and the audition flow.
-    </div>
-
     <!-- Emcee view: Timer + round view -->
-    <div class="section-rule mb-4">
-      <span class="section-rule-label">Participants</span>
-      <div class="section-rule-line"></div>
-    </div>
     <div class="flex-1 min-h-0" style="overflow: hidden;">
     <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView

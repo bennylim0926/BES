@@ -119,7 +119,7 @@ watch(currentIndex, () => {
   activeParticipantNum.value = first?.auditionNumber ?? null
 }, { immediate: true })
 
-const aggregateDisplay = computed(() => {
+const _aggregateDisplay = computed(() => {
   if (!hasCriteria.value || !activeCard.value) return null
   return computeAggregate(activeCard.value)
 })
@@ -149,7 +149,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     <div
       ref="scrollRef"
       v-if="pairs.length"
-      class="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4 items-start h-full"
+      class="cards-scroll-container flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-2 px-2 pb-4 items-start h-full"
       style="scrollbar-width: none; overflow-y: hidden;"
     >
       <div
@@ -272,7 +272,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                           <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
                         </div>
                         <span
-                          class="font-source tabular-nums font-bold leading-none"
+                          class="font-bold leading-none"
                           style="font-size: 1.6rem"
                           :class="criteriaScore(activeCard, criterion.name) > 0 ? 'text-accent' : 'text-white/15'"
                         >{{ criteriaScore(activeCard, criterion.name) > 0 ? criteriaScore(activeCard, criterion.name) : '—' }}</span>
@@ -288,36 +288,36 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <!-- Multi-criteria mode -->
                 <template v-if="hasCriteria">
                   <!-- Criterion selector chips — in keypad column for easy reach -->
-                  <div class="flex gap-2 mb-2 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
+                  <div class="criteria-selector-tabs flex gap-2 mb-2 overflow-x-auto pb-0.5" style="scrollbar-width: none;">
                     <button
                       v-for="criterion in criteria"
                       :key="'sel-'+criterion.id"
                       @click="setActiveCriterion(activeCard.auditionNumber, criterion.name)"
-                      class="flex-shrink-0 flex items-center gap-2 px-3 py-2 para-chip transition-all duration-150 active:scale-95"
+                      class="flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-3 py-2.5 para-chip transition-all duration-150 active:scale-95 min-w-[64px]"
                       :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'bg-accent border-accent'
-                        : criteriaScore(activeCard, criterion.name) > 0
-                          ? 'border-accent/40 text-accent/80'
-                          : 'border-white/10 text-content-muted hover:text-content-primary'"
+                        ? 'border-accent'
+                        : 'border-white/[0.08]'"
                       :style="getActiveCriterion(activeCard.auditionNumber) === criterion.name
-                        ? 'box-shadow: 0 0 14px var(--accent-muted)'
-                        : ''"
+                        ? 'background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
+                        : 'background: rgba(255,255,255,0.06)'"
                     >
-                      <span class="type-label leading-none"
-                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-surface-900' : ''"
+                      <span class="criteria-tab-label type-label leading-none" style="color: inherit;"
                       >{{ criterion.name }}</span>
                       <span
-                        v-if="criteriaScore(activeCard, criterion.name) > 0"
-                        class="font-source tabular-nums text-sm font-bold leading-none"
-                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name ? 'text-surface-900' : 'text-accent'"
-                      >{{ criteriaScore(activeCard, criterion.name) }}</span>
-                      <span v-else class="inline-block w-2 h-2 rounded-full bg-white/15 shrink-0"></span>
+                        class="criteria-tab-score font-bold leading-none mt-0.5"
+                        style="font-size: 1.5rem; color: inherit;"
+                        :class="getActiveCriterion(activeCard.auditionNumber) === criterion.name
+                          ? ''
+                          : criteriaScore(activeCard, criterion.name) > 0
+                            ? 'text-white/55'
+                            : 'text-white/15'"
+                      >{{ criteriaScore(activeCard, criterion.name) > 0 ? criteriaScore(activeCard, criterion.name) : '—' }}</span>
                     </button>
                   </div>
 
                   <template v-for="criterion in criteria" :key="criterion.id">
                     <div v-if="getActiveCriterion(activeCard.auditionNumber) === criterion.name">
-                      <div class="flex gap-1.5 mb-2">
+                      <div class="action-btn-row flex gap-1.5 mb-2">
                         <button
                           @click="setCriteriaScore(activeCard, criterion.name, 10)"
                           class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
@@ -341,7 +341,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                               @click="setCriteriaScore(activeCard, criterion.name, Number(value))"
                               @touchstart.passive="pressedKey = 'w'+value"
                               @touchend="pressedKey = null" @touchcancel="pressedKey = null"
-                              class="keypad-btn py-6 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
+                              class="keypad-btn py-5 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
                               :style="wholeBtnStyle('w'+value)"
                             >{{ value }}</button>
                           </div>
@@ -354,7 +354,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                               @click="updateCriteriaDecimal(activeCard, criterion.name, value)"
                               @touchstart.passive="pressedKey = 'd'+value"
                               @touchend="pressedKey = null" @touchcancel="pressedKey = null"
-                              class="keypad-btn py-6 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
+                              class="keypad-btn py-5 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
                               :style="decimalBtnStyle('d'+value)"
                             >.{{ value }}</button>
                           </div>
@@ -366,7 +366,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
 
                 <!-- Single-score mode -->
                 <template v-else>
-                  <div class="flex gap-1.5 mb-2">
+                  <div class="action-btn-row flex gap-1.5 mb-2">
                     <button
                       @click="setSingleScore(activeCard, 10)"
                       class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98]"
@@ -390,7 +390,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                           @click="setSingleScore(activeCard, Number(value))"
                           @touchstart.passive="pressedKey = 'w'+value"
                           @touchend="pressedKey = null" @touchcancel="pressedKey = null"
-                          class="keypad-btn py-6 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
+                          class="keypad-btn py-5 text-xl font-bold text-white/85 transition-all duration-100 active:scale-95"
                           :style="wholeBtnStyle('w'+value)"
                         >{{ value }}</button>
                       </div>
@@ -403,7 +403,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                           @click="setSingleScore(activeCard, updateDecimal(activeCard.score, value))"
                           @touchstart.passive="pressedKey = 'd'+value"
                           @touchend="pressedKey = null" @touchcancel="pressedKey = null"
-                          class="keypad-btn py-6 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
+                          class="keypad-btn py-5 text-xl font-semibold text-amber-300/80 transition-all duration-100 active:scale-95"
                           :style="decimalBtnStyle('d'+value)"
                         >.{{ value }}</button>
                       </div>
@@ -451,6 +451,13 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
   color: #fff !important;
 }
 
+/* ── Portrait: hide duplicate criteria list ─────────────────────────── */
+@media (orientation: portrait) {
+  .pair-card-info-scroll {
+    display: none;
+  }
+}
+
 /* ── Landscape: info left, keypad right ─────────────────────────────── */
 @media (orientation: landscape) {
   .pair-card-body {
@@ -458,6 +465,35 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;
     align-items: stretch;
+  }
+}
+
+/* ── Tablet landscape: bigger keypad, bottom-aligned, bigger tab text ── */
+@media (orientation: landscape) and (min-width: 768px) {
+  .cards-scroll-container {
+    align-items: flex-end;
+  }
+  .pair-card-body {
+    grid-template-columns: 2fr 3fr;
+  }
+  .criteria-selector-tabs {
+    display: none;
+  }
+  .keypad-btn {
+    padding-top: 1.75rem;
+    padding-bottom: 1.75rem;
+  }
+  .action-btn-row > button {
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
+    font-size: 1rem;
+  }
+  .criteria-tab-label {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+  }
+  .criteria-tab-score {
+    font-size: 2rem;
   }
 }
 </style>
