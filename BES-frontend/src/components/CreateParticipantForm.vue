@@ -88,15 +88,28 @@ const groupedDivisions = computed(() => {
   return Object.values(groups)
 })
 
+const formTouched = ref(false)
+
+const canSubmit = computed(() => {
+  if (name.value.trim() === '') return false
+  if (createTable.genres.length === 0) return false
+  for (const g of createTable.genres) {
+    if (isTeamFormat(g) && entryModes[g] !== 'solo') {
+      const tName = (teamNames[g] || '').trim()
+      if (tName === '') return false
+      const count = additionalMembersCountForGenre(g)
+      for (let i = 0; i < count; i++) {
+        if (!(teamMemberNames[g] || [])[i]?.trim()) return false
+      }
+    }
+  }
+  return true
+})
+
 const submitNewEntry = async () => {
-  if (name.value.trim() === "") {
-    showError.value = true
-    return
-  }
-  if (createTable.genres.length === 0) {
-    showNoDivisionError.value = true
-    return
-  }
+  // Validation guard — button is disabled, but double-check in case of bypass
+  if (!canSubmit.value) return
+
   const results = { created: [], existing: [], failed: [] }
   for (const g of createTable.genres) {
     const mode = entryModes[g] || 'team'
@@ -160,6 +173,7 @@ onMounted(async () => {
     variant="info"
     acceptLabel="Add Participant"
     :scrollable="true"
+    :disableAccept="!canSubmit"
     @accept="submitNewEntry"
     @close="$emit('close')"
   >
@@ -174,6 +188,8 @@ onMounted(async () => {
           type="text"
           placeholder="Enter stage name…"
           class="input-base"
+          :class="formTouched && !name.trim() ? '!border-red-400/60' : ''"
+          @input="formTouched = true"
           @keyup.enter="submitNewEntry"
         />
       </div>
@@ -261,6 +277,8 @@ onMounted(async () => {
                 type="text"
                 placeholder="Enter team name…"
                 class="input-base"
+                :class="formTouched && !(teamNames[g] || '').trim() ? '!border-red-400/60' : ''"
+                @input="formTouched = true"
               />
             </div>
             <div>
@@ -275,10 +293,11 @@ onMounted(async () => {
                   v-for="i in additionalMembersCountForGenre(g)"
                   :key="i"
                   :value="(teamMemberNames[g] || [])[i - 1] || ''"
-                  @input="updateMemberName(g, i - 1, $event.target.value)"
+                  @input="updateMemberName(g, i - 1, $event.target.value); formTouched = true"
                   type="text"
                   :placeholder="`Member ${i + 1} stage name…`"
                   class="input-base"
+                  :class="formTouched && !((teamMemberNames[g] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
                 />
               </div>
             </div>
