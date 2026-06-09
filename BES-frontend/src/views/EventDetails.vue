@@ -714,6 +714,7 @@ const loadJudgesForDivision = async (genre) => {
 }
 // Judges not yet assigned to a specific division
 const openAssignDropdown = ref(null)
+const openJudgeCardDropdown = ref(null)
 
 const toggleAssignDropdown = (id) => {
   openAssignDropdown.value = openAssignDropdown.value === id ? null : id
@@ -723,6 +724,22 @@ const unassignedJudges = (genreName) => {
   const assigned = divisionJudges.value[genreName] || []
   const assignedIds = new Set(assigned.map(j => j.judgeId))
   return allEventJudges.value.filter(j => !assignedIds.has(j.judgeId))
+}
+
+const categoriesAssignedToJudge = (judgeId) => {
+  const result = []
+  for (const [genreName, judges] of Object.entries(divisionJudges.value)) {
+    if (judges.some(j => j.judgeId === judgeId)) {
+      const genre = eventGenres.value.find(g => g.name === genreName)
+      if (genre) result.push(genre)
+    }
+  }
+  return result
+}
+
+const categoriesUnassignedToJudge = (judgeId) => {
+  const assigned = new Set(categoriesAssignedToJudge(judgeId).map(g => g.eventGenreId))
+  return eventGenres.value.filter(g => !assigned.has(g.eventGenreId))
 }
 
 const submitAddJudgeGlobal = async () => {
@@ -1658,39 +1675,107 @@ onUnmounted(() => {
       <div class="section-rule-line"></div>
     </div>
 
-    <!-- Global Judges -->
-    <div class="mb-5 p-4 para-chip">
-      <p class="type-label text-content-muted mb-3">Event Judges</p>
-      <div class="flex flex-wrap items-center gap-2 mb-3">
+    <!-- Judge Pool -->
+    <div class="mb-5">
+      <div class="section-rule mb-1">
+        <span class="section-rule-label">Judge Pool</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <p class="type-label text-content-muted mb-4" style="font-size:10px;text-transform:none;letter-spacing:0.03em;">
+        Add your judges here first — then assign them to categories below.
+      </p>
+
+      <div class="flex flex-wrap gap-3">
+        <!-- Per-judge card -->
         <div
           v-for="j in allEventJudges"
           :key="j.judgeId"
-          class="flex items-center gap-2 para-chip px-2.5 py-1"
+          class="para-chip p-3 flex flex-col gap-2 min-w-[160px] flex-1"
+          :class="categoriesAssignedToJudge(j.judgeId).length === 0
+            ? 'border-l-[3px] border-l-amber-500 bg-amber-950/10'
+            : 'border-l-[3px] border-l-emerald-500/40'"
         >
-          <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
-          <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
-          <button
-            @click="askRemoveJudgeGlobal(j)"
-            class="type-label text-content-muted hover:text-primary-400 transition-colors"
-            title="Remove from event"
-          ><i class="pi pi-times text-xs"></i></button>
+          <!-- Judge name + remove -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span
+                class="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                :class="categoriesAssignedToJudge(j.judgeId).length === 0
+                  ? 'bg-amber-400' : 'bg-emerald-400'"
+                :style="categoriesAssignedToJudge(j.judgeId).length === 0
+                  ? 'box-shadow:0 0 5px rgba(245,158,11,0.5)'
+                  : 'box-shadow:0 0 5px rgba(52,211,153,0.5)'"
+              ></span>
+              <span class="type-body text-content-secondary text-xs">{{ j.judgeName }}</span>
+            </div>
+            <button
+              @click="askRemoveJudgeGlobal(j)"
+              class="type-label text-content-muted hover:text-red-400 transition-colors"
+              title="Remove from event"
+            ><i class="pi pi-times text-xs"></i></button>
+          </div>
+
+          <!-- Assigned categories -->
+          <div>
+            <p class="type-label text-content-muted mb-1" style="font-size:9px;">CATEGORIES</p>
+            <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1 mb-1.5">
+              <span
+                v-for="cat in categoriesAssignedToJudge(j.judgeId)"
+                :key="cat.eventGenreId"
+                class="inline-flex items-center gap-1 para-chip-sm px-1.5 py-0.5 type-label text-content-muted"
+                style="font-size:9px;"
+              >
+                {{ cat.name }}
+                <button
+                  @click="submitRemoveJudge(cat.eventGenreId, j.judgeId)"
+                  class="hover:text-red-400 transition-colors leading-none"
+                ><i class="pi pi-times" style="font-size:0.45rem"></i></button>
+              </span>
+            </div>
+            <p v-else class="type-label text-amber-400 mb-1.5" style="font-size:9px;">No categories assigned yet</p>
+          </div>
+
+          <!-- Assign dropdown -->
+          <div v-if="categoriesUnassignedToJudge(j.judgeId).length > 0" class="relative">
+            <button
+              @click="openJudgeCardDropdown = openJudgeCardDropdown === j.judgeId ? null : j.judgeId"
+              class="para-chip-sm px-2 py-1 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all w-full text-left"
+              style="font-size:9px;"
+            ><i class="pi pi-plus text-xs mr-1"></i> Assign category</button>
+            <div
+              v-if="openJudgeCardDropdown === j.judgeId"
+              class="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-600 para-chip p-1.5 z-50 min-w-[160px] max-h-48 overflow-y-auto"
+            >
+              <button
+                v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
+                :key="cat.eventGenreId"
+                @click="submitAssignJudge(cat.eventGenreId, j.judgeId); openJudgeCardDropdown = null"
+                class="block w-full text-left px-3 py-1.5 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
+                style="font-size:11px;"
+              >+ {{ cat.name }}</button>
+            </div>
+          </div>
         </div>
-        <span v-if="allEventJudges.length === 0" class="type-body text-content-muted text-xs">No judges added yet.</span>
-      </div>
-      <div class="flex items-center gap-1.5 para-chip px-2.5 py-1 w-fit">
-        <input
-          v-model="globalJudgeInput"
-          type="text"
-          placeholder="Add judge to event…"
-          autocomplete="off"
-          class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-56"
-          @keyup.enter="submitAddJudgeGlobal()"
-        />
-        <button
-          @click="submitAddJudgeGlobal()"
-          class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
-          title="Add to all divisions"
-        ><i class="pi pi-plus text-xs"></i></button>
+
+        <!-- Add judge card -->
+        <div class="para-chip p-3 flex flex-col items-center justify-center gap-2 min-w-[140px] flex-1" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
+          <div class="flex items-center gap-1.5 w-full">
+            <input
+              v-model="globalJudgeInput"
+              type="text"
+              placeholder="Judge name…"
+              autocomplete="off"
+              class="bg-transparent type-body placeholder:text-content-muted focus:outline-none flex-1 min-w-0 text-xs"
+              @keyup.enter="submitAddJudgeGlobal()"
+            />
+            <button
+              @click="submitAddJudgeGlobal()"
+              class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+              title="Add judge"
+            ><i class="pi pi-plus text-xs"></i></button>
+          </div>
+          <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" style="font-size:9px;">No judges yet</span>
+        </div>
       </div>
     </div>
 
