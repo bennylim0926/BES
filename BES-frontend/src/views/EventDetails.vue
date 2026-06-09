@@ -56,6 +56,7 @@ const paymentRequired = ref(false)
 const sheetCategories = ref([])
 const divAliasExpanded = ref(null)
 const divAliasInput = ref('')
+const pendingSuggestionCat = ref(null)
 const divRenameActive = ref(null)
 const divRenameInput = ref('')
 const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
@@ -594,6 +595,24 @@ const unmatchedSheetValues = computed(() => {
   return unique.filter(v => !matched.has(v))
 })
 
+const allSheetSuggestions = computed(() => {
+  return [...new Set(sheetCategories.value)]
+})
+
+const suggestionCoveredSet = computed(() => {
+  const covered = new Set()
+  for (const div of eventGenres.value) {
+    const names = [div.name.toLowerCase()]
+    if (div.sheetAliases) {
+      names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
+    }
+    for (const cat of sheetCategories.value) {
+      if (names.some(n => cat.toLowerCase() === n)) covered.add(cat)
+    }
+  }
+  return covered
+})
+
 const loadSheetCategories = async () => {
   if (fileId.value) {
     sheetCategories.value = await getSheetCategories(fileId.value)
@@ -640,6 +659,22 @@ const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
   await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
   div.soloAllowed = newVal
+}
+
+const addSuggestionToGenre = async (genreId, genreLabel) => {
+  if (!pendingSuggestionCat.value) return
+  const name = pendingSuggestionCat.value
+  pendingSuggestionCat.value = null
+  const existingNames = eventGenres.value.map(d => d.name.toLowerCase())
+  let finalName = name
+  let i = 2
+  while (existingNames.includes(finalName.toLowerCase())) {
+    finalName = `${name} ${i++}`
+  }
+  const resp = await addDivision(props.eventName, finalName, null, genreId === 'custom' ? null : genreId)
+  if (resp && resp.ok) {
+    eventGenres.value = await getGenresByEvent(props.eventName)
+  }
 }
 
 const addDivisionToGroup = async (genreId, genreLabel) => {
@@ -1410,6 +1445,49 @@ onUnmounted(() => {
       Categories are competition formats within each genre (e.g. Popping 1v1, Popping 7 to Smoke).
       Names must match your Google Sheet column values exactly.
     </p>
+
+    <!-- Sheet suggestions strip — only when sheet is connected -->
+    <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 para-chip">
+      <p class="type-label text-content-muted mb-2" style="font-size:10px;">FROM YOUR SHEET — click to add as a category</p>
+      <div class="flex flex-wrap gap-2">
+        <span
+          v-for="cat in allSheetSuggestions"
+          :key="cat"
+        >
+          <!-- Covered: greyed, not clickable -->
+          <span
+            v-if="suggestionCoveredSet.has(cat)"
+            class="type-label text-content-muted line-through opacity-40"
+            style="font-size:10px;"
+          >{{ cat }}</span>
+          <!-- Uncovered: clickable, shows genre picker -->
+          <span
+            v-else
+            class="relative"
+          >
+            <button
+              @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
+              class="para-chip-sm px-2.5 py-1 type-label text-content-secondary hover:text-accent transition-colors"
+              style="font-size:10px;border-style:dashed;"
+            >+ {{ cat }}</button>
+            <!-- Inline genre picker -->
+            <div
+              v-if="pendingSuggestionCat === cat"
+              class="absolute top-full left-0 mt-1 z-50 bg-surface-800 border border-surface-600 para-chip p-2 min-w-[160px]"
+            >
+              <p class="type-label text-content-muted mb-1.5" style="font-size:9px;">ADD TO GENRE:</p>
+              <button
+                v-for="group in divisionsByGenre"
+                :key="group.genreId"
+                @click="addSuggestionToGenre(group.genreId, group.label)"
+                class="block w-full text-left px-2 py-1.5 type-body text-content-secondary hover:text-accent transition-colors"
+                style="font-size:11px;"
+              >{{ group.label }}</button>
+            </div>
+          </span>
+        </span>
+      </div>
+    </div>
 
     <div class="space-y-4">
       <div v-for="group in divisionsByGenre" :key="group.genreId" class="space-y-2">
