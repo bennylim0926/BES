@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, verifyEventAccessCode } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getGenresByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, verifyEventAccessCode } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
@@ -25,6 +25,7 @@ const currentJudge = ref(localStorage.getItem("currentJudge") || "")
 const allJudges = ref([])
 const participants = ref([])
 const judgingMode = ref("SOLO")
+const feedbackEnabled = ref(true)
 const eventDivisions = ref([]) // { eventGenreId, name } for current event — used to map division name → ID
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
@@ -244,10 +245,11 @@ watch(selectedEvent, async (newVal, oldVal) => {
       selectedGenre.value = ""
     }
     participants.value = []
-    const [res, modeRes, divRes] = await Promise.all([
+    const [res, modeRes, divRes, feedbackRes] = await Promise.all([
       getRegisteredParticipantsByEvent(newVal),
       getJudgingMode(newVal),
-      getGenresByEvent(newVal)
+      getGenresByEvent(newVal),
+      getFeedbackEnabled(newVal)
     ])
     eventDivisions.value = divRes ?? []
     // Now that divisions are loaded, reload judges for the selected genre (fixes race on page load)
@@ -289,6 +291,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
       if (firstGenre) selectedGenre.value = firstGenre
     }
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
+    if (feedbackRes && typeof feedbackRes.feedbackEnabled === 'boolean') feedbackEnabled.value = feedbackRes.feedbackEnabled
     await loadScoresFromDb(newVal, selectedGenre.value, currentJudge.value)
   }
 }, { immediate: true });
@@ -694,6 +697,13 @@ onMounted(async () => {
       if (msg.eventName !== selectedEvent.value) return
       judgingMode.value = msg.judgingMode
     })
+  const c5 = createClient()
+  wsClients.push(c5)
+  subscribeToChannel(c5, "/topic/feedback-enabled/",
+    (msg) => {
+      if (msg.eventName !== selectedEvent.value) return
+      feedbackEnabled.value = !!msg.feedbackEnabled
+    })
 })
 </script>
 
@@ -988,6 +998,7 @@ onMounted(async () => {
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
         :criteria="criteria"
+        :feedbackEnabled="feedbackEnabled"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
         @score-change="autoSave"
@@ -1001,6 +1012,7 @@ onMounted(async () => {
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
         :criteria="criteria"
+        :feedbackEnabled="feedbackEnabled"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
         @score-change="autoSave"

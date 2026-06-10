@@ -1052,6 +1052,35 @@ export const setJudgingMode = async (eventName, mode) => {
   }
 }
 
+export const getFeedbackEnabled = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/feedback-enabled/${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const setFeedbackEnabled = async (eventName, enabled) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/feedback-enabled`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventName, feedbackEnabled: enabled })
+    })
+  } catch (e) {
+    console.log(e)
+  }
+}
+
 export const submitAuditionFeedback = async (eventName, genreName, judgeName, auditionNumber, tagIds, note) => {
   try {
     return await fetch(`${domain}/api/v1/event/feedback`, {

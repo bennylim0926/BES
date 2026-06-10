@@ -2,9 +2,10 @@
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
 
 const props = defineProps({
-  cards:        { type: Array,  required: true },
-  feedbackData: { type: Object, default: () => new Map() },
-  criteria:     { type: Array,  default: () => [] },
+  cards:           { type: Array,   required: true },
+  feedbackData:    { type: Object,  default: () => new Map() },
+  criteria:        { type: Array,   default: () => [] },
+  feedbackEnabled: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'reset', 'jump', 'score-change']);
@@ -324,6 +325,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                           style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
                         >10 — Full</button>
                         <button
+                          v-if="props.feedbackEnabled"
                           @click.stop="emit('open-feedback', activeCard)"
                           class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
                           :class="feedbackData?.get(activeCard.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"
@@ -373,6 +375,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                       style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
                     >10 — Full</button>
                     <button
+                      v-if="props.feedbackEnabled"
                       @click.stop="emit('open-feedback', activeCard)"
                       class="flex-1 flex items-center justify-center gap-1 py-3 para-chip-sm type-label transition-all duration-150"
                       :class="feedbackData?.get(activeCard.auditionNumber) ? 'text-green-400 border-green-500/35' : 'text-content-muted hover:text-content-primary'"

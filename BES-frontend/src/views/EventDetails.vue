@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -53,6 +53,8 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 
 const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
+const feedbackEnabled = ref(true)
+const feedbackSaving = ref(false)
 const sheetCategories = ref([])
 const pendingSuggestionCat = ref(null)
 const divRenameActive = ref(null)
@@ -418,6 +420,25 @@ const refreshParticipant = async () => {
 const refreshFromDb = async () => {
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+}
+
+const onFeedbackEnabledToggle = async (e) => {
+  const next = e.target.checked
+  const prev = feedbackEnabled.value
+  feedbackEnabled.value = next
+  feedbackSaving.value = true
+  try {
+    const res = await setFeedbackEnabled(props.eventName, next)
+    if (!res?.ok) {
+      feedbackEnabled.value = prev
+      openModal('Save Failed', `Could not update feedback setting (${res?.status ?? 'no response'}).`, 'warning')
+    }
+  } catch (err) {
+    feedbackEnabled.value = prev
+    console.error('setFeedbackEnabled error:', err)
+  } finally {
+    feedbackSaving.value = false
+  }
 }
 
 const handleWalkInCreated = async () => {
@@ -1088,6 +1109,8 @@ onMounted(async () => {
       unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
       await fetchCheckinList()
       loadSessionTokens()
+      const fb = await getFeedbackEnabled(props.eventName)
+      if (fb && typeof fb.feedbackEnabled === 'boolean') feedbackEnabled.value = fb.feedbackEnabled
     }
   } catch (e) {
     console.error('EventDetails mount error:', e)
@@ -1353,6 +1376,35 @@ onUnmounted(() => {
         </div>
       </div>
 
+
+    <!-- Event Settings (existing event) -->
+    <div v-if="tableExist" class="card-hover p-4 relative mt-6">
+      <div class="corner-bar-tl"></div>
+      <div class="section-rule mb-4">
+        <span class="section-rule-label">Event Settings</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <label
+        class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit"
+        :class="feedbackEnabled ? 'border-accent' : ''"
+      >
+        <input
+          type="checkbox"
+          :checked="feedbackEnabled"
+          :disabled="feedbackSaving"
+          @change="onFeedbackEnabledToggle"
+          class="w-4 h-4"
+        />
+        <div>
+          <span class="type-body">Feedback System</span>
+          <p class="type-label mt-0.5" :class="feedbackEnabled ? 'text-content-secondary' : 'text-content-muted'">
+            {{ feedbackEnabled
+              ? 'Judges can submit feedback tags and notes for each participant.'
+              : 'Feedback system is disabled — judges will only see the score keypad.' }}
+          </p>
+        </div>
+      </label>
+    </div>
 
     <!-- Setup section (when no table exists) -->
     <div v-if="!tableExist" class="card-hover p-6 relative">
