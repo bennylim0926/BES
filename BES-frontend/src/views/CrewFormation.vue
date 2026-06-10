@@ -225,13 +225,15 @@ watch(selectedEvent, async (val) => {
         <div v-if="selectedGenre" class="flex flex-col gap-1">
           <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Draft Mode</span>
           <div class="flex gap-1 flex-wrap">
+            <!-- aria-pressed + accent (not primary red — red is reserved for errors per design system) -->
             <button
               v-for="n in [null, 4, 8, 16, 32]"
               :key="n ?? 'all'"
               @click="topN = n"
-              class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+              :aria-pressed="topN === n"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
               :class="topN === n
-                ? 'bg-primary-600 text-white shadow-sm'
+                ? 'bg-accent text-surface-900 shadow-sm'
                 : 'bg-surface-700 text-content-muted hover:text-content-primary hover:bg-surface-600'"
             >
               {{ n === null ? 'All' : `Top ${n}` }}
@@ -272,12 +274,15 @@ watch(selectedEvent, async (val) => {
       <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0 -translate-y-2"
         enter-to-class="opacity-100 translate-y-0" leave-active-class="transition duration-150"
         leave-from-class="opacity-100" leave-to-class="opacity-0">
+        <!-- role=status: toast is announced; icon pairs with color so state isn't color-only -->
         <div v-if="toast.show"
-          class="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold border"
+          role="status"
+          class="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold border flex items-center gap-2"
           :class="toast.variant === 'success'
             ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
             : 'bg-amber-500/10 border-amber-500/40 text-amber-400'"
         >
+          <i :class="toast.variant === 'success' ? 'pi pi-check-circle' : 'pi pi-exclamation-triangle'" aria-hidden="true"></i>
           {{ toast.message }}
         </div>
       </Transition>
@@ -288,9 +293,10 @@ watch(selectedEvent, async (val) => {
         <div class="flex flex-col gap-4">
 
           <!-- Draft hint -->
-          <div v-if="draftLeader" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary-500/30 bg-primary-500/8">
-            <i class="pi pi-info-circle text-primary-400 flex-shrink-0"></i>
-            <div class="text-sm text-primary-300">
+          <!-- accent info chip — primary red is reserved for errors per design system -->
+          <div v-if="draftLeader" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]" role="status">
+            <i class="pi pi-info-circle text-accent flex-shrink-0" aria-hidden="true"></i>
+            <div class="text-sm text-content-secondary">
               <span class="font-bold">{{ draftLeader.displayName }}</span> selected as leader.
               <template v-if="crewSize">
                 Pick {{ crewSize - 1 - selectedPartners.length }} more partner{{ crewSize - 1 - selectedPartners.length !== 1 ? 's' : '' }}.
@@ -308,7 +314,7 @@ watch(selectedEvent, async (val) => {
             <div class="px-4 pt-4 pb-3 border-b border-surface-600/30">
               <h2 class="font-heading font-bold text-content-primary text-sm">
                 Ranked Solos
-                <span v-if="topN" class="ml-1.5 px-1.5 py-0.5 rounded-md bg-primary-500/20 text-primary-400 text-xs font-source">Top {{ topN }}</span>
+                <span v-if="topN" class="ml-1.5 px-1.5 py-0.5 rounded-md bg-[color:var(--accent-subtle)] text-accent text-xs font-source">Top {{ topN }}</span>
               </h2>
               <p class="text-xs text-content-muted mt-0.5">Click to select as crew leader</p>
             </div>
@@ -316,29 +322,32 @@ watch(selectedEvent, async (val) => {
               No ranked solos available
             </div>
             <ul v-else class="divide-y divide-surface-600/20">
-              <li
-                v-for="(solo, idx) in rankedSolos"
-                :key="solo.participantId"
-                @click="selectLeader(solo)"
-                class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
-                :class="draftLeader?.participantId === solo.participantId
-                  ? 'bg-primary-500/15 border-l-2 border-primary-500'
-                  : 'hover:bg-surface-700/40'"
-              >
-                <!-- Rank badge -->
-                <div class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-source font-bold"
-                  :class="idx === 0 ? 'bg-amber-500/20 text-amber-400' : idx === 1 ? 'bg-surface-500/30 text-surface-300' : idx === 2 ? 'bg-orange-900/30 text-orange-400' : 'bg-surface-700 text-surface-400'">
-                  {{ idx + 1 }}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="font-heading font-bold text-content-primary truncate">{{ solo.displayName }}</div>
-                  <div class="text-xs text-content-muted">#{{ solo.auditionNumber ?? '—' }}</div>
-                </div>
-                <div class="flex-shrink-0 text-right">
-                  <div class="font-source font-bold text-primary-400 text-sm">{{ solo.avgScore }}</div>
-                  <div class="text-xs text-content-muted">avg</div>
-                </div>
-                <i v-if="draftLeader?.participantId === solo.participantId" class="pi pi-check-circle text-primary-400 flex-shrink-0"></i>
+              <li v-for="(solo, idx) in rankedSolos" :key="solo.participantId">
+                <!-- button (not clickable li): keyboard-navigable with visible focus ring; accent selection per design system -->
+                <button
+                  type="button"
+                  @click="selectLeader(solo)"
+                  :aria-pressed="draftLeader?.participantId === solo.participantId"
+                  class="w-full text-left flex items-center gap-3 px-4 py-3 min-h-[44px] cursor-pointer transition-colors"
+                  :class="draftLeader?.participantId === solo.participantId
+                    ? 'bg-[color:var(--accent-subtle)] border-l-2 border-[color:var(--accent-color)]'
+                    : 'hover:bg-surface-700/40'"
+                >
+                  <!-- Rank badge -->
+                  <div class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-source font-bold"
+                    :class="idx === 0 ? 'bg-amber-500/20 text-amber-400' : idx === 1 ? 'bg-surface-500/30 text-surface-300' : idx === 2 ? 'bg-orange-900/30 text-orange-400' : 'bg-surface-700 text-surface-400'">
+                    {{ idx + 1 }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-heading font-bold text-content-primary truncate">{{ solo.displayName }}</div>
+                    <div class="text-xs text-content-muted">#{{ solo.auditionNumber ?? '—' }}</div>
+                  </div>
+                  <div class="flex-shrink-0 text-right">
+                    <div class="font-source font-bold text-accent text-sm">{{ solo.avgScore }}</div>
+                    <div class="text-xs text-content-muted">avg</div>
+                  </div>
+                  <i v-if="draftLeader?.participantId === solo.participantId" class="pi pi-check-circle text-accent flex-shrink-0" aria-hidden="true"></i>
+                </button>
               </li>
             </ul>
           </div>
@@ -356,42 +365,45 @@ watch(selectedEvent, async (val) => {
               No available partners
             </div>
             <ul v-else class="divide-y divide-surface-600/20">
-              <li
-                v-for="solo in partnerPool"
-                :key="solo.participantId"
-                @click="togglePartner(solo)"
-                class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
-                :class="selectedPartners.some(p => p.participantId === solo.participantId)
-                  ? 'bg-primary-500/15 border-l-2 border-primary-500'
-                  : partnersNeeded === 0 && !selectedPartners.some(p => p.participantId === solo.participantId)
-                    ? 'opacity-40 cursor-not-allowed'
+              <li v-for="solo in partnerPool" :key="solo.participantId">
+                <!-- button for keyboard access; disabled state exposed via attribute, not opacity alone -->
+                <button
+                  type="button"
+                  @click="togglePartner(solo)"
+                  :aria-pressed="selectedPartners.some(p => p.participantId === solo.participantId)"
+                  :disabled="partnersNeeded === 0 && !selectedPartners.some(p => p.participantId === solo.participantId)"
+                  class="w-full text-left flex items-center gap-3 px-4 py-3 min-h-[44px] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  :class="selectedPartners.some(p => p.participantId === solo.participantId)
+                    ? 'bg-[color:var(--accent-subtle)] border-l-2 border-[color:var(--accent-color)]'
                     : 'hover:bg-surface-700/40'"
-              >
-                <div class="flex-1 min-w-0">
-                  <div class="font-heading font-bold text-content-primary truncate">{{ solo.displayName }}</div>
-                  <div class="text-xs text-content-muted">
-                    #{{ solo.auditionNumber ?? '—' }}
-                    <span v-if="solo.avgScore !== null" class="ml-2 text-primary-400 font-source font-bold">{{ solo.avgScore }}</span>
-                    <span v-else class="ml-2 italic">no score</span>
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="font-heading font-bold text-content-primary truncate">{{ solo.displayName }}</div>
+                    <div class="text-xs text-content-muted">
+                      #{{ solo.auditionNumber ?? '—' }}
+                      <span v-if="solo.avgScore !== null" class="ml-2 text-accent font-source font-bold">{{ solo.avgScore }}</span>
+                      <span v-else class="ml-2 italic">no score</span>
+                    </div>
                   </div>
-                </div>
-                <i v-if="selectedPartners.some(p => p.participantId === solo.participantId)"
-                  class="pi pi-check-circle text-primary-400 flex-shrink-0"></i>
+                  <i v-if="selectedPartners.some(p => p.participantId === solo.participantId)"
+                    class="pi pi-check-circle text-accent flex-shrink-0" aria-hidden="true"></i>
+                </button>
               </li>
             </ul>
           </div>
 
           <!-- Form crew button -->
+          <!-- Primary CTA in accent (red is error-only); progress count shows what's left -->
           <button
             v-if="draftLeader"
             @click="openCrewModal"
             :disabled="!canFormCrew"
             class="w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200"
             :class="canFormCrew
-              ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm btn-glow'
+              ? 'bg-accent text-surface-900 shadow-sm'
               : 'bg-surface-700 text-surface-500 cursor-not-allowed'"
           >
-            <i class="pi pi-users mr-2"></i>
+            <i class="pi pi-users mr-2" aria-hidden="true"></i>
             Form Crew
             <span v-if="crewSize" class="ml-1 opacity-70">({{ 1 + selectedPartners.length }}/{{ crewSize }})</span>
           </button>
@@ -419,14 +431,16 @@ watch(selectedEvent, async (val) => {
                   <div>
                     <div class="font-heading font-bold text-content-primary">{{ crew.crewName }}</div>
                     <div v-if="crew.avgScore !== null" class="text-xs text-content-muted mt-0.5">
-                      Avg score: <span class="font-source font-bold text-primary-400">{{ crew.avgScore }}</span>
+                      Avg score: <span class="font-source font-bold text-accent">{{ crew.avgScore }}</span>
                     </div>
                   </div>
+                  <!-- aria-label for icon-only destructive action; p-2.5 enlarges hit area -->
                   <button
                     @click="removeCrew(crew.id)"
-                    class="flex-shrink-0 p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-950/50 transition-all"
+                    :aria-label="`Delete crew ${crew.crewName}`"
+                    class="flex-shrink-0 p-2.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-950/50 transition-all"
                   >
-                    <i class="pi pi-trash text-xs"></i>
+                    <i class="pi pi-trash text-xs" aria-hidden="true"></i>
                   </button>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -435,10 +449,11 @@ watch(selectedEvent, async (val) => {
                     :key="member.participantId"
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
                     :class="idx === 0
-                      ? 'bg-primary-500/15 border-primary-500/30 text-primary-300'
+                      ? 'bg-[color:var(--accent-subtle)] border-[color:var(--accent-muted)] text-accent'
                       : 'bg-surface-700/50 border-surface-600/40 text-content-secondary'"
                   >
-                    <i v-if="idx === 0" class="pi pi-star-fill" style="font-size: 0.55rem"></i>
+                    <!-- star icon marks the leader so role isn't conveyed by color alone -->
+                    <i v-if="idx === 0" class="pi pi-star-fill" style="font-size: 0.55rem" aria-hidden="true"></i>
                     {{ member.displayName }}
                   </span>
                 </div>
@@ -468,25 +483,28 @@ watch(selectedEvent, async (val) => {
           :key="m.participantId"
           class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
           :class="idx === 0
-            ? 'bg-primary-500/15 border-primary-500/30 text-primary-300'
+            ? 'bg-[color:var(--accent-subtle)] border-[color:var(--accent-muted)] text-accent'
             : 'bg-surface-700/50 border-surface-600/40 text-content-secondary'"
         >
-          <i v-if="idx === 0" class="pi pi-star-fill" style="font-size: 0.55rem"></i>
+          <i v-if="idx === 0" class="pi pi-star-fill" style="font-size: 0.55rem" aria-hidden="true"></i>
           {{ m.displayName }}
         </span>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
+        <!-- for/id association + raised label contrast (surface-600 failed on dark bg) -->
+        <label for="crew-name" class="block text-xs font-semibold text-content-muted uppercase tracking-wider mb-1.5">
           Crew Name
         </label>
         <input
+          id="crew-name"
           v-model="pendingCrewName"
           type="text"
           placeholder="Enter crew name…"
           class="input-base"
+          :aria-invalid="modalError ? 'true' : undefined"
           @keyup.enter="submitCrew"
         />
-        <p v-if="modalError" class="text-xs text-red-400 mt-1.5">{{ modalError }}</p>
+        <p v-if="modalError" class="text-xs text-red-400 mt-1.5" role="alert">{{ modalError }}</p>
       </div>
     </div>
   </ActionDoneModal>

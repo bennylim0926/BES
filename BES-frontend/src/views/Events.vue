@@ -76,7 +76,8 @@ onMounted(async () => {
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <div>
-        <div class="type-page-title mb-1">Events</div>
+        <!-- h1 for document outline -->
+        <h1 class="type-page-title mb-1">Events</h1>
         <p class="type-label text-content-muted">Select an event to manage participants and scores</p>
       </div>
       <span class="badge-neutral type-label self-start sm:self-auto px-3 py-1">
@@ -84,14 +85,16 @@ onMounted(async () => {
       </span>
     </div>
 
-    <!-- Search -->
+    <!-- Search — sr-only label so the input has an accessible name beyond the placeholder -->
     <div class="relative max-w-xs mb-8">
+      <label for="event-search" class="sr-only">Search events</label>
       <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-content-muted pointer-events-none">
-        <i class="pi pi-search text-sm"></i>
+        <i class="pi pi-search text-sm" aria-hidden="true"></i>
       </span>
       <input
+        id="event-search"
         v-model="search"
-        type="text"
+        type="search"
         placeholder="Search events"
         class="input-base !pl-10"
       />

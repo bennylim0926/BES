@@ -2018,9 +2018,9 @@ onUnmounted(() => {
     <div class="color-bleed"></div>
     <div class="relative z-10 space-y-6">
 
-    <!-- Page header -->
+    <!-- Page header — h1 for document outline -->
     <div>
-      <div class="type-page-title">Battle Control</div>
+      <h1 class="type-page-title">Battle Control</h1>
       <p class="type-label text-content-muted mt-1">Manage brackets, rounds, and live voting</p>
     </div>
 
@@ -2107,9 +2107,11 @@ onUnmounted(() => {
 
     <!-- Setup panel — hidden in view-only mode (mutations would target the live genre, not the viewed genre) -->
     <div v-if="isAdminOrOrganiser && !isViewingNonActive" class="card overflow-hidden">
-      <!-- Header — always visible, click to expand/collapse -->
-      <div
-        class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+      <!-- Header — button + aria-expanded so the disclosure is keyboard-operable -->
+      <button
+        type="button"
+        :aria-expanded="setupExpanded"
+        class="w-full flex items-center justify-between px-5 py-3 cursor-pointer select-none text-left"
         :class="setupLocked ? 'border-b border-surface-600/40' : (setupExpanded ? 'border-b border-surface-600/40' : '')"
         @click="setupExpanded = !setupExpanded"
       >
@@ -2124,8 +2126,8 @@ onUnmounted(() => {
             <span class="text-amber-400">LOCKED · BATTLE IN PROGRESS</span>
           </span>
         </div>
-        <i class="pi text-content-muted transition-transform duration-200" :class="setupExpanded ? 'pi-chevron-up' : 'pi-chevron-down'" style="font-size:11px"></i>
-      </div>
+        <i class="pi text-content-muted transition-transform duration-200" :class="setupExpanded ? 'pi-chevron-up' : 'pi-chevron-down'" style="font-size:11px" aria-hidden="true"></i>
+      </button>
 
       <!-- Collapsible content -->
       <div v-show="setupExpanded" class="p-5">
@@ -2150,6 +2152,7 @@ onUnmounted(() => {
               v-for="s in sizes.filter(s => s !== 7)"
               :key="s"
               @click="requestSizeChange(s)"
+              :aria-pressed="topSize === s"
               class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150"
               :class="topSize === s
                 ? 'text-accent border-[color:var(--accent-muted)]'
@@ -2169,10 +2172,16 @@ onUnmounted(() => {
       <div class="mt-3">
         <template v-if="!setupLocked">
           <div class="flex flex-wrap gap-2">
+            <!-- role=button + keyboard handlers: judge toggle is keyboard-operable (can't be a <button> — it nests the weight input) -->
             <div
               v-for="j in sortedJudgesForToggle"
               :key="j.name"
+              role="button"
+              tabindex="0"
+              :aria-pressed="j.active"
               @click="toggleBattleJudge(j.name)"
+              @keydown.enter.prevent="toggleBattleJudge(j.name)"
+              @keydown.space.prevent="toggleBattleJudge(j.name)"
               class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
               :class="j.active
                 ? 'text-accent border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]'
@@ -2186,7 +2195,9 @@ onUnmounted(() => {
                   type="number"
                   :value="j.weightage"
                   min="1"
+                  :aria-label="`Vote weight for ${j.name}`"
                   @click.stop
+                  @keydown.stop
                   @change="e => submitUpdateJudgeWeightage(j.id, e.target.value)"
                   class="w-8 bg-surface-900 border border-surface-600/60 text-accent text-center type-body"
                   style="padding:1px 2px;font-size:11px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
@@ -2228,12 +2239,14 @@ onUnmounted(() => {
           <div class="flex gap-2 sm:gap-1">
             <button
               @click="crewSortMode = 'leader'"
+              :aria-pressed="crewSortMode === 'leader'"
               class="para-chip-sm px-3 sm:px-2.5 py-3 sm:py-1.5 type-label transition-all flex-1 sm:flex-none"
               :class="crewSortMode === 'leader' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by their leader's individual audition score"
             >Leader</button>
             <button
               @click="crewSortMode = 'avg'"
+              :aria-pressed="crewSortMode === 'avg'"
               class="para-chip-sm px-3 sm:px-2.5 py-3 sm:py-1.5 type-label transition-all flex-1 sm:flex-none"
               :class="crewSortMode === 'avg' ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
               title="Sort pickup crews by average score of all members"
@@ -2334,15 +2347,17 @@ onUnmounted(() => {
                 @click="editingGuestId = g.id; editingGuestRound = g.entryRound"
                 class="flex items-center justify-center px-2 border-l border-surface-600/40 text-surface-400 hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
                 title="Change round"
+                :aria-label="`Change entry round for ${g.guestName}`"
               >
-                <i class="pi pi-pencil" style="font-size:10px"></i>
+                <i class="pi pi-pencil" style="font-size:10px" aria-hidden="true"></i>
               </button>
               <button
                 @click="submitRemoveBattleGuest(g)"
                 class="flex items-center justify-center px-2.5 border-l border-surface-600/40 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                 title="Remove guest"
+                :aria-label="`Remove guest ${g.guestName}`"
               >
-                <i class="pi pi-times" style="font-size:11px"></i>
+                <i class="pi pi-times" style="font-size:11px" aria-hidden="true"></i>
               </button>
             </div>
           </span>
@@ -2445,8 +2460,8 @@ onUnmounted(() => {
                 :class="[
                   match[2] === match[0] && match[0] ? 'bg-emerald-500/10' : '',
                   dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 0
-                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                    : dragOverKey === `Top${bracketSize}-${mIdx}-0` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                    ? 'ring-2 ring-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-0` ? 'bg-[color:var(--accent-subtle)] ring-2 ring-inset ring-[color:var(--accent-muted)]' : ''
                 ]"
               >
                 <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[0] && match[0] ? 'text-amber-400' : 'text-surface-600'"></i>
@@ -2471,7 +2486,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${bracketSize}`, mIdx, 0)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                <button v-if="!setupLocked && match[0] && !isGuestSlot(match[0])" @click="clearSlot(`Top${bracketSize}`, mIdx, 0)" class="flex-shrink-0 px-2 py-1.5 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot" :aria-label="`Clear slot ${match[0]}`"><i class="pi pi-times text-[10px]" aria-hidden="true"></i></button>
               </div>
 
               <!-- VS: horizontal line on mobile, vertical divider on sm+ -->
@@ -2491,8 +2506,8 @@ onUnmounted(() => {
                 :class="[
                   match[2] === match[1] && match[1] ? 'bg-emerald-500/10' : '',
                   dragSource?.roundKey === `Top${bracketSize}` && dragSource?.matchIdx === mIdx && dragSource?.slotIdx === 1
-                    ? 'ring-2 ring-primary-400/80 bg-primary-400/12 shadow-inner'
-                    : dragOverKey === `Top${bracketSize}-${mIdx}-1` ? 'bg-primary-500/15 ring-2 ring-inset ring-primary-500/70' : ''
+                    ? 'ring-2 ring-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)] shadow-inner'
+                    : dragOverKey === `Top${bracketSize}-${mIdx}-1` ? 'bg-[color:var(--accent-subtle)] ring-2 ring-inset ring-[color:var(--accent-muted)]' : ''
                 ]"
               >
                 <i class="pi pi-crown text-xs flex-shrink-0 transition-colors" :class="match[2] === match[1] && match[1] ? 'text-amber-400' : 'text-surface-600'"></i>
@@ -2517,7 +2532,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <span v-else class="flex-1 type-body text-surface-600/60 italic">Drop here</span>
-                <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${bracketSize}`, mIdx, 1)" class="flex-shrink-0 px-1.5 py-1 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot"><i class="pi pi-times text-[10px]"></i></button>
+                <button v-if="!setupLocked && match[1] && !isGuestSlot(match[1])" @click="clearSlot(`Top${bracketSize}`, mIdx, 1)" class="flex-shrink-0 px-2 py-1.5 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Clear slot" :aria-label="`Clear slot ${match[1]}`"><i class="pi pi-times text-[10px]" aria-hidden="true"></i></button>
               </div>
             </div>
           </div>
@@ -2539,8 +2554,8 @@ onUnmounted(() => {
             :data-drop-key="`smoke-${mIdx}`"
             @pointerdown="(e) => !!match.name && onPointerDragStart('smoke', mIdx, e)"
             class="card-hover relative flex items-stretch overflow-hidden transition-all duration-150"
-            :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-primary-500/70 bg-primary-500/10' :
-                    (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-primary-400/80 bg-primary-400/12' : '')"
+            :class="dragOverKey === `smoke-${mIdx}` ? 'ring-2 ring-inset ring-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]' :
+                    (dragSource?.smokeIdx === mIdx ? 'ring-2 ring-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]' : '')"
             style="padding:0; touch-action: none;"
           >
             <div class="corner-bar-tl"></div>
@@ -2566,7 +2581,8 @@ onUnmounted(() => {
               @click.stop="clearSmokeSlot(mIdx)"
               class="flex items-center justify-center px-2 flex-shrink-0 border-l border-surface-600/30 text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Clear slot"
-            ><i class="pi pi-times" style="font-size:10px"></i></button>
+              :aria-label="`Clear queue slot ${mIdx + 1} (${match.name})`"
+            ><i class="pi pi-times" style="font-size:10px" aria-hidden="true"></i></button>
           </div>
         </div>
 
@@ -2637,6 +2653,7 @@ onUnmounted(() => {
                 @change="pushOverlayConfig"
                 maxlength="7"
                 placeholder="#dc2626"
+                aria-label="Left team color hex value"
                 class="overlay-hex-input"
               />
             </div>
@@ -2657,6 +2674,7 @@ onUnmounted(() => {
                 @change="pushOverlayConfig"
                 maxlength="7"
                 placeholder="#2563eb"
+                aria-label="Right team color hex value"
                 class="overlay-hex-input"
               />
             </div>
@@ -2664,10 +2682,12 @@ onUnmounted(() => {
           <div class="overlay-setting-row">
             <span class="overlay-setting-label">Show Images</span>
             <label class="overlay-toggle">
+              <!-- aria-label: visually-hidden checkbox needs an accessible name -->
               <input
                 type="checkbox"
                 v-model="overlayConfig.showImages"
                 @change="pushOverlayConfig"
+                aria-label="Show participant images on overlay"
               />
               <span class="overlay-toggle-track"></span>
             </label>
@@ -2697,7 +2717,7 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-        <p v-if="overlayConfigError" class="overlay-config-error">{{ overlayConfigError }}</p>
+        <p v-if="overlayConfigError" class="overlay-config-error" role="alert">{{ overlayConfigError }}</p>
       </details>
 
       </div> <!-- end collapsible content -->
@@ -2706,7 +2726,7 @@ onUnmounted(() => {
     <!-- Bracket size change confirmation modal -->
     <Transition name="fade">
       <div v-if="showSizeChangeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative" role="dialog" aria-modal="true" aria-label="Change bracket size">
           <div class="corner-bar-tl"></div>
           <div class="type-page-title text-lg mb-2">Change Bracket Size?</div>
           <p class="type-body text-content-muted mb-6">The current bracket has participants placed. Changing the size will reset all bracket data for this genre. Continue?</p>
@@ -2727,7 +2747,7 @@ onUnmounted(() => {
     <!-- Round change confirmation modal -->
     <Transition name="fade">
       <div v-if="showRoundChangeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative" role="dialog" aria-modal="true" aria-label="Switch round">
           <div class="corner-bar-tl"></div>
           <div class="type-page-title text-lg mb-2">Switch Round?</div>
           <p class="type-body text-content-muted mb-6">A battle is in progress. Switching rounds will not affect the active battle — you can continue viewing other rounds safely.</p>
@@ -2799,7 +2819,7 @@ onUnmounted(() => {
     <!-- WIN confirmation modal -->
     <Transition name="fade">
       <div v-if="pendingWin" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="card-hover p-6 max-w-sm w-full mx-4 relative">
+        <div class="card-hover p-6 max-w-sm w-full mx-4 relative" role="dialog" aria-modal="true" aria-label="Confirm winner">
           <div class="corner-bar-tl"></div>
           <div class="type-page-title text-lg mb-2">
             {{ pendingWin.replacing ? 'Replace Winner?' : 'Set Winner?' }}
@@ -2829,7 +2849,7 @@ onUnmounted(() => {
     <!-- Start-from-here confirmation modal -->
     <Transition name="fade">
       <div v-if="pendingStartAt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="confirm-modal card-hover p-6 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto">
+        <div class="confirm-modal card-hover p-6 max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Confirm battle round">
           <div class="corner-bar-tl"></div>
           <div class="type-page-title text-lg mb-4">Confirm Battle Round</div>
 
@@ -2909,8 +2929,9 @@ onUnmounted(() => {
 
           <div class="confirm-modal-actions flex gap-3 justify-end">
             <button @click="cancelStartAt" class="para-chip-sm px-4 py-2 type-label transition-all">Cancel</button>
-            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all" :disabled="!(battleJudges?.judges ?? []).length">
-              <i class="pi pi-play text-xs mr-1.5"></i>Start Round
+            <!-- visible disabled state so "why can't I start" is obvious (no judges) -->
+            <button @click="confirmStartAt" class="para-chip-sm px-4 py-2 type-label bg-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed" :disabled="!(battleJudges?.judges ?? []).length">
+              <i class="pi pi-play text-xs mr-1.5" aria-hidden="true"></i>Start Round
             </button>
           </div>
         </div>
@@ -2986,7 +3007,8 @@ onUnmounted(() => {
   position: relative;
   transition: background 0.2s;
 }
-.overlay-toggle input:checked + .overlay-toggle-track { background: #e53935; }
+/* accent on-state — red is reserved for errors per design system */
+.overlay-toggle input:checked + .overlay-toggle-track { background: var(--accent-color); }
 .overlay-toggle-track::after {
   content: '';
   position: absolute;

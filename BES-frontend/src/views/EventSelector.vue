@@ -42,9 +42,9 @@ const handleSubmit = async () => {
     <div class="relative z-10 w-full max-w-md mt-4 sm:mt-10">
       <div class="card p-8">
 
-        <!-- Header -->
+        <!-- Header — h1 for document outline -->
         <div class="mb-8">
-          <div class="type-page-title mb-1">Select Event</div>
+          <h1 class="type-page-title mb-1">Select Event</h1>
           <p class="type-label text-content-muted">{{ events.length }} available</p>
         </div>
 
@@ -57,25 +57,30 @@ const handleSubmit = async () => {
               <div class="section-rule-line"></div>
             </div>
             <div class="grid gap-2 event-grid" :class="events.length > 4 ? 'grid-cols-2' : 'grid-cols-1'">
+              <!-- aria-pressed + check icon: selected state reads via shape and semantics, not border color alone -->
               <button
                 v-for="event in events"
                 :key="event.id"
                 type="button"
                 @click="selectedEventId = event.id; error = ''"
+                :aria-pressed="selectedEventId === event.id"
                 :class="[
-                  'card-hover p-4 sm:p-5 text-left relative group w-full',
-                  selectedEventId === event.id ? 'border-[color:var(--accent-muted)]' : ''
+                  'card-hover p-4 sm:p-5 text-left relative group w-full min-h-[44px]',
+                  selectedEventId === event.id ? 'border-[color:var(--accent-muted)] glow-accent' : ''
                 ]"
               >
                 <div class="corner-bar-tl"></div>
-                <div class="type-body mb-1 event-card-name">{{ event.name }}</div>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="type-body mb-1 event-card-name">{{ event.name }}</div>
+                  <i v-if="selectedEventId === event.id" class="pi pi-check-circle text-accent flex-shrink-0" aria-hidden="true"></i>
+                </div>
               </button>
             </div>
             <p v-if="events.length === 0" class="type-label text-content-muted mt-2">No events found.</p>
           </div>
 
-          <!-- Error -->
-          <p v-if="error" class="type-label text-red-400">{{ error }}</p>
+          <!-- Error — role=alert so validation is announced when it appears -->
+          <p v-if="error" role="alert" class="type-label text-red-400">{{ error }}</p>
 
           <!-- Submit -->
           <button

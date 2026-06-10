@@ -237,7 +237,8 @@ onMounted(async () => {
 
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
         <div>
-          <div class="type-page-title mb-1">Participants</div>
+          <!-- h1 for document outline -->
+          <h1 class="type-page-title mb-1">Participants</h1>
           <p class="type-label text-content-muted">Manage entries, edit names, assign judges</p>
         </div>
         <button
@@ -249,15 +250,21 @@ onMounted(async () => {
       </div>
 
       <div class="para-chip p-4 mb-6">
+        <!-- sr-only label: placeholder alone isn't an accessible name -->
+        <label for="participant-search" class="sr-only">Search participants by name</label>
         <input
+          id="participant-search"
           v-model="search"
+          type="search"
           class="search-input"
           placeholder="Search name..."
         />
-        <div class="genre-chips">
+        <!-- aria-pressed exposes the active filter beyond color -->
+        <div class="genre-chips" role="group" aria-label="Filter by genre">
           <button
             v-for="genre in genreList"
             :key="genre"
+            :aria-pressed="activeGenre === genre"
             :class="['genre-chip', activeGenre === genre && 'active']"
             @click="activeGenre = genre"
           >
@@ -301,7 +308,8 @@ onMounted(async () => {
 
       <div v-else class="participant-table">
         <div class="pt-header">
-          <input type="checkbox" class="row-check" :checked="allSelected" @change="toggleAll" />
+          <!-- aria-label: bare checkbox needs an accessible name -->
+          <input type="checkbox" class="row-check" :checked="allSelected" @change="toggleAll" aria-label="Select all participants" />
           <div class="pt-col-expand"></div>
           <div class="pt-col-name">Name</div>
           <div class="pt-col-format">Format</div>
@@ -316,8 +324,12 @@ onMounted(async () => {
               class="row-check"
               :checked="selectedIds.has(p.participantId)"
               @change="toggleSelect(p.participantId)"
+              :aria-label="`Select ${p.name}`"
             />
-            <button class="expand-btn" @click="toggle(p.participantId)">
+            <!-- aria-expanded + label: glyph-only expander gets semantics -->
+            <button class="expand-btn" @click="toggle(p.participantId)"
+              :aria-expanded="expanded.has(p.participantId)"
+              :aria-label="`Show genres for ${p.name}`">
               {{ expanded.has(p.participantId) ? '▾' : '▸' }}
             </button>
             <div class="pt-col-name">
@@ -357,6 +369,7 @@ onMounted(async () => {
               <select
                 class="judge-select"
                 :value="genre.judgeName"
+                :aria-label="`Assign judge for ${p.name} in ${genre.genreName}`"
                 @change="assignJudge(p, genre, $event.target.value)"
               >
                 <option value="">—</option>
@@ -377,19 +390,22 @@ onMounted(async () => {
 
   <Teleport to="body">
     <div v-if="showEdit" class="modal-backdrop" @click.self="showEdit = false">
-      <div class="edit-modal">
+      <!-- role=dialog: edit modal announced as such -->
+      <div class="edit-modal" role="dialog" aria-modal="true" :aria-label="editTarget?.isTeam ? 'Edit team' : 'Edit participant'">
         <div class="modal-header">
           <span class="type-label">{{ editTarget?.isTeam ? 'Edit Team' : 'Edit Participant' }}</span>
-          <button class="modal-close" @click="showEdit = false">✕</button>
+          <button class="modal-close" @click="showEdit = false" aria-label="Close edit dialog">✕</button>
         </div>
 
         <div class="modal-body">
           <div class="field">
-            <label class="field-label">
+            <!-- for/id link label and input programmatically -->
+            <label class="field-label" for="edit-name">
               {{ editTarget?.isTeam ? 'Team Name' : 'Display Name' }}
-              <span class="required">*</span>
+              <span class="required" aria-hidden="true">*</span>
             </label>
             <input
+              id="edit-name"
               v-model="editName"
               class="field-input"
               :placeholder="editTarget?.isTeam ? 'Team name' : 'Display name'"
@@ -403,10 +419,11 @@ onMounted(async () => {
               :key="i"
               class="field"
             >
-              <label class="field-label">
-                Member {{ i + 1 }} <span class="required">*</span>
+              <label class="field-label" :for="`edit-member-${i}`">
+                Member {{ i + 1 }} <span class="required" aria-hidden="true">*</span>
               </label>
               <input
+                :id="`edit-member-${i}`"
                 v-model="editMembers[i]"
                 class="field-input"
                 :placeholder="`Member ${i + 1}`"
@@ -414,7 +431,8 @@ onMounted(async () => {
             </div>
           </template>
 
-          <p v-if="editError" class="field-error">{{ editError }}</p>
+          <!-- role=alert announces validation errors when they appear -->
+          <p v-if="editError" class="field-error" role="alert">{{ editError }}</p>
         </div>
 
         <div class="modal-footer">
@@ -443,8 +461,9 @@ onMounted(async () => {
     @close="showCreate = false"
   />
 
+  <!-- role=status: success toast announced to screen readers -->
   <Transition name="toast">
-    <div v-if="showToast" class="toast">{{ toast }}</div>
+    <div v-if="showToast" class="toast" role="status">{{ toast }}</div>
   </Transition>
 </template>
 
@@ -644,5 +663,11 @@ onMounted(async () => {
   .pt-col-format, .pt-col-genres { grid-column: 2 / -1; }
   .pt-col-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .pt-subrow { padding-left: 12px; }
+
+  /* 44px tap targets on touch screens */
+  .expand-btn { width: 44px; height: 44px; }
+  .btn-action, .btn-remove-genre { min-height: 44px; padding: 4px 14px; }
+  .judge-select { min-height: 44px; }
+  .genre-chip { min-height: 44px; }
 }
 </style>

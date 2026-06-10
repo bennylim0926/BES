@@ -605,6 +605,7 @@ onUnmounted(() => {
   font-size: 9px; font-weight: 800;
   letter-spacing: 0.2em; text-transform: uppercase;
   padding: 5px 12px; border-radius: 999px;
+  min-height: 44px; min-width: 44px; /* mobile tap target */
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.15);
   color: rgba(255,255,255,0.5);

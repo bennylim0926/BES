@@ -18,6 +18,9 @@ const modalMessage = ref('')
 const showModal    = ref(false)
 const modalVariant = ref('error')
 
+/* Inline validation state — surface missing-field errors at the field, not only after submit */
+const touched = ref({ username: false, password: false })
+
 const openModal = (title, message, variant = 'error') => {
   modalTitle.value   = title
   modalMessage.value = message
@@ -29,7 +32,7 @@ const handleAccept = () => { showModal.value = false }
 
 const submitLogin = async () => {
   if (!username.value || !password.value) {
-    openModal('Missing Fields', 'Please enter both username and password.')
+    touched.value = { username: true, password: true }
     return
   }
   try {
@@ -107,39 +110,59 @@ const submitLogin = async () => {
 
           <form @submit.prevent="submitLogin" class="space-y-4">
             <div>
-              <label class="type-label text-content-muted block mb-2">Username</label>
+              <!-- for/id association so the label is programmatically linked to its input -->
+              <label for="login-username" class="type-label text-content-muted block mb-2">Username</label>
               <input
+                id="login-username"
                 v-model="username"
                 type="text"
-                placeholder="Username"
                 class="input-base w-full"
+                :class="touched.username && !username ? 'border-red-500/60' : ''"
                 style="text-transform: none; font-family: var(--font-body, 'Inter'), sans-serif; letter-spacing: normal;"
                 autocomplete="username"
+                :aria-invalid="touched.username && !username ? 'true' : undefined"
+                aria-describedby="login-username-error"
+                @blur="touched.username = true"
               />
+              <!-- Inline validation: error appears at the field instead of waiting for submit -->
+              <p v-if="touched.username && !username" id="login-username-error" role="alert"
+                class="type-label text-red-400 mt-1.5">Username is required</p>
             </div>
             <div>
-              <label class="type-label text-content-muted block mb-2">Password</label>
+              <label for="login-password" class="type-label text-content-muted block mb-2">Password</label>
               <div class="relative">
                 <input
+                  id="login-password"
                   v-model="password"
                   :type="showPassword ? 'text' : 'password'"
-                  placeholder="Password"
-                  class="input-base w-full pr-10"
+                  class="input-base w-full pr-12"
+                  :class="touched.password && !password ? 'border-red-500/60' : ''"
                   style="text-transform: none; font-family: var(--font-body, 'Inter'), sans-serif; letter-spacing: normal;"
                   autocomplete="current-password"
+                  :aria-invalid="touched.password && !password ? 'true' : undefined"
+                  aria-describedby="login-password-error"
+                  @blur="touched.password = true"
                 />
+                <!-- aria-label + aria-pressed: icon-only toggle gets an accessible name and state; 44px tap target -->
                 <button type="button" @click="showPassword = !showPassword"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 type-label text-content-muted hover:text-content-primary transition-colors">
-                  <i class="pi" :class="showPassword ? 'pi-eye-slash' : 'pi-eye'"></i>
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                  :aria-pressed="showPassword"
+                  class="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 inline-flex items-center justify-center type-label text-content-muted hover:text-content-primary transition-colors">
+                  <i class="pi" :class="showPassword ? 'pi-eye-slash' : 'pi-eye'" aria-hidden="true"></i>
                 </button>
               </div>
+              <p v-if="touched.password && !password" id="login-password-error" role="alert"
+                class="type-label text-red-400 mt-1.5">Password is required</p>
             </div>
 
+            <!-- aria-busy + spinner: visible loading state, never leave the user guessing -->
             <button
               type="submit"
               :disabled="isLoading"
-              class="w-full py-3 type-body bg-accent text-surface-900 transition-all duration-200 disabled:opacity-50 mt-2"
+              :aria-busy="isLoading"
+              class="w-full py-3 type-body bg-accent text-surface-900 transition-all duration-200 disabled:opacity-50 mt-2 inline-flex items-center justify-center gap-2"
               style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)">
+              <span v-if="isLoading" class="inline-block w-4 h-4 border-2 border-surface-900/30 border-t-surface-900 rounded-full animate-spin" aria-hidden="true"></span>
               {{ isLoading ? 'Signing in...' : 'Sign In' }}
             </button>
           </form>
