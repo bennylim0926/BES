@@ -199,10 +199,19 @@ const swipeHint = computed(() => {
                 </div>
               </template>
             </div>
-            <div class="flex items-center justify-between px-4 pb-1.5">
-              <span class="type-label text-content-muted">← Prev</span>
-              <span class="type-label text-content-muted">swipe</span>
-              <span class="type-label text-content-muted">Next →</span>
+            <div class="flex items-stretch gap-1.5 px-4 pb-1.5">
+              <button
+                @pointerdown.stop
+                @click="goPrev"
+                :disabled="currentRound <= 1"
+                class="nav-btn type-label"
+              >‹ PREV</button>
+              <button
+                @pointerdown.stop
+                @click="goNext"
+                :disabled="currentRound >= totalRounds"
+                class="nav-btn type-label"
+              >NEXT ›</button>
             </div>
           </div>
         </Transition>
@@ -281,5 +290,27 @@ const swipeHint = computed(() => {
   .emcee-now {
     flex: none;
   }
+}
+
+/* ── Nav buttons ────────────────────────────────────────────────────── */
+.nav-btn {
+  flex: 1;
+  min-height: 48px;
+  clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--accent-color);
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-btn:active:not(:disabled) {
+  background: var(--accent-muted);
+}
+.nav-btn:disabled {
+  opacity: 0.2;
+  pointer-events: none;
 }
 </style>
