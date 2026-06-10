@@ -2237,23 +2237,20 @@ onUnmounted(() => {
     >
       <div
         v-if="showAdjustModal"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
       >
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeAdjustModal" />
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeAdjustModal" />
         <div class="card-hover relative w-full sm:max-w-md flex flex-col" style="max-height: 85vh;">
           <div class="corner-bar-tl"></div>
           <div class="corner-bar-bl"></div>
 
           <!-- Header -->
-          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
+          <div class="flex items-center px-4 py-3 border-b border-surface-600/30 shrink-0">
             <div class="flex items-center gap-2">
               <i class="pi pi-sliders-h text-content-muted text-xs"></i>
               <span class="type-body text-content-primary">Genre Entries</span>
               <span class="badge-neutral type-label">{{ props.eventName }}</span>
             </div>
-            <button @click="closeAdjustModal" class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors">
-              <i class="pi pi-times text-xs"></i>
-            </button>
           </div>
 
           <!-- Body -->
@@ -2365,6 +2362,7 @@ onUnmounted(() => {
 
 
           </div>
+          <p class="type-label text-content-muted/40 text-center py-2 shrink-0">Tap outside to close</p>
         </div>
       </div>
     </Transition>
@@ -2374,21 +2372,16 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
                 leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-      <div v-if="genreAddForm.show" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="genreAddForm.show = false" />
+      <div v-if="genreAddForm.show" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center pb-6 sm:p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="genreAddForm.show = false" />
         <div class="card-hover relative w-full sm:max-w-sm flex flex-col" style="max-height:85vh">
           <div class="corner-bar-tl"></div>
           <div class="corner-bar-bl"></div>
 
           <!-- Header -->
-          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
-            <div>
-              <p class="type-body text-content-primary">Add Division</p>
-              <p class="type-label text-content-muted mt-0.5">{{ genreAddForm.genre?.name }} · {{ genreAddForm.genre?.format }}</p>
-            </div>
-            <button @click="genreAddForm.show = false" class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors">
-              <i class="pi pi-times text-xs"></i>
-            </button>
+          <div class="px-4 py-3 border-b border-surface-600/30 shrink-0">
+            <p class="type-body text-content-primary">Add Division</p>
+            <p class="type-label text-content-muted mt-0.5">{{ genreAddForm.genre?.name }} · {{ genreAddForm.genre?.format }}</p>
           </div>
 
           <!-- Body -->

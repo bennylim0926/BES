@@ -189,9 +189,9 @@ onMounted(async () => {
     >
     <div
       v-if="props.show"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
     >
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('close')" />
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')" />
       <div class="card-hover relative w-full sm:max-w-md flex flex-col" style="max-height: 85vh;">
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>
@@ -203,12 +203,6 @@ onMounted(async () => {
               <span class="type-body text-content-primary">{{ props.title }}</span>
               <span class="badge-neutral type-label">{{ props.event }}</span>
             </div>
-            <button
-              @click="$emit('close')"
-              class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors"
-            >
-              <i class="pi pi-times text-xs"></i>
-            </button>
           </div>
 
           <!-- Body -->
