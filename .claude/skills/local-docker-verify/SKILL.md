@@ -1,19 +1,11 @@
 ---
 name: local-docker-verify
 description: >
-  Use this skill whenever code changes have been made to the codebase —
-  including feature additions, bug fixes, refactors, config changes, dependency
-  updates, or any edit to source files — to verify the changes locally first,
-  then rebuild and verify the affected Docker containers.
-
-  ALWAYS trigger this skill automatically (without waiting for the user to ask)
-  when you detect any of these signals:
-    - You just wrote, edited, or scaffolded code files
-    - The user says "done", "try it", "test this", "does it work", "deploy",
-      "rebuild", or similar after a code change
-    - A compile/lint/type error was just fixed
-    - A dependency or config file (package.json, requirements.txt, Dockerfile,
-      docker-compose.yml, .env, etc.) was modified
+  Use this skill to verify code changes locally and rebuild affected Docker
+  containers. Invoke ONLY when the user explicitly asks to test, rebuild, or
+  deploy — e.g. "does it work", "try it", "rebuild", "deploy", "test this".
+  Do NOT auto-trigger after individual file edits; wait for the user to signal
+  they are ready to verify.
 
   This skill: (1) runs a local build/compile check, (2) identifies which of
   the three containers (frontend, backend, database) are affected, (3) rebuilds
