@@ -36,6 +36,7 @@ import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.dtos.UpdateJudgingModeDto;
+import com.example.BES.dtos.UpdateFeedbackDto;
 import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
@@ -195,6 +196,28 @@ public class EventController {
         try {
             eventService.setJudgingMode(dto.eventName, dto.judgingMode);
             return ResponseEntity.ok(java.util.Map.of("message", "Judging mode updated"));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Feedback Enabled", description = "Returns whether the feedback button is shown on judge scoring cards for an event")
+    @GetMapping("/feedback-enabled/{eventName}")
+    public ResponseEntity<?> getFeedbackEnabled(@PathVariable String eventName) {
+        try {
+            return new ResponseEntity<>(eventService.getFeedbackEnabled(eventName), HttpStatus.OK);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event (admin only)")
+    @PostMapping("/feedback-enabled")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setFeedbackEnabled(@Valid @RequestBody UpdateFeedbackDto dto) {
+        try {
+            eventService.setFeedbackEnabled(dto.eventName, dto.feedbackEnabled);
+            return ResponseEntity.ok(java.util.Map.of("message", "Feedback enabled updated"));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("error", e.getReason()));
         }

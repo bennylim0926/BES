@@ -1,0 +1,1 @@
+ALTER TABLE event ADD COLUMN feedback_enabled BOOLEAN DEFAULT TRUE;

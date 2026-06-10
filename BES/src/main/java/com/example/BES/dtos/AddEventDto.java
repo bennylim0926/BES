@@ -10,4 +10,5 @@ public class AddEventDto {
     public boolean paymentRequired;
     @Size(max = 255)
     public String accessCode;
+    public boolean feedbackEnabled = true;
 }
