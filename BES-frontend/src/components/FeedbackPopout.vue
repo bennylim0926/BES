@@ -53,11 +53,11 @@ function onNoteInput() {
   >
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
     >
       <!-- Backdrop -->
       <div
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/80 backdrop-blur-sm"
         @click="emit('close')"
       />
 
@@ -80,12 +80,6 @@ function onNoteInput() {
               </span>
             </div>
           </div>
-          <button
-            @click="emit('close')"
-            class="p-1.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-colors"
-          >
-            <i class="pi pi-times text-sm" />
-          </button>
         </div>
 
         <!-- Tag Groups -->
@@ -135,16 +129,18 @@ function onNoteInput() {
         </div>
 
         <!-- Footer -->
-        <div class="flex gap-3 flex-shrink-0 items-center">
-          <button
-            @click="emit('close')"
-            class="flex-1 py-2 para-chip type-label text-content-muted hover:text-content-primary transition-all"
-          >Done</button>
-          <div class="flex items-center gap-2 type-label text-content-muted">
-            <i v-if="saving" class="pi pi-spin pi-spinner text-accent/60 text-xs"></i>
-            <i v-else-if="selectedTagIds.size > 0 || note.trim()" class="pi pi-check-circle text-emerald-400 text-xs"></i>
-            <span v-if="saving" class="text-accent/60 text-xs normal-case">Saving…</span>
+        <div class="flex flex-col items-center gap-0.5 flex-shrink-0 pt-1 pb-1">
+          <div class="h-5 flex items-center gap-2">
+            <template v-if="saving">
+              <i class="pi pi-spin pi-spinner text-accent/70 text-xs"></i>
+              <span class="type-label text-accent/70 normal-case">Saving…</span>
+            </template>
+            <template v-else-if="selectedTagIds.size > 0 || note.trim()">
+              <i class="pi pi-check-circle text-emerald-400 text-xs"></i>
+              <span class="type-label text-emerald-400 normal-case">Feedback saved</span>
+            </template>
           </div>
+          <p class="type-label text-content-muted/40">Tap outside to close</p>
         </div>
       </div>
     </div>

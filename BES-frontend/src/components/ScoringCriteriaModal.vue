@@ -149,10 +149,10 @@ const applyToAllGenres = async () => {
     <Transition name="modal-fade">
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
       >
         <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close" />
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="close" />
 
         <!-- Panel -->
         <div class="card-hover relative w-full sm:max-w-lg flex flex-col max-h-[85vh]">
@@ -166,12 +166,6 @@ const applyToAllGenres = async () => {
               <span class="type-body text-content-primary">Scoring Criteria</span>
               <span class="badge-neutral type-label">{{ props.eventName }}</span>
             </div>
-            <button
-              @click="close"
-              class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors"
-            >
-              <i class="pi pi-times text-xs" />
-            </button>
           </div>
 
           <!-- Genre tabs -->
@@ -326,7 +320,7 @@ const applyToAllGenres = async () => {
           </div>
 
           <!-- Footer actions -->
-          <div class="flex items-center gap-2 flex-shrink-0 px-4 py-3 border-t border-surface-600/30">
+          <div class="flex items-center gap-2 flex-shrink-0 px-4 py-3 border-t border-surface-600/30 flex-wrap">
             <button
               v-if="!showAdd"
               @click="showAdd = true"
@@ -352,6 +346,7 @@ const applyToAllGenres = async () => {
               {{ appliedAll ? 'Copied!' : 'Copy to all genres' }}
             </button>
           </div>
+          <p class="type-label text-content-muted/40 text-center py-1.5 shrink-0">Tap outside to close</p>
         </div>
       </div>
     </Transition>
