@@ -846,14 +846,27 @@ const loadSessionTokens = async () => {
   if (!dbEventId.value) return
   sessionTokensLoading.value = true
   sessionTokens.value = await getSessionTokens(dbEventId.value)
+
   // Auto-generate permanent roles if missing
   const hasEmcee = sessionTokens.value.some(t => t.role === 'EMCEE')
   const hasHelper = sessionTokens.value.some(t => t.role === 'HELPER')
   if (!hasEmcee) await generateToken('EMCEE', dbEventId.value, null)
   if (!hasHelper) await generateToken('HELPER', dbEventId.value, null)
-  if (!hasEmcee || !hasHelper) {
-    sessionTokens.value = await getSessionTokens(dbEventId.value)
+
+  // Auto-repair JUDGE tokens: revoke orphans (no judgeId), create for any judge missing a valid token
+  const judgesWithValidToken = new Set(
+    sessionTokens.value.filter(t => t.role === 'JUDGE' && t.judgeId).map(t => t.judgeId)
+  )
+  const orphanTokens = sessionTokens.value.filter(t => t.role === 'JUDGE' && !t.judgeId)
+  const judgesNeedingTokens = allEventJudges.value.filter(j => !judgesWithValidToken.has(j.judgeId))
+  if (orphanTokens.length > 0 || judgesNeedingTokens.length > 0) {
+    await Promise.all(orphanTokens.map(t => revokeSessionToken(t.tokenId)))
+    await Promise.all(judgesNeedingTokens.map(j => generateToken('JUDGE', dbEventId.value, j.judgeId)))
   }
+
+  const needsRefresh = !hasEmcee || !hasHelper || orphanTokens.length > 0 || judgesNeedingTokens.length > 0
+  if (needsRefresh) sessionTokens.value = await getSessionTokens(dbEventId.value)
+
   sessionTokensLoading.value = false
 }
 
@@ -1191,7 +1204,18 @@ onMounted(async () => {
   }
 })
 
+const anyModalOpen = computed(() =>
+  showModal.value ||
+  showCriteriaModal.value ||
+  showAdjustModal.value ||
+  genreAddForm.show ||
+  checkinConfirm.value.show ||
+  confirmDialog.value.show
+)
+watch(anyModalOpen, (open) => { document.body.style.overflow = open ? 'hidden' : '' })
+
 onUnmounted(() => {
+  document.body.style.overflow = ''
   if (refreshInterval) clearInterval(refreshInterval)
   if (wsClient) deactivateClient(wsClient)
 })
@@ -1252,34 +1276,30 @@ onUnmounted(() => {
     </div>
 
     <!-- Tab toggle -->
-    <div class="flex gap-2 mb-6">
+    <div class="tab-bar mb-6">
       <button
         v-if="!isHelper"
         @click="activeTab = 'setup'"
-        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
-        :class="activeTab === 'setup'
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeTab === 'setup' }"
       >
-        <i class="pi pi-cog text-xs mr-1.5"></i>
+        <i class="pi pi-cog text-xs"></i>
         Setup
       </button>
       <button
         @click="activeTab = 'event-day'"
-        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
-        :class="activeTab === 'event-day'
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeTab === 'event-day' }"
       >
-        <i class="pi pi-calendar text-xs mr-1.5"></i>
+        <i class="pi pi-calendar text-xs"></i>
         Event Day
         <span
           v-if="totalNotShownUp > 0"
-          class="ml-1.5 inline-flex items-center justify-center badge-warning px-1.5 py-0.5 text-[10px]"
+          class="inline-flex items-center justify-center badge-warning px-1.5 py-0.5 text-[10px]"
         >{{ totalNotShownUp }}</span>
         <span
           v-else-if="unverifiedParticipants.length > 0 && activeTab !== 'event-day'"
-          class="ml-1.5 inline-flex items-center justify-center badge-danger px-1.5 py-0.5 text-[10px]"
+          class="inline-flex items-center justify-center badge-danger px-1.5 py-0.5 text-[10px]"
         >{{ unverifiedParticipants.length }}</span>
       </button>
     </div>
@@ -1492,12 +1512,13 @@ onUnmounted(() => {
     </p>
 
     <!-- Sheet suggestions strip — only when sheet is connected -->
-    <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 para-chip">
+    <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 border border-white/7">
       <p class="type-label text-content-muted mb-3">FROM YOUR SHEET — click to add as a category</p>
       <div class="flex flex-wrap gap-2">
         <span
           v-for="cat in allSheetSuggestions"
           :key="cat"
+          class="relative"
         >
           <!-- Covered: visible but muted with strikethrough -->
           <span
@@ -1505,26 +1526,26 @@ onUnmounted(() => {
             class="para-chip-sm px-3 py-1 type-label text-content-muted opacity-40 line-through"
           >{{ cat }}</span>
           <!-- Uncovered: clearly clickable button -->
-          <span v-else class="relative">
+          <button
+            v-else
+            @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
+            class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-colors"
+            style="border-style:dashed;"
+          >+ {{ cat }}</button>
+          <!-- Inline genre picker — rendered outside clip-path ancestor -->
+          <div
+            v-if="pendingSuggestionCat === cat"
+            class="absolute top-full left-0 mt-1 z-50 min-w-[160px]"
+            style="background:var(--color-surface-800,#1a1a1a);border:1px solid rgba(255,255,255,0.12);"
+          >
+            <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO GENRE:</p>
             <button
-              @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
-              class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-colors"
-              style="border-style:dashed;"
-            >+ {{ cat }}</button>
-            <!-- Inline genre picker -->
-            <div
-              v-if="pendingSuggestionCat === cat"
-              class="absolute top-full left-0 mt-1 z-50 bg-surface-800 border border-surface-600 para-chip p-2 min-w-[160px]"
-            >
-              <p class="type-label text-content-muted mb-1.5">ADD TO GENRE:</p>
-              <button
-                v-for="group in divisionsByGenre"
-                :key="group.genreId"
-                @click="addSuggestionToGenre(group.genreId, group.label)"
-                class="block w-full text-left px-2 py-2 type-body text-content-secondary hover:text-accent transition-colors"
-              >{{ group.label }}</button>
-            </div>
-          </span>
+              v-for="group in divisionsByGenre"
+              :key="group.genreId"
+              @click="addSuggestionToGenre(group.genreId, group.label)"
+              class="block w-full text-left px-3 py-2 type-body text-content-secondary hover:text-accent transition-colors"
+            >{{ group.label }}</button>
+          </div>
         </span>
       </div>
     </div>
@@ -1537,10 +1558,11 @@ onUnmounted(() => {
           <span class="badge-neutral type-label px-2 py-0.5 text-sm">{{ group.divisions.length }}</span>
         </div>
 
-        <!-- Division rows -->
+        <!-- Division cards — 2-col on sm+, full-width on phone -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div v-for="div in group.divisions" :key="div.eventGenreId">
           <div
-            class="para-chip px-3 py-2.5"
+            class="para-chip p-3 h-full flex flex-col gap-2"
             :class="sheetCategories.length > 0
               ? (matchCounts[div.eventGenreId] || 0) > 0
                 ? (div.participantCount >= (matchCounts[div.eventGenreId] || 0)
@@ -1549,52 +1571,42 @@ onUnmounted(() => {
                 : 'border-l-[3px] border-l-amber-500'
               : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
           >
-            <!-- Single inline row: name+counts left, controls right -->
-            <div class="flex items-center gap-2">
-              <!-- Left: name + counts -->
-              <div class="flex items-center gap-2 flex-1 min-w-0">
-                <template v-if="divRenameActive !== div.eventGenreId">
-                  <button
-                    @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-                    class="type-body text-content-secondary hover:text-accent text-left min-w-0 transition-colors"
-                    style="overflow-wrap:break-word;word-break:break-word;font-size:16px;"
-                    title="Click to rename"
-                  >{{ div.name }}</button>
-                  <!-- Match count dots -->
-                  <div class="flex items-center gap-2 shrink-0">
-                    <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
-                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
-                      <span class="type-label">{{ div.participantCount }}</span>
-                    </div>
-                    <div v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0" class="flex items-center gap-1 text-amber-400">
-                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                      <span class="type-label">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
-                    </div>
-                    <div v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0" class="flex items-center gap-1 text-amber-400">
-                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                      <span class="type-label">0</span>
-                    </div>
-                  </div>
-                </template>
-                <template v-else>
-                  <input
-                    v-model="divRenameInput"
-                    type="text"
-                    class="input-base flex-1 min-w-0"
-                    placeholder="Category name"
-                    @keyup.enter="saveDivisionName(div)"
-                    @keyup.escape="divRenameActive = null"
-                    @blur="saveDivisionName(div)"
-                  />
-                </template>
+            <!-- Display mode -->
+            <template v-if="divRenameActive !== div.eventGenreId">
+              <!-- Row 1: name (left) + delete × (top-right, like judge card) -->
+              <div class="flex items-start justify-between gap-2">
+                <button
+                  @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
+                  class="type-body text-content-secondary hover:text-accent text-left flex-1 min-w-0 leading-snug transition-colors"
+                  title="Click to rename"
+                >{{ div.name }}</button>
+                <button
+                  @click="askRemoveDivision(div)"
+                  class="type-label text-content-muted hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                  title="Remove category"
+                ><i class="pi pi-times text-xs"></i></button>
               </div>
-
-              <!-- Right: format + solo + remove (never wraps) -->
-              <div class="flex items-center gap-1.5 shrink-0">
+              <!-- Row 2: count dots -->
+              <div class="flex items-center gap-2">
+                <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+                  <span class="type-label">{{ div.participantCount }}</span>
+                </div>
+                <div v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0" class="flex items-center gap-1 text-amber-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
+                </div>
+                <div v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0" class="flex items-center gap-1 text-amber-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label">0</span>
+                </div>
+              </div>
+              <!-- Row 3: format select + solo toggle -->
+              <div class="flex items-center gap-1.5 mt-auto">
                 <select
                   :value="div.format || ''"
                   @change="saveDivisionFormat(div, $event.target.value)"
-                  class="text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
+                  class="text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary flex-1 min-w-0"
                 >
                   <option value="">No format</option>
                   <template v-for="opt in divFormatOptions" :key="opt">
@@ -1605,19 +1617,38 @@ onUnmounted(() => {
                   v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
                   @click="askToggleSolo(div)"
                   :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
-                  class="para-chip-sm px-2 py-1 type-label transition-colors"
+                  class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
                   :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
                 >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
-                <button
-                  @click="askRemoveDivision(div)"
-                  class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors"
-                  title="Remove category"
-                ><i class="pi pi-times text-xs"></i></button>
               </div>
-            </div>
+            </template>
+
+            <!-- Edit / rename mode -->
+            <template v-else>
+              <input
+                v-model="divRenameInput"
+                type="text"
+                class="input-base w-full"
+                placeholder="Category name"
+                autofocus
+                @keyup.enter="saveDivisionName(div)"
+                @keyup.escape="divRenameActive = null"
+              />
+              <div class="flex items-center gap-2">
+                <button
+                  @click="saveDivisionName(div)"
+                  class="para-chip-sm px-2.5 py-1.5 type-label text-emerald-400 hover:text-emerald-300 transition-colors flex-1 flex items-center justify-center gap-1"
+                ><i class="pi pi-check text-sm"></i> Save</button>
+                <button
+                  @click="divRenameActive = null"
+                  class="para-chip-sm px-2.5 py-1.5 type-label text-content-muted hover:text-content-primary transition-colors flex-1 flex items-center justify-center gap-1"
+                ><i class="pi pi-times text-sm"></i> Cancel</button>
+              </div>
+            </template>
 
           </div>
         </div>
+        </div><!-- end grid -->
 
         <!-- Add division to group -->
         <button
@@ -1702,13 +1733,13 @@ onUnmounted(() => {
               <span
                 v-for="cat in categoriesAssignedToJudge(j.judgeId)"
                 :key="cat.eventGenreId"
-                class="inline-flex items-center gap-1.5 para-chip-sm px-2 py-1 type-label text-content-muted"
+                class="inline-flex items-center gap-2 para-chip-sm px-2.5 py-1.5 type-body text-content-secondary"
               >
                 {{ cat.name }}
                 <button
                   @click="submitRemoveJudge(cat.eventGenreId, j.judgeId)"
                   class="hover:text-red-400 transition-colors leading-none"
-                ><i class="pi pi-times text-xs"></i></button>
+                ><i class="pi pi-times text-sm"></i></button>
               </span>
             </div>
             <p v-else class="type-label text-amber-400 mb-1.5">No categories assigned yet</p>
@@ -1718,7 +1749,7 @@ onUnmounted(() => {
           <select
             v-if="categoriesUnassignedToJudge(j.judgeId).length > 0"
             @change="submitAssignJudge(Number($event.target.value), j.judgeId); $event.target.value = ''"
-            class="w-full px-3 py-2 type-label text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
+            class="w-full px-3 py-2.5 type-body text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
           >
             <option value="" disabled selected>+ Assign category</option>
             <option
@@ -1752,20 +1783,18 @@ onUnmounted(() => {
     </div>
 
     <!-- Genre tab bar -->
-    <div class="flex flex-wrap gap-2 mb-4">
+    <div class="tab-bar mb-4">
       <button
         v-for="g in eventGenres"
         :key="g.name"
         @click="activeGenreTab = g.name"
-        class="para-chip-sm px-4 py-2 type-label transition-all duration-150"
-        :class="activeGenreTab === g.name
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeGenreTab === g.name }"
       >
         {{ g.name }}
         <span
           v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))"
-          class="ml-1.5 text-sm font-normal opacity-60"
+          class="opacity-60 text-sm font-normal"
         >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
       </button>
     </div>
@@ -1886,34 +1915,36 @@ onUnmounted(() => {
       <div
         v-for="t in sessionTokens"
         :key="t.tokenId"
-        class="para-chip px-3 py-2 flex items-center gap-3"
+        class="para-chip px-3 py-2 flex flex-col gap-1.5"
       >
-        <span
-          class="badge-neutral text-sm shrink-0"
-          :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
-        >{{ t.role }}</span>
-        <span v-if="t.judgeName" class="type-body text-content-secondary text-sm truncate">{{ t.judgeName }}</span>
-        <span class="flex-1"></span>
-        <span
-          class="type-label text-sm shrink-0"
-          :class="isExpiryWarning(t.expiresAt) ? 'text-amber-400' : 'text-content-muted'"
-        >
-          {{ formatExpiry(t.expiresAt) }}
-          <span v-if="isExpiryWarning(t.expiresAt)"> ⚠</span>
-        </span>
-        <button
-          @click="handleRefreshToken(t)"
-          class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
-          title="Refresh link (extends expiry)"
-        ><i class="pi pi-refresh text-xs"></i></button>
-        <button
-          @click="copyTokenLink(t.url, t.tokenId)"
-          class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
-          :class="copiedTokenId === t.tokenId ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
-          title="Copy link"
-        ><i class="pi text-xs" :class="copiedTokenId === t.tokenId ? 'pi-check' : 'pi-copy'"></i></button>
+        <!-- Row 1: role badge + name -->
+        <div class="flex items-center gap-2">
+          <span
+            class="badge-neutral text-sm shrink-0"
+            :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
+          >{{ t.role }}</span>
+          <span v-if="t.judgeName" class="type-body text-content-secondary">{{ t.judgeName }}</span>
+        </div>
+        <!-- Row 2: expiry + actions -->
+        <div class="flex items-center gap-2">
+          <span
+            class="type-label flex-1"
+            :class="isExpiryWarning(t.expiresAt) ? 'text-amber-400' : 'text-content-muted'"
+          >{{ formatExpiry(t.expiresAt) }}<span v-if="isExpiryWarning(t.expiresAt)"> ⚠</span></span>
+          <button
+            @click="handleRefreshToken(t)"
+            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
+            title="Refresh link (extends expiry)"
+          ><i class="pi pi-refresh text-xs"></i></button>
+          <button
+            @click="copyTokenLink(t.url, t.tokenId)"
+            class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
+            :class="copiedTokenId === t.tokenId ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
+            title="Copy link"
+          ><i class="pi text-xs" :class="copiedTokenId === t.tokenId ? 'pi-check' : 'pi-copy'"></i></button>
+        </div>
       </div>
-      <p class="type-label text-content-muted mt-3" >Judge links are removed automatically when a judge is deleted.</p>
+      <p class="type-label text-content-muted mt-3">Judge links are removed automatically when a judge is deleted.</p>
     </div>
   </div>
 
@@ -1949,20 +1980,16 @@ onUnmounted(() => {
         <div class="corner-bar-tl"></div>
 
         <!-- Division tabs -->
-        <div class="flex gap-1.5 mb-4 flex-wrap">
+        <div class="tab-bar mb-4">
           <button
             v-for="div in divisionAuditionStats"
             :key="div.name"
             @click="poolTab = div.name"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 flex items-center gap-2"
-            :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
+            class="tab-item"
+            :class="{ 'is-active': (poolTab ?? divisionAuditionStats[0]?.name) === div.name }"
           >
             {{ div.name }}
-            <span class="tabular-nums" :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name ? 'text-accent/70' : 'text-content-muted/50'">
-              {{ div.drawn.length }}/{{ div.total }}
-            </span>
+            <span class="tabular-nums opacity-60">{{ div.drawn.length }}/{{ div.total }}</span>
           </button>
         </div>
 

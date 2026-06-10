@@ -206,11 +206,11 @@ const applyToAllGenres = async () => {
 
           <!-- Criteria list (scrollable) -->
           <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
-            <div v-if="loading" class="text-xs text-content-muted py-4 text-center">Loading…</div>
+            <div v-if="loading" class="type-label text-content-muted py-4 text-center">Loading…</div>
 
             <div
               v-else-if="activeCriteria.length === 0 && !showAdd"
-              class="text-xs text-content-muted italic py-4 text-center"
+              class="type-label text-content-muted py-4 text-center"
             >
               No criteria — judges use a single 0–10 score.
             </div>
