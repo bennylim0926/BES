@@ -141,6 +141,7 @@ const submitNewEntry = async () => {
   createTable.genres = []
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
+  formTouched.value = false
   emit("createNewEntry")
   walkinResult.value = results
   if (results.failed.length > 0) {
