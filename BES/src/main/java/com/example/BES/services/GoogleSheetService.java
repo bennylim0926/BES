@@ -150,9 +150,11 @@ public class GoogleSheetService {
             for (int i = 1; i < rows.size(); i++) {
                 List<Object> cell = rows.get(i);
                 if (cell != null && !cell.isEmpty() && cell.get(0) != null) {
-                    String val = cell.get(0).toString().trim();
-                    if (!val.isBlank()) {
-                        values.add(val);
+                    String raw = cell.get(0).toString().trim();
+                    if (raw.isBlank()) continue;
+                    for (String part : raw.split(",")) {
+                        String val = part.trim();
+                        if (!val.isBlank()) values.add(val);
                     }
                 }
             }

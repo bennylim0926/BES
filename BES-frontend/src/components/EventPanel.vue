@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { fetchAllEvents } from '@/utils/api'
 import { setActiveEvent } from '@/utils/auth'
 
@@ -56,8 +57,11 @@ function handleTile(tile) {
   emit('close')
 }
 
-const allEvents    = ref([])
-const search       = ref('')
+const router = useRouter()
+const route  = useRoute()
+
+const allEvents = ref([])
+const search    = ref('')
 
 const filteredEvents = computed(() =>
   allEvents.value.filter(e =>
@@ -73,6 +77,9 @@ onMounted(async () => {
 function handleSwitchEvent(event) {
   setActiveEvent(event.id, event.name)
   emit('close')
+  if (route?.name === 'Event Details') {
+    router.push({ name: 'Event Details', params: { eventName: event.name } })
+  }
 }
 </script>
 

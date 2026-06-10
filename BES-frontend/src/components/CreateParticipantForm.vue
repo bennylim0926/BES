@@ -58,6 +58,15 @@ function updateMemberName(genre, index, value) {
   teamMemberNames[genre] = [...arr]
 }
 
+function toggleGenre(genreName) {
+  const idx = createTable.genres.indexOf(genreName)
+  if (idx >= 0) {
+    createTable.genres.splice(idx, 1)
+  } else {
+    createTable.genres.push(genreName)
+  }
+}
+
 watch(() => createTable.genres.slice(), (selected) => {
   for (const genreName of selected) {
     if (isTeamFormat(genreName)) {
@@ -132,6 +141,7 @@ const submitNewEntry = async () => {
   createTable.genres = []
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
+  formTouched.value = false
   emit("createNewEntry")
   walkinResult.value = results
   if (results.failed.length > 0) {
@@ -167,145 +177,193 @@ onMounted(async () => {
 </script>
 
 <template>
-  <ActionDoneModal
-    :show="props.show"
-    :title="props.title"
-    variant="info"
-    acceptLabel="Add Participant"
-    :scrollable="true"
-    :disableAccept="!canSubmit"
-    @accept="submitNewEntry"
-    @close="$emit('close')"
-  >
-    <div class="space-y-4 mt-1">
-      <!-- Stage name field -->
-      <div>
-        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
-          Stage Name
-        </label>
-        <input
-          v-model="name"
-          type="text"
-          placeholder="Enter stage name…"
-          class="input-base"
-          :class="formTouched && !name.trim() ? '!border-red-400/60' : ''"
-          @input="formTouched = true"
-          @keyup.enter="submitNewEntry"
-        />
-      </div>
+  <!-- Main walk-in form -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+    <div
+      v-if="props.show"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    >
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('close')" />
+      <div class="card-hover relative w-full sm:max-w-md flex flex-col" style="max-height: 85vh;">
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
 
-      <!-- Genre checkboxes -- grouped by parent genre -->
-      <div>
-        <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
-          Genres
-        </label>
-        <div class="space-y-3">
-          <template v-for="group in groupedDivisions" :key="group.genreId">
-            <div class="type-label text-content-muted text-xs mb-1 mt-2 first:mt-0">{{ group.label }}</div>
-            <div class="grid grid-cols-1 gap-2">
-              <label
-                v-for="g in group.divisions"
-                :key="g.genreName"
-                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
-                :class="createTable.genres.includes(g.genreName)
-                  ? 'bg-primary-100 border-primary-400 text-primary-400'
-                  : 'bg-surface-800 border-surface-600 text-content-secondary hover:border-surface-500'"
-              >
-                <input
-                  type="checkbox"
-                  :value="g.genreName"
-                  v-model="createTable.genres"
-                  class="w-4 h-4 rounded accent-primary-600"
-                />
-                <span class="text-sm font-medium">{{ g.genreName }}</span>
-                <span
-                  v-if="g.format"
-                  class="ml-auto text-xs font-source opacity-50"
-                >{{ g.format }}</span>
-              </label>
+          <!-- Header -->
+          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 shrink-0">
+            <div class="flex items-center gap-2">
+              <i class="pi pi-user-plus text-content-muted text-xs"></i>
+              <span class="type-body text-content-primary">{{ props.title }}</span>
+              <span class="badge-neutral type-label">{{ props.event }}</span>
             </div>
-          </template>
-        </div>
-      </div>
-
-      <!-- Per-genre Team|Solo toggles -->
-      <div v-for="g in createTable.genres" :key="g">
-        <template v-if="isTeamFormat(g)">
-          <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-2">
-            {{ g }} Entry Type
-            <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ selectedFormat(g) }}</span>
-          </label>
-          <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm font-semibold mb-3">
             <button
-              type="button"
-              @click="entryModes[g] = 'team'"
-              class="flex-1 px-4 py-2 transition-all"
-              :class="entryModes[g] === 'team'
-                ? 'bg-primary-600 text-white'
-                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+              @click="$emit('close')"
+              class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors"
             >
-              Team entry
-            </button>
-            <button
-              v-if="isSoloAllowed(g)"
-              type="button"
-              @click="entryModes[g] = 'solo'"
-              class="flex-1 px-4 py-2 border-l border-surface-600/60 transition-all"
-              :class="entryModes[g] === 'solo'
-                ? 'bg-primary-600 text-white'
-                : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
-            >
-              Solo (pickup crew)
+              <i class="pi pi-times text-xs"></i>
             </button>
           </div>
-          <p v-if="entryModes[g] === 'solo'" class="text-xs text-content-muted mt-1.5 mb-2">
-            Auditions individually. Can be grouped into a crew after auditions.
-          </p>
-          <p v-if="!isSoloAllowed(g)" class="text-xs text-amber-400/80 mt-1.5 mb-2">
-            Solo entries not allowed for this division — team entry only.
-          </p>
 
-          <!-- Team name + members for this genre -->
-          <template v-if="entryModes[g] === 'team' && additionalMembersCountForGenre(g) > 0">
-            <div class="mb-2">
-              <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1.5">
-                {{ g }} Team Name
-                <span class="ml-1 text-primary-400 normal-case font-normal font-source">{{ selectedFormat(g) }}</span>
-              </label>
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+
+            <!-- Stage name -->
+            <div>
+              <label class="type-label text-content-muted mb-1.5 block">Stage Name</label>
               <input
-                v-model="teamNames[g]"
+                v-model="name"
                 type="text"
-                placeholder="Enter team name…"
+                placeholder="Enter stage name…"
                 class="input-base"
-                :class="formTouched && !(teamNames[g] || '').trim() ? '!border-red-400/60' : ''"
+                :class="formTouched && !name.trim() ? '!border-red-400/60' : ''"
                 @input="formTouched = true"
+                @keyup.enter="submitNewEntry"
               />
             </div>
+
+            <!-- Division chips -->
             <div>
-              <label class="block text-xs font-semibold text-surface-600 uppercase tracking-wider mb-1">
-                {{ g }} Team Members
-              </label>
-              <p class="text-xs text-surface-500 mb-2">
-                Stage name is Member 1 (representative). Enter the other {{ additionalMembersCountForGenre(g) }}.
-              </p>
-              <div class="space-y-2">
-                <input
-                  v-for="i in additionalMembersCountForGenre(g)"
-                  :key="i"
-                  :value="(teamMemberNames[g] || [])[i - 1] || ''"
-                  @input="updateMemberName(g, i - 1, $event.target.value); formTouched = true"
-                  type="text"
-                  :placeholder="`Member ${i + 1} stage name…`"
-                  class="input-base"
-                  :class="formTouched && !((teamMemberNames[g] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
-                />
+              <div class="flex items-center justify-between mb-2">
+                <label class="type-label text-content-muted">Divisions</label>
+                <span class="type-label text-content-muted">tap to select</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <template v-for="group in groupedDivisions" :key="group.genreId">
+                  <button
+                    v-for="g in group.divisions"
+                    :key="g.genreName"
+                    type="button"
+                    @click="toggleGenre(g.genreName)"
+                    class="para-chip-sm px-3 py-1.5 type-label transition-all flex items-center gap-1.5"
+                    :class="createTable.genres.includes(g.genreName)
+                      ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
+                      : 'text-content-secondary hover:text-accent'"
+                  >
+                    <span
+                      class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      :style="createTable.genres.includes(g.genreName)
+                        ? 'background:var(--accent-color);box-shadow:0 0 5px var(--accent-muted)'
+                        : 'background:rgba(255,255,255,0.2)'"
+                    ></span>
+                    {{ g.genreName }}
+                    <span v-if="g.format" class="opacity-40 normal-case">{{ g.format }}</span>
+                  </button>
+                </template>
               </div>
             </div>
-          </template>
-        </template>
+
+            <!-- Per-genre team details (inline expansion) -->
+            <template v-for="g in createTable.genres" :key="g">
+              <template v-if="isTeamFormat(g)">
+                <div class="section-rule">
+                  <span class="section-rule-label">{{ g }} · {{ selectedFormat(g) }}</span>
+                  <div class="section-rule-line"></div>
+                </div>
+
+                <!-- Solo not allowed warning -->
+                <div
+                  v-if="!isSoloAllowed(g)"
+                  class="flex items-center gap-2 px-3 py-2 para-chip"
+                  style="border-left: 3px solid rgb(251 191 36); background: rgba(251,191,36,0.07);"
+                >
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(251,191,36,0.6)"></span>
+                  <span class="type-label text-amber-400">Solo entries not allowed — team entry only.</span>
+                </div>
+
+                <!-- Team / Solo toggle -->
+                <div v-if="isSoloAllowed(g)">
+                  <label class="type-label text-content-muted mb-2 block">Entry Type</label>
+                  <div class="flex border border-surface-600/60 overflow-hidden">
+                    <button
+                      type="button"
+                      @click="entryModes[g] = 'team'"
+                      class="flex-1 px-4 py-2 type-label transition-all"
+                      :class="entryModes[g] === 'team'
+                        ? 'bg-[var(--accent-subtle)] text-accent'
+                        : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                    >
+                      Team
+                    </button>
+                    <button
+                      type="button"
+                      @click="entryModes[g] = 'solo'"
+                      class="flex-1 px-4 py-2 type-label transition-all border-l border-surface-600/60"
+                      :class="entryModes[g] === 'solo'
+                        ? 'bg-[var(--accent-subtle)] text-accent'
+                        : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
+                    >
+                      Solo
+                    </button>
+                  </div>
+                  <p v-if="entryModes[g] === 'solo'" class="type-label text-content-muted mt-1.5">
+                    Auditions individually. Can be grouped into a crew after auditions.
+                  </p>
+                </div>
+
+                <!-- Team name + members -->
+                <template v-if="entryModes[g] !== 'solo' && additionalMembersCountForGenre(g) > 0">
+                  <div>
+                    <label class="type-label text-content-muted mb-1.5 block">Team Name</label>
+                    <input
+                      v-model="teamNames[g]"
+                      type="text"
+                      placeholder="Enter team name…"
+                      class="input-base"
+                      :class="formTouched && !(teamNames[g] || '').trim() ? '!border-red-400/60' : ''"
+                      @input="formTouched = true"
+                    />
+                  </div>
+                  <div>
+                    <label class="type-label text-content-muted mb-1.5 block">Team Members</label>
+                    <p class="type-label text-content-muted mb-2 normal-case" style="font-size:0.65rem">
+                      {{ name || 'Stage name' }} is Member 1. Enter the other {{ additionalMembersCountForGenre(g) }}.
+                    </p>
+                    <div class="space-y-2">
+                      <input
+                        v-for="i in additionalMembersCountForGenre(g)"
+                        :key="i"
+                        :value="(teamMemberNames[g] || [])[i - 1] || ''"
+                        @input="updateMemberName(g, i - 1, $event.target.value); formTouched = true"
+                        type="text"
+                        :placeholder="`Member ${i + 1} stage name…`"
+                        class="input-base"
+                        :class="formTouched && !((teamMemberNames[g] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
+                      />
+                    </div>
+                  </div>
+                </template>
+              </template>
+            </template>
+
+          </div>
+
+          <!-- Footer -->
+          <div class="flex gap-2 justify-end px-4 py-3 border-t border-surface-600/30 shrink-0">
+            <button
+              @click="$emit('close')"
+              class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="submitNewEntry"
+              :disabled="!canSubmit"
+              class="para-chip-sm px-4 py-2 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)]"
+            >
+              Add Participant
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </ActionDoneModal>
+    </Transition>
+  </Teleport>
 
   <ActionDoneModal
     :show="showError"

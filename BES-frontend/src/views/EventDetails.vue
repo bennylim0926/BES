@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -54,8 +54,7 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
 const sheetCategories = ref([])
-const divAliasExpanded = ref(null)
-const divAliasInput = ref('')
+const pendingSuggestionCat = ref(null)
 const divRenameActive = ref(null)
 const divRenameInput = ref('')
 const divFormatOptions = ['', '1v1', '2v2', '3v3', '4v4', '5v5', '7 to smoke', 'solo']
@@ -91,14 +90,9 @@ const confirmNo = () => {
   confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, confirmLabel: 'Confirm', destructive: true }
 }
 const askRemoveDivision = (div) => askConfirm(
-  'Remove Division?',
-  `"${div.name}" will be permanently deleted. Participants already enrolled will block this action — remove them first.`,
+  'Remove Category?',
+  `"${div.name}" will be permanently removed. Participants already enrolled will block this action — remove them first.`,
   () => removeDivisionFromSection(div.eventGenreId)
-)
-const askRemoveJudge = (g, j) => askConfirm(
-  'Remove Judge?',
-  `Remove ${j.judgeName} from ${g.name}?`,
-  () => submitRemoveJudge(g.eventGenreId, j.judgeId)
 )
 const askRemoveJudgeGlobal = (j) => askConfirm(
   'Remove Judge from Event?',
@@ -108,7 +102,7 @@ const askRemoveJudgeGlobal = (j) => askConfirm(
 const askToggleSolo = (div) => askConfirm(
   div.soloAllowed ? 'Block Solo Entries?' : 'Allow Solo Entries?',
   div.soloAllowed
-    ? `Participants registering for "${div.name}" will no longer be able to select Solo (pickup crew).`
+    ? `Participants in "${div.name}" will no longer be able to register as Solo (pickup crew).`
     : `Solo entries will be permitted for "${div.name}".`,
   () => toggleSoloAllowed(div)
 )
@@ -171,14 +165,6 @@ const genreCounts = computed(() => {
   })
   return counts
 })
-
-const totalWalkIn = computed(() =>
-  new Set(
-    verifiedDbParticipants.value
-      .filter(p => p.walkin)
-      .map(p => p.participantId)
-  ).size
-)
 
 const totalDbRegistered = computed(() => {
   const grouped = {}
@@ -571,7 +557,7 @@ const matchCounts = computed(() => {
     }
     let count = 0
     for (const cat of cats) {
-      if (names.some(n => cat.includes(n))) count++
+      if (names.some(n => cat === n)) count++
     }
     counts[div.eventGenreId] = count
   }
@@ -587,11 +573,37 @@ const unmatchedSheetValues = computed(() => {
       names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
     }
     for (const cat of sheetCategories.value) {
-      if (names.some(n => cat.toLowerCase().includes(n))) matched.add(cat.toLowerCase())
+      if (names.some(n => cat.toLowerCase() === n)) matched.add(cat.toLowerCase())
     }
   }
   const unique = [...new Set(sheetCategories.value.map(s => s.toLowerCase()))]
   return unique.filter(v => !matched.has(v))
+})
+
+const allSheetSuggestions = computed(() => {
+  return [...new Set(sheetCategories.value)]
+})
+
+// True when any category has more sheet matches than imported participants
+const hasUnimportedParticipants = computed(() => {
+  if (!sheetCategories.value.length) return false
+  return eventGenres.value.some(div =>
+    (matchCounts.value[div.eventGenreId] || 0) > div.participantCount
+  ) || unmatchedSheetValues.value.length > 0
+})
+
+const suggestionCoveredSet = computed(() => {
+  const covered = new Set()
+  for (const div of eventGenres.value) {
+    const names = [div.name.toLowerCase()]
+    if (div.sheetAliases) {
+      names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
+    }
+    for (const cat of sheetCategories.value) {
+      if (names.some(n => cat.toLowerCase() === n)) covered.add(cat)
+    }
+  }
+  return covered
 })
 
 const loadSheetCategories = async () => {
@@ -609,30 +621,35 @@ const saveDivisionName = async (div) => {
 const saveDivisionFormat = async (div, format) => {
   await updateEventGenreFormat(props.eventName, div.eventGenreId, format || null)
   div.format = format || null
-}
-
-const addAlias = async (div) => {
-  if (!divAliasInput.value.trim()) return
-  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
-  existing.push(divAliasInput.value.trim())
-  const joined = existing.join(', ')
-  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
-  div.sheetAliases = joined
-  divAliasInput.value = ''
-}
-
-const removeAlias = async (div, alias) => {
-  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
-  const updated = existing.filter(a => a !== alias)
-  const joined = updated.join(', ')
-  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
-  div.sheetAliases = joined
+  // Team formats default to no solo
+  if (format && /^\d+v\d+$/i.test(format) && format.toLowerCase() !== '1v1') {
+    if (div.soloAllowed !== false) {
+      await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, false)
+      div.soloAllowed = false
+    }
+  }
 }
 
 const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
   await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
   div.soloAllowed = newVal
+}
+
+const addSuggestionToGenre = async (genreId, _genreLabel) => {
+  if (!pendingSuggestionCat.value) return
+  const name = pendingSuggestionCat.value
+  pendingSuggestionCat.value = null
+  const existingNames = eventGenres.value.map(d => d.name.toLowerCase())
+  let finalName = name
+  let i = 2
+  while (existingNames.includes(finalName.toLowerCase())) {
+    finalName = `${name} ${i++}`
+  }
+  const resp = await addDivision(props.eventName, finalName, null, genreId === 'custom' ? null : genreId)
+  if (resp && resp.ok) {
+    eventGenres.value = await getGenresByEvent(props.eventName)
+  }
 }
 
 const addDivisionToGroup = async (genreId, genreLabel) => {
@@ -654,7 +671,7 @@ const addDivisionToGroup = async (genreId, genreLabel) => {
 const removeDivisionFromSection = async (divId) => {
   const res = await deleteDivision(props.eventName, divId)
   if (res && !res.ok) {
-    openModal('Cannot Delete Division', 'This division still has participants enrolled. Remove all participants from the division before deleting it.', 'error')
+    openModal('Cannot Delete Category', 'Remove all participants from the category before deleting it.', 'error')
     return
   }
   eventGenres.value = eventGenres.value.filter(d => d.eventGenreId !== divId)
@@ -671,28 +688,43 @@ const loadJudgesForDivision = async (genre) => {
   divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
 }
 // Judges not yet assigned to a specific division
-const openAssignDropdown = ref(null)
-
-const toggleAssignDropdown = (id) => {
-  openAssignDropdown.value = openAssignDropdown.value === id ? null : id
+const categoriesAssignedToJudge = (judgeId) => {
+  const result = []
+  for (const [genreName, judges] of Object.entries(divisionJudges.value)) {
+    if (judges.some(j => j.judgeId === judgeId)) {
+      const genre = eventGenres.value.find(g => g.name === genreName)
+      if (genre) result.push(genre)
+    }
+  }
+  return result
 }
 
-const unassignedJudges = (genreName) => {
-  const assigned = divisionJudges.value[genreName] || []
-  const assignedIds = new Set(assigned.map(j => j.judgeId))
-  return allEventJudges.value.filter(j => !assignedIds.has(j.judgeId))
+const categoriesUnassignedToJudge = (judgeId) => {
+  const assigned = new Set(categoriesAssignedToJudge(judgeId).map(g => g.eventGenreId))
+  return eventGenres.value.filter(g => !assigned.has(g.eventGenreId))
 }
 
 const submitAddJudgeGlobal = async () => {
   if (!globalJudgeInput.value.trim()) return
   const res = await addJudgeToEvent(props.eventName, globalJudgeInput.value.trim())
   if (res?.ok) {
-    allEventJudges.value = await res.json()
+    const judges = await res.json()
+    allEventJudges.value = judges
+    // Auto-generate session token for the new judge
+    const newJudge = judges[judges.length - 1]
+    if (newJudge && dbEventId.value) {
+      await generateToken('JUDGE', dbEventId.value, newJudge.judgeId)
+      await loadSessionTokens()
+    }
   }
   globalJudgeInput.value = ''
 }
 
 const submitRemoveJudgeGlobal = async (judgeId) => {
+  // Revoke session token for this judge before removing them
+  const judgeToken = sessionTokens.value.find(t => t.role === 'JUDGE' && t.judgeId === judgeId)
+  if (judgeToken) await revokeSessionToken(judgeToken.tokenId)
+
   const res = await removeEventJudge(props.eventName, judgeId)
   if (res?.ok) {
     allEventJudges.value = await res.json()
@@ -701,6 +733,7 @@ const submitRemoveJudgeGlobal = async (judgeId) => {
         divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
       }
     }
+    await loadSessionTokens()
   }
 }
 
@@ -732,11 +765,9 @@ watch(activeGenreTab, async (tabName) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Session Links ──────────────────────────────────────────────────────────
-const sessionLinksExpanded = ref(false)
 const sessionTokens = ref([])
 const sessionTokensLoading = ref(false)
-const selectedJudgeId = ref('')
-const generatingRole = ref(null)
+const copiedTokenId = ref(null)
 
 const isAdminOrOrganiser = computed(() => {
   const auth = authStore.user?.role?.[0]?.authority
@@ -745,49 +776,37 @@ const isAdminOrOrganiser = computed(() => {
 
 const isHelper = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_HELPER')
 
-const allUniqueJudges = computed(() => {
-  const seen = new Set()
-  const result = []
-  for (const j of allEventJudges.value) {
-    if (!seen.has(j.judgeId)) {
-      seen.add(j.judgeId)
-      result.push(j)
-    }
-  }
-  for (const judges of Object.values(divisionJudges.value)) {
-    for (const j of judges) {
-      if (!seen.has(j.judgeId)) {
-        seen.add(j.judgeId)
-        result.push(j)
-      }
-    }
-  }
-  return result
-})
-
 const loadSessionTokens = async () => {
   if (!dbEventId.value) return
   sessionTokensLoading.value = true
   sessionTokens.value = await getSessionTokens(dbEventId.value)
+
+  // Auto-generate permanent roles if missing
+  const hasEmcee = sessionTokens.value.some(t => t.role === 'EMCEE')
+  const hasHelper = sessionTokens.value.some(t => t.role === 'HELPER')
+  if (!hasEmcee) await generateToken('EMCEE', dbEventId.value, null)
+  if (!hasHelper) await generateToken('HELPER', dbEventId.value, null)
+
+  // Auto-repair JUDGE tokens: revoke orphans (no judgeId), create for any judge missing a valid token
+  const judgesWithValidToken = new Set(
+    sessionTokens.value.filter(t => t.role === 'JUDGE' && t.judgeId).map(t => t.judgeId)
+  )
+  const orphanTokens = sessionTokens.value.filter(t => t.role === 'JUDGE' && !t.judgeId)
+  const judgesNeedingTokens = allEventJudges.value.filter(j => !judgesWithValidToken.has(j.judgeId))
+  if (orphanTokens.length > 0 || judgesNeedingTokens.length > 0) {
+    await Promise.all(orphanTokens.map(t => revokeSessionToken(t.tokenId)))
+    await Promise.all(judgesNeedingTokens.map(j => generateToken('JUDGE', dbEventId.value, j.judgeId)))
+  }
+
+  const needsRefresh = !hasEmcee || !hasHelper || orphanTokens.length > 0 || judgesNeedingTokens.length > 0
+  if (needsRefresh) sessionTokens.value = await getSessionTokens(dbEventId.value)
+
   sessionTokensLoading.value = false
 }
 
-const handleGenerateToken = async (role) => {
-  if (!dbEventId.value) return
-  let judgeId = null
-  if (role === 'JUDGE') {
-    judgeId = Number(selectedJudgeId.value)
-    if (!judgeId) return
-  }
-  generatingRole.value = role
-  await generateToken(role, dbEventId.value, judgeId)
-  generatingRole.value = null
-  selectedJudgeId.value = ''
-  await loadSessionTokens()
-}
-
-const handleRevokeToken = async (tokenId) => {
-  await revokeSessionToken(tokenId)
+const handleRefreshToken = async (token) => {
+  await revokeSessionToken(token.tokenId)
+  await generateToken(token.role, dbEventId.value, token.judgeId ?? null)
   await loadSessionTokens()
 }
 
@@ -806,8 +825,10 @@ function copyToClipboard(text) {
   document.body.removeChild(ta)
 }
 
-const copyTokenLink = (url) => {
+const copyTokenLink = (url, tokenId) => {
   copyToClipboard(window.location.origin + url)
+  copiedTokenId.value = tokenId
+  setTimeout(() => { copiedTokenId.value = null }, 2000)
 }
 
 const auditionLinkCopied = ref(false)
@@ -822,9 +843,9 @@ const formatExpiry = (expiresAt) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-watch(sessionLinksExpanded, async (val) => {
-  if (val) await loadSessionTokens()
-})
+const isExpiryWarning = (expiresAt) => {
+  return (new Date(expiresAt) - Date.now()) < 3 * 24 * 60 * 60 * 1000
+}
 // ───────────────────────────────────────────────────────────────────────────
 
 const toggleUnverifiedSelect = (participantId) => {
@@ -1112,7 +1133,19 @@ onMounted(async () => {
   }
 })
 
+const anyModalOpen = computed(() =>
+  showModal.value ||
+  showCriteriaModal.value ||
+  showAdjustModal.value ||
+  showWalkInForm.value ||
+  genreAddForm.show ||
+  checkinConfirm.value.show ||
+  confirmDialog.value.show
+)
+watch(anyModalOpen, (open) => { document.body.style.overflow = open ? 'hidden' : '' })
+
 onUnmounted(() => {
+  document.body.style.overflow = ''
   if (refreshInterval) clearInterval(refreshInterval)
   if (wsClient) deactivateClient(wsClient)
 })
@@ -1156,43 +1189,47 @@ onUnmounted(() => {
           v-if="!isHelper"
           @click="refreshParticipant"
           :disabled="loading"
-          class="flex items-center gap-2 px-4 py-2 bg-accent para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          :class="hasUnimportedParticipants && !loading
+            ? 'border-amber-500/60 text-amber-400'
+            : 'bg-accent'"
         >
-          <i class="pi text-sm" :class="loading ? 'pi-spinner pi-spin' : 'pi-cloud-download'"></i>
+          <span
+            v-if="hasUnimportedParticipants && !loading"
+            class="inline-block w-2 h-2 rounded-full bg-amber-400 shrink-0"
+            style="box-shadow:0 0 6px rgba(245,158,11,0.7)"
+          ></span>
+          <i v-else class="pi text-sm" :class="loading ? 'pi-spinner pi-spin' : 'pi-cloud-download'"></i>
           {{ loading ? 'Importing…' : 'Import from Sheets' }}
         </button>
       </div>
     </div>
 
     <!-- Tab toggle -->
-    <div class="flex gap-2 mb-6">
+    <div class="tab-bar mb-6">
       <button
         v-if="!isHelper"
         @click="activeTab = 'setup'"
-        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
-        :class="activeTab === 'setup'
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeTab === 'setup' }"
       >
-        <i class="pi pi-cog text-xs mr-1.5"></i>
+        <i class="pi pi-cog text-xs"></i>
         Setup
       </button>
       <button
         @click="activeTab = 'event-day'"
-        class="para-chip-sm px-5 py-2 type-label transition-all duration-150"
-        :class="activeTab === 'event-day'
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeTab === 'event-day' }"
       >
-        <i class="pi pi-calendar text-xs mr-1.5"></i>
+        <i class="pi pi-calendar text-xs"></i>
         Event Day
         <span
           v-if="totalNotShownUp > 0"
-          class="ml-1.5 inline-flex items-center justify-center badge-warning px-1.5 py-0.5 text-[10px]"
+          class="inline-flex items-center justify-center badge-warning px-1.5 py-0.5 text-[10px]"
         >{{ totalNotShownUp }}</span>
         <span
           v-else-if="unverifiedParticipants.length > 0 && activeTab !== 'event-day'"
-          class="ml-1.5 inline-flex items-center justify-center badge-danger px-1.5 py-0.5 text-[10px]"
+          class="inline-flex items-center justify-center badge-danger px-1.5 py-0.5 text-[10px]"
         >{{ unverifiedParticipants.length }}</span>
       </button>
     </div>
@@ -1201,21 +1238,21 @@ onUnmounted(() => {
     <template v-if="activeTab === 'setup'">
 
     <!-- Stat strip -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6" style="max-width:360px;">
       <div class="stat-card relative">
         <div class="corner-bar-tl"></div>
-        <div class="type-stat">{{ (totalParticipants || 0) + totalWalkIn }}</div>
-        <div class="type-label">Total</div>
-        <div class="flex gap-3 mt-1">
-          <span class="type-label text-content-muted">Form: {{ totalParticipants || 0 }}</span>
-          <span class="type-label text-content-muted">Walk-in: {{ totalWalkIn }}</span>
-        </div>
-      </div>
-      <div class="stat-card relative">
-        <div class="corner-bar-tl"></div>
-        <div class="type-stat" :class="unverifiedParticipants.length > 0 ? 'text-red-400' : ''">{{ unverifiedParticipants.length }}</div>
-        <div class="type-label">Pending Verification</div>
-        <div class="type-label text-content-muted mt-1">{{ totalVerified }} verified</div>
+        <template v-if="unverifiedParticipants.length > 0">
+          <div class="type-stat text-amber-400">{{ unverifiedParticipants.length }}</div>
+          <div class="type-label text-amber-400">Pending Verification</div>
+          <div class="type-label text-content-muted mt-1">{{ totalVerified }} form sign-ups verified</div>
+        </template>
+        <template v-else>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+            <div class="type-stat" style="font-size:36px;">All Verified</div>
+          </div>
+          <div class="type-label text-content-muted">{{ totalVerified }} form sign-ups</div>
+        </template>
       </div>
     </div>
 
@@ -1395,9 +1432,52 @@ onUnmounted(() => {
   <div v-if="tableExist && eventGenres.length > 0" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
 
-    <div class="section-rule mb-4">
-      <span class="section-rule-label">Divisions</span>
+    <div class="section-rule mb-3">
+      <span class="section-rule-label">Categories</span>
       <div class="section-rule-line"></div>
+    </div>
+    <p class="type-label text-content-muted mb-4" style="text-transform:none;letter-spacing:0.03em;">
+      Categories are competition formats within each genre (e.g. Popping 1v1, Popping 7 to Smoke).
+      Names must match your Google Sheet column values exactly.
+    </p>
+
+    <!-- Sheet suggestions strip — only when sheet is connected -->
+    <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 border border-white/7">
+      <p class="type-label text-content-muted mb-3">FROM YOUR SHEET — click to add as a category</p>
+      <div class="flex flex-wrap gap-2">
+        <span
+          v-for="cat in allSheetSuggestions"
+          :key="cat"
+          class="relative"
+        >
+          <!-- Covered: visible but muted with strikethrough -->
+          <span
+            v-if="suggestionCoveredSet.has(cat)"
+            class="para-chip-sm px-3 py-1 type-label text-content-muted opacity-40 line-through"
+          >{{ cat }}</span>
+          <!-- Uncovered: clearly clickable button -->
+          <button
+            v-else
+            @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
+            class="para-chip-sm px-3 py-1.5 type-label text-content-secondary hover:text-accent transition-colors"
+            style="border-style:dashed;"
+          >+ {{ cat }}</button>
+          <!-- Inline genre picker — rendered outside clip-path ancestor -->
+          <div
+            v-if="pendingSuggestionCat === cat"
+            class="absolute top-full left-0 mt-1 z-50 min-w-[160px]"
+            style="background:var(--color-surface-800,#1a1a1a);border:1px solid rgba(255,255,255,0.12);"
+          >
+            <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO GENRE:</p>
+            <button
+              v-for="group in divisionsByGenre"
+              :key="group.genreId"
+              @click="addSuggestionToGenre(group.genreId, group.label)"
+              class="block w-full text-left px-3 py-2 type-body text-content-secondary hover:text-accent transition-colors"
+            >{{ group.label }}</button>
+          </div>
+        </span>
+      </div>
     </div>
 
     <div class="space-y-4">
@@ -1405,13 +1485,14 @@ onUnmounted(() => {
         <!-- Genre group header -->
         <div class="flex items-center gap-2">
           <span class="type-section-header text-content-secondary">{{ group.label }}</span>
-          <span class="badge-neutral type-label px-2 py-0.5 text-xs">{{ group.divisions.length }}</span>
+          <span class="badge-neutral type-label px-2 py-0.5 text-sm">{{ group.divisions.length }}</span>
         </div>
 
-        <!-- Division rows -->
+        <!-- Division cards — 2-col on sm+, full-width on phone -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div v-for="div in group.divisions" :key="div.eventGenreId">
           <div
-            class="para-chip p-3 flex flex-col gap-2"
+            class="para-chip p-3 h-full flex flex-col gap-2"
             :class="sheetCategories.length > 0
               ? (matchCounts[div.eventGenreId] || 0) > 0
                 ? (div.participantCount >= (matchCounts[div.eventGenreId] || 0)
@@ -1420,122 +1501,90 @@ onUnmounted(() => {
                 : 'border-l-[3px] border-l-amber-500'
               : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
           >
-            <!-- Mobile: stacked (name row, then actions row); Tablet+: single inline row -->
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
-              <!-- Name + count badges row -->
-              <div class="flex items-center gap-2 flex-1 min-w-0">
-                <template v-if="divRenameActive !== div.eventGenreId">
-                  <button
-                    @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-                    class="type-body text-content-secondary hover:text-accent text-left break-words min-w-0 flex-1 transition-colors"
-                    style="overflow-wrap:break-word;word-break:break-word"
-                  >{{ div.name }}</button>
-                </template>
-                <template v-else>
-                  <input
-                    v-model="divRenameInput"
-                    type="text"
-                    class="input-base flex-1 min-w-0"
-                    placeholder="Division name"
-                    @keyup.enter="saveDivisionName(div)"
-                    @keyup.escape="divRenameActive = null"
-                    @blur="saveDivisionName(div)"
-                  />
-                </template>
-
-                <!-- Match count badges -->
-                <div class="flex items-center gap-2 shrink-0">
-                  <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
-                    <span class="type-label text-xs">{{ div.participantCount }}</span>
-                  </div>
-                  <div
-                    v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0"
-                    class="flex items-center gap-1 text-amber-400"
-                  >
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                    <span class="type-label text-xs">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
-                  </div>
-                  <div
-                    v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0"
-                    class="flex items-center gap-1 text-amber-400"
-                  >
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
-                    <span class="type-label text-xs">0</span>
-                  </div>
+            <!-- Display mode -->
+            <template v-if="divRenameActive !== div.eventGenreId">
+              <!-- Row 1: name (left) + delete × (top-right, like judge card) -->
+              <div class="flex items-start justify-between gap-2">
+                <button
+                  @click="divRenameActive = div.eventGenreId; divRenameInput = div.name"
+                  class="type-body text-content-secondary hover:text-accent text-left flex-1 min-w-0 leading-snug transition-colors"
+                  title="Click to rename"
+                >{{ div.name }}</button>
+                <button
+                  @click="askRemoveDivision(div)"
+                  class="type-label text-content-muted hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                  title="Remove category"
+                ><i class="pi pi-times text-xs"></i></button>
+              </div>
+              <!-- Row 2: count dots -->
+              <div class="flex items-center gap-2">
+                <div v-if="div.participantCount > 0" class="flex items-center gap-1 text-emerald-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 6px rgba(52,211,153,0.6)"></span>
+                  <span class="type-label">{{ div.participantCount }}</span>
+                </div>
+                <div v-if="sheetCategories.length > 0 && ((matchCounts[div.eventGenreId] || 0) - div.participantCount) > 0" class="flex items-center gap-1 text-amber-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label">{{ (matchCounts[div.eventGenreId] || 0) - div.participantCount }}</span>
+                </div>
+                <div v-if="sheetCategories.length > 0 && (matchCounts[div.eventGenreId] || 0) === 0 && div.participantCount === 0" class="flex items-center gap-1 text-amber-400">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(245,158,11,0.6)"></span>
+                  <span class="type-label">0</span>
                 </div>
               </div>
-
-              <!-- Actions row: format dropdown + icon buttons -->
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <!-- Format dropdown -->
+              <!-- Row 3: format select + solo toggle -->
+              <div class="flex items-center gap-1.5 mt-auto">
                 <select
                   :value="div.format || ''"
                   @change="saveDivisionFormat(div, $event.target.value)"
-                  class="shrink-0 text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary"
+                  class="text-xs px-2 py-1 para-chip-sm bg-transparent text-content-secondary flex-1 min-w-0"
                 >
                   <option value="">No format</option>
                   <template v-for="opt in divFormatOptions" :key="opt">
                     <option v-if="opt" :value="opt">{{ opt }}</option>
                   </template>
                 </select>
-
-                <!-- Alias toggle -->
-                <button
-                  @click="divAliasExpanded = divAliasExpanded === div.eventGenreId ? null : div.eventGenreId"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-accent transition-colors"
-                  title="Sheet aliases"
-                ><i class="pi pi-tags text-xs"></i></button>
-
-                <!-- Solo allowed toggle — only for team formats (XvX where X > 1) -->
                 <button
                   v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
                   @click="askToggleSolo(div)"
                   :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label transition-colors"
+                  class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
                   :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
                 >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
-
-                <!-- Remove -->
-                <button
-                  @click="askRemoveDivision(div)"
-                  class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-content-muted hover:text-red-400 transition-colors"
-                  title="Remove division"
-                ><i class="pi pi-times text-xs"></i></button>
               </div>
-            </div>
+            </template>
 
-            <!-- Alias chips (always visible if exist) -->
-            <div v-if="div.sheetAliases && div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean).length" class="flex flex-wrap gap-1">
-              <span
-                v-for="alias in div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean)"
-                :key="alias"
-                class="type-label text-content-muted bg-surface-600/30 px-1.5 py-0.5 para-chip text-xs normal-case flex items-center gap-1"
-              >
-                {{ alias }}
-                <button @click="removeAlias(div, alias)" class="text-content-muted hover:text-red-400 leading-none"><i class="pi pi-times" style="font-size:0.5rem"></i></button>
-              </span>
-            </div>
-
-            <!-- Add alias input row -->
-            <div v-if="divAliasExpanded === div.eventGenreId" class="flex gap-1.5 items-center">
+            <!-- Edit / rename mode -->
+            <template v-else>
               <input
-                v-model="divAliasInput"
+                v-model="divRenameInput"
                 type="text"
-                placeholder="Add alias…"
-                class="input-base flex-1"
-                @keyup.enter="addAlias(div)"
+                class="input-base w-full"
+                placeholder="Category name"
+                autofocus
+                @keyup.enter="saveDivisionName(div)"
+                @keyup.escape="divRenameActive = null"
               />
-              <button @click="addAlias(div)" class="para-chip-sm px-3 sm:px-2 py-2.5 sm:py-1 type-label text-accent"><i class="pi pi-plus text-xs"></i></button>
-            </div>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="saveDivisionName(div)"
+                  class="para-chip-sm px-2.5 py-1.5 type-label text-emerald-400 hover:text-emerald-300 transition-colors flex-1 flex items-center justify-center gap-1"
+                ><i class="pi pi-check text-sm"></i> Save</button>
+                <button
+                  @click="divRenameActive = null"
+                  class="para-chip-sm px-2.5 py-1.5 type-label text-content-muted hover:text-content-primary transition-colors flex-1 flex items-center justify-center gap-1"
+                ><i class="pi pi-times text-sm"></i> Cancel</button>
+              </div>
+            </template>
+
           </div>
         </div>
+        </div><!-- end grid -->
 
         <!-- Add division to group -->
         <button
           @click="addDivisionToGroup(group.genreId, group.label)"
           class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all"
-        >+ Add {{ group.label }} division</button>
+        >+ Add {{ group.label }} category</button>
       </div>
     </div>
 
@@ -1546,13 +1595,13 @@ onUnmounted(() => {
     >
       <div class="flex items-center gap-2 mb-2">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow: 0 0 6px rgba(251,191,36,0.6)"></span>
-        <span class="type-label text-amber-400 text-xs">Unmatched sheet values</span>
+        <span class="type-label text-amber-400 text-sm">Unmatched sheet values</span>
       </div>
       <div class="flex flex-wrap gap-1">
         <span
           v-for="val in unmatchedSheetValues"
           :key="val"
-          class="type-label text-content-muted bg-amber-950/30 px-1.5 py-0.5 para-chip text-xs normal-case"
+          class="type-label text-content-muted bg-amber-950/30 px-2 py-1 para-chip text-sm normal-case"
         >{{ val }}</span>
       </div>
     </div>
@@ -1567,57 +1616,115 @@ onUnmounted(() => {
       <div class="section-rule-line"></div>
     </div>
 
-    <!-- Global Judges -->
-    <div class="mb-5 p-4 para-chip">
-      <p class="type-label text-content-muted mb-3">Event Judges</p>
-      <div class="flex flex-wrap items-center gap-2 mb-3">
+    <!-- Judge Pool -->
+    <div class="mb-5">
+      <div class="section-rule mb-1">
+        <span class="section-rule-label">Judge Pool</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <p class="type-label text-content-muted mb-4" style="text-transform:none;letter-spacing:0.03em;">
+        Add your judges here first — then assign them to categories below.
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!-- Per-judge card -->
         <div
           v-for="j in allEventJudges"
           :key="j.judgeId"
-          class="flex items-center gap-2 para-chip px-2.5 py-1"
+          class="para-chip p-3 flex flex-col gap-2"
+          :class="categoriesAssignedToJudge(j.judgeId).length === 0
+            ? 'border-l-[3px] border-l-amber-500 bg-amber-950/10'
+            : 'border-l-[3px] border-l-emerald-500/40'"
         >
-          <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
-          <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
-          <button
-            @click="askRemoveJudgeGlobal(j)"
-            class="type-label text-content-muted hover:text-primary-400 transition-colors"
-            title="Remove from event"
-          ><i class="pi pi-times text-xs"></i></button>
+          <!-- Judge name + remove -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span
+                class="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                :class="categoriesAssignedToJudge(j.judgeId).length === 0
+                  ? 'bg-amber-400' : 'bg-emerald-400'"
+                :style="categoriesAssignedToJudge(j.judgeId).length === 0
+                  ? 'box-shadow:0 0 5px rgba(245,158,11,0.5)'
+                  : 'box-shadow:0 0 5px rgba(52,211,153,0.5)'"
+              ></span>
+              <span class="type-body text-content-secondary text-sm sm:text-xs">{{ j.judgeName }}</span>
+            </div>
+            <button
+              @click="askRemoveJudgeGlobal(j)"
+              class="type-label text-content-muted hover:text-red-400 transition-colors"
+              title="Remove from event"
+            ><i class="pi pi-times text-xs"></i></button>
+          </div>
+
+          <!-- Assigned categories -->
+          <div>
+            <p class="type-label text-content-muted mb-1">CATEGORIES</p>
+            <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1.5 mb-1.5">
+              <span
+                v-for="cat in categoriesAssignedToJudge(j.judgeId)"
+                :key="cat.eventGenreId"
+                class="inline-flex items-center gap-2 para-chip-sm px-2.5 py-1.5 type-body text-content-secondary"
+              >
+                {{ cat.name }}
+                <button
+                  @click="submitRemoveJudge(cat.eventGenreId, j.judgeId)"
+                  class="hover:text-red-400 transition-colors leading-none"
+                ><i class="pi pi-times text-sm"></i></button>
+              </span>
+            </div>
+            <p v-else class="type-label text-amber-400 mb-1.5">No categories assigned yet</p>
+          </div>
+
+          <!-- Assign — native select avoids clip-path clipping -->
+          <select
+            v-if="categoriesUnassignedToJudge(j.judgeId).length > 0"
+            @change="submitAssignJudge(Number($event.target.value), j.judgeId); $event.target.value = ''"
+            class="w-full px-3 py-2.5 type-body text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
+          >
+            <option value="" disabled selected>+ Assign category</option>
+            <option
+              v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
+              :key="cat.eventGenreId"
+              :value="cat.eventGenreId"
+            >{{ cat.name }}</option>
+          </select>
         </div>
-        <span v-if="allEventJudges.length === 0" class="type-body text-content-muted text-xs">No judges added yet.</span>
-      </div>
-      <div class="flex items-center gap-1.5 para-chip px-2.5 py-1 w-fit">
-        <input
-          v-model="globalJudgeInput"
-          type="text"
-          placeholder="Add judge to event…"
-          autocomplete="off"
-          class="bg-transparent type-body placeholder:text-content-muted focus:outline-none w-56"
-          @keyup.enter="submitAddJudgeGlobal()"
-        />
-        <button
-          @click="submitAddJudgeGlobal()"
-          class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
-          title="Add to all divisions"
-        ><i class="pi pi-plus text-xs"></i></button>
+
+        <!-- Add judge card -->
+        <div class="para-chip p-3 flex flex-col items-center justify-center gap-2" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
+          <div class="flex items-center gap-1.5 w-full">
+            <input
+              v-model="globalJudgeInput"
+              type="text"
+              placeholder="Judge name…"
+              autocomplete="off"
+              class="bg-transparent type-body placeholder:text-content-muted focus:outline-none flex-1 min-w-0 text-sm"
+              @keyup.enter="submitAddJudgeGlobal()"
+            />
+            <button
+              @click="submitAddJudgeGlobal()"
+              class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+              title="Add judge"
+            ><i class="pi pi-plus text-xs"></i></button>
+          </div>
+          <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" >No judges yet</span>
+        </div>
       </div>
     </div>
 
     <!-- Genre tab bar -->
-    <div class="flex flex-wrap gap-2 mb-4">
+    <div class="tab-bar mb-4">
       <button
         v-for="g in eventGenres"
         :key="g.name"
         @click="activeGenreTab = g.name"
-        class="para-chip-sm px-4 py-2 type-label transition-all duration-150"
-        :class="activeGenreTab === g.name
-          ? 'text-accent border-accent'
-          : 'text-content-muted hover:text-content-primary'"
+        class="tab-item"
+        :class="{ 'is-active': activeGenreTab === g.name }"
       >
         {{ g.name }}
         <span
           v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))"
-          class="ml-1.5 text-xs font-normal opacity-60"
+          class="opacity-60 text-sm font-normal"
         >{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
       </button>
     </div>
@@ -1626,198 +1733,148 @@ onUnmounted(() => {
     <template v-for="g in eventGenres" :key="g.name + '-content'">
       <div v-if="activeGenreTab === g.name" class="p-5 space-y-4">
 
-        <!-- Participant counts (only when data available) -->
+        <!-- ROSTER STATUS -->
         <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name))">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="badge-neutral text-xs">Total: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }}</span>
-            <span class="badge-success">
-              Reg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }}
-            </span>
-            <span
-              v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
-              class="badge-danger"
-            >Unreg: {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }}</span>
-          </div>
-
-          <!-- Unregistered list -->
-          <div v-if="getUnregistered(normalizeGenreName(g.name)).unregistered.length > 0">
-            <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-1.5">Unregistered Participants</p>
-            <div class="flex flex-wrap gap-2">
+          <div>
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Roster Status</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="para-chip-sm px-2.5 py-1 type-label text-content-secondary">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).total }} total</span>
+              <span class="para-chip-sm px-2.5 py-1 type-label" style="border-color:rgba(52,211,153,0.35);color:#34d399;">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+                {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).registered }} registered
+              </span>
               <span
-                v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
-                :key="p.participantName"
-                class="badge-danger font-source"
-              >{{ p.participantName }}</span>
+                v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered > 0"
+                class="para-chip-sm px-2.5 py-1 type-label"
+                style="border-color:rgba(245,158,11,0.35);color:#f59e0b;"
+              >
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
+                {{ completeBreakdown.find(b => b.genre === normalizeGenreName(g.name)).unregistered }} unregistered
+              </span>
+            </div>
+
+            <!-- Unregistered list -->
+            <div v-if="getUnregistered(normalizeGenreName(g.name)).unregistered.length > 0" class="mt-2">
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="p in getUnregistered(normalizeGenreName(g.name)).unregistered"
+                  :key="p.participantName"
+                  class="para-chip-sm px-2 py-0.5 type-label text-amber-400"
+                  style="border-color:rgba(245,158,11,0.25);"
+                >{{ p.participantName }}</span>
+              </div>
+            </div>
+            <div v-else class="flex items-center gap-2 type-body text-emerald-400 mt-2">
+              <i class="pi pi-check-circle"></i>
+              <span>All participants registered</span>
             </div>
           </div>
-          <div v-else class="flex items-center gap-2 type-body text-emerald-400">
-            <i class="pi pi-check-circle"></i>
-            <span>All participants registered</span>
-          </div>
-
           <div class="h-px bg-surface-700/40"></div>
         </template>
 
-        <!-- Scoring Criteria -->
-        <div class="grid grid-cols-1 gap-3">
-
-          <!-- Scoring Criteria -->
-          <div class="flex flex-col gap-2 p-3 para-chip">
-            <div class="flex items-center justify-between">
-              <p class="type-label text-content-muted">Scoring Criteria</p>
-              <button
-                @click="showCriteriaModal = true"
-                class="para-chip-sm px-2.5 py-1 type-label"
-              ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
+        <!-- SCORING CRITERIA -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <div class="section-rule mb-0 flex-1">
+              <span class="section-rule-label">Scoring Criteria</span>
+              <div class="section-rule-line"></div>
             </div>
-            <template v-if="criteriaByGenre[g.name]?.length">
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="c in criteriaByGenre[g.name]"
-                  :key="c.id"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-700 border border-surface-600/50 text-xs text-content-secondary"
-                >
-                  {{ c.name }}
-                  <span v-if="c.weight != null" class="font-source text-primary-400">×{{ c.weight }}</span>
-                </span>
-              </div>
-            </template>
-            <span v-else class="text-xs text-content-muted">Default (single score)</span>
+            <button
+              @click="showCriteriaModal = true"
+              class="para-chip-sm px-2.5 py-1 type-label shrink-0"
+            ><i class="pi pi-sliders-h" style="font-size:0.65rem"></i> Configure</button>
           </div>
+          <template v-if="criteriaByGenre[g.name]?.length">
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="c in criteriaByGenre[g.name]"
+                :key="c.id"
+                class="para-chip-sm px-3 py-1 type-label text-content-secondary inline-flex items-center gap-1.5"
+              >
+                {{ c.name }}
+                <span v-if="c.weight != null" class="text-content-muted">×{{ c.weight }}</span>
+              </span>
+            </div>
+          </template>
+          <span v-else class="type-label text-content-muted">Default — single 0–10 score</span>
         </div>
 
-        <!-- Judges (per division) -->
+        <div class="h-px bg-surface-700/40"></div>
+
+        <!-- JUDGES (read-only) -->
         <div>
-          <p class="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">
-            Judges
-          </p>
-          <div class="flex flex-wrap items-center gap-2">
-            <div
+          <div class="section-rule mb-2">
+            <span class="section-rule-label">Judges</span>
+            <div class="section-rule-line"></div>
+            <span class="type-label text-content-muted" style="white-space:nowrap;">manage in judge pool above</span>
+          </div>
+          <div v-if="(divisionJudges[g.name] || []).length > 0" class="flex flex-wrap gap-2">
+            <span
               v-for="j in (divisionJudges[g.name] || [])"
               :key="j.judgeId"
-              class="flex items-center gap-2 para-chip px-2.5 py-1"
+              class="flex items-center gap-1.5 para-chip px-2.5 py-1"
             >
-              <i class="pi pi-user text-content-muted text-xs shrink-0"></i>
-              <span class="type-body text-content-secondary">{{ j.judgeName }}</span>
-              <button
-                @click="askRemoveJudge(g, j)"
-                class="type-label text-content-muted hover:text-content-primary transition-colors"
-                title="Remove from division"
-              ><i class="pi pi-times text-xs"></i></button>
-            </div>
-
-            <!-- Assign from pool dropdown -->
-            <div v-if="unassignedJudges(g.name).length > 0" class="relative">
-              <button
-                @click="toggleAssignDropdown(g.name)"
-                class="para-chip px-2 py-1 type-label text-accent hover:bg-[var(--accent-subtle)] transition-all"
-                title="Assign judge from pool"
-              ><i class="pi pi-plus text-xs"></i> Assign</button>
-              <div
-                v-if="openAssignDropdown === g.name"
-                class="absolute bottom-full left-0 mb-1 bg-surface-800 border border-surface-600 para-chip p-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto"
-              >
-                <button
-                  v-for="j in unassignedJudges(g.name)"
-                  :key="j.judgeId"
-                  @click="submitAssignJudge(g.eventGenreId, j.judgeId); openAssignDropdown = null"
-                  class="block w-full text-left px-3 py-1.5 type-body text-content-secondary hover:text-content-primary hover:bg-surface-700 transition-colors"
-                >+ {{ j.judgeName }}</button>
-              </div>
-            </div>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+              <span class="type-body text-content-secondary text-sm">{{ j.judgeName }}</span>
+            </span>
           </div>
+          <span v-else class="text-xs text-content-muted">None assigned — add in Judge Pool above</span>
         </div>
 
       </div>
     </template>
   </div>
 
-  <!-- Session Links -->
+  <!-- Session Links — always visible, auto-generated -->
   <div v-if="isAdminOrOrganiser && tableExist" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
-    <button
-      @click="sessionLinksExpanded = !sessionLinksExpanded"
-      :aria-expanded="sessionLinksExpanded"
-      class="w-full flex items-center justify-between text-left"
-    >
-      <div class="flex items-center gap-3">
-        <i class="pi pi-link text-xs" style="color:var(--accent-color)"></i>
-        <span class="type-body text-content-secondary">Session Links</span>
-        <span class="badge-accent">{{ sessionTokens.length }}</span>
-      </div>
-      <i class="pi pi-chevron-down text-content-muted text-xs transition-transform duration-200"
-         :class="{ 'rotate-180': sessionLinksExpanded }"></i>
-    </button>
-    <div v-if="sessionLinksExpanded" class="mt-4 pt-4 border-t border-surface-600/30">
-      <!-- Generate row -->
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          @click="handleGenerateToken('EMCEE')"
-          :disabled="generatingRole === 'EMCEE'"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'EMCEE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          EMCEE
-        </button>
-        <button
-          @click="handleGenerateToken('HELPER')"
-          :disabled="generatingRole === 'HELPER'"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'HELPER' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          HELPER
-        </button>
-        <select
-          v-model="selectedJudgeId"
-          class="input-base type-label"
-          style="width:auto;min-width:7rem"
-        >
-          <option value="">Select judge…</option>
-          <option v-for="j in allUniqueJudges" :key="j.judgeId" :value="j.judgeId">
-            {{ j.judgeName }}
-          </option>
-        </select>
-        <button
-          @click="handleGenerateToken('JUDGE')"
-          :disabled="generatingRole === 'JUDGE' || !selectedJudgeId"
-          class="para-chip-sm px-3 py-1.5 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40"
-        >
-          <i class="pi text-xs mr-1" :class="generatingRole === 'JUDGE' ? 'pi-spinner pi-spin' : 'pi-plus'"></i>
-          JUDGE
-        </button>
-      </div>
 
-      <!-- Token list -->
-      <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
-        <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
-      </div>
-      <div v-else-if="sessionTokens.length === 0" class="type-label text-content-muted py-4">
-        No active session links
-      </div>
-      <div v-else class="space-y-2">
-        <div
-          v-for="t in sessionTokens"
-          :key="t.tokenId"
-          class="para-chip px-3 py-2 flex items-center gap-3"
-        >
+    <div class="section-rule mb-4">
+      <span class="section-rule-label">Session Links</span>
+      <div class="section-rule-line"></div>
+      <span class="type-label text-content-muted" style="white-space:nowrap;">auto-generated · refresh to extend</span>
+    </div>
+
+    <div v-if="sessionTokensLoading" class="flex items-center gap-2 type-label text-content-muted py-4">
+      <i class="pi pi-spinner pi-spin text-xs"></i> Loading…
+    </div>
+    <div v-else class="space-y-2">
+      <div
+        v-for="t in sessionTokens"
+        :key="t.tokenId"
+        class="para-chip px-3 py-2 flex flex-col gap-1.5"
+      >
+        <!-- Row 1: role badge + name -->
+        <div class="flex items-center gap-2">
           <span
-            class="badge-neutral text-xs shrink-0"
+            class="badge-neutral text-sm shrink-0"
             :class="t.role === 'JUDGE' ? 'badge-accent' : 'badge-neutral'"
           >{{ t.role }}</span>
-          <span v-if="t.judgeName" class="type-body text-content-secondary text-xs truncate">{{ t.judgeName }}</span>
-          <span class="type-label text-content-muted text-xs shrink-0 ml-auto">{{ formatExpiry(t.expiresAt) }}</span>
+          <span v-if="t.judgeName" class="type-body text-content-secondary">{{ t.judgeName }}</span>
+        </div>
+        <!-- Row 2: expiry + actions -->
+        <div class="flex items-center gap-2">
+          <span
+            class="type-label flex-1"
+            :class="isExpiryWarning(t.expiresAt) ? 'text-amber-400' : 'text-content-muted'"
+          >{{ formatExpiry(t.expiresAt) }}<span v-if="isExpiryWarning(t.expiresAt)"> ⚠</span></span>
           <button
-            @click="copyTokenLink(t.url)"
+            @click="handleRefreshToken(t)"
             class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-accent transition-colors shrink-0"
-            title="Copy link"
-          ><i class="pi pi-copy text-xs"></i></button>
+            title="Refresh link (extends expiry)"
+          ><i class="pi pi-refresh text-xs"></i></button>
           <button
-            @click="handleRevokeToken(t.tokenId)"
-            class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-red-400 transition-colors shrink-0"
-            title="Revoke"
-          ><i class="pi pi-trash text-xs"></i></button>
+            @click="copyTokenLink(t.url, t.tokenId)"
+            class="para-chip-sm px-2 py-1 type-label transition-colors shrink-0"
+            :class="copiedTokenId === t.tokenId ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
+            title="Copy link"
+          ><i class="pi text-xs" :class="copiedTokenId === t.tokenId ? 'pi-check' : 'pi-copy'"></i></button>
         </div>
       </div>
+      <p class="type-label text-content-muted mt-3">Judge links are removed automatically when a judge is deleted.</p>
     </div>
   </div>
 
@@ -1853,20 +1910,16 @@ onUnmounted(() => {
         <div class="corner-bar-tl"></div>
 
         <!-- Division tabs -->
-        <div class="flex gap-1.5 mb-4 flex-wrap">
+        <div class="tab-bar mb-4">
           <button
             v-for="div in divisionAuditionStats"
             :key="div.name"
             @click="poolTab = div.name"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150 flex items-center gap-2"
-            :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
+            class="tab-item"
+            :class="{ 'is-active': (poolTab ?? divisionAuditionStats[0]?.name) === div.name }"
           >
             {{ div.name }}
-            <span class="tabular-nums" :class="(poolTab ?? divisionAuditionStats[0]?.name) === div.name ? 'text-accent/70' : 'text-content-muted/50'">
-              {{ div.drawn.length }}/{{ div.total }}
-            </span>
+            <span class="tabular-nums opacity-60">{{ div.drawn.length }}/{{ div.total }}</span>
           </button>
         </div>
 

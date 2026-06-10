@@ -220,13 +220,13 @@ onMounted(async () => {
       </div>
 
       <!-- Section tabs -->
-      <div class="flex flex-wrap gap-2">
+      <div class="tab-bar mb-6">
         <button
           v-for="tab in tabs"
           :key="tab"
           @click="activeTab = tab"
-          class="para-chip-sm type-label px-3 py-1.5 transition-all duration-150"
-          :class="activeTab === tab ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          class="tab-item"
+          :class="{ 'is-active': activeTab === tab }"
         >{{ tab }}</button>
       </div>
 

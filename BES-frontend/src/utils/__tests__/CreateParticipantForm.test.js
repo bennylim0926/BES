@@ -19,19 +19,12 @@ import { addWalkinToSystem } from '@/utils/api'
 describe('CreateParticipantForm.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    document.body.innerHTML = ''
   })
 
-  it('renders stage name and genre fields', async () => {
+  it('renders stage name input and genre chips when open', async () => {
     const wrapper = mount(CreateParticipantForm, {
-      props: { show: true, event: 'TestEvent' },
-    })
-    await wrapper.vm.$nextTick()
-    const inputs = wrapper.findAll('input')
-    expect(inputs.length).toBeGreaterThan(0)
-  })
-
-  it('shows per-genre toggle for team-format genre', async () => {
-    const wrapper = mount(CreateParticipantForm, {
+      attachTo: document.body,
       props: {
         show: true,
         event: 'TestEvent',
@@ -42,68 +35,101 @@ describe('CreateParticipantForm.vue', () => {
       },
     })
     await wrapper.vm.$nextTick()
-
-    const poppingCheckbox = wrapper.findAll('input[type="checkbox"]').at(0)
-    await poppingCheckbox.setValue(true)
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('Popping Entry Type')
-    expect(wrapper.text()).toContain('3v3')
-
-    const soloBtn = wrapper.findAll('button').filter(b => b.text().includes('Solo'))
-    expect(soloBtn.length).toBeGreaterThanOrEqual(1)
+    // Stage name input (teleported into document.body)
+    expect(document.body.querySelector('input[type="text"]')).not.toBeNull()
+    // Genre chips rendered as buttons (not checkboxes)
+    expect(document.body.querySelector('input[type="checkbox"]')).toBeNull()
+    const genreButtons = Array.from(document.body.querySelectorAll('button')).filter(b => b.textContent.includes('Popping'))
+    expect(genreButtons.length).toBeGreaterThan(0)
   })
 
-  it('submits walk-in with per-genre entry mode', async () => {
+  it('toggleGenre adds and removes genre from createTable.genres', async () => {
     const wrapper = mount(CreateParticipantForm, {
+      attachTo: document.body,
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [
-          { name: 'Popping', format: '3v3' },
-        ],
+        eventGenres: [{ name: 'Popping', format: '3v3' }],
+      },
+    })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.createTable.genres).toEqual([])
+
+    wrapper.vm.toggleGenre('Popping')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.createTable.genres).toContain('Popping')
+
+    wrapper.vm.toggleGenre('Popping')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.createTable.genres).not.toContain('Popping')
+  })
+
+  it('shows inline team section when a team-format genre chip is toggled on', async () => {
+    const wrapper = mount(CreateParticipantForm, {
+      attachTo: document.body,
+      props: {
+        show: true,
+        event: 'TestEvent',
+        eventGenres: [{ name: 'Popping', format: '3v3' }],
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.toggleGenre('Popping')
+    await wrapper.vm.$nextTick()
+
+    // Section rule label for the genre (teleported into document.body)
+    expect(document.body.textContent).toContain('Popping')
+    // Team/Solo toggle buttons appear
+    const teamBtn = Array.from(document.body.querySelectorAll('button')).filter(b => b.textContent.trim() === 'Team')
+    expect(teamBtn.length).toBeGreaterThan(0)
+  })
+
+  it('shows team name and member inputs when team mode active', async () => {
+    const wrapper = mount(CreateParticipantForm, {
+      attachTo: document.body,
+      props: {
+        show: true,
+        event: 'TestEvent',
+        eventGenres: [{ name: 'Popping', format: '3v3' }],
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.toggleGenre('Popping')
+    await wrapper.vm.$nextTick()
+
+    // entryModes defaults to 'team' for team-format genre
+    expect(wrapper.vm.entryModes['Popping']).toBe('team')
+    // Team name input and member inputs present (teleported into document.body)
+    const inputs = document.body.querySelectorAll('input[type="text"]')
+    // stage name + team name + 2 members = 4
+    expect(inputs.length).toBe(4)
+  })
+
+  it('submits walk-in with correct args (solo mode)', async () => {
+    const wrapper = mount(CreateParticipantForm, {
+      attachTo: document.body,
+      props: {
+        show: true,
+        event: 'TestEvent',
+        eventGenres: [{ name: 'Popping', format: '3v3' }],
       },
     })
     await wrapper.vm.$nextTick()
 
     wrapper.vm.name = 'Dancer1'
-    const checkbox = wrapper.findAll('input[type="checkbox"]').at(0)
-    await checkbox.setValue(true)
+    wrapper.vm.toggleGenre('Popping')
     await wrapper.vm.$nextTick()
 
     wrapper.vm.entryModes['Popping'] = 'solo'
     await wrapper.vm.$nextTick()
 
-    const okBtns = wrapper.findAll('button').filter(b => b.text().includes('OK'))
-    if (okBtns.length > 0) {
-      await okBtns[0].trigger('click')
-    } else {
-      wrapper.vm.submitNewEntry()
-    }
+    wrapper.vm.submitNewEntry()
     await wrapper.vm.$nextTick()
 
     expect(addWalkinToSystem).toHaveBeenCalledWith(
       'Dancer1', 'TestEvent', 'Popping', '', [], '', 'solo'
     )
-  })
-
-  it('shows team name + member fields when team entry mode selected', async () => {
-    const wrapper = mount(CreateParticipantForm, {
-      props: {
-        show: true,
-        event: 'TestEvent',
-        eventGenres: [
-          { name: 'Popping', format: '3v3' },
-        ],
-      },
-    })
-    await wrapper.vm.$nextTick()
-
-    const checkbox = wrapper.findAll('input[type="checkbox"]').at(0)
-    await checkbox.setValue(true)
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('Popping Team Name')
-    expect(wrapper.text()).toContain('Enter the other 2')
   })
 })

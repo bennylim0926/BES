@@ -204,6 +204,7 @@ public class AuthController {
             GetSessionTokenDto dto = new GetSessionTokenDto();
             dto.tokenId = t.getTokenId();
             dto.role = t.getRole();
+            dto.judgeId = t.getJudge() != null ? t.getJudge().getJudgeId() : null;
             dto.judgeName = t.getJudge() != null ? t.getJudge().getName() : null;
             dto.expiresAt = t.getExpiresAt().toString();
             dto.url = "/auth/token?t=" + t.getTokenId();
