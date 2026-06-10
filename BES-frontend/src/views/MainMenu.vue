@@ -23,9 +23,9 @@ const roleDisplay = computed(() => {
     <div class="color-bleed"></div>
 
     <div class="relative z-10">
-      <!-- Page header -->
+      <!-- Page header — h1 for document outline / screen-reader navigation -->
       <div class="mb-8">
-        <div class="type-page-title mb-1">Home</div>
+        <h1 class="type-page-title mb-1">Home</h1>
         <p class="type-label text-content-muted">{{ roleDisplay?.label ?? 'Welcome' }}</p>
       </div>
 
@@ -126,13 +126,16 @@ const roleDisplay = computed(() => {
       <!-- No event selected hint -->
       <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE' || role === 'ROLE_HELPER')"
         class="mt-8 p-4 semantic-chip-warning flex items-start gap-3">
-        <div class="w-2 h-2 rounded-full bg-amber-400 box-shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0"></div>
+        <!-- fixed invalid box-shadow-[] class → shadow-[] so the glow dot actually renders -->
+        <div class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0" aria-hidden="true"></div>
         <div>
           <div class="type-body text-amber-400 mb-1">No Active Event</div>
           <p class="type-label text-content-muted">
             Select an event to access audition, scoring, and battle features.
           </p>
-          <router-link :to="{ name: 'EventSelector' }" class="type-label text-accent underline mt-2 inline-block">
+          <!-- chip-style link with padding: 44px tap target instead of a thin underlined text link -->
+          <router-link :to="{ name: 'EventSelector' }"
+            class="para-chip-sm type-label text-accent mt-3 inline-flex items-center px-4 py-2.5">
             Select Event →
           </router-link>
         </div>

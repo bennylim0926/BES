@@ -126,39 +126,49 @@ const groupTags = (tags) => {
               style="clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
 
               <div class="mb-6">
-                <div class="type-page-title mb-1">My Results</div>
-                <p class="type-label text-content-muted">Enter your reference code</p>
+                <!-- h1 for document outline; label is now a real <label> tied to the input -->
+                <h1 class="type-page-title mb-1">My Results</h1>
+                <label for="ref-code" class="type-label text-content-muted">Enter your reference code</label>
               </div>
 
               <div class="flex gap-3">
                 <div class="flex-1">
                   <input
+                    id="ref-code"
                     :value="refCode"
                     @input="onInput"
                     placeholder="e.g. AB3K-9XPQ"
                     maxlength="9"
+                    autocomplete="off"
+                    autocapitalize="characters"
                     class="input-base w-full"
+                    :aria-invalid="errorMsg ? 'true' : undefined"
+                    aria-describedby="ref-code-error"
                     @keydown.enter="lookup"
                   />
                 </div>
+                <!-- specific action verb + aria-busy loading state -->
                 <button
                   @click="lookup"
                   :disabled="loading || refCode.length !== 9"
-                  class="px-5 py-2.5 bg-accent text-surface-900 type-body transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
+                  :aria-busy="loading"
+                  class="px-5 py-2.5 min-h-[44px] bg-accent text-surface-900 type-body transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
                   style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
                 >
-                  <i v-if="loading" class="pi pi-spin pi-spinner"></i>
-                  <i v-else class="pi pi-search"></i>
-                  {{ loading ? 'Looking up…' : 'Look up' }}
+                  <i v-if="loading" class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+                  <i v-else class="pi pi-search" aria-hidden="true"></i>
+                  {{ loading ? 'Looking up…' : 'Look up results' }}
                 </button>
               </div>
 
-              <!-- Error state -->
+              <!-- Error state — role=alert announces lookup failures -->
               <div
                 v-if="errorMsg"
+                id="ref-code-error"
+                role="alert"
                 class="mt-4 semantic-chip-error flex items-start gap-3 p-4"
               >
-                <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-0.5" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)"></div>
+                <div class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 mt-0.5" style="box-shadow: 0 0 6px rgba(239,68,68,0.8)" aria-hidden="true"></div>
                 <p class="type-body text-content-secondary">{{ errorMsg }}</p>
               </div>
             </div>
@@ -166,13 +176,21 @@ const groupTags = (tags) => {
 
           <!-- Results display -->
           <template v-if="results">
-            <!-- Participant header -->
+            <!-- Participant header + escape route back to lookup -->
             <div class="mb-8">
-              <div class="type-page-title mb-1">{{ results.participantName }}</div>
+              <h1 class="type-page-title mb-1">{{ results.participantName }}</h1>
               <div class="section-rule">
                 <span class="section-rule-label">{{ results.eventName }}</span>
                 <div class="section-rule-line"></div>
               </div>
+              <!-- "how do I go back?" — let the user check another code without reloading -->
+              <button
+                @click="results = null; refCode = ''; errorMsg = ''"
+                class="para-chip-sm px-4 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors mt-4 inline-flex items-center gap-2"
+              >
+                <i class="pi pi-arrow-left text-xs" aria-hidden="true"></i>
+                Look up another code
+              </button>
             </div>
 
             <!-- Genre results -->

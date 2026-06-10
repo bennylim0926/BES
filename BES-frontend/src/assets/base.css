@@ -129,9 +129,9 @@
     --text-color-secondary: #a0a0a0;
   }
 
-  /* Global focus-visible ring */
+  /* Global focus-visible ring — full accent (not muted) to meet 3:1 contrast for focus indicators */
   *:focus-visible {
-    outline: 2px solid var(--accent-muted);
+    outline: 2px solid var(--accent-color);
     outline-offset: 2px;
   }
 
@@ -236,6 +236,19 @@
   .badge-neutral {
     @apply inline-flex items-center px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider;
     clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  }
+
+  /* Semantic badges get a glowing status dot so state reads via shape + label, not color alone */
+  .badge-success::before,
+  .badge-warning::before,
+  .badge-danger::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex-shrink: 0;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
   }
 
   /* Display badges have NO border — border = interactive, no border = read-only label */

@@ -246,21 +246,26 @@ onBeforeUnmount(() => {
               {{ slot.person.name }}
             </p>
           </div>
-          <!-- Ref code chip (hold to reveal) -->
-          <div
+          <!-- Ref code chip (hold to reveal) — button + keydown so keyboard users can reveal too -->
+          <button
             v-if="slot.person.refCode"
-            class="flex-shrink-0 para-chip-sm px-3 py-2 cursor-pointer select-none flex flex-col items-end gap-0.5"
+            type="button"
+            aria-label="Hold to reveal reference code"
+            class="flex-shrink-0 para-chip-sm px-3 py-2 min-h-[44px] cursor-pointer select-none flex flex-col items-end gap-0.5"
             @mousedown="setReveal(slot.slotId, true)" @mouseup="setReveal(slot.slotId, false)" @mouseleave="setReveal(slot.slotId, false)"
             @touchstart="setReveal(slot.slotId, true)" @touchend="setReveal(slot.slotId, false)" @touchcancel="setReveal(slot.slotId, false)"
+            @keydown.enter="setReveal(slot.slotId, true)" @keyup.enter="setReveal(slot.slotId, false)"
+            @keydown.space.prevent="setReveal(slot.slotId, true)" @keyup.space="setReveal(slot.slotId, false)"
           >
             <span class="type-label text-content-muted">Ref Code</span>
             <span v-if="revealingRef[slot.slotId]" class="font-source tracking-widest text-accent" style="font-size:1rem;letter-spacing:0.2em">
               {{ slot.person.refCode }}
             </span>
             <span v-else class="type-label text-content-muted/40">Hold to reveal</span>
-          </div>
-          <div v-else-if="slot.person.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5">
-            <i class="pi pi-spin pi-spinner text-content-muted text-xs"></i>
+          </button>
+          <!-- role=status: assigning indicator announced -->
+          <div v-else-if="slot.person.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5" role="status">
+            <i class="pi pi-spin pi-spinner text-content-muted text-xs" aria-hidden="true"></i>
             <span class="type-label text-content-muted">Assigning…</span>
           </div>
         </div>
@@ -353,19 +358,22 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
-          <!-- Ref code (click to reveal) -->
-          <span
+          <!-- Ref code (click to reveal) — button for keyboard access, aria-pressed exposes state -->
+          <button
             v-if="person.refCode"
+            type="button"
+            :aria-pressed="!!revealingRef['h-' + person.name + '-' + i]"
+            :aria-label="`Toggle reference code for ${person.name}`"
             class="relative ml-auto shrink-0 inline-flex items-center gap-1.5 para-chip-sm px-2.5 py-1 type-label cursor-pointer select-none transition-colors"
             :class="revealingRef['h-' + person.name + '-' + i] ? 'text-accent' : 'text-content-muted hover:text-accent'"
             @click="toggleReveal('h-' + person.name + '-' + i)"
           >
-            <i class="pi pi-eye" style="font-size:0.6rem"></i>
+            <i class="pi pi-eye" style="font-size:0.6rem" aria-hidden="true"></i>
             <template v-if="revealingRef['h-' + person.name + '-' + i]">
               <span class="font-source tracking-widest" style="font-size:0.75rem;letter-spacing:0.2em">{{ person.refCode }}</span>
             </template>
             <template v-else>Ref</template>
-          </span>
+          </button>
         </div>
       </div>
     </template>

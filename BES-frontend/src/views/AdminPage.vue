@@ -214,16 +214,18 @@ onMounted(async () => {
     <div class="color-bleed"></div>
     <div class="relative z-10 space-y-8">
 
-      <!-- Page header -->
+      <!-- Page header — h1 for document outline -->
       <div>
-        <div class="type-page-title">Admin</div>
+        <h1 class="type-page-title">Admin</h1>
       </div>
 
-      <!-- Section tabs -->
-      <div class="tab-bar mb-6">
+      <!-- Section tabs — tablist semantics expose the navigation pattern -->
+      <div class="tab-bar mb-6" role="tablist" aria-label="Admin sections">
         <button
           v-for="tab in tabs"
           :key="tab"
+          role="tab"
+          :aria-selected="activeTab === tab"
           @click="activeTab = tab"
           class="tab-item"
           :class="{ 'is-active': activeTab === tab }"
@@ -241,14 +243,16 @@ onMounted(async () => {
         <p class="type-label text-content-muted mb-4">Genres — used to group divisions when setting up events.</p>
 
         <div class="flex gap-3 mb-5">
+          <!-- aria-label: input needs an accessible name beyond placeholder -->
           <input
             v-model="addGenreInput"
             type="text"
             placeholder="Genre name…"
+            aria-label="New genre name"
             class="input-base flex-1 max-w-xs"
             @keyup.enter="submitAddGenre"
           />
-          <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Genre</button>
+          <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Add Genre</button>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -267,11 +271,13 @@ onMounted(async () => {
                 {{ g.genreName }}
               </button>
               <div class="flex gap-0.5 ml-1 flex-shrink-0">
+                <!-- aria-label + larger hit area for icon-only destructive action -->
                 <button
                   @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
-                  class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                  :aria-label="`Remove genre ${g.genreName}`"
+                  class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
                 >
-                  <i class="pi pi-times text-xs"></i>
+                  <i class="pi pi-times text-xs" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
@@ -321,10 +327,11 @@ onMounted(async () => {
             v-model="addGroupInput"
             type="text"
             placeholder="New group name…"
+            aria-label="New feedback group name"
             class="input-base flex-1 max-w-xs"
             @keyup.enter="submitAddGroup"
           />
-          <button @click="submitAddGroup" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Add Group</button>
+          <button @click="submitAddGroup" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Add Group</button>
         </div>
 
         <div class="space-y-5">
@@ -338,10 +345,11 @@ onMounted(async () => {
               <span class="type-body text-content-primary">{{ group.name }}</span>
               <button
                 @click="submitDeleteGroup(group.id)"
-                class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
                 title="Delete group"
+                :aria-label="`Delete group ${group.name}`"
               >
-                <i class="pi pi-times text-xs"></i>
+                <i class="pi pi-times text-xs" aria-hidden="true"></i>
               </button>
             </div>
 
@@ -352,11 +360,13 @@ onMounted(async () => {
                 class="para-chip-sm px-3 py-1 type-label text-content-secondary flex items-center gap-1.5"
               >
                 {{ tag.label }}
+                <!-- aria-label + padding: tiny × target gets an accessible name and a usable hit area -->
                 <button
                   @click="submitDeleteTag(tag.id)"
-                  class="text-content-muted hover:text-red-400 transition-colors leading-none"
+                  :aria-label="`Remove tag ${tag.label}`"
+                  class="text-content-muted hover:text-red-400 transition-colors leading-none p-1.5 -m-1"
                 >
-                  <i class="pi pi-times" style="font-size: 0.6rem"></i>
+                  <i class="pi pi-times" style="font-size: 0.6rem" aria-hidden="true"></i>
                 </button>
               </div>
               <p v-if="!group.tags?.length" class="type-label text-content-muted py-1">No tags yet</p>
@@ -367,14 +377,16 @@ onMounted(async () => {
                 v-model="addTagInputs[group.id]"
                 type="text"
                 :placeholder="`Add tag to ${group.name}…`"
+                :aria-label="`New tag for ${group.name}`"
                 class="input-base flex-1 text-sm py-1.5"
                 @keyup.enter="submitAddTag(group.id)"
               />
               <button
                 @click="submitAddTag(group.id)"
-                class="para-chip-sm type-label px-3 py-1.5 text-content-secondary hover:text-content-primary transition-colors"
+                :aria-label="`Add tag to ${group.name}`"
+                class="para-chip-sm type-label px-3 py-1.5 min-h-[44px] text-content-secondary hover:text-content-primary transition-colors"
               >
-                <i class="pi pi-plus text-xs"></i>
+                <i class="pi pi-plus text-xs" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -403,9 +415,10 @@ onMounted(async () => {
             <span class="type-body text-content-secondary truncate flex-1">{{ img }}</span>
             <button
               @click="confirmRemoveImage(img, `Delete ${img}?`, 'Are you sure you want to delete this image?')"
-              class="ml-2 flex-shrink-0 w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+              :aria-label="`Delete image ${img}`"
+              class="ml-2 flex-shrink-0 w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
             >
-              <i class="pi pi-times text-xs"></i>
+              <i class="pi pi-times text-xs" aria-hidden="true"></i>
             </button>
           </div>
           <div v-if="images.length === 0" class="col-span-full type-label text-content-muted py-4">
@@ -422,22 +435,27 @@ onMounted(async () => {
           <div class="section-rule-line"></div>
         </div>
 
-        <div class="flex gap-3 mb-5">
+        <!-- stacks on mobile so inputs don't get squashed -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-5">
           <input
             v-model="newOrganiserUsername"
             type="text"
             placeholder="Username…"
-            class="input-base flex-1 max-w-xs"
+            aria-label="New organiser username"
+            autocomplete="off"
+            class="input-base flex-1 sm:max-w-xs"
             @keyup.enter="submitCreateOrganiser"
           />
           <input
             v-model="newOrganiserPassword"
             type="password"
             placeholder="Password…"
-            class="input-base flex-1 max-w-xs"
+            aria-label="New organiser password"
+            autocomplete="new-password"
+            class="input-base flex-1 sm:max-w-xs"
             @keyup.enter="submitCreateOrganiser"
           />
-          <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2">Create Account</button>
+          <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Create Account</button>
         </div>
 
         <p class="type-label text-content-muted mb-4">Assign or remove events for each organiser.</p>
@@ -453,21 +471,27 @@ onMounted(async () => {
               <span class="type-body text-content-primary">{{ org.username }}</span>
               <button
                 @click="confirmDeleteOrganiser(org.id, org.username)"
-                class="w-6 h-6 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
                 title="Delete organiser"
+                :aria-label="`Delete organiser ${org.username}`"
               >
-                <i class="pi pi-times text-xs"></i>
+                <i class="pi pi-times text-xs" aria-hidden="true"></i>
               </button>
             </div>
 
             <div class="flex flex-wrap gap-2">
+              <!-- aria-pressed + check icon: assigned state reads via icon + semantics, not green alone -->
               <button
                 v-for="e in events"
                 :key="e.id"
                 @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
-                class="para-chip-sm type-label px-3 py-1 transition-all duration-150"
+                :aria-pressed="isEventAssigned(org, e.id)"
+                class="para-chip-sm type-label px-3 py-1.5 transition-all duration-150 inline-flex items-center gap-1.5"
                 :class="isEventAssigned(org, e.id) ? 'text-green-300 border-green-500/50 bg-green-500/15' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
-              >{{ e.name }}</button>
+              >
+                <i v-if="isEventAssigned(org, e.id)" class="pi pi-check text-xs" aria-hidden="true"></i>
+                {{ e.name }}
+              </button>
             </div>
 
             <p v-if="events.length === 0" class="type-label text-content-muted py-1">No events available</p>
@@ -489,9 +513,9 @@ onMounted(async () => {
           <div class="corner-bar-tl"></div>
           <p class="type-label text-content-muted mb-4">Sets the global accent color for all connected clients in real-time.</p>
           <div class="flex items-center gap-4">
-            <input type="color" v-model="accentInput" class="w-12 h-10 cursor-pointer bg-transparent border-0" />
+            <input type="color" v-model="accentInput" aria-label="Accent color picker" class="w-12 h-11 cursor-pointer bg-transparent border-0" />
             <span class="type-body text-accent">{{ accentInput }}</span>
-            <button @click="saveAccent" class="bg-accent para-chip type-label text-surface-900 px-4 py-2">Apply</button>
+            <button @click="saveAccent" class="bg-accent para-chip type-label text-surface-900 px-4 py-2 min-h-[44px]">Apply Accent Color</button>
           </div>
         </div>
       </div>

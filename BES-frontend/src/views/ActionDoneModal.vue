@@ -30,7 +30,11 @@ defineEmits(['close', 'accept'])
         @click="$emit('close')"
       ></div>
 
+      <!-- role=dialog + aria-label: modal announced with its title -->
       <div
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
         class="card-hover relative w-full mx-4"
         :class="[wide ? 'max-w-lg' : 'max-w-sm', scrollable ? 'flex flex-col p-0' : 'p-8']"
         :style="scrollable ? 'max-height:90dvh' : ''"

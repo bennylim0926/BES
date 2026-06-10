@@ -725,26 +725,31 @@ onMounted(async () => {
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">
+          <!-- Destructive action: red hover distinguishes reset from neutral controls; aria-label for icon-only -->
           <button
             @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
-            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
+            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-red-400 transition-all"
             style="min-width:44px"
             title="Reset scores"
-          ><i class="pi pi-undo text-sm sm:text-xs"></i></button>
+            aria-label="Reset all scores"
+          ><i class="pi pi-undo text-sm sm:text-xs" aria-hidden="true"></i></button>
           <button
             @click="showMiniMenu = true"
             class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
             style="min-width:44px"
             title="Go to participant"
-          ><i class="pi pi-search text-sm sm:text-xs"></i></button>
+            aria-label="Jump to participant"
+          ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
           v-if="isAdmin || isOrganiser"
           @click="showFilters = !showFilters"
+          :aria-expanded="showFilters"
+          aria-label="Toggle filters"
           class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
           style="min-width:44px"
         >
-          <i class="pi pi-sliders-h text-sm sm:text-xs"></i>
+          <i class="pi pi-sliders-h text-sm sm:text-xs" aria-hidden="true"></i>
         </button>
       </div>
     </div>
@@ -752,16 +757,18 @@ onMounted(async () => {
     <!-- Page header (no active session yet) -->
     <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
-        <div class="type-page-title mb-1">Audition List</div>
+        <!-- h1 for document outline -->
+        <h1 class="type-page-title mb-1">Audition List</h1>
         <p class="type-label text-content-muted">
           {{ selectedRole === 'Judge' ? 'Score participants for your genre' : 'Track audition progress' }}
         </p>
       </div>
       <button
         @click="showFilters = !showFilters"
+        :aria-expanded="showFilters"
         class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-content-primary transition-all duration-200 self-start"
       >
-        <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'"></i>
+        <i class="pi text-xs" :class="showFilters ? 'pi-filter-slash' : 'pi-filter'" aria-hidden="true"></i>
         Filters
       </button>
     </div>
@@ -790,6 +797,7 @@ onMounted(async () => {
                 v-for="r in roles"
                 :key="r"
                 @click="selectedRole = r"
+                :aria-pressed="selectedRole === r"
                 class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
                 :class="selectedRole === r
                   ? 'text-accent border-[color:var(--accent-muted)]'
@@ -807,6 +815,7 @@ onMounted(async () => {
                 v-for="g in uniqueGenres"
                 :key="g"
                 @click="switchGenre(g)"
+                :aria-pressed="selectedGenre === g"
                 class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
                 :class="selectedGenre === g
                   ? 'text-accent border-[color:var(--accent-muted)]'
@@ -825,6 +834,7 @@ onMounted(async () => {
                   v-for="t in ['Teams', 'Solo']"
                   :key="t"
                   @click="selectedEntryType = t"
+                  :aria-pressed="selectedEntryType === t"
                   class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
                   :class="selectedEntryType === t
                     ? 'text-accent border-[color:var(--accent-muted)]'
@@ -844,6 +854,7 @@ onMounted(async () => {
                   v-for="m in ['SOLO', 'PAIR']"
                   :key="m"
                   @click="judgingMode = m; setJudgingMode(selectedEvent, m)"
+                  :aria-pressed="judgingMode === m"
                   class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
                   :class="judgingMode === m
                     ? 'text-accent border-[color:var(--accent-muted)]'
@@ -883,9 +894,10 @@ onMounted(async () => {
       </RouterLink>
     </div>
 
-    <!-- Score error banner -->
+    <!-- Score error banner — role=alert announces the failure immediately -->
     <div
       v-if="scoreError"
+      role="alert"
       class="flex items-center gap-3 px-4 py-3 mb-4"
       style="border-left:3px solid rgb(239 68 68);background:rgba(239,68,68,0.1)"
     >
@@ -1072,17 +1084,21 @@ onMounted(async () => {
     <p class="type-body text-content-secondary">{{ modalMessage }}</p>
     <template v-if="modalVariant === 'warning'">
       <div class="mt-4">
+        <!-- Visible label: placeholder alone is not a label substitute -->
+        <label for="reset-access-code" class="type-label text-content-muted block mb-2">Event access code</label>
         <input
+          id="reset-access-code"
           v-model="resetConfirmCode"
           type="text"
           placeholder="Enter access code"
-          class="w-full px-3 py-2 type-body bg-surface-800 border border-surface-600 text-content-primary outline-none transition-colors"
+          class="w-full px-3 py-2.5 type-body bg-surface-800 border border-surface-600 text-content-primary outline-none transition-colors"
           style="clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
           :disabled="resetCodeChecking"
+          :aria-invalid="resetCodeError ? 'true' : undefined"
           @keyup.enter="dynamicCallBack()"
         />
-        <p v-if="resetCodeChecking" class="type-label text-accent mt-2">Verifying…</p>
-        <p v-if="resetCodeError" class="type-label text-red-400 mt-2">{{ resetCodeError }}</p>
+        <p v-if="resetCodeChecking" class="type-label text-accent mt-2" role="status">Verifying…</p>
+        <p v-if="resetCodeError" class="type-label text-red-400 mt-2" role="alert">{{ resetCodeError }}</p>
       </div>
     </template>
   </ActionDoneModal>

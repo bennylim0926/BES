@@ -251,9 +251,9 @@ onUnmounted(() => {
   <div class="page-container">
     <div class="color-bleed"></div>
 
-    <!-- Header -->
+    <!-- Header — h1 for document outline -->
     <div class="mb-4">
-      <div class="type-page-title mb-1">Audition Adjustment</div>
+      <h1 class="type-page-title mb-1">Audition Adjustment</h1>
       <p class="type-label text-content-muted">Manually assign, swap, or release audition numbers</p>
     </div>
 
@@ -275,18 +275,20 @@ onUnmounted(() => {
           { key: 'release', label: 'Release', icon: 'pi-undo' },
         ]" :key="m.key"
           @click="mode = m.key"
+          :aria-pressed="mode === m.key"
           class="para-chip-sm px-5 py-2 type-label transition-all duration-150 flex items-center gap-2"
           :class="mode === m.key ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
         >
-          <i class="pi text-xs" :class="m.icon"></i>
+          <i class="pi text-xs" :class="m.icon" aria-hidden="true"></i>
           {{ m.label }}
         </button>
         <div class="ml-auto flex items-center gap-2">
-          <span v-if="loading" class="type-label text-content-muted flex items-center gap-1.5">
-            <i class="pi pi-spinner pi-spin text-xs"></i> Updating…
+          <!-- role=status: live update indicator is announced -->
+          <span v-if="loading" class="type-label text-content-muted flex items-center gap-1.5" role="status">
+            <i class="pi pi-spinner pi-spin text-xs" aria-hidden="true"></i> Updating…
           </span>
           <button @click="reload" class="para-chip-sm px-3 py-2 type-label text-content-muted hover:text-content-primary transition-colors flex items-center gap-1.5">
-            <i class="pi pi-refresh text-xs"></i>
+            <i class="pi pi-refresh text-xs" aria-hidden="true"></i>
             Refresh
           </button>
         </div>
@@ -355,8 +357,9 @@ onUnmounted(() => {
                         v-for="n in getAvailableNumbers(g.eventGenreId)"
                         :key="n"
                         @click="pickNumber(g.eventGenreId, n)"
+                        :aria-pressed="assignBuffer[g.eventGenreId] === n"
                         class="inline-flex items-center justify-center type-label tabular-nums transition-all duration-150"
-                        style="width:2.4rem;height:2rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                        style="width:2.75rem;height:2.75rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
                         :style="assignBuffer[g.eventGenreId] === n
                           ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
                           : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'"

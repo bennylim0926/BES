@@ -223,6 +223,9 @@ onUnmounted(() => {
             <button
               v-else-if="activeEvent && !isEmceeSession && !isHelperSession"
               @click="panelOpen = !panelOpen"
+              :aria-expanded="panelOpen"
+              aria-haspopup="dialog"
+              aria-label="Open event menu"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
@@ -248,26 +251,32 @@ onUnmounted(() => {
               <span v-if="roleDisplay.name" class="text-content-primary">{{ roleDisplay.name }}</span>
             </span>
 
+            <!-- aria-label: icon-only button needs an accessible name -->
             <button @click="toggleTheme"
+              :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
               class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-              <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+              <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
             </button>
 
             <router-link v-if="!isAuthenticated" to="/login">
               <span class="px-4 py-1.5 para-chip type-label text-surface-900 bg-accent cursor-pointer">Login</span>
             </router-link>
 
+            <!-- aria-label: icon-only logout button needs an accessible name -->
             <button v-if="isAuthenticated"
               @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
+              aria-label="Log out"
               class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-red-400 hover:bg-red-950 transition-all duration-200">
-              <i class="pi pi-sign-out text-sm"></i>
+              <i class="pi pi-sign-out text-sm" aria-hidden="true"></i>
             </button>
           </div>
 
-          <!-- Mobile hamburger -->
+          <!-- Mobile hamburger — aria-expanded announces menu state; removed focus:outline-none so the global focus ring shows -->
           <button @click="isOpen = !isOpen"
-            class="md:hidden inline-flex items-center justify-center w-9 h-9 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-colors focus:outline-none">
-            <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'"></i>
+            :aria-expanded="isOpen"
+            aria-label="Toggle navigation menu"
+            class="md:hidden inline-flex items-center justify-center w-11 h-11 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-colors">
+            <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'" aria-hidden="true"></i>
           </button>
 
         </div>
@@ -308,9 +317,11 @@ onUnmounted(() => {
                 <span class="opacity-50">{{ roleDisplay.label }}</span>
                 <span v-if="roleDisplay.name" class="text-content-primary">{{ roleDisplay.name }}</span>
               </span>
+              <!-- aria-label + 44px tap target for mobile theme toggle -->
               <button @click="toggleTheme"
-                class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-                <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+                :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+                class="inline-flex items-center justify-center w-11 h-11 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
+                <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
               </button>
             </div>
             <button @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
@@ -351,8 +362,11 @@ onUnmounted(() => {
       leave-from-class="translate-x-0"
       leave-to-class="translate-x-full"
     >
+      <!-- role=dialog: slide-over is a modal surface; screen readers announce it as such -->
       <div
         v-if="panelOpen"
+        role="dialog"
+        aria-label="Event navigation"
         class="fixed top-0 right-0 h-full w-full md:w-[300px] z-50 bg-surface-800 border-l border-[rgba(255,255,255,0.07)] overflow-hidden flex flex-col"
       >
         <EventPanel

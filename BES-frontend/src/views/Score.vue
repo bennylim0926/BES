@@ -418,7 +418,8 @@ function transformForScore(data) {
     <!-- Page header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <div>
-        <div class="type-page-title mb-1">Scoreboard</div>
+        <!-- h1 for document outline -->
+        <h1 class="type-page-title mb-1">Scoreboard</h1>
         <p class="type-label text-content-muted">View and compare scores across genres and judges</p>
       </div>
     </div>
@@ -430,41 +431,44 @@ function transformForScore(data) {
         <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
         <span class="text-surface-600 select-none">|</span>
 
-        <!-- Genre toggle -->
-        <div class="flex gap-1">
+        <!-- Genre toggle — role=group + aria-pressed so toggle state is exposed beyond color -->
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
           <button
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
-            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
+            :aria-pressed="selectedGenre === g"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
             :class="selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
-        <span class="text-surface-600 select-none">|</span>
+        <span class="text-surface-600 select-none" aria-hidden="true">|</span>
 
         <!-- Group By toggle -->
-        <div class="flex gap-1">
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Tabulation method">
           <button
             v-for="t in tabulationMethod"
             :key="t"
             @click="selectedTabulation = t"
-            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
+            :aria-pressed="selectedTabulation === t"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
             :class="selectedTabulation === t
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
           >{{ t }}</button>
         </div>
-        <span class="text-surface-600 select-none">|</span>
+        <span class="text-surface-600 select-none" aria-hidden="true">|</span>
 
         <!-- Show Top toggle -->
-        <div class="flex gap-1">
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Show top N">
           <button
             v-for="n in topNOptions"
             :key="n"
             @click="selectedTopN = n"
-            class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
+            :aria-pressed="selectedTopN === n"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
             :class="selectedTopN === n
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'"
@@ -473,13 +477,14 @@ function transformForScore(data) {
 
         <!-- Type toggle (conditional) -->
         <template v-if="hasTeamAndSoloMix">
-          <span class="text-surface-600 select-none">|</span>
-          <div class="flex gap-1">
+          <span class="text-surface-600 select-none" aria-hidden="true">|</span>
+          <div class="flex flex-wrap gap-1" role="group" aria-label="Entry type">
             <button
               v-for="t in ['Teams', 'Solo']"
               :key="t"
               @click="selectedEntryType = t"
-              class="para-chip-sm px-3 py-1 type-label transition-all duration-150"
+              :aria-pressed="selectedEntryType === t"
+              class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
               :class="selectedEntryType === t
                 ? 'text-accent border-[color:var(--accent-muted)]'
                 : 'text-content-muted hover:text-content-primary'"
@@ -497,14 +502,16 @@ function transformForScore(data) {
         <p class="type-label text-content-muted">
           {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
         </p>
+        <!-- aria-pressed: release toggle exposes its on/off state to assistive tech -->
         <button
           @click="toggleRelease"
-          class="type-label transition-all duration-200"
+          :aria-pressed="resultsReleased"
+          class="type-label transition-all duration-200 inline-flex items-center gap-1.5"
           :class="resultsReleased
             ? 'bg-accent para-chip-sm px-3 py-1.5 text-surface-900'
             : 'para-chip-sm px-3 py-1.5 border-accent text-content-muted hover:text-content-primary'"
         >
-          <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'"></i>
+          <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'" aria-hidden="true"></i>
           {{ resultsReleased ? 'Released' : 'Release Results' }}
         </button>
       </div>
@@ -638,14 +645,14 @@ function transformForScore(data) {
           </template>
         </template>
 
-        <!-- Top 3 podium cards -->
+        <!-- Top 3 podium cards — single column on mobile (winner first), 2-1-3 layout on sm+ -->
         <div
           v-if="finalRows.length >= 3"
-          class="grid grid-cols-3 gap-4 mb-6"
+          class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"
         >
-          <div class="stat-card relative order-1">
+          <div class="stat-card relative order-2 sm:order-1">
             <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">2</span>
+            <span class="badge-neutral type-label mb-1">2nd</span>
             <div class="type-body text-content-secondary mb-1">
               {{ finalRows[1].participantName }}
             </div>
@@ -654,11 +661,11 @@ function transformForScore(data) {
             </div>
           </div>
           <div
-            class="stat-card relative order-2"
+            class="stat-card relative order-1 sm:order-2"
             style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);"
           >
             <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">1</span>
+            <span class="badge-neutral type-label mb-1">1st</span>
             <div class="type-body text-content-primary mb-1">
               {{ finalRows[0].participantName }}
             </div>
@@ -668,7 +675,7 @@ function transformForScore(data) {
           </div>
           <div class="stat-card relative order-3">
             <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">3</span>
+            <span class="badge-neutral type-label mb-1">3rd</span>
             <div class="type-body text-content-muted mb-1">
               {{ finalRows[2].participantName }}
             </div>
@@ -725,30 +732,34 @@ function transformForScore(data) {
                   <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
                       <!-- Score breakdown button (multi-criteria only) -->
+                      <!-- aria-labels: icon-only row actions get accessible names; p-2 enlarges hit area -->
                       <button
                         v-if="topNResult.isMultiAspect"
                         @click="viewBreakdown(row.participantName)"
                         title="View score breakdown"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
+                        :aria-label="`View score breakdown for ${row.participantName}`"
+                        class="p-2 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
-                        <i class="pi pi-chart-bar text-sm"></i>
+                        <i class="pi pi-chart-bar text-sm" aria-hidden="true"></i>
                       </button>
                       <!-- Feedback button -->
                       <button
                         @click="viewFeedback(row.participantName)"
                         title="View judge feedback"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
+                        :aria-label="`View judge feedback for ${row.participantName}`"
+                        class="p-2 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
                       >
-                        <i class="pi pi-comment text-sm"></i>
+                        <i class="pi pi-comment text-sm" aria-hidden="true"></i>
                       </button>
                       <!-- QR button: only visible when results are released and ref code exists -->
                       <button
                         v-if="resultsReleased && refsMap[row.participantName]"
                         @click="openQR(row.participantName)"
                         title="Show QR code for results portal"
-                        class="p-1.5 rounded-lg text-content-muted hover:text-emerald-400 hover:bg-surface-700 transition-colors"
+                        :aria-label="`Show results QR code for ${row.participantName}`"
+                        class="p-2 rounded-lg text-content-muted hover:text-emerald-400 hover:bg-surface-700 transition-colors"
                       >
-                        <i class="pi pi-qrcode text-sm"></i>
+                        <i class="pi pi-qrcode text-sm" aria-hidden="true"></i>
                       </button>
                     </div>
                   </td>
@@ -770,12 +781,14 @@ function transformForScore(data) {
               of {{ finalRows.length }}
             </span>
             <div class="flex items-center gap-1">
+              <!-- aria-label: icon-only pagination controls -->
               <button
                 @click="tablePage--"
                 :disabled="tablePage === 1"
+                aria-label="Previous page"
                 class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
                        text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              ><i class="pi pi-chevron-left text-xs"></i></button>
+              ><i class="pi pi-chevron-left text-xs" aria-hidden="true"></i></button>
               <button
                 v-for="p in totalTablePages"
                 :key="p"
@@ -788,9 +801,10 @@ function transformForScore(data) {
               <button
                 @click="tablePage++"
                 :disabled="tablePage === totalTablePages"
+                aria-label="Next page"
                 class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
                        text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              ><i class="pi pi-chevron-right text-xs"></i></button>
+              ><i class="pi pi-chevron-right text-xs" aria-hidden="true"></i></button>
             </div>
           </div>
         </template>
@@ -863,8 +877,9 @@ function transformForScore(data) {
         @click="showFeedbackPanel = false"
       ></div>
 
-      <!-- Panel -->
-      <div class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+      <!-- Panel — role=dialog so the modal is announced; labelled close button -->
+      <div role="dialog" aria-modal="true" aria-label="Judge feedback"
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
           <div>
@@ -876,9 +891,10 @@ function transformForScore(data) {
           </div>
           <button
             @click="showFeedbackPanel = false"
-            class="w-8 h-8 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            aria-label="Close feedback panel"
+            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
           >
-            <i class="pi pi-times text-sm"></i>
+            <i class="pi pi-times text-sm" aria-hidden="true"></i>
           </button>
         </div>
 
@@ -957,7 +973,9 @@ function transformForScore(data) {
       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
     >
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBreakdown = false"></div>
-      <div class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+      <!-- role=dialog + labelled close button -->
+      <div role="dialog" aria-modal="true" aria-label="Score breakdown"
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
           <div>
@@ -966,9 +984,10 @@ function transformForScore(data) {
           </div>
           <button
             @click="showBreakdown = false"
-            class="w-8 h-8 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            aria-label="Close score breakdown"
+            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
           >
-            <i class="pi pi-times text-sm"></i>
+            <i class="pi pi-times text-sm" aria-hidden="true"></i>
           </button>
         </div>
         <!-- Content -->

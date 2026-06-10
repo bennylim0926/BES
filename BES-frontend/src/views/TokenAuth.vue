@@ -44,14 +44,17 @@ onMounted(async () => {
 <template>
   <div class="token-root">
     <div class="color-bleed"></div>
-    <div class="token-card">
+    <!-- aria-live: dynamic sign-in status is announced to screen readers -->
+    <div class="token-card" role="status" aria-live="polite">
       <template v-if="loading">
-        <div class="spinner"></div>
+        <div class="spinner" aria-hidden="true"></div>
         <p class="token-text">SIGNING IN&#8230;</p>
       </template>
       <template v-else-if="error">
         <p class="token-title">LINK INVALID</p>
         <p class="token-sub">{{ error }}</p>
+        <!-- Escape route: error state must answer "how do I go back?" -->
+        <router-link to="/login" class="token-link">Go to login</router-link>
       </template>
     </div>
   </div>
@@ -110,6 +113,26 @@ onMounted(async () => {
   text-transform: uppercase;
   color: rgba(255,255,255,0.45);
   text-align: center;
+}
+
+.token-link {
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 12px 24px;
+  min-height: 44px; /* mobile tap target */
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.token-link:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
 }
 
 .spinner {

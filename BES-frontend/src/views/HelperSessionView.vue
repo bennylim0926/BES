@@ -63,6 +63,8 @@ function goToEventDetails() {
     <div v-if="!loading && !sessionReady" class="session-card">
       <h1 class="session-title">SESSION NOT FOUND</h1>
       <p class="empty-text">Your session could not be restored. Please use your invitation link again, or contact the event organiser for a new link.</p>
+      <!-- Escape route: dead-end error state must offer a way forward -->
+      <router-link to="/login" class="session-link">Go to login</router-link>
     </div>
 
     <!-- Main hub -->
@@ -94,8 +96,8 @@ function goToEventDetails() {
         <span class="section-rule"></span>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-text">LOADING…</div>
+      <!-- Loading — role=status announces the async state change -->
+      <div v-if="loading" class="loading-text" role="status">LOADING…</div>
 
       <!-- Navigation buttons -->
       <div v-else class="nav-list">
@@ -103,18 +105,20 @@ function goToEventDetails() {
           @click="goToEventDetails"
           class="nav-btn"
         >
-          <i class="pi pi-calendar nav-btn-icon"></i>
+          <i class="pi pi-calendar nav-btn-icon" aria-hidden="true"></i>
           <span class="nav-btn-label">Event Details</span>
         </button>
 
+        <!-- aria-live: copy confirmation is announced, success reads via icon + label, not color alone -->
         <button
           @click="copyAuditionScreenLink"
           class="nav-btn"
           :class="linkCopied ? 'nav-btn--copied' : ''"
           :disabled="!authStore.activeEvent?.name"
           :style="!authStore.activeEvent?.name ? 'opacity:0.35;cursor:not-allowed' : ''"
+          aria-live="polite"
         >
-          <i class="pi nav-btn-icon" :class="linkCopied ? 'pi-check' : 'pi-hashtag'"></i>
+          <i class="pi nav-btn-icon" :class="linkCopied ? 'pi-check' : 'pi-hashtag'" aria-hidden="true"></i>
           <span class="nav-btn-label">{{ linkCopied ? 'Link Copied!' : 'Audition Screen' }}</span>
         </button>
       </div>
@@ -218,6 +222,26 @@ function goToEventDetails() {
   letter-spacing: 0.05em;
   color: rgba(255,255,255,0.35);
   text-align: center;
+}
+
+.session-link {
+  align-self: center;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 12px 24px;
+  min-height: 44px; /* mobile tap target */
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.session-link:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
 }
 
 .nav-list {
