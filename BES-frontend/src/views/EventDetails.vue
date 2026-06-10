@@ -1208,6 +1208,7 @@ const anyModalOpen = computed(() =>
   showModal.value ||
   showCriteriaModal.value ||
   showAdjustModal.value ||
+  showWalkInForm.value ||
   genreAddForm.show ||
   checkinConfirm.value.show ||
   confirmDialog.value.show
