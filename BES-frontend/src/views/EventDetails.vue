@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionAliases, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -54,8 +54,6 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
 const sheetCategories = ref([])
-const divAliasExpanded = ref(null)
-const divAliasInput = ref('')
 const pendingSuggestionCat = ref(null)
 const divRenameActive = ref(null)
 const divRenameInput = ref('')
@@ -95,11 +93,6 @@ const askRemoveDivision = (div) => askConfirm(
   'Remove Category?',
   `"${div.name}" will be permanently removed. Participants already enrolled will block this action — remove them first.`,
   () => removeDivisionFromSection(div.eventGenreId)
-)
-const askRemoveJudge = (g, j) => askConfirm(
-  'Remove Judge?',
-  `Remove ${j.judgeName} from ${g.name}?`,
-  () => submitRemoveJudge(g.eventGenreId, j.judgeId)
 )
 const askRemoveJudgeGlobal = (j) => askConfirm(
   'Remove Judge from Event?',
@@ -172,14 +165,6 @@ const genreCounts = computed(() => {
   })
   return counts
 })
-
-const totalWalkIn = computed(() =>
-  new Set(
-    verifiedDbParticipants.value
-      .filter(p => p.walkin)
-      .map(p => p.participantId)
-  ).size
-)
 
 const totalDbRegistered = computed(() => {
   const grouped = {}
@@ -645,31 +630,13 @@ const saveDivisionFormat = async (div, format) => {
   }
 }
 
-const addAlias = async (div) => {
-  if (!divAliasInput.value.trim()) return
-  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
-  existing.push(divAliasInput.value.trim())
-  const joined = existing.join(', ')
-  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
-  div.sheetAliases = joined
-  divAliasInput.value = ''
-}
-
-const removeAlias = async (div, alias) => {
-  const existing = div.sheetAliases ? div.sheetAliases.split(',').map(s => s.trim()).filter(Boolean) : []
-  const updated = existing.filter(a => a !== alias)
-  const joined = updated.join(', ')
-  await updateDivisionAliases(props.eventName, div.eventGenreId, joined)
-  div.sheetAliases = joined
-}
-
 const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
   await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
   div.soloAllowed = newVal
 }
 
-const addSuggestionToGenre = async (genreId, genreLabel) => {
+const addSuggestionToGenre = async (genreId, _genreLabel) => {
   if (!pendingSuggestionCat.value) return
   const name = pendingSuggestionCat.value
   pendingSuggestionCat.value = null
@@ -721,19 +688,6 @@ const loadJudgesForDivision = async (genre) => {
   divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
 }
 // Judges not yet assigned to a specific division
-const openAssignDropdown = ref(null)
-const openJudgeCardDropdown = ref(null)
-
-const toggleAssignDropdown = (id) => {
-  openAssignDropdown.value = openAssignDropdown.value === id ? null : id
-}
-
-const unassignedJudges = (genreName) => {
-  const assigned = divisionJudges.value[genreName] || []
-  const assignedIds = new Set(assigned.map(j => j.judgeId))
-  return allEventJudges.value.filter(j => !assignedIds.has(j.judgeId))
-}
-
 const categoriesAssignedToJudge = (judgeId) => {
   const result = []
   for (const [genreName, judges] of Object.entries(divisionJudges.value)) {
@@ -822,26 +776,6 @@ const isAdminOrOrganiser = computed(() => {
 
 const isHelper = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_HELPER')
 
-const allUniqueJudges = computed(() => {
-  const seen = new Set()
-  const result = []
-  for (const j of allEventJudges.value) {
-    if (!seen.has(j.judgeId)) {
-      seen.add(j.judgeId)
-      result.push(j)
-    }
-  }
-  for (const judges of Object.values(divisionJudges.value)) {
-    for (const j of judges) {
-      if (!seen.has(j.judgeId)) {
-        seen.add(j.judgeId)
-        result.push(j)
-      }
-    }
-  }
-  return result
-})
-
 const loadSessionTokens = async () => {
   if (!dbEventId.value) return
   sessionTokensLoading.value = true
@@ -873,11 +807,6 @@ const loadSessionTokens = async () => {
 const handleRefreshToken = async (token) => {
   await revokeSessionToken(token.tokenId)
   await generateToken(token.role, dbEventId.value, token.judgeId ?? null)
-  await loadSessionTokens()
-}
-
-const handleRevokeToken = async (tokenId) => {
-  await revokeSessionToken(tokenId)
   await loadSessionTokens()
 }
 
