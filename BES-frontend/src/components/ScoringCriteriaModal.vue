@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { getScoringCriteriaStrict, addScoringCriteria, updateScoringCriteria, deleteScoringCriteria, deleteAllCriteriaForGenre } from '@/utils/api'
 
 const props = defineProps({
@@ -36,11 +36,14 @@ const loadAll = async () => {
 }
 
 watch(() => props.modelValue, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
   if (open) {
     activeTab.value = props.genres[0] ?? 'event-level'
     loadAll()
   }
 }, { immediate: false })
+
+onUnmounted(() => { document.body.style.overflow = '' })
 
 // ── Add ───────────────────────────────────────────────────────────────────────
 const newName   = ref('')
@@ -146,33 +149,33 @@ const applyToAllGenres = async () => {
     <Transition name="modal-fade">
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-        @click.self="close"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       >
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close" />
 
         <!-- Panel -->
-        <div class="card-hover p-6 relative w-full max-w-xl flex flex-col max-h-[85vh]">
+        <div class="card-hover relative w-full sm:max-w-lg flex flex-col max-h-[85vh]">
           <div class="corner-bar-tl"></div>
           <div class="corner-bar-bl"></div>
 
           <!-- Header -->
-          <div class="flex items-center justify-between flex-shrink-0 mb-4">
-            <div>
-              <p class="type-page-title" style="font-size: 18px;">Scoring Criteria</p>
-              <p class="type-label text-content-muted mt-0.5">Define what judges score on. Leave empty for a single 0–10 score.</p>
+          <div class="flex items-center justify-between px-4 py-3 border-b border-surface-600/30 flex-shrink-0">
+            <div class="flex items-center gap-2">
+              <i class="pi pi-sliders-h text-content-muted text-xs"></i>
+              <span class="type-body text-content-primary">Scoring Criteria</span>
+              <span class="badge-neutral type-label">{{ props.eventName }}</span>
             </div>
             <button
               @click="close"
-              class="p-1.5 para-chip-sm type-label text-content-muted hover:text-content-primary transition-colors"
+              class="para-chip-sm px-2 py-1 type-label text-content-muted hover:text-content-primary transition-colors"
             >
-              <i class="pi pi-times text-sm" />
+              <i class="pi pi-times text-xs" />
             </button>
           </div>
 
           <!-- Genre tabs -->
-          <div class="flex gap-1 px-5 pt-4 pb-0 overflow-x-auto flex-shrink-0" style="scrollbar-width: none;">
+          <div class="flex gap-1 px-4 pt-3 pb-0 overflow-x-auto flex-shrink-0" style="scrollbar-width: none;">
             <button
               v-for="tab in allTabs"
               :key="tab"
@@ -192,17 +195,17 @@ const applyToAllGenres = async () => {
           </div>
 
           <!-- Tab description -->
-          <div class="px-5 pt-3 pb-0 flex-shrink-0">
-            <p v-if="activeTab === 'event-level'" class="text-xs text-content-muted italic">
-              These criteria apply to any genre that doesn't have its own specific criteria set.
+          <div class="px-4 pt-2 pb-0 flex-shrink-0">
+            <p v-if="activeTab === 'event-level'" class="type-label text-content-muted">
+              Applies to any genre without its own criteria.
             </p>
-            <p v-else class="text-xs text-content-muted italic">
-              Criteria specific to <span class="text-primary-400 font-semibold">{{ activeTab }}</span>. Overrides the Event Default.
+            <p v-else class="type-label text-content-muted">
+              Criteria for <span class="text-accent">{{ activeTab }}</span> — overrides event default.
             </p>
           </div>
 
           <!-- Criteria list (scrollable) -->
-          <div class="flex-1 overflow-y-auto px-5 py-4 space-y-2 min-h-0">
+          <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
             <div v-if="loading" class="text-xs text-content-muted py-4 text-center">Loading…</div>
 
             <div
@@ -216,20 +219,22 @@ const applyToAllGenres = async () => {
               <div
                 v-for="c in activeCriteria"
                 :key="c.id"
-                class="card-hover p-3 relative"
+                class="para-chip px-3 py-2.5 transition-all duration-150"
+                :class="editingId === c.id
+                  ? 'border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
+                  : 'border-surface-600/40'"
               >
                 <!-- View row -->
-                <div
-                  v-if="editingId !== c.id"
-                  class="flex items-center justify-between"
-                >
-                  <div class="flex items-center gap-2 flex-1 min-w-0">
-                    <span class="text-sm font-semibold text-content-primary truncate">{{ c.name }}</span>
-                    <span v-if="c.weight != null" class="badge-neutral type-label shrink-0">
-                      ×{{ c.weight }}
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-1 ml-2 shrink-0">
+                <div v-if="editingId !== c.id" class="flex items-center gap-3">
+                  <span
+                    class="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                    :style="c.weight != null
+                      ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
+                      : 'background:rgba(255,255,255,0.15)'"
+                  ></span>
+                  <span class="type-body text-content-primary flex-1 truncate">{{ c.name }}</span>
+                  <span v-if="c.weight != null" class="badge-neutral type-label shrink-0">×{{ c.weight }}</span>
+                  <div class="flex items-center gap-1 shrink-0">
                     <button
                       @click="startEdit(c)"
                       class="p-1.5 para-chip-sm type-label text-content-muted hover:text-accent transition-colors"
@@ -247,7 +252,7 @@ const applyToAllGenres = async () => {
                   </div>
                 </div>
 
-                <!-- Edit row -->
+                <!-- Edit row (inline expansion) -->
                 <div v-else class="space-y-2">
                   <div class="flex gap-2">
                     <input
@@ -285,7 +290,7 @@ const applyToAllGenres = async () => {
             </template>
 
             <!-- Add form -->
-            <div v-if="showAdd" class="card-hover p-3 space-y-2">
+            <div v-if="showAdd" class="para-chip px-3 py-3 space-y-2 border-surface-600/40">
               <div class="flex gap-2">
                 <input
                   v-model="newName"
@@ -321,11 +326,11 @@ const applyToAllGenres = async () => {
           </div>
 
           <!-- Footer actions -->
-          <div class="flex items-center gap-2 flex-shrink-0 pt-4 border-t border-[rgba(255,255,255,0.07)]">
+          <div class="flex items-center gap-2 flex-shrink-0 px-4 py-3 border-t border-surface-600/30">
             <button
               v-if="!showAdd"
               @click="showAdd = true"
-              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent text-content-muted hover:text-accent transition-all duration-150"
+              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label text-content-muted hover:text-accent transition-all duration-150"
             >
               <i class="pi pi-plus text-xs" />
               Add Criterion
@@ -333,13 +338,11 @@ const applyToAllGenres = async () => {
 
             <div class="flex-1" />
 
-            <!-- Copy to all genres (not shown on Event Default tab) -->
             <button
               v-if="activeTab !== 'event-level' && genres.length > 1"
               @click="applyToAllGenres"
               :disabled="applyingAll || activeCriteria.length === 0"
-              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label border-accent
-                     disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+              class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
               :class="appliedAll ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
               title="Replaces criteria in all other genres with these"
             >
