@@ -109,49 +109,23 @@ onUnmounted(() => {
           <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
         </div>
 
-        <!-- PAIR mode: Left battler | Timer | Right battler -->
+        <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
-          <!-- Left battler (right-aligned toward timer) -->
-          <div class="pair-slot pair-slot-left">
-            <template v-if="currentSlots[0]?.placeholder">
-              <div class="audition-number" style="color:rgba(245,158,11,0.3)">#{{ currentSlots[0].auditionNumber }}</div>
-              <div class="participant-name" style="opacity:0.3">TBD</div>
-            </template>
-            <template v-else-if="currentSlots[0]">
-              <div class="type-stat audition-number">
-                #{{ currentSlots[0].auditionNumber }}
+          <!-- Left: both names stacked -->
+          <div class="pair-names">
+            <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
+              <div class="pair-name-entry">
+                <span class="type-stat audition-number">#{{ slot.auditionNumber }}</span>
+                <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
+                <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
               </div>
-              <div class="type-body participant-name">
-                {{ currentSlots[0].participantName }}
-              </div>
-              <div v-if="currentSlots[0].memberNames?.length" class="type-label member-names member-names-right">
-                {{ currentSlots[0].memberNames.join(' · ') }}
-              </div>
+              <div v-if="sIdx === 0 && currentSlots.length > 1" class="pair-divider" aria-hidden="true"></div>
             </template>
           </div>
 
-          <!-- Centre: Timer -->
-          <div class="timer-display pair-timer" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+          <!-- Right: timer -->
+          <div class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
             <div class="type-stat timer-number">{{ timerLabel || '0' }}</div>
-          </div>
-
-          <!-- Right battler (left-aligned away from timer) -->
-          <div class="pair-slot pair-slot-right">
-            <template v-if="currentSlots[1]?.placeholder">
-              <div class="audition-number" style="color:rgba(245,158,11,0.3)">#{{ currentSlots[1].auditionNumber }}</div>
-              <div class="participant-name" style="opacity:0.3">TBD</div>
-            </template>
-            <template v-else-if="currentSlots[1]">
-              <div class="type-stat audition-number">
-                #{{ currentSlots[1].auditionNumber }}
-              </div>
-              <div class="type-body participant-name">
-                {{ currentSlots[1].participantName }}
-              </div>
-              <div v-if="currentSlots[1].memberNames?.length" class="type-label member-names">
-                {{ currentSlots[1].memberNames.join(' · ') }}
-              </div>
-            </template>
           </div>
         </div>
 
@@ -266,7 +240,7 @@ onUnmounted(() => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 40px;
+  padding: 24px 40px;
 }
 
 .main-area {
@@ -275,8 +249,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  padding-top: 6vh;
-  gap: 12px;
+  padding-top: 2vh;
+  gap: 10px;
 }
 
 /* Event name + genre stacked at the top */
@@ -284,8 +258,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 2px;
+  margin-bottom: 2px;
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
@@ -302,28 +276,36 @@ onUnmounted(() => {
   color: rgba(255,255,255,0.45);
 }
 
-/* ── PAIR layout: left | timer | right ────────────────────────────────────── */
+/* ── PAIR layout: stacked names left | timer right ───────────────────────── */
 .pair-row {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: clamp(40px, 7vw, 120px);
+  gap: clamp(40px, 8vw, 130px);
   width: 100%;
 }
-.pair-slot {
+/* Left column: both names stacked */
+.pair-names {
   display: flex;
   flex-direction: column;
+  gap: 8px;
   flex: 1;
-  min-width: 28vw;
-  max-width: 40vw;
+  min-width: 0;
+  max-width: 58vw;
 }
-.pair-slot-left  { align-items: flex-end;  text-align: right; }
-.pair-slot-right { align-items: flex-start; text-align: left; }
-.pair-slot-left .participant-name  { text-align: right; }
-.pair-slot-right .participant-name { text-align: left; }
-.member-names-right { text-align: right; }
-.pair-timer { flex-shrink: 0; }
+.pair-name-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+/* Thin divider between the two entries */
+.pair-divider {
+  height: 2px;
+  width: 100%;
+  background: rgba(255,255,255,0.1);
+  margin: 4px 0;
+}
 
 /* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
