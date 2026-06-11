@@ -1594,3 +1594,32 @@ export const setResolvedParticipants = async (eventName, genreName, participants
     })
   } catch (e) { console.error(e) }
 }
+
+export const postAuditionDisplayState = async (state) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/audition-display`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(state)
+    })
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const getAuditionDisplayState = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/audition-display?event=${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
