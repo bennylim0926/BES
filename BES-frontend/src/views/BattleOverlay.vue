@@ -4,6 +4,8 @@ import { createClient, deactivateClient, subscribeToChannel } from '@/utils/webs
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useDelay } from '@/utils/utils';
 import { useRoute } from 'vue-router'
+import { resolveTheme, deriveRoundLabel } from '@/utils/overlayThemes'
+import OverlayRoundCard from '@/components/overlay/OverlayRoundCard.vue'
 import Chart from './Chart.vue';
 
 const route = useRoute()
@@ -12,16 +14,15 @@ const eventName = ref(route.query.event || '')
 const topic = (path) => `/topic/battle/${eventName.value}/${path}`
 
 // ── Overlay config (live from BattleControl + API) ─────────────────────────
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact' })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact', overlayAccentColor: null, showRoundCard: true })
 const logoUrl  = computed(() => overlayConfig.value.logoUrl)
 
-// ── Animation theme timing (CSS handles visuals; JS handles delays) ────────
-// IMPACT = current baseline. HYPE = dramatic build-up: longer pauses, second shake burst.
-const THEME_TIMING = {
-  impact: { vsShakeDelay: 340, votePause: 1500, finalPause: 400, secondShake: false },
-  hype:   { vsShakeDelay: 420, votePause: 2500, finalPause: 800, secondShake: true },
-}
-const themeTiming = computed(() => THEME_TIMING[overlayConfig.value.animTheme] || THEME_TIMING.impact)
+// ── Animation theme (registry in utils/overlayThemes.js) ───────────────────
+const activeTheme  = computed(() => resolveTheme(overlayConfig.value.animTheme))
+const themeTiming  = computed(() => activeTheme.value.timing)
+const isLightning  = computed(() => overlayConfig.value.animTheme === 'lightning')
+const overlayAccent = computed(() => overlayConfig.value.overlayAccentColor || activeTheme.value.accent)
+const showRoundCard = computed(() => overlayConfig.value.showRoundCard !== false)
 
 // ── Battle state ───────────────────────────────────────────────────────────
 const imageLeft  = ref(null)
@@ -44,6 +45,7 @@ const isFinal = ref(false)
 
 const hydrateOverlayFromState = async (state) => {
   if (!state) return
+  if (state.bracket?.rounds) bracketRounds.value = state.bracket.rounds
   const snapshot = JSON.stringify(state)
   if (snapshot === lastOverlayState.value) return
   lastOverlayState.value = snapshot
@@ -68,7 +70,7 @@ const hydrateOverlayFromState = async (state) => {
       if (pairChanged || genreChanged) {
         // New pair (genre switch, recovery) → run entrance animation
         try {
-          await updateBattlePair(state.currentPair)
+          await updateBattlePair(state.currentPair, { skipTitle: ['VOTING', 'REVEALED', 'DECIDED'].includes(state.battlePhase) })
         } catch (_) { /* animation interrupted */ }
         // If this is a completed battle, restore winner visual after entrance
         if ((state.battlePhase === 'REVEALED' || state.battlePhase === 'DECIDED') && state.bracket?.rounds) {
@@ -135,6 +137,10 @@ const glitching = ref(false)
 // updateScore captures the token at start and aborts if it changes, preventing
 // stale leftWin/rightWin assignments from a previous pair's score animation.
 let animToken = 0
+let entranceToken = 0
+const entranceStage = ref('battle')
+const titleRoundLabel = ref('')
+const bracketRounds = ref(null)
 
 // pendingEntrance: set when pair WS arrives while phase is IDLE so the entrance
 // animation fires after LOCKED confirms and panels mount (isBlank flips false).
@@ -174,13 +180,45 @@ const judgePanelClass = computed(() => {
 })
 
 // ── Entrance animation ─────────────────────────────────────────────────────
-const runEntrance = async () => {
-  await useDelay().wait(50) // allow DOM to clear previous animation classes
-  if (unmounted) return
+const runEntrance = async (opts = {}) => {
+  const myEntrance = ++entranceToken
+  const live = () => !unmounted && entranceToken === myEntrance
+  await useDelay().wait(50)
+  if (!live()) return
   hideJudgeDecision.value = true
+  const t = themeTiming.value
+
+  const wantTitle = !opts.skipTitle && showRoundCard.value && !isSmoke.value && t.titleTotal > 0
+  if (wantTitle) {
+    titleRoundLabel.value = deriveRoundLabel({
+      rounds: bracketRounds.value,
+      leftName: leftName.value, rightName: rightName.value,
+      isFinal: isFinal.value, isSmoke: isSmoke.value,
+    })
+    vsAnim.value = 'vs-pre'
+    entranceStage.value = 'title'
+    await useDelay().wait(t.titleTotal + (isFinal.value ? t.finalsExtra : 0))
+    if (!live()) return
+  }
+  entranceStage.value = 'battle'
+
+  if (t.vsDelay > 0) {
+    vsAnim.value = 'vs-pre'
+    await useDelay().wait(t.vsDelay)
+    if (!live()) return
+  }
   vsAnim.value = 'rush-in'
-  await useDelay().wait(themeTiming.value.vsShakeDelay) // VS hits undershoot trough
-  if (unmounted) return
+  await useDelay().wait(t.vsShakeDelay)
+  if (!live()) return
+  await impactFx()
+}
+
+const boltNonce = ref(0)
+const impactFx = async () => {
+  if (isLightning.value) {
+    boltNonce.value++
+    return
+  }
   stageShaking.value = true
   await useDelay().wait(120)
   if (unmounted) return
@@ -195,7 +233,7 @@ const isBlank = computed(() =>
 )
 
 // ── Battle pair update ─────────────────────────────────────────────────────
-const updateBattlePair = async (msg) => {
+const updateBattlePair = async (msg, opts = {}) => {
   if (!msg) return
 
   // SMOKE MODE: only wipe judge votes, keep panel on screen
@@ -217,6 +255,9 @@ const updateBattlePair = async (msg) => {
   // EMPTY PAIR: organiser cleared the battle (end of round / reset). Skip
   // entrance animation, just blank the overlay.
   if (!msg.left && !msg.right) {
+    entranceToken++
+    entranceStage.value = 'battle'
+    titleRoundLabel.value = ''
     hideJudgeDecision.value  = true
     judgeAnim.value          = ''
     judgeRestSide.value      = null
@@ -305,7 +346,7 @@ const updateBattlePair = async (msg) => {
   if (battlePhase.value === 'IDLE') {
     pendingEntrance = true
   } else {
-    await runEntrance()
+    await runEntrance(opts)
   }
 }
 
@@ -370,19 +411,13 @@ const updateScore = async (msg) => {
     // Shake on slam landing (~350ms into animation)
     await useDelay().wait(350)
     if (!ok()) return
-    stageShaking.value = true
-    await useDelay().wait(80)
-    if (!ok()) return
-    stageShaking.value = false
+    await impactFx()
 
     // HYPE: second shake burst for extra drama
     if (themeTiming.value.secondShake) {
       await useDelay().wait(140)
       if (!ok()) return
-      stageShaking.value = true
-      await useDelay().wait(100)
-      if (!ok()) return
-      stageShaking.value = false
+      await impactFx()
     }
 
     // Reveal votes as slam settles
@@ -496,6 +531,7 @@ onMounted(async () => {
   // Restore state from backend on mount — handles OBS refresh and genre switches.
   // Runs for both standard and smoke mode so genre-switch detection always works.
   const state = await getBattleState(eventName.value)
+  if (state?.bracket?.rounds) bracketRounds.value = state.bracket.rounds
   if (state?.genreName !== undefined) {
     isSmoke.value = genreNameIsSmoke(state.genreName)
     activeGenreName.value = state.genreName
@@ -508,7 +544,7 @@ onMounted(async () => {
       battleJudges.value = await getBattleJudges(eventName.value)
     }
     const pair = state?.currentPair?.left ? state.currentPair : await getCurrentBattlePair(eventName.value)
-    if (pair) await updateBattlePair(pair)
+    if (pair) await updateBattlePair(pair, { skipTitle: ['VOTING', 'REVEALED', 'DECIDED'].includes(state?.battlePhase) })
     // Restore winner visual state for REVEALED and DECIDED without replaying the score animation
     if ((state?.battlePhase === 'REVEALED' || state?.battlePhase === 'DECIDED') && state?.bracket?.rounds) {
       restoreRevealedState(state.bracket.rounds)
@@ -535,6 +571,7 @@ onMounted(async () => {
   const cBracket = createClient(); clients.push(cBracket)
   subscribeToChannel(cBracket, topic('bracket'), async (msg) => {
     if (!msg) return
+    if (msg.rounds) bracketRounds.value = msg.rounds
     const wasSmoke = isSmoke.value
     const newTopSize = msg.topSize !== undefined ? Number(msg.topSize) : null
     if (newTopSize !== null) {
@@ -545,7 +582,7 @@ onMounted(async () => {
     // On format switch smoke → standard: fetch current pair from backend to show something.
     if (wasSmoke && !isSmoke.value) {
       const state = await getBattleState(eventName.value)
-      if (state?.currentPair?.left) await updateBattlePair(state.currentPair)
+      if (state?.currentPair?.left) await updateBattlePair(state.currentPair, { skipTitle: true })
     }
   })
 
@@ -662,7 +699,7 @@ onUnmounted(() => {
     class="overlay-root"
     :class="{ 'stage-shake': stageShaking }"
     :data-anim-theme="overlayConfig.animTheme || 'impact'"
-    :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
+    :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, '--overlay-accent': overlayAccent }"
   >
     <!-- Broadcast timer — text-only top-right -->
     <Transition name="timer-enter">
@@ -719,7 +756,7 @@ onUnmounted(() => {
     <div v-if="glitching" class="glitch-overlay" aria-hidden="true"></div>
 
     <!-- Structural decorators — standard mode only -->
-    <template v-if="!isSmoke">
+    <template v-if="!isSmoke && entranceStage !== 'title'">
       <div class="center-divider" aria-hidden="true"></div>
       <div class="scanlines"      aria-hidden="true"></div>
       <div class="color-bleed color-bleed-left"  aria-hidden="true"></div>
@@ -808,6 +845,16 @@ onUnmounted(() => {
         <div class="blank-label">WAITING</div>
         <div class="blank-sub">NEXT BATTLE COMING UP</div>
       </div>
+
+      <!-- Round card interstitial — title beat of the entrance (spec §2.5) -->
+      <OverlayRoundCard
+        v-else-if="entranceStage === 'title'"
+        :event-name="eventName"
+        :genre-name="activeGenreName"
+        :round-label="titleRoundLabel"
+        :is-final="isFinal"
+        :strike-delay="2200 + (isFinal ? themeTiming.finalsExtra : 0)"
+      />
 
       <!-- Battler panels -->
       <template v-else>
@@ -1014,6 +1061,9 @@ onUnmounted(() => {
   /* Default CSS custom properties — overridden by :style binding */
   --left-color: #dc2626;
   --right-color: #2563eb;
+  --overlay-accent-muted:  color-mix(in srgb, var(--overlay-accent, #ffffff) 25%, transparent);
+  --overlay-accent-subtle: color-mix(in srgb, var(--overlay-accent, #ffffff) 7%, transparent);
+  --overlay-accent-glow:   color-mix(in srgb, var(--overlay-accent, #ffffff) 60%, transparent);
 }
 
 /* ── Stage shake ────────────────────────────────────────────── */
@@ -1457,6 +1507,7 @@ onUnmounted(() => {
   display: block;
 }
 .vs-gone { display: none; }
+.vs-pre { opacity: 0; }
 
 /* ── Voting indicator ────────────────────────────── */
 .voting-indicator {
