@@ -859,6 +859,13 @@ function copyAuditionScreenLink() {
   setTimeout(() => { auditionLinkCopied.value = false }, 2000)
 }
 
+const displayLinkCopied = ref(false)
+function copyDisplayLink() {
+  copyToClipboard(window.location.origin + '/audition/display?event=' + encodeURIComponent(props.eventName))
+  displayLinkCopied.value = true
+  setTimeout(() => { displayLinkCopied.value = false }, 2000)
+}
+
 const formatExpiry = (expiresAt) => {
   const d = new Date(expiresAt)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -1207,6 +1214,14 @@ onUnmounted(() => {
         >
           <i class="pi text-sm" :class="auditionLinkCopied ? 'pi-check' : 'pi-hashtag'"></i>
           {{ auditionLinkCopied ? 'Link Copied!' : 'Audition Screen' }}
+        </button>
+        <button
+          @click="copyDisplayLink"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent transition-all duration-200"
+          :class="displayLinkCopied ? 'text-emerald-400 border-emerald-400/40' : ''"
+        >
+          <i class="pi text-sm" :class="displayLinkCopied ? 'pi-check' : 'pi-desktop'"></i>
+          {{ displayLinkCopied ? 'Link Copied!' : 'Audition Display' }}
         </button>
         <button
           v-if="!isHelper"
