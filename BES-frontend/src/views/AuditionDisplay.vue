@@ -249,12 +249,13 @@ onUnmounted(() => {
   align-items: center;
   width: 100%;
   gap: 10px;
+  margin-top: 12vh;
 }
 
 /* Event name + genre — pinned to top, independent of the centred content */
 .event-header {
   position: absolute;
-  top: 2vh;
+  top: 5vh;
   left: 0;
   right: 0;
   display: flex;
