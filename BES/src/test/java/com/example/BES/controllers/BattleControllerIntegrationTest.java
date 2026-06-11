@@ -29,7 +29,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.example.BES.models.Event;
 import com.example.BES.models.Judge;
+import com.example.BES.respositories.EventRepo;
 import com.example.BES.services.BattleService;
 import com.example.BES.services.JudgeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +49,9 @@ public class BattleControllerIntegrationTest {
 
     @Autowired
     private BattleService battleService;
+
+    @Autowired
+    private EventRepo eventRepo;
 
     @MockBean
     private JudgeService judgeService;
@@ -392,6 +397,17 @@ public class BattleControllerIntegrationTest {
     @Test
     @WithMockUser(roles = "ORGANISER")
     public void testSetOverlayConfig_acceptsLightningThemeAndNewFields() throws Exception {
+        Event ev = new Event();
+        ev.setEventName("LightningTestEvent");
+        eventRepo.save(ev);
+
+        mockMvc.perform(post("/api/v1/battle/active-genre")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    Map.of("eventName", "LightningTestEvent", "genreName", "Lightning Genre")
+                )))
+                .andExpect(status().isOk());
+
         String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\",\"animTheme\":\"lightning\",\"overlayAccentColor\":\"#00d4ff\",\"showRoundCard\":false}";
 
         mockMvc.perform(post("/api/v1/battle/overlay-config")
