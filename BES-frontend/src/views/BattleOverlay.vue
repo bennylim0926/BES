@@ -6,6 +6,7 @@ import { useDelay } from '@/utils/utils';
 import { useRoute } from 'vue-router'
 import { resolveTheme, deriveRoundLabel } from '@/utils/overlayThemes'
 import OverlayRoundCard from '@/components/overlay/OverlayRoundCard.vue'
+import LightningFx from '@/components/overlay/LightningFx.vue'
 import Chart from './Chart.vue';
 
 const route = useRoute()
@@ -224,6 +225,19 @@ const impactFx = async () => {
   if (unmounted) return
   stageShaking.value = false
 }
+
+const winnerNonce = ref(0)
+const fxPaused = ref(false)
+let fxPauseTimer = null
+watch(currentWinner, (side) => {
+  if (side !== 0 && side !== 1) return
+  if (!isLightning.value) return
+  winnerNonce.value++
+  fxPaused.value = true
+  clearTimeout(fxPauseTimer)
+  fxPauseTimer = setTimeout(() => { fxPaused.value = false }, 1800)
+})
+const fxActive = computed(() => !fxPaused.value && judgeAnim.value !== 'judge-slam-center')
 
 // ── Empty-pair state ───────────────────────────────────────────────────────
 // Show WAITING whenever phase is IDLE, OR whenever no pair names are set (any phase).
@@ -701,6 +715,23 @@ onUnmounted(() => {
     :data-anim-theme="overlayConfig.animTheme || 'impact'"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, '--overlay-accent': overlayAccent }"
   >
+    <svg v-if="isLightning" width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <filter id="chrome-bevel" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="blur" />
+          <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.9"
+                              specularExponent="14" lighting-color="#cfeeff" result="spec">
+            <feDistantLight azimuth="235" elevation="42" />
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specMasked" />
+          <feMerge>
+            <feMergeNode in="SourceGraphic" />
+            <feMergeNode in="specMasked" />
+          </feMerge>
+        </filter>
+      </defs>
+    </svg>
+
     <!-- Broadcast timer — text-only top-right -->
     <Transition name="timer-enter">
       <div v-if="showTimer" class="timer-overlay">
@@ -754,6 +785,16 @@ onUnmounted(() => {
 
     <!-- Glitch transition overlay -->
     <div v-if="glitching" class="glitch-overlay" aria-hidden="true"></div>
+
+    <!-- Lightning theme fx layer — standard mode only -->
+    <LightningFx
+      v-if="isLightning && !isSmoke"
+      :active="fxActive"
+      :voting="showVotingIndicator && !isBlank"
+      :strike-nonce="boltNonce"
+      :winner-nonce="winnerNonce"
+      :winner-side="currentWinner"
+    />
 
     <!-- Structural decorators — standard mode only -->
     <template v-if="!isSmoke && entranceStage !== 'title'">
@@ -854,6 +895,7 @@ onUnmounted(() => {
         :round-label="titleRoundLabel"
         :is-final="isFinal"
         :strike-delay="2200 + (isFinal ? themeTiming.finalsExtra : 0)"
+        :theme-key="overlayConfig.animTheme || 'impact'"
       />
 
       <!-- Battler panels -->
@@ -901,7 +943,7 @@ onUnmounted(() => {
       <!-- VS badge -->
       <div
         class="vs-badge"
-        :class="[vsAnim, { 'vs-gone': currentWinner !== -2 && vsAnim !== 'knock-left' && vsAnim !== 'knock-right' }]"
+        :class="[vsAnim, { 'vs-gone': currentWinner !== -2 && vsAnim !== 'knock-left' && vsAnim !== 'knock-right', 'vs-final': isFinal && isLightning }]"
         aria-hidden="true"
       >
         <span class="vs-text">VS</span>
@@ -1862,6 +1904,165 @@ onUnmounted(() => {
 .overlay-root[data-anim-theme="hype"] .judge-rest-right,
 .overlay-root[data-anim-theme="hype"] .judge-rest-left {
   animation-duration: 700ms;
+}
+
+/* ══ LIGHTNING THEME ══════════════════════════════════════════ */
+/* Chrome VS: gradient glass fill + real specular bevel + cyan rim */
+[data-anim-theme="lightning"] .vs-text {
+  background: linear-gradient(180deg, #ffffff 0%, #dff6ff 38%, #8fd6ee 50%, #eafbff 62%, #9adcf5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: url(#chrome-bevel) drop-shadow(0 0 14px var(--overlay-accent-glow));
+}
+/* Constant subtle RGB split on chrome elements */
+[data-anim-theme="lightning"] .name-text,
+[data-anim-theme="lightning"] .name-giant {
+  text-shadow:
+    1.5px 0 0 rgba(255, 40, 90, 0.35),
+    -1.5px 0 0 var(--overlay-accent-muted),
+    0 2px 10px rgba(0, 0, 0, 0.65);
+}
+/* Battler photos: cool grade */
+[data-anim-theme="lightning"] .battler-img {
+  filter: saturate(0.9) contrast(1.08) brightness(1.02);
+}
+/* Entrance: arrive blurred + bright, snap to crisp — no bounce */
+[data-anim-theme="lightning"] .slam-in-left {
+  animation: lightArriveLeft 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+[data-anim-theme="lightning"] .slam-in-right {
+  animation: lightArriveRight 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes lightArriveLeft {
+  0%   { transform: translateX(-60%); opacity: 0; filter: blur(14px) brightness(1.6); }
+  55%  { opacity: 1; filter: blur(6px) brightness(1.25); }
+  100% { transform: translateX(0); opacity: 1; filter: blur(0) brightness(1); }
+}
+@keyframes lightArriveRight {
+  0%   { transform: translateX(60%); opacity: 0; filter: blur(14px) brightness(1.6); }
+  55%  { opacity: 1; filter: blur(6px) brightness(1.25); }
+  100% { transform: translateX(0); opacity: 1; filter: blur(0) brightness(1); }
+}
+/* Finals: expanding arc rings radiate from the VS on entrance */
+[data-anim-theme="lightning"] .vs-final::before,
+[data-anim-theme="lightning"] .vs-final::after {
+  content: '';
+  position: absolute; inset: -10px;
+  border-radius: 50%;
+  border: 2px solid var(--overlay-accent-muted);
+  pointer-events: none;
+  animation: vsArc 900ms ease-out 2 forwards;
+}
+[data-anim-theme="lightning"] .vs-final::after { animation-delay: 250ms; }
+@keyframes vsArc {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to   { transform: scale(2.4); opacity: 0; }
+}
+
+/* Judge panel arrives as a light beam from above that resolves into the panel */
+[data-anim-theme="lightning"] .judge-slam-center {
+  animation: judgeBeamIn 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes judgeBeamIn {
+  0%   { transform: translateY(-120vh) scaleY(1.5); opacity: 0; filter: blur(10px) brightness(2.4); }
+  60%  { opacity: 1; filter: blur(2px) brightness(1.5); }
+  100% { transform: translateY(42vh) scale(1.38); opacity: 1; filter: blur(0) brightness(1); }
+}
+/* Chrome chips with cyan rim */
+[data-anim-theme="lightning"] .judge-card {
+  background: linear-gradient(165deg, rgba(255,255,255,0.10), rgba(160,220,240,0.05) 55%, rgba(255,255,255,0.08));
+  border: 1px solid var(--overlay-accent-muted);
+}
+/* Vote reveal: each card "struck" — white-hot zap settling to chrome */
+[data-anim-theme="lightning"] .judge-card.card-burst {
+  animation: cardZap 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes cardZap {
+  0%   { opacity: 0; transform: scale(0.92); filter: brightness(2.6) blur(3px); }
+  45%  { opacity: 1; filter: brightness(1.6) blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+/* Vote arrows light up like a circuit completing */
+[data-anim-theme="lightning"] .arrow-lit-left,
+[data-anim-theme="lightning"] .arrow-lit-right {
+  filter: drop-shadow(0 0 6px var(--overlay-accent));
+}
+[data-anim-theme="lightning"] .vote-arrow { transition: filter 160ms ease-out 60ms; }
+
+/* Winner panel: upward light column pulsing from the base (3 pulses) */
+[data-anim-theme="lightning"] .panel-winner::after {
+  content: '';
+  position: absolute; left: 50%; bottom: 0;
+  width: 240px; height: 70vh;
+  transform: translateX(-50%);
+  background: linear-gradient(to top, var(--overlay-accent-muted), transparent 75%);
+  pointer-events: none;
+  animation: winnerColumn 800ms ease-in-out 3;
+  opacity: 0;
+}
+@keyframes winnerColumn { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.85; } }
+/* Bloom flare behind the winner label */
+[data-anim-theme="lightning"] .winner-label { position: relative; }
+[data-anim-theme="lightning"] .winner-label::before {
+  content: '';
+  position: absolute; inset: -30px -60px;
+  background: radial-gradient(ellipse at center, var(--overlay-accent-glow), transparent 70%);
+  z-index: -1;
+  animation: bloomIn 700ms ease-out both;
+}
+@keyframes bloomIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+/* Winner column z-index layering — sits behind name text */
+[data-anim-theme="lightning"] .name-overlay,
+[data-anim-theme="lightning"] .name-center-wrap {
+  position: relative; z-index: 2;
+}
+/* Loser exit: desaturate 200ms, then hard cut off-edge */
+[data-anim-theme="lightning"] .slide-left-out {
+  animation: lightCutLeft 480ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+[data-anim-theme="lightning"] .slide-right-out {
+  animation: lightCutRight 480ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+@keyframes lightCutLeft {
+  0%   { transform: translateX(0); filter: saturate(1) brightness(1); }
+  42%  { transform: translateX(0); filter: saturate(0.2) brightness(0.5); }
+  100% { transform: translateX(-115%); filter: saturate(0.2) brightness(0.5); }
+}
+@keyframes lightCutRight {
+  0%   { transform: translateX(0); filter: saturate(1) brightness(1); }
+  42%  { transform: translateX(0); filter: saturate(0.2) brightness(0.5); }
+  100% { transform: translateX(115%); filter: saturate(0.2) brightness(0.5); }
+}
+/* Pair-change: glitch overlay becomes a vertical beam → white-out → retreat */
+[data-anim-theme="lightning"] .glitch-overlay {
+  background: none;
+  animation: none;
+}
+[data-anim-theme="lightning"] .glitch-overlay::before {
+  content: '';
+  position: absolute; left: 50%; top: 0; width: 6px; height: 100%;
+  transform: translateX(-50%) scaleY(0); transform-origin: top;
+  background: linear-gradient(to bottom, #ffffff, var(--overlay-accent) 70%, transparent);
+  filter: drop-shadow(0 0 10px var(--overlay-accent));
+  animation: beamDrop 140ms cubic-bezier(0.7, 0, 1, 1) forwards;
+}
+[data-anim-theme="lightning"] .glitch-overlay::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: #fff; opacity: 0;
+  animation: beamWhiteout 320ms 120ms cubic-bezier(0.3, 0, 0.2, 1) forwards;
+}
+@keyframes beamDrop { to { transform: translateX(-50%) scaleY(1); } }
+@keyframes beamWhiteout { 0% { opacity: 0; } 35% { opacity: 0.9; } 100% { opacity: 0; } }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-anim-theme="lightning"] .slam-in-left,
+  [data-anim-theme="lightning"] .slam-in-right,
+  [data-anim-theme="lightning"] .judge-slam-center,
+  [data-anim-theme="lightning"] .slide-left-out,
+  [data-anim-theme="lightning"] .slide-right-out { animation-duration: 1ms !important; }
 }
 </style>
 
