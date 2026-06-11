@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { BOLT_PATHS } from '@/utils/overlayBolts'
+import { VERT_BOLTS } from '@/utils/overlayBolts'
 
 const props = defineProps({
   eventName:   { type: String, default: '' },
@@ -15,7 +15,8 @@ const headline = computed(() => props.genreName || props.eventName)
 const showEventLabel = computed(() => !!props.eventName && !!props.genreName)
 const headlineChars = computed(() => headline.value.toUpperCase().split(''))
 
-const cornerBolts = [BOLT_PATHS[2], BOLT_PATHS[3], BOLT_PATHS[0], BOLT_PATHS[5]]
+// Four vertical bolts rotated to converge from corners toward center
+const cornerBolts = [VERT_BOLTS[0], VERT_BOLTS[1], VERT_BOLTS[2], VERT_BOLTS[3]]
 </script>
 
 <template>
@@ -44,10 +45,16 @@ const cornerBolts = [BOLT_PATHS[2], BOLT_PATHS[3], BOLT_PATHS[0], BOLT_PATHS[5]]
       class="rc-corner-bolts"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
+      overflow="visible"
     >
-      <path v-for="(d, i) in cornerBolts" :key="i" :d="d" pathLength="240"
-            class="rc-corner-bolt" :style="{ animationDelay: `${600 + i * 90}ms` }"
-            :transform="`rotate(${[45, 135, 225, 315][i]} 50 50)`" />
+      <!-- Each corner bolt = 3 layered strokes (glow / mid / core) -->
+      <g v-for="(d, i) in cornerBolts" :key="i"
+         :transform="`rotate(${[45, 135, 225, 315][i]} 50 50)`"
+         :style="{ '--bd': `${600 + i * 90}ms` }">
+        <path :d="d" pathLength="200" class="rc-cbolt-glow" stroke-width="6" />
+        <path :d="d" pathLength="200" class="rc-cbolt-mid"  stroke-width="2.5" />
+        <path :d="d" pathLength="200" class="rc-cbolt-core" stroke-width="1" />
+      </g>
     </svg>
   </div>
 </template>
@@ -128,15 +135,25 @@ const cornerBolts = [BOLT_PATHS[2], BOLT_PATHS[3], BOLT_PATHS[0], BOLT_PATHS[5]]
   animation: rcBeamDrop 160ms cubic-bezier(0.7, 0, 1, 1) var(--rc-strike) forwards;
 }
 @keyframes rcBeamDrop { to { transform: translateX(-50%) scaleY(1); } }
-.rc-corner-bolts { position: absolute; inset: 0; width: 100%; height: 100%; }
-.rc-corner-bolt {
-  fill: none; stroke: #eafcff; stroke-width: 1.4;
-  filter: drop-shadow(0 0 6px var(--overlay-accent));
-  stroke-dasharray: 240; stroke-dashoffset: 240;
-  animation: rcBoltDraw 180ms linear forwards, rcBoltCrackle 900ms 220ms steps(2, jump-none) infinite;
+.rc-corner-bolts { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* Layered corner bolt strokes: glow / mid / core */
+.rc-cbolt-glow, .rc-cbolt-mid, .rc-cbolt-core {
+  fill: none;
+  stroke-dasharray: 200; stroke-dashoffset: 200;
+  stroke-linecap: round; stroke-linejoin: round;
+  animation:
+    rcBoltDraw 200ms linear var(--bd) forwards,
+    rcBoltCrackle 700ms calc(var(--bd) + 260ms) steps(2, jump-none) 3;
 }
+.rc-cbolt-glow {
+  stroke: var(--overlay-accent, #00d4ff);
+  stroke-opacity: 0.5;
+  filter: drop-shadow(0 0 6px var(--overlay-accent, #00d4ff));
+}
+.rc-cbolt-mid  { stroke: #cff4ff; stroke-opacity: 0.75; }
+.rc-cbolt-core { stroke: #ffffff; stroke-opacity: 1; }
 @keyframes rcBoltDraw    { to { stroke-dashoffset: 0; } }
-@keyframes rcBoltCrackle { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.35; } }
+@keyframes rcBoltCrackle { 0%, 100% { opacity: 0.85; } 50% { opacity: 0.25; } }
 
 @media (prefers-reduced-motion: reduce) {
   .rc-beam, .rc-corner-bolts { display: none; }
