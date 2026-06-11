@@ -237,19 +237,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   height: 100%;
-  padding: 24px 40px;
+  padding: 3vh 40px 40px;
 }
 
 .main-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
   width: 100%;
-  padding-top: 2vh;
   gap: 10px;
 }
 
