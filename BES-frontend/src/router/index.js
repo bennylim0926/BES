@@ -8,6 +8,7 @@ import AuditionList from "@/views/AuditionList.vue";
 import Score from "@/views/Score.vue";
 import Login from "@/views/Login.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
+import AuditionDisplay from "@/views/AuditionDisplay.vue";
 import BattleOverlay from "@/views/BattleOverlay.vue";
 import BattleJudge from "@/views/BattleJudge.vue";
 import BattleControl from "@/views/BattleControl.vue";
@@ -81,6 +82,11 @@ const routes = [
         path: '/403',
         name: 'Forbidden',
         component: ForbiddenPage
+    },
+    {
+        path: '/audition/display',
+        name: 'AuditionDisplay',
+        component: AuditionDisplay
     },
     {
         path: '/battle/overlay',
@@ -169,7 +175,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession', 'AuditionDisplay']
 
 router.beforeEach(async (to) => {
     if (PUBLIC_ROUTES.includes(to.name)) return true
