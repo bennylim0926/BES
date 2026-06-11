@@ -368,6 +368,59 @@ public class BattleControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ORGANISER")
+    public void testSetOverlayConfig_rejectsUnknownAnimTheme() throws Exception {
+        String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\",\"animTheme\":\"disco\"}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ORGANISER")
+    public void testSetOverlayConfig_rejectsInvalidAccentColor() throws Exception {
+        String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\",\"overlayAccentColor\":\"cyan\"}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ORGANISER")
+    public void testSetOverlayConfig_acceptsLightningThemeAndNewFields() throws Exception {
+        String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\",\"animTheme\":\"lightning\",\"overlayAccentColor\":\"#00d4ff\",\"showRoundCard\":false}";
+
+        mockMvc.perform(post("/api/v1/battle/overlay-config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showImages").value(true))
+                .andExpect(jsonPath("$.leftColor").value("#dc2626"))
+                .andExpect(jsonPath("$.rightColor").value("#2563eb"))
+                .andExpect(jsonPath("$.animTheme").value("lightning"))
+                .andExpect(jsonPath("$.overlayAccentColor").value("#00d4ff"))
+                .andExpect(jsonPath("$.showRoundCard").value(false));
+
+        mockMvc.perform(get("/api/v1/battle/overlay-config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.animTheme").value("lightning"))
+                .andExpect(jsonPath("$.overlayAccentColor").value("#00d4ff"))
+                .andExpect(jsonPath("$.showRoundCard").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    public void testGetOverlayConfig_showRoundCardDefaultsToTrue() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/overlay-config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showRoundCard").value(true));
+    }
+
+    @Test
     public void testSetOverlayConfig_requiresAuth() throws Exception {
         String body = "{\"showImages\":true,\"leftColor\":\"#dc2626\",\"rightColor\":\"#2563eb\"}";
 

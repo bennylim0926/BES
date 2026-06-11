@@ -159,7 +159,7 @@ When switching to a new branch (option B): check for open PRs on the current bra
 
 - File naming: `V{version}__{description}.sql` (double underscore, snake_case description)
 - Always add new migrations as new files — never edit existing ones
-- Latest migration: `V33__add_format_timer.sql` → next is `V34__...`
+- Latest migration: `V37__add_overlay_theme_config.sql` → next is `V38__...`
 
 ### Layer Modification Order
 

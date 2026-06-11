@@ -38,6 +38,12 @@ public class Event {
     @Column(name = "anim_theme", length = 32)
     private String animTheme = "impact";
 
+    @Column(name = "overlay_accent_color", length = 7)
+    private String overlayAccentColor;
+
+    @Column(name = "show_round_card")
+    private boolean showRoundCard = true;
+
     @OneToMany(mappedBy = "event")
     private List<EventGenre> eventGenres;
 

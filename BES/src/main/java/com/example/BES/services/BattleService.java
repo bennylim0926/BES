@@ -378,9 +378,10 @@ public class BattleService {
         EventBattleState s = stateFor(eventName);
         Map<String, Object> cfg = new HashMap<>(s.overlayConfig);
         cfg.put("logoUrl", s.logoUrl);
-        String theme = eventRepo.findByEventNameIgnoreCase(eventName)
-                .map(Event::getAnimTheme).orElse("impact");
-        cfg.put("animTheme", theme != null ? theme : "impact");
+        Optional<Event> eventOpt = eventRepo.findByEventNameIgnoreCase(eventName);
+        cfg.put("animTheme", eventOpt.map(Event::getAnimTheme).orElse("impact"));
+        cfg.put("overlayAccentColor", eventOpt.map(Event::getOverlayAccentColor).orElse(null));
+        cfg.put("showRoundCard", eventOpt.map(Event::isShowRoundCard).orElse(true));
         return cfg;
     }
 
@@ -399,12 +400,19 @@ public class BattleService {
         newConfig.put("rightColor", dto.getRightColor());
         s.overlayConfig = newConfig;
 
-        if (dto.getAnimTheme() != null) {
-            eventRepo.findByEventNameIgnoreCase(eventName).ifPresent(ev -> {
+        eventRepo.findByEventNameIgnoreCase(eventName).ifPresent(ev -> {
+            if (dto.getAnimTheme() != null) {
                 ev.setAnimTheme(dto.getAnimTheme());
-                eventRepo.save(ev);
-            });
-        }
+            }
+            if (dto.getOverlayAccentColor() != null) {
+                ev.setOverlayAccentColor(
+                    dto.getOverlayAccentColor().isEmpty() ? null : dto.getOverlayAccentColor());
+            }
+            if (dto.getShowRoundCard() != null) {
+                ev.setShowRoundCard(dto.getShowRoundCard());
+            }
+            eventRepo.save(ev);
+        });
 
         broadcastOverlayConfig(eventName);
     }
