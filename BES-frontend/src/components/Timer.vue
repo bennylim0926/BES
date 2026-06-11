@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onBeforeUnmount } from "vue";
 
+const emit = defineEmits(['started', 'stopped', 'tick'])
+
 const selectedTime = ref(0)
 const timeLeft = ref(0)
 const countUp = ref(false)
@@ -45,11 +47,16 @@ function startTimer(seconds) {
   timer = setInterval(() => {
     if (timeLeft.value < seconds) {
       timeLeft.value++
+      const remaining = selectedTime.value - timeLeft.value
+      emit('tick', { remaining, total: selectedTime.value, running: true })
     } else {
       clearInterval(timer)
       timer = null
+      emit('stopped')
+      emit('tick', { remaining: 0, total: selectedTime.value, running: false })
     }
   }, 1000)
+  emit('started', { duration: seconds, startedAt: Date.now() })
 }
 
 function toggleMode() {
@@ -69,16 +76,49 @@ function reset() {
   }
   selectedTime.value = 0
   timeLeft.value = 0
+  emit('stopped')
 }
 
 function stop() {
   if (timer) {
     clearInterval(timer)
     timer = null
+    emit('stopped')
   }
 }
 
-defineExpose({ reset, stop })
+/**
+ * Resume a countdown timer from a specific remaining time.
+ * Called by EmceeRoundView on mount when recovering timer state after refresh.
+ * @param {number} remainingSeconds - seconds left on the clock
+ * @param {number} totalDuration - original total duration in seconds
+ */
+function resumeTimer(remainingSeconds, totalDuration) {
+  if (timer) clearInterval(timer)
+  if (remainingSeconds <= 0) {
+    selectedTime.value = totalDuration
+    timeLeft.value = totalDuration
+    emit('stopped')
+    return
+  }
+  selectedTime.value = totalDuration
+  timeLeft.value = totalDuration - remainingSeconds
+  timer = setInterval(() => {
+    if (timeLeft.value < totalDuration) {
+      timeLeft.value++
+      const remaining = selectedTime.value - timeLeft.value
+      emit('tick', { remaining, total: selectedTime.value, running: true })
+    } else {
+      clearInterval(timer)
+      timer = null
+      emit('stopped')
+      emit('tick', { remaining: 0, total: selectedTime.value, running: false })
+    }
+  }, 1000)
+  emit('started', { duration: totalDuration, startedAt: Date.now() - ((totalDuration - remainingSeconds) * 1000) })
+}
+
+defineExpose({ reset, stop, resumeTimer })
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
