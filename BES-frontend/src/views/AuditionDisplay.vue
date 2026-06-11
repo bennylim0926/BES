@@ -109,33 +109,72 @@ onUnmounted(() => {
           <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
         </div>
 
-        <!-- Current slot(s) + Timer side by side -->
-        <div class="slot-timer-row">
-          <!-- Left: number + name -->
-          <div class="current-slots">
-            <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
-              <div v-if="slot.placeholder" class="slot-placeholder type-stat" style="font-size:clamp(50px,8vw,80px);color:rgba(245,158,11,0.3)">
-                #{{ slot.auditionNumber }} — TBD
+        <!-- PAIR mode: Left battler | Timer | Right battler -->
+        <div v-if="mode === 'PAIR'" class="pair-row">
+          <!-- Left battler (right-aligned toward timer) -->
+          <div class="pair-slot pair-slot-left">
+            <template v-if="currentSlots[0]?.placeholder">
+              <div class="audition-number" style="color:rgba(245,158,11,0.3)">#{{ currentSlots[0].auditionNumber }}</div>
+              <div class="participant-name" style="opacity:0.3">TBD</div>
+            </template>
+            <template v-else-if="currentSlots[0]">
+              <div class="type-stat audition-number">
+                #{{ currentSlots[0].auditionNumber }}
               </div>
-              <div v-else class="slot-entry">
-                <div class="type-stat audition-number">
-                  #{{ slot.auditionNumber }}
-                </div>
-                <div class="type-body participant-name">
-                  {{ slot.participantName }}
-                </div>
-                <div v-if="slot.memberNames?.length" class="type-label member-names">
-                  {{ slot.memberNames.join(' · ') }}
-                </div>
+              <div class="type-body participant-name">
+                {{ currentSlots[0].participantName }}
               </div>
-              <!-- PAIR separator -->
-              <div v-if="mode === 'PAIR' && sIdx === 0 && currentSlots.length > 1" class="pair-sep">
-                <span class="type-stat">&amp;</span>
+              <div v-if="currentSlots[0].memberNames?.length" class="type-label member-names member-names-right">
+                {{ currentSlots[0].memberNames.join(' · ') }}
               </div>
             </template>
           </div>
 
-          <!-- Right: Timer -->
+          <!-- Centre: Timer -->
+          <div class="timer-display pair-timer" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <div class="type-stat timer-number">{{ timerLabel || '00:00' }}</div>
+          </div>
+
+          <!-- Right battler (left-aligned away from timer) -->
+          <div class="pair-slot pair-slot-right">
+            <template v-if="currentSlots[1]?.placeholder">
+              <div class="audition-number" style="color:rgba(245,158,11,0.3)">#{{ currentSlots[1].auditionNumber }}</div>
+              <div class="participant-name" style="opacity:0.3">TBD</div>
+            </template>
+            <template v-else-if="currentSlots[1]">
+              <div class="type-stat audition-number">
+                #{{ currentSlots[1].auditionNumber }}
+              </div>
+              <div class="type-body participant-name">
+                {{ currentSlots[1].participantName }}
+              </div>
+              <div v-if="currentSlots[1].memberNames?.length" class="type-label member-names">
+                {{ currentSlots[1].memberNames.join(' · ') }}
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- SOLO mode: number+name | Timer -->
+        <div v-else class="slot-timer-row">
+          <div class="current-slots">
+            <template v-if="currentSlots[0]?.placeholder">
+              <div class="slot-placeholder type-stat" style="font-size:clamp(50px,8vw,80px);color:rgba(245,158,11,0.3)">
+                #{{ currentSlots[0].auditionNumber }} — TBD
+              </div>
+            </template>
+            <div v-else-if="currentSlots[0]" class="slot-entry">
+              <div class="type-stat audition-number">
+                #{{ currentSlots[0].auditionNumber }}
+              </div>
+              <div class="type-body participant-name">
+                {{ currentSlots[0].participantName }}
+              </div>
+              <div v-if="currentSlots[0].memberNames?.length" class="type-label member-names">
+                {{ currentSlots[0].memberNames.join(' · ') }}
+              </div>
+            </div>
+          </div>
           <div v-if="timerLabel" class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
             <div class="type-stat timer-number">{{ timerLabel }}</div>
           </div>
@@ -248,20 +287,42 @@ onUnmounted(() => {
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(14px, 1.6vw, 22px);
-  letter-spacing: 0.28em;
+  font-size: clamp(28px, 4vw, 64px);
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.5);
 }
 .event-header-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(22px, 3vw, 42px);
-  letter-spacing: 0.18em;
+  font-size: clamp(42px, 7vw, 110px);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.9);
 }
 
-/* ── Current slots + timer side by side ──────────────────────────────────── */
+/* ── PAIR layout: left | timer | right ────────────────────────────────────── */
+.pair-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(40px, 7vw, 120px);
+  width: 100%;
+}
+.pair-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-width: 36vw;
+}
+.pair-slot-left  { align-items: flex-end;  text-align: right; }
+.pair-slot-right { align-items: flex-start; text-align: left; }
+.pair-slot-left .participant-name  { text-align: right; }
+.pair-slot-right .participant-name { text-align: left; }
+.member-names-right { text-align: right; }
+.pair-timer { flex-shrink: 0; }
+
+/* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
   display: flex;
   flex-direction: row;
