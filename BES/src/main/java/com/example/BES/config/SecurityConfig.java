@@ -42,6 +42,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/battle/**").permitAll()
+                        .requestMatchers("/api/v1/event/audition-display/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/results").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/config/app").permitAll()
