@@ -21,7 +21,7 @@ public class EventAuditionDisplayService {
      * Save state in memory and broadcast to all display clients for this event.
      */
     public void updateState(String eventName, AuditionDisplayStateDto dto) {
-        dto.eventName = eventName;
+        // dto.eventName is already set by the caller (frontend POST body)
         stateStore.put(eventName, dto);
         messagingTemplate.convertAndSend(
             "/topic/audition/" + eventName + "/display", dto);
