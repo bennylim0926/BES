@@ -927,6 +927,8 @@ onMounted(async () => {
         :key="selectedGenre"
         :participants="filteredParticipantsForEmceeView"
         :mode="judgingMode"
+        :eventName="selectedEvent"
+        :genreName="selectedGenre"
       />
     </template>
 
