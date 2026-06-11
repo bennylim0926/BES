@@ -1,10 +1,13 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import Timer from './Timer.vue';
+import { postAuditionDisplayState, getAuditionDisplayState } from '@/utils/api';
 
 const props = defineProps({
   participants: { type: Array, required: true },
   mode:         { type: String, default: 'SOLO' },
+  eventName:    { type: String, default: '' },
+  genreName:    { type: String, default: '' },
 });
 
 const timerRef = ref(null)
@@ -38,6 +41,79 @@ const rounds = computed(() => {
 
 const totalRounds        = computed(() => rounds.value.length)
 const currentRoundSlots  = computed(() => rounds.value[currentRound.value - 1] ?? [])
+
+const lastTimerState = ref({})
+
+function buildStatePayload(timerState = {}) {
+  const current = currentRoundSlots.value.map(slot => ({
+    auditionNumber: slot.auditionNumber,
+    participantName: slot._placeholder ? null : slot.participantName,
+    memberNames: slot.memberNames ?? [],
+    placeholder: !!slot._placeholder
+  }))
+
+  const nextRoundIdx = currentRound.value
+  const nextSlotsRaw = rounds.value[nextRoundIdx] ?? []
+  const next = nextSlotsRaw.map(slot => ({
+    auditionNumber: slot.auditionNumber,
+    participantName: slot._placeholder ? null : slot.participantName,
+    memberNames: slot.memberNames ?? [],
+    placeholder: !!slot._placeholder
+  }))
+
+  return {
+    eventName: props.eventName,
+    genreName: props.genreName,
+    mode: props.mode,
+    currentRound: currentRound.value,
+    totalRounds: totalRounds.value,
+    currentSlots: current,
+    nextSlots: next,
+    timerStartedAt: timerState.startedAt ?? null,
+    timerDuration: timerState.duration ?? null,
+    timerRunning: timerState.running ?? false
+  }
+}
+
+function publishState(timerState = {}) {
+  if (!props.eventName) return
+  postAuditionDisplayState(buildStatePayload(timerState))
+}
+
+function onTimerStarted(detail) {
+  lastTimerState.value = { startedAt: detail.startedAt, duration: detail.duration, running: true }
+  publishState(lastTimerState.value)
+}
+
+function onTimerStopped() {
+  lastTimerState.value = { startedAt: null, duration: null, running: false }
+  publishState(lastTimerState.value)
+}
+
+function onTimerTick(detail) {
+  lastTimerState.value = { startedAt: null, duration: detail.total, running: detail.running }
+}
+
+// Publish state to display whenever the round changes (include timer state if running)
+watch(currentRound, () => {
+  publishState(lastTimerState.value)
+})
+
+onMounted(async () => {
+  if (!props.eventName) return
+  const state = await getAuditionDisplayState(props.eventName)
+  if (!state || state.standby) return
+  // Timer recovery: if timer was running, resume it
+  if (state.timerRunning && state.timerStartedAt && state.timerDuration) {
+    const elapsed = Math.floor((Date.now() - state.timerStartedAt) / 1000)
+    const remaining = Math.max(0, state.timerDuration - elapsed)
+    if (remaining > 0) {
+      await new Promise(r => setTimeout(r, 100))
+      timerRef.value?.resumeTimer(remaining, state.timerDuration)
+    }
+  }
+})
+
 const MAX_VISIBLE_UPCOMING = 4
 
 const allUpcomingRounds = computed(() =>
@@ -221,7 +297,7 @@ const swipeHint = computed(() => {
     <!-- ── Timer at bottom (thumb reach) ── -->
     <Transition name="timer-slide">
       <div v-if="timerVisible" class="emcee-timer px-3 pb-3 pt-2">
-        <Timer ref="timerRef" />
+        <Timer ref="timerRef" @started="onTimerStarted" @stopped="onTimerStopped" @tick="onTimerTick" />
       </div>
     </Transition>
 
