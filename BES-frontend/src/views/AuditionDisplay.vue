@@ -237,10 +237,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 3vh 40px 40px;
+  padding: 40px;
 }
 
 .main-area {
@@ -251,13 +251,16 @@ onUnmounted(() => {
   gap: 10px;
 }
 
-/* Event name + genre stacked at the top */
+/* Event name + genre — pinned to top, independent of the centred content */
 .event-header {
+  position: absolute;
+  top: 2vh;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  margin-bottom: 2px;
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
