@@ -132,7 +132,7 @@ onUnmounted(() => {
 
           <!-- Centre: Timer -->
           <div class="timer-display pair-timer" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
-            <div class="type-stat timer-number">{{ timerLabel || '00:00' }}</div>
+            <div class="type-stat timer-number">{{ timerLabel || '0' }}</div>
           </div>
 
           <!-- Right battler (left-aligned away from timer) -->
@@ -287,17 +287,17 @@ onUnmounted(() => {
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(28px, 4vw, 64px);
-  letter-spacing: 0.22em;
+  font-size: clamp(48px, 7vw, 110px);
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.9);
 }
 .event-header-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(42px, 7vw, 110px);
-  letter-spacing: 0.14em;
+  font-size: clamp(28px, 4vw, 64px);
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255,255,255,0.45);
 }
 
 /* ── PAIR layout: left | timer | right ────────────────────────────────────── */
@@ -313,7 +313,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  max-width: 36vw;
+  min-width: 28vw;
+  max-width: 40vw;
 }
 .pair-slot-left  { align-items: flex-end;  text-align: right; }
 .pair-slot-right { align-items: flex-start; text-align: left; }
@@ -356,6 +357,9 @@ onUnmounted(() => {
   letter-spacing: 0.05em;
   color: #ffffff;
   margin-top: 4px;
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .member-names {
