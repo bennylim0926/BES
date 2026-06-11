@@ -273,17 +273,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
+  justify-content: flex-start;
+  width: 100%;
+  padding-top: 6vh;
+  gap: 12px;
 }
 
-/* Event name + genre stacked, above round counter */
+/* Event name + genre stacked at the top */
 .event-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
@@ -345,18 +347,18 @@ onUnmounted(() => {
 }
 
 .audition-number {
-  font-size: clamp(80px, 14vw, 120px);
+  font-size: clamp(36px, 6vw, 72px);
   line-height: 1;
   letter-spacing: 0.02em;
   text-shadow: 2px 2px 0 var(--accent-muted, rgba(255,255,255,0.15));
-  color: var(--accent-color, #ffffff);
+  color: var(--accent-color, rgba(255,255,255,0.6));
 }
 
 .participant-name {
-  font-size: clamp(40px, 7vw, 80px);
-  letter-spacing: 0.05em;
+  font-size: clamp(56px, 10vw, 140px);
+  letter-spacing: 0.04em;
   color: #ffffff;
-  margin-top: 4px;
+  margin-top: 2px;
   hyphens: none;
   overflow-wrap: normal;
   word-break: keep-all;
