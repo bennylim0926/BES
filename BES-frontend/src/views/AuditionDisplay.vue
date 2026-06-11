@@ -95,14 +95,15 @@ onUnmounted(() => {
 
     <!-- ACTIVE display -->
     <div v-else class="active-container">
-      <!-- Top bar: event name + genre -->
-      <div class="top-bar">
-        <span class="type-label text-content-muted" style="letter-spacing:0.22em">{{ eventLabel }}</span>
-        <span class="type-label text-accent" style="letter-spacing:0.12em">{{ genreName }}</span>
-      </div>
 
-      <!-- Main area: round counter, audition number, participant name, timer -->
+      <!-- Main area: event/genre header, round counter, number+name+timer -->
       <div class="main-area">
+        <!-- Event name + genre stacked above everything -->
+        <div class="event-header">
+          <span class="event-header-name">{{ eventLabel }}</span>
+          <span class="event-header-genre">{{ genreName }}</span>
+        </div>
+
         <!-- Round counter -->
         <div class="section-rule mb-3">
           <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
@@ -229,23 +230,35 @@ onUnmounted(() => {
   padding: 40px;
 }
 
-.top-bar {
-  position: absolute;
-  top: 40px;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  opacity: 0.5;
-}
-
 .main-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
   justify-content: center;
+  gap: 16px;
+}
+
+/* Event name + genre stacked, above round counter */
+.event-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.event-header-name {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(14px, 1.6vw, 22px);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+.event-header-genre {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(22px, 3vw, 42px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
 }
 
 /* ── Current slots + timer side by side ──────────────────────────────────── */
@@ -253,7 +266,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: clamp(32px, 5vw, 80px);
+  gap: clamp(60px, 10vw, 160px);
 }
 
 .current-slots {
@@ -308,7 +321,7 @@ onUnmounted(() => {
 }
 
 .timer-number {
-  font-size: clamp(64px, 12vw, 100px);
+  font-size: clamp(100px, 18vw, 220px);
   line-height: 1;
   letter-spacing: 0.02em;
   color: #ffffff;

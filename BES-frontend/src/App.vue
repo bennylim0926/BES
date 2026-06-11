@@ -36,7 +36,7 @@ const isHelperSession = computed(() => isHelperRole.value && !!authStore.activeE
 
 /** Hide the navbar on full-screen / immersive routes */
 const hideNav = computed(() =>
-  ['Login', 'StreamOverlay', 'Battle Judge', 'BracketVisualization'].includes(route.name)
+  ['Login', 'StreamOverlay', 'Battle Judge', 'BracketVisualization', 'AuditionDisplay'].includes(route.name)
 )
 
 /**
