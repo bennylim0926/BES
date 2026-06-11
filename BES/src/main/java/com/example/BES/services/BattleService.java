@@ -378,6 +378,9 @@ public class BattleService {
         EventBattleState s = stateFor(eventName);
         Map<String, Object> cfg = new HashMap<>(s.overlayConfig);
         cfg.put("logoUrl", s.logoUrl);
+        String theme = eventRepo.findByEventNameIgnoreCase(eventName)
+                .map(Event::getAnimTheme).orElse("impact");
+        cfg.put("animTheme", theme != null ? theme : "impact");
         return cfg;
     }
 
@@ -395,6 +398,14 @@ public class BattleService {
         newConfig.put("leftColor",  dto.getLeftColor());
         newConfig.put("rightColor", dto.getRightColor());
         s.overlayConfig = newConfig;
+
+        if (dto.getAnimTheme() != null) {
+            eventRepo.findByEventNameIgnoreCase(eventName).ifPresent(ev -> {
+                ev.setAnimTheme(dto.getAnimTheme());
+                eventRepo.save(ev);
+            });
+        }
+
         broadcastOverlayConfig(eventName);
     }
 

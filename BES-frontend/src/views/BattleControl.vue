@@ -35,7 +35,7 @@ const pendingRoundIdx = ref(null)        // the round index user wants to switch
 const finalTieBlocked = ref(false)
 const revealActive = ref(false)
 let skipSizeChangeClear = false          // guard: suppress clear when topSize changes programmatically
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact' })
 const showRecoveryBanner = ref(false)
 let recoveryBannerTimer = null
 const recoveryState      = ref(null)
@@ -308,6 +308,12 @@ const pushOverlayConfig = async () => {
   }
   overlayConfigError.value = ''
   await setOverlayConfig(overlayConfig.value, selectedEvent.value)
+}
+
+const selectAnimTheme = (theme) => {
+  if (overlayConfig.value.animTheme === theme) return
+  overlayConfig.value.animTheme = theme
+  pushOverlayConfig()
 }
 
 
@@ -1896,7 +1902,7 @@ onMounted(async () => {
     await fetchBattleGuests()
     mountJudgeSyncDone = true
     const savedConfig = await getOverlayConfig()
-    if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', ...savedConfig }
     if (selectedEvent.value) {
       const champions = await getBattleChampions(selectedEvent.value)
       if (champions && typeof champions === 'object') {
@@ -1930,7 +1936,7 @@ onMounted(async () => {
     battleJudges.value = await getBattleJudges()
     mountJudgeSyncDone = true
     const savedConfig = await getOverlayConfig()
-    if (savedConfig?.showImages !== undefined) overlayConfig.value = savedConfig
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', ...savedConfig }
     if (selectedEvent.value) {
       const champions = await getBattleChampions(selectedEvent.value)
       if (champions && typeof champions === 'object') {
@@ -2692,6 +2698,29 @@ onUnmounted(() => {
               <span class="overlay-toggle-track"></span>
             </label>
           </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Animation Theme</span>
+            <div class="anim-theme-group" role="radiogroup" aria-label="Animation theme">
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="overlayConfig.animTheme === 'impact'"
+                :class="['anim-theme-btn', { 'is-active': overlayConfig.animTheme === 'impact' }]"
+                @click="selectAnimTheme('impact')"
+              >
+                IMPACT
+              </button>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="overlayConfig.animTheme === 'hype'"
+                :class="['anim-theme-btn', { 'is-active': overlayConfig.animTheme === 'hype' }]"
+                @click="selectAnimTheme('hype')"
+              >
+                HYPE
+              </button>
+            </div>
+          </div>
           <div class="overlay-setting-row overlay-setting-logo">
             <span class="overlay-setting-label">Event Logo</span>
             <div class="logo-upload-group">
@@ -3021,6 +3050,25 @@ onUnmounted(() => {
   transition: transform 0.2s;
 }
 .overlay-toggle input:checked + .overlay-toggle-track::after { transform: translateX(16px); }
+.anim-theme-group { display: inline-flex; gap: 6px; }
+.anim-theme-btn {
+  font-family: 'Anton SC', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  padding: 5px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.anim-theme-btn:hover { color: #fff; border-color: var(--accent-muted); }
+.anim-theme-btn.is-active {
+  color: #000;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
 .overlay-config-error {
   font-size: 11px;
   color: #f87171;

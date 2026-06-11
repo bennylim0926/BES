@@ -16,7 +16,7 @@ const topic = (path) => eventName.value
   : `/topic/battle/${path}`
 
 // ── Overlay config ──────────────────────────────────────────────────────────
-const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb' })
+const overlayConfig = ref({ leftColor: '#dc2626', rightColor: '#2563eb', animTheme: 'impact' })
 
 // ── Battle state ────────────────────────────────────────────────────────────
 const battlePhase      = ref('IDLE')
@@ -299,6 +299,7 @@ onUnmounted(() => {
 <template>
   <div
     class="judge-root"
+    :data-anim-theme="overlayConfig.animTheme || 'impact'"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
     role="main"
     aria-label="Battle Judge voting panel"

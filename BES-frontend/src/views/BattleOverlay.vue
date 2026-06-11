@@ -12,8 +12,16 @@ const eventName = ref(route.query.event || '')
 const topic = (path) => `/topic/battle/${eventName.value}/${path}`
 
 // ── Overlay config (live from BattleControl + API) ─────────────────────────
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact' })
 const logoUrl  = computed(() => overlayConfig.value.logoUrl)
+
+// ── Animation theme timing (CSS handles visuals; JS handles delays) ────────
+// IMPACT = current baseline. HYPE = dramatic build-up: longer pauses, second shake burst.
+const THEME_TIMING = {
+  impact: { vsShakeDelay: 340, votePause: 1500, finalPause: 400, secondShake: false },
+  hype:   { vsShakeDelay: 420, votePause: 2500, finalPause: 800, secondShake: true },
+}
+const themeTiming = computed(() => THEME_TIMING[overlayConfig.value.animTheme] || THEME_TIMING.impact)
 
 // ── Battle state ───────────────────────────────────────────────────────────
 const imageLeft  = ref(null)
@@ -171,7 +179,7 @@ const runEntrance = async () => {
   if (unmounted) return
   hideJudgeDecision.value = true
   vsAnim.value = 'rush-in'
-  await useDelay().wait(340) // VS hits undershoot trough at ~340ms
+  await useDelay().wait(themeTiming.value.vsShakeDelay) // VS hits undershoot trough
   if (unmounted) return
   stageShaking.value = true
   await useDelay().wait(120)
@@ -351,7 +359,7 @@ const updateScore = async (msg) => {
 
   if (isFinal.value) {
     // Final: skip judge panel — go straight to winner reveal after a brief pause
-    await useDelay().wait(400)
+    await useDelay().wait(themeTiming.value.finalPause)
     if (!ok()) return
     currentWinner.value = msg.message
   } else {
@@ -367,11 +375,21 @@ const updateScore = async (msg) => {
     if (!ok()) return
     stageShaking.value = false
 
+    // HYPE: second shake burst for extra drama
+    if (themeTiming.value.secondShake) {
+      await useDelay().wait(140)
+      if (!ok()) return
+      stageShaking.value = true
+      await useDelay().wait(100)
+      if (!ok()) return
+      stageShaking.value = false
+    }
+
     // Reveal votes as slam settles
     votesVisible.value = true
 
     // Audience reads the votes
-    await useDelay().wait(1500)
+    await useDelay().wait(themeTiming.value.votePause)
     if (!ok()) return
 
     currentWinner.value = msg.message
@@ -643,6 +661,7 @@ onUnmounted(() => {
   <div
     class="overlay-root"
     :class="{ 'stage-shake': stageShaking }"
+    :data-anim-theme="overlayConfig.animTheme || 'impact'"
     :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor }"
   >
     <!-- Broadcast timer — text-only top-right -->
@@ -1759,5 +1778,39 @@ onUnmounted(() => {
 .judge-rest-left   { animation: judgeRestLeft   520ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards; }
 .judge-exit-right  { animation: judgeExitRight  280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
 .judge-exit-left   { animation: judgeExitLeft   280ms cubic-bezier(0.55, 0,   1,   0.45) forwards; }
+
+/* ══════════════════════════════════════════════════
+   ANIMATION THEMES — visual overrides per data-anim-theme
+   IMPACT is the default (no overrides needed).
+   HYPE: oversized winner stamp, longer judge slam, slower retreat for drama.
+   JS timings (vote pause, shake delay, second shake) live in THEME_TIMING.
+══════════════════════════════════════════════════ */
+.overlay-root[data-anim-theme="hype"] .winner-label {
+  animation-duration: 520ms;
+  animation-delay: 350ms;
+}
+.overlay-root[data-anim-theme="hype"] .winner-label-left {
+  text-shadow: 5px 5px 0 var(--left-color),
+               0 0 60px color-mix(in srgb, var(--left-color) 80%, transparent);
+}
+.overlay-root[data-anim-theme="hype"] .winner-label-right {
+  text-shadow: -5px 5px 0 var(--right-color),
+               0 0 60px color-mix(in srgb, var(--right-color) 80%, transparent);
+}
+.overlay-root[data-anim-theme="hype"] .winner-label {
+  animation-name: winnerStampHype;
+}
+@keyframes winnerStampHype {
+  0%   { transform: scale(2.5) translateY(-14px); opacity: 0; filter: blur(8px); }
+  60%  { transform: scale(1.92) translateY(2px);  opacity: 1; filter: blur(0); }
+  100% { transform: scale(2)   translateY(0);     opacity: 1; filter: blur(0); }
+}
+.overlay-root[data-anim-theme="hype"] .judge-slam-center {
+  animation-duration: 900ms;
+}
+.overlay-root[data-anim-theme="hype"] .judge-rest-right,
+.overlay-root[data-anim-theme="hype"] .judge-rest-left {
+  animation-duration: 700ms;
+}
 </style>
 

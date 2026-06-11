@@ -17,9 +17,13 @@ public class SetOverlayConfigDto {
     private String rightColor;
     private String eventName;
 
+    @Pattern(regexp = "^(impact|hype)$", message = "animTheme must be 'impact' or 'hype'")
+    private String animTheme;
+
     public String getEventName() { return eventName; }
 
     public Boolean isShowImages() { return showImages; }
     public String getLeftColor()  { return leftColor; }
     public String getRightColor() { return rightColor; }
+    public String getAnimTheme()  { return animTheme; }
 }

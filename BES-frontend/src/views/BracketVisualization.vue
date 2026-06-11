@@ -6,7 +6,7 @@ import { useRoute } from 'vue-router'
 
 const bracketState   = ref(null)
 const lastBracketSnapshot = ref('')  // JSON diff guard
-const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null })
+const overlayConfig  = ref({ leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact' })
 const championReveal = ref(null)   // null = hidden; { genreName, championName } = showing
 const activePair     = ref(null)
 const currentGenre   = ref(null)
@@ -415,7 +415,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 </script>
 
 <template>
-  <div class="bracket-root" :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, '--slot-h': slotHeight, '--final-slot-h': finalSlotHeight, '--center-col-w': centerColWidth }">
+  <div class="bracket-root" :data-anim-theme="overlayConfig.animTheme || 'impact'" :style="{ '--left-color': overlayConfig.leftColor, '--right-color': overlayConfig.rightColor, '--slot-h': slotHeight, '--final-slot-h': finalSlotHeight, '--center-col-w': centerColWidth }">
 
     <!-- ── Scanlines overlay ──────────────────────────── -->
     <div class="scanlines" aria-hidden="true"></div>
@@ -920,5 +920,23 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 @keyframes dotPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.32; transform: scale(0.62); }
+}
+
+/* ══════════════════════════════════════════════════
+   ANIMATION THEMES — HYPE: oversized, longer champion reveal
+══════════════════════════════════════════════════ */
+.bracket-root[data-anim-theme="hype"] .champ-reveal-enter-active .champ-name-slam {
+  animation: champNameSlamHype 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.5s both;
+}
+.bracket-root[data-anim-theme="hype"] .champ-reveal-enter-active .champ-gold-bar {
+  animation: champBarExpandHype 0.85s ease 0.9s both;
+}
+@keyframes champNameSlamHype {
+  from { opacity: 0; transform: scale(0.5)  translateY(24px); }
+  to   { opacity: 1; transform: scale(1.18) translateY(0); }
+}
+@keyframes champBarExpandHype {
+  from { width: 0;     opacity: 0; }
+  to   { width: 260px; opacity: 1; }
 }
 </style>
