@@ -8,6 +8,7 @@ import { createClient, deactivateClient, subscribeToChannel } from '@/utils/webs
 import { parseDropKey } from '@/utils/pointerDnd'
 import LiveMatchPanel from '@/components/LiveMatchPanel.vue'
 import { useAuthStore } from '@/utils/auth'
+import { OVERLAY_THEMES } from '@/utils/overlayThemes'
 
 const { selectedEvent, selectedGenre, initialiseDropdown } = useDropdowns()
 const { allJudges, fetchAllJudges, participants } = useEventUtils()
@@ -35,7 +36,7 @@ const pendingRoundIdx = ref(null)        // the round index user wants to switch
 const finalTieBlocked = ref(false)
 const revealActive = ref(false)
 let skipSizeChangeClear = false          // guard: suppress clear when topSize changes programmatically
-const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact' })
+const overlayConfig = ref({ showImages: true, leftColor: '#dc2626', rightColor: '#2563eb', logoUrl: null, animTheme: 'impact', overlayAccentColor: null, showRoundCard: true })
 const showRecoveryBanner = ref(false)
 let recoveryBannerTimer = null
 const recoveryState      = ref(null)
@@ -306,6 +307,10 @@ const pushOverlayConfig = async () => {
     overlayConfigError.value = 'Colors must be a valid hex (e.g. #dc2626)'
     return
   }
+  if (overlayConfig.value.overlayAccentColor && !HEX_RE.test(overlayConfig.value.overlayAccentColor)) {
+    overlayConfigError.value = 'Accent color must be a valid hex (e.g. #00d4ff)'
+    return
+  }
   overlayConfigError.value = ''
   await setOverlayConfig(overlayConfig.value, selectedEvent.value)
 }
@@ -316,6 +321,24 @@ const selectAnimTheme = (theme) => {
   pushOverlayConfig()
 }
 
+const themeOptions = computed(() =>
+  Object.entries(OVERLAY_THEMES).map(([key, t]) => ({ key, label: t.label }))
+)
+
+const accentDefault = computed(() => {
+  const theme = OVERLAY_THEMES[overlayConfig.value.animTheme]
+  return theme ? theme.accent : '#ffffff'
+})
+
+const accentModel = computed({
+  get: () => overlayConfig.value.overlayAccentColor || accentDefault.value,
+  set: (val) => { overlayConfig.value.overlayAccentColor = val },
+})
+
+const resetAccent = () => {
+  overlayConfig.value.overlayAccentColor = ''
+  pushOverlayConfig()
+}
 
 // LiveMatchPanel tab index — separate from currentRound (match index).
 // currentRound is overloaded: it's the match index within currentTop, but
@@ -1902,7 +1925,7 @@ onMounted(async () => {
     await fetchBattleGuests()
     mountJudgeSyncDone = true
     const savedConfig = await getOverlayConfig()
-    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', ...savedConfig }
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', overlayAccentColor: null, showRoundCard: true, ...savedConfig }
     if (selectedEvent.value) {
       const champions = await getBattleChampions(selectedEvent.value)
       if (champions && typeof champions === 'object') {
@@ -1936,7 +1959,7 @@ onMounted(async () => {
     battleJudges.value = await getBattleJudges()
     mountJudgeSyncDone = true
     const savedConfig = await getOverlayConfig()
-    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', ...savedConfig }
+    if (savedConfig?.showImages !== undefined) overlayConfig.value = { animTheme: 'impact', overlayAccentColor: null, showRoundCard: true, ...savedConfig }
     if (selectedEvent.value) {
       const champions = await getBattleChampions(selectedEvent.value)
       if (champions && typeof champions === 'object') {
@@ -2702,24 +2725,57 @@ onUnmounted(() => {
             <span class="overlay-setting-label">Animation Theme</span>
             <div class="anim-theme-group" role="radiogroup" aria-label="Animation theme">
               <button
+                v-for="opt in themeOptions"
+                :key="opt.key"
                 type="button"
                 role="radio"
-                :aria-checked="overlayConfig.animTheme === 'impact'"
-                :class="['anim-theme-btn', { 'is-active': overlayConfig.animTheme === 'impact' }]"
-                @click="selectAnimTheme('impact')"
+                :aria-checked="overlayConfig.animTheme === opt.key"
+                :class="['anim-theme-btn', { 'is-active': overlayConfig.animTheme === opt.key }]"
+                @click="selectAnimTheme(opt.key)"
               >
-                IMPACT
-              </button>
-              <button
-                type="button"
-                role="radio"
-                :aria-checked="overlayConfig.animTheme === 'hype'"
-                :class="['anim-theme-btn', { 'is-active': overlayConfig.animTheme === 'hype' }]"
-                @click="selectAnimTheme('hype')"
-              >
-                HYPE
+                {{ opt.label.toUpperCase() }}
               </button>
             </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Accent Color</span>
+            <div class="overlay-color-group">
+              <input
+                type="color"
+                v-model="accentModel"
+                @change="pushOverlayConfig"
+                class="overlay-color-swatch"
+                title="Accent color"
+              />
+              <input
+                type="text"
+                v-model="accentModel"
+                @change="pushOverlayConfig"
+                maxlength="7"
+                placeholder="#ffffff"
+                aria-label="Accent color hex value"
+                class="overlay-hex-input"
+              />
+              <button
+                v-if="overlayConfig.overlayAccentColor"
+                @click="resetAccent"
+                class="para-chip-sm px-3 py-1.5 type-label"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+          <div class="overlay-setting-row">
+            <span class="overlay-setting-label">Round Card</span>
+            <label class="overlay-toggle">
+              <input
+                type="checkbox"
+                v-model="overlayConfig.showRoundCard"
+                @change="pushOverlayConfig"
+                aria-label="Show round card on overlay"
+              />
+              <span class="overlay-toggle-track"></span>
+            </label>
           </div>
           <div class="overlay-setting-row overlay-setting-logo">
             <span class="overlay-setting-label">Event Logo</span>
