@@ -136,8 +136,8 @@ const dragOffset  = ref(0)
 const isDragging  = ref(false)
 const direction   = ref('left')
 
-const goNext = () => { if (currentRound.value < totalRounds.value)  { direction.value = 'left';  currentRound.value++ } }
-const goPrev = () => { if (currentRound.value > 1)                  { direction.value = 'right'; currentRound.value-- } }
+const goNext = () => { if (currentRound.value < totalRounds.value)  { direction.value = 'left';  currentRound.value++; timerRef.value?.reset() } }
+const goPrev = () => { if (currentRound.value > 1)                  { direction.value = 'right'; currentRound.value--; timerRef.value?.reset() } }
 
 const onPointerDown = (e) => {
   e.currentTarget.setPointerCapture(e.pointerId)

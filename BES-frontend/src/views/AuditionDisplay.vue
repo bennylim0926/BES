@@ -108,33 +108,36 @@ onUnmounted(() => {
           <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
         </div>
 
-        <!-- Current slot(s) -->
-        <div class="current-slots">
-          <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
-            <div v-if="slot.placeholder" class="slot-placeholder type-stat" style="font-size:clamp(50px,8vw,80px);color:rgba(245,158,11,0.3)">
-              #{{ slot.auditionNumber }} — TBD
-            </div>
-            <div v-else class="slot-entry">
-              <div class="type-stat audition-number">
-                #{{ slot.auditionNumber }}
+        <!-- Current slot(s) + Timer side by side -->
+        <div class="slot-timer-row">
+          <!-- Left: number + name -->
+          <div class="current-slots">
+            <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
+              <div v-if="slot.placeholder" class="slot-placeholder type-stat" style="font-size:clamp(50px,8vw,80px);color:rgba(245,158,11,0.3)">
+                #{{ slot.auditionNumber }} — TBD
               </div>
-              <div class="type-body participant-name">
-                {{ slot.participantName }}
+              <div v-else class="slot-entry">
+                <div class="type-stat audition-number">
+                  #{{ slot.auditionNumber }}
+                </div>
+                <div class="type-body participant-name">
+                  {{ slot.participantName }}
+                </div>
+                <div v-if="slot.memberNames?.length" class="type-label member-names">
+                  {{ slot.memberNames.join(' · ') }}
+                </div>
               </div>
-              <div v-if="slot.memberNames?.length" class="type-label member-names">
-                {{ slot.memberNames.join(' · ') }}
+              <!-- PAIR separator -->
+              <div v-if="mode === 'PAIR' && sIdx === 0 && currentSlots.length > 1" class="pair-sep">
+                <span class="type-stat">&amp;</span>
               </div>
-            </div>
-            <!-- PAIR separator -->
-            <div v-if="mode === 'PAIR' && sIdx === 0 && currentSlots.length > 1" class="pair-sep">
-              <span class="type-stat">&amp;</span>
-            </div>
-          </template>
-        </div>
+            </template>
+          </div>
 
-        <!-- Timer -->
-        <div v-if="timerLabel" class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
-          <div class="type-stat timer-number">{{ timerLabel }}</div>
+          <!-- Right: Timer -->
+          <div v-if="timerLabel" class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <div class="type-stat timer-number">{{ timerLabel }}</div>
+          </div>
         </div>
       </div>
 
@@ -245,18 +248,25 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-/* ── Current slots ────────────────────────────────────────────────────────── */
+/* ── Current slots + timer side by side ──────────────────────────────────── */
+.slot-timer-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(32px, 5vw, 80px);
+}
+
 .current-slots {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0;
 }
 
 .slot-entry {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .audition-number {
@@ -268,7 +278,7 @@ onUnmounted(() => {
 }
 
 .participant-name {
-  font-size: clamp(28px, 5vw, 48px);
+  font-size: clamp(40px, 7vw, 80px);
   letter-spacing: 0.05em;
   color: #ffffff;
   margin-top: 4px;
@@ -294,7 +304,7 @@ onUnmounted(() => {
 
 /* ── Timer ────────────────────────────────────────────────────────────────── */
 .timer-display {
-  margin-top: 24px;
+  flex-shrink: 0;
 }
 
 .timer-number {
