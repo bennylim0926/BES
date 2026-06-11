@@ -91,7 +91,12 @@ function onTimerStopped() {
 }
 
 function onTimerTick(detail) {
-  lastTimerState.value = { startedAt: null, duration: detail.total, running: detail.running }
+  // Preserve startedAt from the started event so round-change publishes keep the timer alive
+  lastTimerState.value = {
+    startedAt: detail.running ? (lastTimerState.value.startedAt ?? null) : null,
+    duration: detail.total,
+    running: detail.running
+  }
 }
 
 // Publish state to display whenever the round changes (include timer state if running)
