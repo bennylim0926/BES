@@ -35,6 +35,9 @@ public class Event {
     @Column(name = "feedback_enabled")
     private boolean feedbackEnabled = true;
 
+    @Column(name = "anim_theme", length = 32)
+    private String animTheme = "impact";
+
     @OneToMany(mappedBy = "event")
     private List<EventGenre> eventGenres;
 
