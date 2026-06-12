@@ -40,6 +40,8 @@ public class EventGenreService {
             dto.eventGenreId = eg.getId();
             dto.name = eg.getName();
             dto.format = eg.getFormat();
+            dto.roundLabel = eg.getRoundLabel();
+            dto.numberColor = eg.getNumberColor();
             dto.sheetAliases = eg.getSheetAliases();
             dto.genreId = eg.getGenre() != null ? eg.getGenre().getGenreId() : null;
             dto.soloAllowed = eg.isSoloAllowed();
@@ -72,6 +74,18 @@ public class EventGenreService {
     public void updateSoloAllowed(Long id, boolean soloAllowed) {
         EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
         eg.setSoloAllowed(soloAllowed);
+        eventGenreRepo.save(eg);
+    }
+
+    public void updateRoundLabel(Long id, String roundLabel) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        eg.setRoundLabel(roundLabel == null || roundLabel.isBlank() ? null : roundLabel.trim());
+        eventGenreRepo.save(eg);
+    }
+
+    public void updateNumberColor(Long id, String color) {
+        EventGenre eg = eventGenreRepo.findById(id).orElseThrow(() -> new RuntimeException("Division not found"));
+        eg.setNumberColor(color == null || color.isBlank() ? null : color.trim());
         eventGenreRepo.save(eg);
     }
 

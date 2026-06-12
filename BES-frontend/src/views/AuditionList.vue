@@ -142,6 +142,12 @@ const switchGenre = (g) => {
     modalVariant.value = 'warning'
     showModal.value = true
     dynamicCallBack.value = () => { showModal.value = false; selectedGenre.value = g }
+  } else if (isEmcee.value) {
+    modalTitle.value = `Switch to ${g}?`
+    modalMessage.value = `This will update the audition display and reset the timer.`
+    modalVariant.value = 'warning'
+    showModal.value = true
+    dynamicCallBack.value = () => { showModal.value = false; selectedGenre.value = g }
   } else {
     selectedGenre.value = g
   }
@@ -348,6 +354,10 @@ const uniqueGenres = computed(() => {
   const genres = participants.value.map(p => p.genreName);
   return [...new Set(genres)].sort();
 })
+
+const currentDivision = computed(() =>
+  eventDivisions.value.find(d => d.name.toLowerCase() === selectedGenre.value.toLowerCase()) ?? null
+)
 
 const submitScore = async (eventName, genreName, judgeName, participantList) => {
   scoreError.value = ''
@@ -752,7 +762,7 @@ onMounted(async () => {
           ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
-          v-if="isAdmin || isOrganiser"
+          v-if="isAdmin || isOrganiser || isEmcee"
           @click="showFilters = !showFilters"
           :aria-expanded="showFilters"
           aria-label="Toggle filters"
@@ -799,8 +809,8 @@ onMounted(async () => {
           <span v-if="!isJudgeSession" class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
           <span v-if="!isJudgeSession" class="text-surface-600 select-none hidden sm:inline">|</span>
 
-          <!-- Role toggle (hidden for session judges — locked to Judge) -->
-          <div v-if="!isJudgeSession" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <!-- Role toggle (hidden for session judges and emcees — role is fixed) -->
+          <div v-if="!isJudgeSession && !isEmcee" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Role</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
@@ -929,6 +939,8 @@ onMounted(async () => {
         :mode="judgingMode"
         :eventName="selectedEvent"
         :genreName="selectedGenre"
+        :roundLabel="currentDivision?.roundLabel ?? null"
+        :numberColor="currentDivision?.numberColor ?? null"
       />
     </template>
 

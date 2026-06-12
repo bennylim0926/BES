@@ -8,6 +8,8 @@ const props = defineProps({
   mode:         { type: String, default: 'SOLO' },
   eventName:    { type: String, default: '' },
   genreName:    { type: String, default: '' },
+  roundLabel:   { type: String, default: null },
+  numberColor:  { type: String, default: null },
 });
 
 const timerRef = ref(null)
@@ -71,7 +73,9 @@ function buildStatePayload(timerState = {}) {
     nextSlots: next,
     timerStartedAt: timerState.startedAt ?? null,
     timerDuration: timerState.duration ?? null,
-    timerRunning: timerState.running ?? false
+    timerRunning: timerState.running ?? false,
+    roundLabel: props.roundLabel ?? null,
+    numberColor: props.numberColor ?? null,
   }
 }
 
@@ -107,16 +111,19 @@ watch(currentRound, () => {
 onMounted(async () => {
   if (!props.eventName) return
   const state = await getAuditionDisplayState(props.eventName)
-  if (!state || state.standby) return
-  // Timer recovery: if timer was running, resume it
-  if (state.timerRunning && state.timerStartedAt && state.timerDuration) {
+  // Timer recovery: only resume if the saved state is for this same genre
+  if (state && !state.standby && state.genreName === props.genreName &&
+      state.timerRunning && state.timerStartedAt && state.timerDuration) {
     const elapsed = Math.floor((Date.now() - state.timerStartedAt) / 1000)
     const remaining = Math.max(0, state.timerDuration - elapsed)
     if (remaining > 0) {
       await new Promise(r => setTimeout(r, 100))
       timerRef.value?.resumeTimer(remaining, state.timerDuration)
+      lastTimerState.value = { startedAt: state.timerStartedAt, duration: state.timerDuration, running: true }
     }
   }
+  // Always publish on mount so switching genre updates the display immediately
+  publishState(lastTimerState.value)
 })
 
 const MAX_VISIBLE_UPCOMING = 4

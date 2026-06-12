@@ -50,6 +50,12 @@ public class EventGenre {
     @Column(name = "format")
     private String format;
 
+    @Column(name = "round_label")
+    private String roundLabel;
+
+    @Column(name = "number_color")
+    private String numberColor;
+
     @Column(name = "sheet_aliases")
     private String sheetAliases;
 

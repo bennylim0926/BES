@@ -17,6 +17,10 @@ public class AuditionDisplayStateDto {
     public Integer timerDuration; // seconds
     public Boolean timerRunning;
 
+    // Display customisation (set per genre in EventDetails)
+    public String roundLabel;   // e.g. "Preliminary Round"
+    public String numberColor;  // hex color for audition number, e.g. "#f59e0b"
+
     // Default constructor for Jackson
     public AuditionDisplayStateDto() {}
 

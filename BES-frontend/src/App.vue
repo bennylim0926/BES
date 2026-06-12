@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { logout, whoami, getAppConfig } from './utils/api'
+import { logout, whoami, getAppConfig, sendHeartbeat } from './utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from './utils/websocket'
 import { useAuthStore } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
@@ -138,6 +138,20 @@ watch(route, () => {
 })
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
+let heartbeatTimer = null
+
+function startHeartbeat() {
+  if (heartbeatTimer) return
+  sendHeartbeat()
+  heartbeatTimer = setInterval(sendHeartbeat, 30_000)
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+}
+
+watch(isAuthenticated, (val) => { val ? startHeartbeat() : stopHeartbeat() })
+
 onMounted(async () => {
   applyTheme(theme.value)
   try {
@@ -161,6 +175,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopHeartbeat()
   deactivateClient(wsAccentClient.value)
   document.removeEventListener('keydown', handleKeydown)
 })

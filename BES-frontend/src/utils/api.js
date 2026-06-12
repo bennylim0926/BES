@@ -1311,6 +1311,42 @@ export const updateEventGenreFormat = async (eventName, eventGenreId, format) =>
   }
 }
 
+export const sendHeartbeat = async () => {
+  try {
+    await fetch(`${domain}/api/v1/auth/heartbeat`, { method: 'POST', credentials: 'include' })
+  } catch (_) { /* fire-and-forget */ }
+}
+
+export const updateGenreRoundLabel = async (eventName, eventGenreId, roundLabel) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${eventGenreId}/round-label`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roundLabel })
+    })
+    return res.ok
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+export const updateGenreNumberColor = async (eventName, eventGenreId, numberColor) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/genres/${eventGenreId}/number-color`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ numberColor })
+    })
+    return res.ok
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
 export const getOverlayConfig = async (eventName = '') => {
   try {
     const url = eventName
@@ -1549,7 +1585,7 @@ export const redeemToken = async (tokenId) => {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
-      return { authenticated: false, error: body?.error || 'Invalid or expired link.' }
+      return { authenticated: false, status: res.status, error: body?.message || body?.error || 'Invalid or expired link.' }
     }
     return await res.json()
   } catch (err) {

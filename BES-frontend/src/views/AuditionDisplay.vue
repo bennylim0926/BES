@@ -37,6 +37,8 @@ const roundLabel = computed(() => {
   if (!state.value || !state.value.totalRounds) return ''
   return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
 })
+const genreRoundLabel = computed(() => state.value?.roundLabel ?? null)
+const numberColor     = computed(() => state.value?.numberColor ?? null)
 const currentSlots = computed(() => state.value?.currentSlots ?? [])
 const nextSlots    = computed(() => state.value?.nextSlots ?? [])
 
@@ -102,6 +104,7 @@ onUnmounted(() => {
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
           <span class="event-header-genre">{{ genreName }}</span>
+          <span v-if="genreRoundLabel" class="event-header-round-label">{{ genreRoundLabel }}</span>
         </div>
 
         <!-- Round counter -->
@@ -115,7 +118,7 @@ onUnmounted(() => {
           <div class="pair-names">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
-                <span class="type-stat audition-number">#{{ slot.auditionNumber }}</span>
+                <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
                 <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
                 <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
               </div>
@@ -138,7 +141,7 @@ onUnmounted(() => {
               </div>
             </template>
             <div v-else-if="currentSlots[0]" class="slot-entry">
-              <div class="type-stat audition-number">
+              <div class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">
                 #{{ currentSlots[0].auditionNumber }}
               </div>
               <div class="type-body participant-name">
@@ -265,17 +268,25 @@ onUnmounted(() => {
 }
 .event-header-name {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(48px, 7vw, 110px);
+  font-size: clamp(42px, 8vw, 100px);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.9);
 }
 .event-header-genre {
   font-family: 'Anton SC', sans-serif;
-  font-size: clamp(28px, 4vw, 64px);
+  font-size: clamp(22px, 3.5vw, 52px);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.45);
+}
+.event-header-round-label {
+  font-family: 'Anton SC', sans-serif;
+  font-size: clamp(14px, 2vw, 28px);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+  margin-top: 2px;
 }
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
@@ -339,7 +350,7 @@ onUnmounted(() => {
 }
 
 .participant-name {
-  font-size: clamp(56px, 10vw, 140px);
+  font-size: clamp(48px, 9vw, 120px);
   letter-spacing: 0.04em;
   color: #ffffff;
   margin-top: 2px;

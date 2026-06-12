@@ -262,6 +262,36 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Update Genre Round Label", description = "Sets an optional round label (e.g. 'Preliminary Round') for the audition display")
+    @PostMapping("/{eventName}/genres/{eventGenreId}/round-label")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateGenreRoundLabel(
+            @PathVariable String eventName,
+            @PathVariable Long eventGenreId,
+            @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.updateRoundLabel(eventGenreId, body.get("roundLabel"));
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Update Genre Number Color", description = "Sets the audition number color for the display screen")
+    @PostMapping("/{eventName}/genres/{eventGenreId}/number-color")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateGenreNumberColor(
+            @PathVariable String eventName,
+            @PathVariable Long eventGenreId,
+            @RequestBody Map<String, String> body) {
+        try {
+            eventGenreService.updateNumberColor(eventGenreId, body.get("numberColor"));
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
     public ResponseEntity<String> createNewEvent(@Valid @RequestBody AddEventDto dto) {
