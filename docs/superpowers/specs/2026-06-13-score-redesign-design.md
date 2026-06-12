@@ -194,7 +194,26 @@ No DB, JPA, or controller changes. No DTOs change. No `utils/api.js` changes. Th
 - Row action icons: keep current `aria-label` strings (`View score breakdown for <name>`, etc.).
 - Mode change announces via `aria-live` on the toggle itself.
 
-## 9 — Out of scope
+## 9 — Layout invariants
+
+These hold across every element on the page in either mode.
+
+### 9.1 No text truncation
+No participant name, genre name, event name, judge name, filter chip label, or status banner string is ever truncated with ellipsis. **No `text-overflow: ellipsis`. No `white-space: nowrap` paired with `overflow: hidden` on any text-bearing element.** Text must always be fully visible.
+
+This drives several concrete rules:
+
+- **Leaderboard rows wrap, not truncate.** If the participant name doesn't fit on a single line at the row's natural width, the name wraps to two lines and the row grows vertically. The rank number and score stay aligned to the row baseline (`align-items: flex-start` for the row, name has `flex: 1` with no nowrap).
+- **Broadcast 2-column packing** uses `grid-template-columns: 1fr 1fr` with `min-width: 0` on the row containers so flex children can wrap freely. If long names cause one column to grow taller than the other, the grid keeps both columns aligned to the top — the cut line still sits cleanly below.
+- **Tie-band rows** follow the same wrap-not-truncate rule.
+- **Header title** (`<Genre> — <Entry Type>` or `<Genre> · TOP <N>`) wraps to two lines when needed; the page title scale (`type-page-title`) tolerates two lines.
+- **Filter chips** never set `max-width` or `overflow: hidden`. If a genre name is long ("HOUSE / FREESTYLE / VOGUE"), the chip grows; the row wraps to a new line via the existing `flex-wrap: wrap` on the filter container.
+- **Status banner** uses `flex-wrap: wrap` so the label, severity word, and detail string can wrap onto multiple lines on narrow screens.
+
+### 9.2 No score truncation
+Score numbers always render with the precision the data carries (`Number.toFixed(1)` for totals, `toFixed(2)` for per-judge aggregates). No abbreviation (e.g., "28.4" never becomes "28"). The score cell has `flex-shrink: 0` to guarantee it claims its space before the name wraps.
+
+## 10 — Out of scope
 
 - Animations beyond the existing transition utilities. The event-scoped animation theme system (IMPACT/HYPE introduced in #133) is **not** applied to this page — auditions aren't a hype moment.
 - Changes to the public `/results` portal.
@@ -203,6 +222,6 @@ No DB, JPA, or controller changes. No DTOs change. No `utils/api.js` changes. Th
 - Releasing results UX changes — still a single click, just relocated.
 - Backend, DB, or API contract changes.
 
-## 10 — Open questions
+## 11 — Open questions
 
 None. All decisions captured above.
