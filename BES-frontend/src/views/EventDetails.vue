@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenreToEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, updateGenreRoundLabel, updateGenreNumberColor } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -651,6 +651,16 @@ const saveDivisionFormat = async (div, format) => {
   }
 }
 
+const saveRoundLabel = async (div, label) => {
+  await updateGenreRoundLabel(props.eventName, div.eventGenreId, label || null)
+  div.roundLabel = label || null
+}
+
+const saveNumberColor = async (div, color) => {
+  await updateGenreNumberColor(props.eventName, div.eventGenreId, color || null)
+  div.numberColor = color || null
+}
+
 const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
   await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
@@ -857,6 +867,13 @@ function copyAuditionScreenLink() {
   copyToClipboard(window.location.origin + '/event/audition-number?event=' + encodeURIComponent(props.eventName))
   auditionLinkCopied.value = true
   setTimeout(() => { auditionLinkCopied.value = false }, 2000)
+}
+
+const displayLinkCopied = ref(false)
+function copyDisplayLink() {
+  copyToClipboard(window.location.origin + '/audition/display?event=' + encodeURIComponent(props.eventName))
+  displayLinkCopied.value = true
+  setTimeout(() => { displayLinkCopied.value = false }, 2000)
 }
 
 const formatExpiry = (expiresAt) => {
@@ -1207,6 +1224,14 @@ onUnmounted(() => {
         >
           <i class="pi text-sm" :class="auditionLinkCopied ? 'pi-check' : 'pi-hashtag'"></i>
           {{ auditionLinkCopied ? 'Link Copied!' : 'Audition Screen' }}
+        </button>
+        <button
+          @click="copyDisplayLink"
+          class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent transition-all duration-200"
+          :class="displayLinkCopied ? 'text-emerald-400 border-emerald-400/40' : ''"
+        >
+          <i class="pi text-sm" :class="displayLinkCopied ? 'pi-check' : 'pi-desktop'"></i>
+          {{ displayLinkCopied ? 'Link Copied!' : 'Audition Display' }}
         </button>
         <button
           v-if="!isHelper"
@@ -1874,6 +1899,47 @@ onUnmounted(() => {
             </span>
           </div>
           <span v-else class="text-xs text-content-muted">None assigned — add in Judge Pool above</span>
+        </div>
+
+        <div class="h-px bg-surface-700/40"></div>
+
+        <!-- AUDITION DISPLAY -->
+        <div>
+          <div class="section-rule mb-3">
+            <span class="section-rule-label">Audition Display</span>
+            <div class="section-rule-line"></div>
+          </div>
+          <div class="flex flex-col gap-3">
+            <!-- Round label toggle -->
+            <div class="flex items-center justify-between">
+              <p class="type-label text-content-muted">Preliminary Round</p>
+              <button
+                @click="saveRoundLabel(g, g.roundLabel ? null : 'Preliminary Round')"
+                :class="g.roundLabel ? 'border-accent text-accent' : 'text-content-muted hover:text-content-secondary'"
+                class="para-chip-sm px-2.5 py-1 type-label transition-colors"
+              >{{ g.roundLabel ? 'ON' : 'OFF' }}</button>
+            </div>
+            <!-- Number color -->
+            <div class="flex items-center gap-3">
+              <p class="type-label text-content-muted">Audition # Color</p>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="color"
+                  :value="g.numberColor || '#ffffff'"
+                  @change="saveNumberColor(g, $event.target.value)"
+                  class="w-8 h-8 rounded cursor-pointer border border-white/10 bg-transparent p-0.5"
+                  title="Audition number color"
+                />
+                <span class="type-label text-content-muted">{{ g.numberColor || 'Default' }}</span>
+              </label>
+              <button
+                v-if="g.numberColor"
+                @click="saveNumberColor(g, null)"
+                class="type-label text-content-muted hover:text-content-secondary transition-colors"
+                title="Reset to default"
+              ><i class="pi pi-times text-xs"></i> Reset</button>
+            </div>
+          </div>
         </div>
 
       </div>

@@ -178,6 +178,7 @@ Public routes (no authentication required):
 | `/battle/judge` | `BattleJudge` | Battle judge voting screen |
 | `/battle/chart` | `Chart` | 7-to-Smoke live chart |
 | `/battle/bracket` | `BracketVisualization` | Live bracket with winner animation + LED ticker |
+| `/audition/display` | `AuditionDisplay` | Live audition round + timer OBS source |
 | `/event/select` | `EventSelector` | Select active event (redirected here if no event set) |
 
 Authenticated routes (role-gated):

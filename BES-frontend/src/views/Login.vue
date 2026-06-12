@@ -38,7 +38,9 @@ const submitLogin = async () => {
   try {
     isLoading.value = true
     const res = await login(username.value, password.value)
-    if (res.status !== 200) {
+    if (res.status === 409) {
+      openModal('Account Already Active', 'This account is already logged in on another device or browser. Please log out there first.')
+    } else if (res.status !== 200) {
       openModal('Authentication Failed', 'Invalid username or password. Please try again.')
     } else {
       const data = await res.json()

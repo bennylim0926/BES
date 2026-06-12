@@ -20,7 +20,9 @@ onMounted(async () => {
   }
   const data = await redeemToken(token)
   if (!data?.authenticated) {
-    error.value = data?.error || 'Invalid or expired link.'
+    error.value = data?.status === 409
+      ? 'This session link is already active in another browser. Close the other session first.'
+      : data?.error || 'Invalid or expired link.'
     loading.value = false
     return
   }

@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.config.SecurityConfig;
+import com.example.BES.services.ActiveSessionStore;
 import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
@@ -52,6 +53,12 @@ public class AuthController {
 
     @Autowired
     private SessionTokenService sessionTokenService;
+
+    @Autowired
+    private ActiveSessionStore activeSessionStore;
+
+    private static final java.util.Set<String> UNLIMITED_ROLES =
+        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER");
 
     @Operation(summary = "Debug Session", description = "Returns current session ID and authentication context for debugging")
     @GetMapping("/debug-session")
@@ -100,12 +107,30 @@ public class AuthController {
                     dto.getPassword());
             Authentication authentication = authenticationManager.authenticate(authToken);
 
+            boolean isUnlimited = authentication.getAuthorities().stream()
+                .anyMatch(a -> UNLIMITED_ROLES.contains(a.getAuthority()));
+
+            String username = authentication.getName();
+
+            if (!isUnlimited && activeSessionStore.isActive(username)) {
+                HttpSession existingSession = request.getSession(false);
+                String registeredId = activeSessionStore.getSessionId(username);
+                boolean sameSession = existingSession != null && existingSession.getId().equals(registeredId);
+                if (!sameSession) {
+                    return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).body(Map.of(
+                        "message", "Account is already active in another session",
+                        "authenticated", false));
+                }
+            }
+
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
             securityContext.setAuthentication(authentication);
             SecurityContextHolder.setContext(securityContext);
 
             HttpSession session = request.getSession(true);
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+            activeSessionStore.register(username, session.getId());
+
             return ResponseEntity.ok(Map.of(
                     "message", "Login Successfully",
                     "authenticated", true,
@@ -118,12 +143,22 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Heartbeat", description = "Refreshes the active session timestamp to signal the browser is still open")
+    @PostMapping("/heartbeat")
+    public ResponseEntity<?> heartbeat(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) activeSessionStore.heartbeat(session.getId());
+        return ResponseEntity.ok().build();
+    }
+
     @Operation(summary = "Logout", description = "Invalidates the current session and clears the security context")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session != null)
+        if (session != null) {
+            activeSessionStore.deregisterBySessionId(session.getId());
             session.invalidate();
+        }
         SecurityContextHolder.clearContext();
         return ResponseEntity.ok(Map.of("message", "Logged Out "));
     }
@@ -138,6 +173,18 @@ public class AuthController {
             String role = token.getRole();
             String roleAuthority = "ROLE_" + role;
 
+            boolean isUnlimitedToken = roleAuthority.equals("ROLE_ADMIN") || roleAuthority.equals("ROLE_HELPER");
+            if (!isUnlimitedToken && activeSessionStore.isActive(username)) {
+                HttpSession existingSession = request.getSession(false);
+                String registeredId = activeSessionStore.getSessionId(username);
+                boolean sameSession = existingSession != null && existingSession.getId().equals(registeredId);
+                if (!sameSession) {
+                    return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).body(Map.of(
+                        "message", "This session link is already active in another browser",
+                        "authenticated", false));
+                }
+            }
+
             UsernamePasswordAuthenticationToken authToken =
                 new UsernamePasswordAuthenticationToken(username, null,
                     java.util.List.of(new SimpleGrantedAuthority(roleAuthority)));
@@ -148,6 +195,7 @@ public class AuthController {
 
             HttpSession session = request.getSession(true);
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+            activeSessionStore.register(username, session.getId());
 
             Long eventId = token.getEvent().getEventId();
             String eventName = token.getEvent().getEventName();
