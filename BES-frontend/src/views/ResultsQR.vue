@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { APP_NAME } from '../utils/branding.js'
 
 const route = useRoute()
 const refCode = route.query.ref || ''
@@ -57,10 +58,10 @@ const print = () => window.print()
 
       <!-- QR Card -->
       <div v-else class="flex flex-col items-center gap-6 w-full">
-        <!-- BES branding -->
+        <!-- Kyrove branding -->
         <div class="flex items-center gap-2.5">
           <div class="glow-dot"></div>
-          <span class="type-body tracking-[0.12em]">BES</span>
+          <span class="type-body tracking-[0.12em]">{{ APP_NAME }}</span>
         </div>
 
         <!-- QR code image -->

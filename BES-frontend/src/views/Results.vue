@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { getResultsByRefCode } from '@/utils/api'
+import { APP_NAME } from '../utils/branding.js'
 
 const refCode = ref('')
 const loading = ref(false)
@@ -80,7 +81,7 @@ const groupTags = (tags) => {
 
     <div class="flex-1 flex flex-col lg:flex-row relative z-10">
 
-      <!-- ── Left panel: BES hero (≥md) ────────────────────────────── -->
+      <!-- ── Left panel: Kyrove hero (≥md) ─────────────────────────── -->
       <div class="hidden lg:flex lg:w-[44%] relative flex-col justify-between p-14 overflow-hidden">
         <div class="absolute inset-0 bg-surface-900"></div>
         <div class="corner-bar-tl" style="height: 40%"></div>
@@ -89,12 +90,12 @@ const groupTags = (tags) => {
         <!-- Wordmark -->
         <div class="relative z-10 flex items-center gap-2.5">
           <div class="glow-dot"></div>
-          <span class="type-body tracking-[0.12em]">BES</span>
+          <span class="type-body tracking-[0.12em]">{{ APP_NAME }}</span>
         </div>
 
         <!-- Hero -->
         <div class="relative z-10">
-          <div class="type-display mb-6">BES</div>
+          <div class="type-display mb-6">{{ APP_NAME }}</div>
           <div class="section-rule mb-6">
             <div class="section-rule-line"></div>
           </div>
@@ -110,7 +111,7 @@ const groupTags = (tags) => {
 
         <!-- Footer -->
         <div class="relative z-10 type-label text-content-muted">
-          &copy; {{ new Date().getFullYear() }} BES Platform
+          &copy; {{ new Date().getFullYear() }} {{ APP_NAME }} Platform
         </div>
       </div>
 

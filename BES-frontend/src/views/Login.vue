@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
+import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
 const router    = useRouter()
 const authStore = useAuthStore()
@@ -61,7 +62,7 @@ const submitLogin = async () => {
     <!-- Color bleed -->
     <div class="color-bleed"></div>
 
-    <!-- ── Left panel: BES hero ───────────────────────────────── -->
+    <!-- ── Left panel: Kyrove hero ────────────────────────────── -->
     <div class="hidden lg:flex lg:w-[52%] relative flex-col justify-between p-14 overflow-hidden">
       <div class="absolute inset-0 bg-surface-900"></div>
       <div class="corner-bar-tl" style="height: 40%"></div>
@@ -70,12 +71,12 @@ const submitLogin = async () => {
       <!-- Wordmark -->
       <div class="relative z-10 flex items-center gap-2.5">
         <div class="glow-dot"></div>
-        <span class="type-body tracking-[0.12em]">BES</span>
+        <span class="type-body tracking-[0.12em]">{{ APP_NAME }}</span>
       </div>
 
       <!-- Hero -->
       <div class="relative z-10">
-        <div class="type-display mb-6">BES</div>
+        <div class="type-display mb-6">{{ APP_NAME }}</div>
         <div class="section-rule mb-6">
           <div class="section-rule-line"></div>
         </div>
@@ -91,7 +92,7 @@ const submitLogin = async () => {
 
       <!-- Footer -->
       <div class="relative z-10 type-label text-content-muted">
-        &copy; {{ new Date().getFullYear() }} BES Platform
+        &copy; {{ new Date().getFullYear() }} {{ APP_NAME }} Platform
       </div>
     </div>
 
@@ -107,7 +108,7 @@ const submitLogin = async () => {
 
           <div class="mb-8">
             <div class="type-page-title mb-1">Sign In</div>
-            <p class="type-label text-content-muted">Battle Event System</p>
+            <p class="type-label text-content-muted">{{ APP_TAGLINE }}</p>
           </div>
 
           <form @submit.prevent="submitLogin" class="space-y-4">
