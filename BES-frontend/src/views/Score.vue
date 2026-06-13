@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants } from '@/utils/api';
 import DynamicTable from '@/components/DynamicTable.vue';
+import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { useAuthStore } from '@/utils/auth';
 
 const authStore = useAuthStore()
@@ -17,6 +18,17 @@ const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 // Auth
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
+
+// ── Mode toggle: Control (organiser) vs Broadcast (emcee) ─────────────────
+// Default is role-driven; user choice persists per event in localStorage.
+const modeKey = computed(() => `score_mode_${selectedEvent.value || 'global'}`)
+const initialMode = (() => {
+  const saved = localStorage.getItem(`score_mode_${authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || 'global'}`)
+  if (saved === 'control' || saved === 'broadcast') return saved
+  return userRole.value === 'ROLE_EMCEE' ? 'broadcast' : 'control'
+})()
+const mode = ref(initialMode)
+watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadcast')) localStorage.setItem(k, m) })
 
 // Results release state (admin/organiser only)
 const resultsReleased = ref(false)
@@ -38,6 +50,7 @@ const feedbackLoading = ref(false)
 // Tie-breaker resolution state
 const tieBreakerWinners = ref(new Set())
 const tieBreakerConfirmed = ref(false)
+const addedToPool = ref(new Set()) // manually-added pool members for the tie resolver
 
 // localStorage key scoped to event + genre + tabulation + topN
 const tbKey = computed(() =>
@@ -47,22 +60,26 @@ const saveTieBreaker = () => {
   localStorage.setItem(tbKey.value, JSON.stringify({
     winners: [...tieBreakerWinners.value],
     confirmed: tieBreakerConfirmed.value,
+    addedToPool: [...addedToPool.value],
   }))
 }
 const loadTieBreaker = () => {
   const saved = localStorage.getItem(tbKey.value)
   if (saved) {
-    const { winners, confirmed } = JSON.parse(saved)
+    const { winners, confirmed, addedToPool: added } = JSON.parse(saved)
     tieBreakerWinners.value = new Set(winners)
     tieBreakerConfirmed.value = confirmed
+    addedToPool.value = new Set(Array.isArray(added) ? added : [])
   } else {
     tieBreakerWinners.value = new Set()
     tieBreakerConfirmed.value = false
+    addedToPool.value = new Set()
   }
 }
 const resetTieBreaker = () => {
   tieBreakerWinners.value = new Set()
   tieBreakerConfirmed.value = false
+  addedToPool.value = new Set()
   localStorage.removeItem(tbKey.value)
 }
 
@@ -175,6 +192,37 @@ const tiedParticipants = computed(() => {
   return rows.slice(rows.length - topNResult.value.tiedCount)
 })
 
+// Full ranked rows for the current genre+type, used to feed the pool helpers.
+const allRowsForPool = computed(() => filteredParticipantsForScore.value.rows ?? [])
+
+// Tie base = the auto-detected tied participants (cannot be removed from pool).
+const tieBaseNames = computed(() => new Set(tiedParticipants.value.map(r => r.participantName)))
+
+// Full pool = base + added (set).
+const eligibilityPoolNames = computed(() => {
+  const s = new Set(tieBaseNames.value)
+  for (const n of addedToPool.value) s.add(n)
+  return s
+})
+
+// Ordered list of added members (rank-sorted).
+// eslint-disable-next-line no-unused-vars
+const addedToPoolOrdered = computed(() =>
+  addedPoolOrdered(allRowsForPool.value, addedToPool.value)
+)
+
+// Next eligible to add — drives "+ INCLUDE <name> · <score>" button label.
+const nextEligibleAdd = computed(() =>
+  topNResult.value.hasTieBreaker
+    ? computeNextEligibleAdd(allRowsForPool.value, eligibilityPoolNames.value)
+    : null
+)
+
+// Next eligible to remove — drives "− EXCLUDE <name> · <score>" button label.
+const nextEligibleRemove = computed(() =>
+  computeNextEligibleRemove(allRowsForPool.value, tieBaseNames.value, addedToPool.value)
+)
+
 const toggleWinner = (name) => {
   const w = new Set(tieBreakerWinners.value)
   if (w.has(name)) {
@@ -201,6 +249,32 @@ const confirmTieBreaker = async () => {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
+const includeNextInPool = () => {
+  const next = nextEligibleAdd.value
+  if (!next) return
+  const s = new Set(addedToPool.value)
+  s.add(next.participantName)
+  addedToPool.value = s
+  tieBreakerConfirmed.value = false
+  saveTieBreaker()
+}
+
+// eslint-disable-next-line no-unused-vars
+const excludeLastFromPool = () => {
+  const last = nextEligibleRemove.value
+  if (!last) return
+  const s = new Set(addedToPool.value)
+  s.delete(last.participantName)
+  // Also drop them from the winners selection if they were picked.
+  const w = new Set(tieBreakerWinners.value)
+  w.delete(last.participantName)
+  addedToPool.value = s
+  tieBreakerWinners.value = w
+  tieBreakerConfirmed.value = false
+  saveTieBreaker()
+}
+
 // Final rows for table & podium
 const finalRows = computed(() => {
   if (!topNResult.value.rows) return []
@@ -210,6 +284,51 @@ const finalRows = computed(() => {
   const above = topNResult.value.rows.slice(0, topNResult.value.aboveCount)
   const winners = tiedParticipants.value.filter(r => tieBreakerWinners.value.has(r.participantName))
   return [...above, ...winners].map((r, i) => ({ ...r, id: i + 1 }))
+})
+
+// Control-mode status banner — sits below the Top N picker.
+// eslint-disable-next-line no-unused-vars
+const statusBanner = computed(() => {
+  const t = topNResult.value
+  const total = filteredParticipantsForScore.value.rows?.length ?? 0
+  const n = selectedTopN.value === 'All' ? Infinity : parseInt(selectedTopN.value.replace('Top ', ''))
+  if (!Number.isFinite(n)) return null
+  if (total < n) {
+    return { tone: 'insufficient', message: `ONLY ${total} SCORED — TOP ${n} NOT YET REACHABLE` }
+  }
+  if (t.hasTieBreaker) {
+    return { tone: 'tie', message: `TIE AT RANK ${t.cutoff} — ${t.tiedCount} AT ${t.tieBreakerScore} — RESOLVE BELOW` }
+  }
+  return { tone: 'clean', message: `TOP ${n} READY — 0 TIES` }
+})
+
+// Summary of eliminated participants — drives the "⋯ N MORE ELIMINATED ⋯" collapse.
+// eslint-disable-next-line no-unused-vars
+const eliminatedSummary = computed(() => {
+  const all = allRowsForPool.value
+  const visible = new Set(finalRows.value.map(r => r.participantName))
+  const eliminated = all.filter(r => !visible.has(r.participantName))
+  if (eliminated.length === 0) return null
+  const lowestScore = Math.min(...eliminated.map(r => r.totalScore))
+  return { count: eliminated.length, lowestScore }
+})
+
+// eslint-disable-next-line no-unused-vars
+const eliminatedExpanded = ref(false)
+
+// Broadcast-mode column count — 1 below 640px or for very small N, 2 otherwise.
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const onResize = () => { viewportWidth.value = window.innerWidth }
+onMounted(() => { window.addEventListener('resize', onResize) })
+onUnmounted(() => { window.removeEventListener('resize', onResize) })
+
+// eslint-disable-next-line no-unused-vars
+const broadcastColumns = computed(() => {
+  if (viewportWidth.value < 640) return '1col'
+  const n = selectedTopN.value === 'All'
+    ? (allRowsForPool.value?.length ?? 0)
+    : parseInt(selectedTopN.value.replace('Top ', ''))
+  return n <= 12 ? '1col' : '2col'
 })
 
 // Pagination for the admin/organiser table
