@@ -1,6 +1,7 @@
 package com.example.BES.config;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.util.Collections;
 
 import org.springframework.context.annotation.Bean;
@@ -14,18 +15,30 @@ import com.google.api.services.sheets.v4.SheetsScopes;
 
 @Configuration
 @Profile("!test")
-public class GoogleSheetConfig implements GoogleServiceFactory{
+public class GoogleSheetConfig implements GoogleServiceFactory {
 
     @Bean
-     public Sheets getSheets(){
-        try{
+    public Sheets getSheets() {
+        try {
             GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream(CREDENTIALS_FILE_PATH))
-            .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
-            return new Sheets.Builder(GoogleNetHttpTransport.newTrustedTransport(),
-            JSON_FACTORY,
-            credential)
-            .build();
-        }catch(Exception e){
+                .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
+            return new Sheets.Builder(GoogleNetHttpTransport.newTrustedTransport(), JSON_FACTORY, credential)
+                .setApplicationName("kyrove")
+                .build();
+        } catch (FileNotFoundException e) {
+            System.err.println("WARN: credentials.json not available — Google Sheets integration disabled (" + e.getMessage() + ")");
+            return buildPlaceholderSheets();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Sheets buildPlaceholderSheets() {
+        try {
+            return new Sheets.Builder(GoogleNetHttpTransport.newTrustedTransport(), JSON_FACTORY, request -> { })
+                .setApplicationName("kyrove-placeholder")
+                .build();
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
