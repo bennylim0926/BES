@@ -495,42 +495,68 @@ The override pattern is Docker's recommended way and keeps dev simple while maki
 
 ---
 
-## Phase 2 — CI/CD with GitHub Actions (deferred, do later)
+## Phase 2 — CI/CD with GitHub Actions
 
-Once the manual deploy is stable, add auto-deploy on push to `master`.
+The workflow at `.github/workflows/deploy.yml` auto-deploys on every push to `master` (typically a merged PR). It SSHes to the server as `deploy`, pulls latest, rebuilds containers, then smoke-tests `https://kyrove.live` from the runner.
 
-### Add repo secrets
-GitHub repo → **Settings → Secrets and variables → Actions**:
-- `HOST` — `<SERVER_IP>`
-- `USERNAME` — `deploy`
-- `SSH_KEY` — full contents of `~/.ssh/id_ed25519` (private key)
+### One-time setup — add three repo secrets
 
-### Add `.github/workflows/deploy.yml`
-```yaml
-name: Deploy to production
+GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
-on:
-  push:
-    branches: [master]
+| Secret name | Value |
+|-------------|-------|
+| `DEPLOY_HOST` | `5.223.94.4` (your server's IPv4) |
+| `DEPLOY_USER` | `deploy` |
+| `DEPLOY_SSH_KEY` | Full contents of `~/.ssh/id_ed25519` (private key, including BEGIN/END lines) |
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/kyrove
-            git pull origin master
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-            docker compose ps
+To grab the private key on your Mac:
+```bash
+cat ~/.ssh/id_ed25519 | pbcopy   # copies to clipboard, paste into GitHub
 ```
 
-This uses `git pull` on the server (not SCP), keeping `.env` and `credentials.json` in place — they don't need to be in GitHub secrets.
+### How it runs
+
+- **Trigger:** push to `master` (or click "Run workflow" manually from the Actions tab)
+- **Concurrency:** one deploy at a time per branch — if two deploys overlap, the second waits rather than cancelling, so a half-deployed state can't happen
+- **What it does on the server:**
+  ```
+  git fetch origin master && git reset --hard origin/master   # bulletproof against local drift
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+  docker image prune -f                                       # reclaims disk on every deploy
+  ```
+- **Smoke test:** runner does up to 10 retries of `curl https://kyrove.live`, expecting HTTP 200. Fails the workflow if the site doesn't come up.
+
+### Why `git pull` on the server (not SCP / artifact upload)
+
+- `.env` and `credentials.json` stay on the server — they don't need to be in GitHub Actions secrets
+- Build caching works (Maven + npm + Docker layers all cache locally on the server)
+- Rollback is `git reset --hard <previous-sha>` and re-run the workflow — no artifact bookkeeping
+
+### Recommended branch protection (optional but smart)
+
+GitHub repo → **Settings → Branches → Add rule** for `master`:
+- ✓ Require a pull request before merging
+- ✓ Require status checks to pass before merging → tick `CI / Backend / Build`, `CI / Frontend / Build`, etc.
+- ✓ Require branches to be up to date before merging
+
+This prevents accidental direct pushes to `master` (which would trigger a deploy of unreviewed code) and ensures CI passes before the deploy runs.
+
+### If a deploy fails
+
+- **SSH step fails** → check the Actions log. Common: secret typo, server unreachable, full disk.
+  ```bash
+  ssh deploy@5.223.94.4
+  df -h            # disk full?
+  docker compose logs --tail=200 backend
+  ```
+- **Smoke test fails but containers are up** → likely TLS or DNS issue. Hit `https://kyrove.live` in a browser and check the network tab.
+- **Rollback fast** (on the server):
+  ```bash
+  cd ~/kyrove
+  git log --oneline -10
+  git reset --hard <previous-good-sha>
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+  ```
 
 ---
 

@@ -1,0 +1,50 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: SSH to server and run deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd ~/kyrove
+            echo "→ Pulling latest from master"
+            git fetch origin master
+            git reset --hard origin/master
+            echo "→ Rebuilding containers"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            echo "→ Container status:"
+            docker compose ps
+            echo "→ Pruning dangling images to save disk"
+            docker image prune -f
+
+      - name: Smoke test the live site
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://kyrove.live || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✓ https://kyrove.live returned 200"
+              exit 0
+            fi
+            echo "Attempt $i: got HTTP $status, waiting 10s..."
+            sleep 10
+          done
+          echo "✗ Site did not return 200 after 10 attempts"
+          exit 1
