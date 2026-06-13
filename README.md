@@ -1,4 +1,4 @@
-# BES — Battle Event System
+# Kyrove — Every moment in the groove.
 
 Full-stack web app for managing dance battle events: registration, judging, scoring, real-time battle control, and results portal.
 
@@ -31,7 +31,7 @@ npm install && npm run dev   # http://localhost:5173
 
 This repo includes [agent-dispatch](https://github.com/bennylim0926/agent-dispatch) as a git submodule at `.agent-dispatch/`. It dispatches implementation tasks to a DeepSeek container agent, keeping Claude tokens for planning and code review.
 
-It is **optional personal dev tooling** — you do not need it to run or contribute to BES.
+It is **optional personal dev tooling** — you do not need it to run or contribute to Kyrove.
 
 ### Setup (if you want to use it)
 ```bash

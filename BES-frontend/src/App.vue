@@ -6,6 +6,7 @@ import { useAuthStore } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
 import EventPanel from './components/EventPanel.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { APP_NAME } from './utils/branding.js'
 
 const router = useRouter()
 const route  = useRoute()
@@ -196,10 +197,10 @@ onUnmounted(() => {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
 
-        <!-- Left: BES wordmark + glowing dot -->
+        <!-- Left: Kyrove wordmark + glowing dot -->
         <router-link :to="isJudgeRole ? '/judge/session' : isEmceeRole ? '/emcee/session' : isHelperRole ? '/helper/session' : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
           <div class="glow-dot"></div>
-          <span class="type-body text-[18px] tracking-[0.12em] text-content-primary">BES</span>
+          <span class="type-body text-[18px] tracking-[0.12em] text-content-primary">{{ APP_NAME }}</span>
         </router-link>
 
         <!-- Center: Primary nav as parallelogram chips -->
