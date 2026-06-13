@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
 
 const authStore = useAuthStore()
@@ -112,12 +113,47 @@ const loadAdminData = async (eventName) => {
   refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
 }
 
+// Re-fetch scores only — used by both the event watcher and the WebSocket signal.
+const refetchScores = async (eventName) => {
+  if (!eventName) return
+  const res = await getParticipantScore(eventName)
+  participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+}
+
+// ── Live updates via WebSocket ────────────────────────────────────────────
+// Backend broadcasts to /topic/score/{eventName} on score or feedback save/reset.
+// On any signal we re-fetch the full score list — payload is intentionally tiny.
+// If the feedback panel is open we also re-fetch its data.
+const wsClient = ref(null)
+const subscribeScoreUpdates = (eventName) => {
+  if (wsClient.value) {
+    deactivateClient(wsClient.value)
+    wsClient.value = null
+  }
+  if (!eventName) return
+  wsClient.value = createClient()
+  subscribeToChannel(wsClient.value, `/topic/score/${eventName}`, async () => {
+    await refetchScores(eventName)
+    // Refresh the open feedback panel for the visible participant, if any.
+    if (showFeedbackPanel.value && feedbackParticipant.value && selectedGenre.value) {
+      const fb = await getParticipantFeedback(eventName, selectedGenre.value, feedbackParticipant.value)
+      feedbackData.value = fb ?? []
+    }
+  })
+}
+onUnmounted(() => {
+  if (wsClient.value) {
+    deactivateClient(wsClient.value)
+    wsClient.value = null
+  }
+})
+
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
-    const res = await getParticipantScore(newVal)
-    participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+    await refetchScores(newVal)
     await loadAdminData(newVal)
+    subscribeScoreUpdates(newVal)
   }
 }, { immediate: true });
 
@@ -946,17 +982,31 @@ function transformForScore(data) {
         <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
       </div>
 
-      <!-- Compact genre switcher — practical override of "no chrome" rule so emcees
-           can switch genres without flipping to Control mid-show. -->
-      <div v-if="uniqueGenres.length > 1" class="flex flex-wrap gap-1 mb-6" role="group" aria-label="Filter by genre">
-        <button
-          v-for="g in uniqueGenres"
-          :key="g"
-          @click="selectedGenre = g"
-          :aria-pressed="selectedGenre === g"
-          class="para-chip-sm px-3 py-1.5 type-label transition-all"
-          :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
-        >{{ g }}</button>
+      <!-- Compact genre + Top N switchers — practical override of "no chrome" rule so
+           emcees can switch genres / cut threshold without flipping to Control mid-show. -->
+      <div class="flex flex-wrap items-center gap-3 mb-6">
+        <div v-if="uniqueGenres.length > 1" class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
+          <button
+            v-for="g in uniqueGenres"
+            :key="g"
+            @click="selectedGenre = g"
+            :aria-pressed="selectedGenre === g"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ g }}</button>
+        </div>
+        <span v-if="uniqueGenres.length > 1" class="text-surface-600 select-none" aria-hidden="true">|</span>
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Qualify top N">
+          <span class="type-label text-content-muted self-center mr-1">TOP</span>
+          <button
+            v-for="n in topNOptions"
+            :key="n"
+            @click="selectedTopN = n"
+            :aria-pressed="selectedTopN === n"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedTopN === n ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</button>
+        </div>
       </div>
 
       <!-- Leaderboard -->

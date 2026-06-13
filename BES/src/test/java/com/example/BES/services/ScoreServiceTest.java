@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,7 @@ class ScoreServiceTest {
     @Mock ScoreRepo repo;
     @Mock EventGenreParticpantRepo eventGenreParticpantRepo;
     @Mock JudgeRepo judgeRepo;
+    @Mock SimpMessagingTemplate messagingTemplate;
     @InjectMocks ScoreService service;
 
     // -----------------------------------------------------------------------
