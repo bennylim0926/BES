@@ -290,7 +290,8 @@ function judgeMetaLine(row) {
   const judgeKeys = topNResult.value.columns
     .filter(c => !['id', 'participantName', 'totalScore'].includes(c.key))
     .map(c => c.key)
-  if (judgeKeys.length === 0) return ''
+  // Skip when 1 judge — the per-judge value duplicates the total shown on the right.
+  if (judgeKeys.length <= 1) return ''
   return judgeKeys.map(j => {
     const v = row[j]
     return v != null ? `${j[0].toUpperCase()} ${v}` : `${j[0].toUpperCase()} —`
@@ -546,19 +547,21 @@ function transformForScore(data) {
     <div class="color-bleed"></div>
     <div class="relative z-10">
 
-    <!-- Header row -->
+    <!-- Header row — title block is Control-only; Broadcast renders its own header below.
+         Release pill is Control-only (spec §4.1). Mode toggle stays in both modes so user can flip. -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
-      <div>
+      <div v-if="mode === 'control'">
         <p class="type-label text-content-muted mb-1">SCOREBOARD · {{ selectedEvent }}</p>
         <h1 class="type-page-title">
           {{ selectedGenre || 'No Genre' }}
           <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
         </h1>
       </div>
+      <div v-else></div>
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Release Results pill (admin/organiser only) -->
+        <!-- Release Results pill (admin/organiser only, Control mode only) -->
         <button
-          v-if="isAdminOrOrganiser"
+          v-if="isAdminOrOrganiser && mode === 'control'"
           @click="toggleRelease"
           :aria-pressed="resultsReleased"
           class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all"
@@ -934,10 +937,23 @@ function transformForScore(data) {
     <!-- BROADCAST mode -->
     <template v-if="mode === 'broadcast'">
       <!-- Header -->
-      <div class="mb-6">
+      <div class="mb-4">
         <p class="type-label text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
         <h1 class="type-page-title">{{ selectedGenre }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
         <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
+      </div>
+
+      <!-- Compact genre switcher — practical override of "no chrome" rule so emcees
+           can switch genres without flipping to Control mid-show. -->
+      <div v-if="uniqueGenres.length > 1" class="flex flex-wrap gap-1 mb-6" role="group" aria-label="Filter by genre">
+        <button
+          v-for="g in uniqueGenres"
+          :key="g"
+          @click="selectedGenre = g"
+          :aria-pressed="selectedGenre === g"
+          class="para-chip-sm px-3 py-1.5 type-label transition-all"
+          :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+        >{{ g }}</button>
       </div>
 
       <!-- Leaderboard -->
