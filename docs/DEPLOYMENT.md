@@ -309,6 +309,93 @@ Hetzner Console → Server → Snapshots → "Take Snapshot". €0.01/GB/mo.
 
 ---
 
+## Pausing the server to save money
+
+Powered-off servers are still billed at the full hourly rate — Hetzner keeps your CPU/RAM/disk reserved. To actually stop being billed, take a snapshot and delete the server. The snapshot persists at ~**$0.85/mo for the 80 GB disk image**, vs ~$18/mo running.
+
+**Data survives the pause/resume cycle.** The Postgres named volume lives on the host disk under `/var/lib/docker/volumes/kyrove_postgres/_data/`. The snapshot captures that whole disk, so DB rows, uploads, `.env`, `credentials.json`, and the Let's Encrypt cert all come back intact when you restore.
+
+### When pausing is worth it
+
+| Pause duration | Approximate savings | Recommended? |
+|----------------|---------------------|--------------|
+| < 1 week       | ~$4                 | No — leave running |
+| 2 weeks        | ~$8                 | Borderline |
+| 1 month        | ~$17                | Yes |
+| 3+ months      | ~$50+               | Definitely |
+
+### Pause — step by step
+
+**1. On the server**, prepare for snapshot:
+```bash
+ssh deploy@<SERVER_IP>
+cd ~/kyrove
+./scripts/pause.sh
+```
+
+The script runs `docker compose down` (NEVER use `-v` — that would wipe volumes), flushes filesystem buffers with `sync`, and prints the next steps. The DB volume is preserved.
+
+**2. In the Hetzner Console:**
+- Server → **Snapshots** tab → **"Take snapshot"** → name it `kyrove-paused-<date>`
+- Wait 3–5 min until status shows **"Created"**
+- Go to top-level **Snapshots** menu — **verify your snapshot is listed with non-zero size**. Do not skip this. If you delete the server before the snapshot exists, you lose everything.
+
+**3. Delete the server:**
+- Server → **"Delete this server"** → confirm
+- The IPv4 is released. Automated backups (if you had them enabled) disappear too — only snapshots persist.
+
+Your bill drops to ~$0.85/mo.
+
+### Resume — step by step
+
+**1. Create a new server from the snapshot:**
+- Console → **Create Server**
+- Image tab → **"My Images"** → pick your snapshot
+- Location: same as before (Singapore)
+- Type: same or different — you can upsize/downsize at restore time
+- SSH keys: attach yours
+- Create
+
+**2. Note the new IPv4** — it will be different from before. Released IPs are not reserved.
+
+**3. Update DNS in Namecheap:**
+- Domain List → Manage → Advanced DNS → edit the `@` and `www` A records to the new IP
+- Wait ~15 min: `dig +short kyrove.live` should return the new IP before continuing
+
+**4. SSH in and bring the stack up:**
+```bash
+ssh deploy@<NEW_IP>
+cd ~/kyrove
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose ps           # all 3 services should be Up
+```
+No `--build` needed — the images are inside the snapshot.
+
+**5. Check the TLS cert:**
+```bash
+sudo certbot certificates
+```
+- **Valid for > 7 days** → done.
+- **Expired or near expiry** → renew (briefly stops frontend):
+  ```bash
+  docker compose down
+  sudo certbot renew --force-renewal
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+  ```
+
+### Gotchas
+
+| Gotcha | Prevent by |
+|--------|------------|
+| Snapshot of running Postgres can be inconsistent | Always `./scripts/pause.sh` (runs `docker compose down`) before snapshotting |
+| Delete the server before snapshot creation finishes → lose everything | Verify snapshot is "Created" with non-zero size at top-level Snapshots before deleting |
+| Forget that the new server has a different IP | Update both A records in Namecheap immediately after creating |
+| Let's Encrypt rate limit (5 duplicate certs/week) if you `--force-renewal` too often | Use plain `certbot renew` unless the cert really is expired |
+| Snapshot pile-up (limit ~5 per project) | Delete old snapshots when you take a new one |
+| Long DNS TTL stretches the cutover | Lower TTL to 60s a few hours BEFORE pausing |
+
+---
+
 ## Architecture — how dev and prod configs differ
 
 Four files are involved. Two are shared; two are environment-specific.
