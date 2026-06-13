@@ -497,7 +497,7 @@ The override pattern is Docker's recommended way and keeps dev simple while maki
 
 ## Phase 2 — CI/CD with GitHub Actions
 
-The workflow at `.github/workflows/deploy.yml` auto-deploys on every push to `master` (typically a merged PR). It SSHes to the server as `deploy`, pulls latest, rebuilds containers, then smoke-tests `https://kyrove.live` from the runner.
+The workflow at `.github/workflows/deploy.yml` deploys on **tag push** (`v*`) or **manual dispatch**, not on every merge to `master`. This fits a pause-the-server workflow: code can merge freely; deploy only fires when you explicitly cut a release or click the button.
 
 ### One-time setup — add three repo secrets
 
@@ -505,7 +505,7 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 
 | Secret name | Value |
 |-------------|-------|
-| `DEPLOY_HOST` | `5.223.94.4` (your server's IPv4) |
+| `DEPLOY_HOST` | `kyrove.live` (domain — survives IP changes from snapshot/restore) |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_KEY` | Full contents of `~/.ssh/id_ed25519` (private key, including BEGIN/END lines) |
 
@@ -516,45 +516,66 @@ cat ~/.ssh/id_ed25519 | pbcopy   # copies to clipboard, paste into GitHub
 
 ### How it runs
 
-- **Trigger:** push to `master` (or click "Run workflow" manually from the Actions tab)
-- **Concurrency:** one deploy at a time per branch — if two deploys overlap, the second waits rather than cancelling, so a half-deployed state can't happen
+- **Trigger 1 — tag push:** any tag matching `v*` (e.g. `v0.1.0`, `v1.2.3`) starts a deploy of that tag's commit.
+- **Trigger 2 — manual dispatch:** Actions tab → **Deploy** → **Run workflow** → enter a ref (defaults to `master`). Useful for redeploys without bumping a version.
+- **Concurrency:** one deploy at a time. Overlapping triggers queue rather than cancel.
 - **What it does on the server:**
-  ```
-  git fetch origin master && git reset --hard origin/master   # bulletproof against local drift
+  ```bash
+  git fetch --tags --prune origin
+  git reset --hard <REF>                                      # tag, branch, or SHA
   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-  docker image prune -f                                       # reclaims disk on every deploy
+  docker image prune -f                                       # reclaims disk
   ```
 - **Smoke test:** runner does up to 10 retries of `curl https://kyrove.live`, expecting HTTP 200. Fails the workflow if the site doesn't come up.
 
-### Why `git pull` on the server (not SCP / artifact upload)
+### Cutting a release
+
+**Easiest:** ask Claude in the project repo "release this" — the `release` skill at `.claude/skills/release/SKILL.md` reads commits since the last tag, suggests a semver bump, confirms with you, then creates the annotated tag and pushes it.
+
+**Manual equivalent (4 commands):**
+```bash
+git checkout master
+git pull
+git tag -a v0.1.0 -m "Initial production deploy"
+git push origin v0.1.0
+```
+
+Either way the tag push triggers the Deploy workflow within seconds.
+
+### Why tag-based instead of push-to-master?
+
+The server gets paused often to save money (~$17/mo savings). With push-to-master:
+- Every merge would try to deploy
+- Workflow would fail (SSH timeout) while server is paused → red Actions badges + email noise
+- On resume, you'd have to manually catch up to latest master
+
+With tag-based:
+- Merge whenever — no deploy fires
+- Cut a release (push a tag) only when server is live and you want to ship
+- workflow_dispatch lets you redeploy any ref on demand (e.g. after resuming a paused server)
+
+### Why `git fetch && git reset --hard` on the server (not SCP / artifact upload)
 
 - `.env` and `credentials.json` stay on the server — they don't need to be in GitHub Actions secrets
 - Build caching works (Maven + npm + Docker layers all cache locally on the server)
-- Rollback is `git reset --hard <previous-sha>` and re-run the workflow — no artifact bookkeeping
-
-### Recommended branch protection (optional but smart)
-
-GitHub repo → **Settings → Branches → Add rule** for `master`:
-- ✓ Require a pull request before merging
-- ✓ Require status checks to pass before merging → tick `CI / Backend / Build`, `CI / Frontend / Build`, etc.
-- ✓ Require branches to be up to date before merging
-
-This prevents accidental direct pushes to `master` (which would trigger a deploy of unreviewed code) and ensures CI passes before the deploy runs.
+- Rollback is `git reset --hard <previous-tag>` and re-run the workflow — no artifact bookkeeping
 
 ### If a deploy fails
 
-- **SSH step fails** → check the Actions log. Common: secret typo, server unreachable, full disk.
+- **SSH step fails** → check the Actions log. Common: secret typo, server paused/down, full disk.
   ```bash
-  ssh deploy@5.223.94.4
+  ssh deploy@kyrove.live
   df -h            # disk full?
   docker compose logs --tail=200 backend
   ```
-- **Smoke test fails but containers are up** → likely TLS or DNS issue. Hit `https://kyrove.live` in a browser and check the network tab.
-- **Rollback fast** (on the server):
+- **Smoke test fails but containers are up** → likely TLS or DNS issue. Hit `https://kyrove.live` in a browser, check the network tab.
+- **Rollback fast** — easiest path is to redeploy the previous tag:
+  - Actions → Deploy → Run workflow → enter `v0.1.0` (the previous good tag) → Run
+- **Rollback via server** (if you can't reach Actions):
   ```bash
   cd ~/kyrove
   git log --oneline -10
-  git reset --hard <previous-good-sha>
+  git reset --hard <previous-good-sha-or-tag>
   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
   ```
 

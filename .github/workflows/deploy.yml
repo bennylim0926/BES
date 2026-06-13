@@ -2,8 +2,13 @@ name: Deploy
 
 on:
   push:
-    branches: [master]
+    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy (tag, branch, or SHA). Defaults to latest master.'
+        required: false
+        default: 'master'
 
 concurrency:
   group: deploy-production
@@ -22,18 +27,22 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           command_timeout: 10m
+          envs: DEPLOY_REF
           script: |
             set -e
             cd ~/kyrove
-            echo "→ Pulling latest from master"
-            git fetch origin master
-            git reset --hard origin/master
+            REF="${DEPLOY_REF}"
+            echo "→ Deploying ref: $REF"
+            git fetch --tags --prune origin
+            git reset --hard "$REF"
             echo "→ Rebuilding containers"
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
             echo "→ Container status:"
             docker compose ps
-            echo "→ Pruning dangling images to save disk"
+            echo "→ Pruning dangling images"
             docker image prune -f
+        env:
+          DEPLOY_REF: ${{ github.event.inputs.ref || github.ref_name }}
 
       - name: Smoke test the live site
         run: |
