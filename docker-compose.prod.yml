@@ -1,0 +1,12 @@
+services:
+  frontend:
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./BES-frontend/nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped

@@ -1,0 +1,34 @@
+# VCS
+.git
+.gitignore
+.github
+
+# Build artifacts (will be regenerated inside Docker)
+BES/target
+BES-frontend/dist
+BES-frontend/node_modules
+
+# Local dev / IDE
+.idea
+.vscode
+*.iml
+.DS_Store
+
+# Logs and tmp
+*.log
+tmp
+.agent-docker
+.agent-dispatch
+
+# Docs and meta (not needed at runtime)
+docs
+README.md
+CLAUDE.md
+*.zip
+
+# Secrets — must never leak into images
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
