@@ -347,7 +347,6 @@ const onResize = () => { viewportWidth.value = window.innerWidth }
 onMounted(() => { window.addEventListener('resize', onResize) })
 onUnmounted(() => { window.removeEventListener('resize', onResize) })
 
-// eslint-disable-next-line no-unused-vars
 const broadcastColumns = computed(() => {
   if (viewportWidth.value < 640) return '1col'
   const n = selectedTopN.value === 'All'
@@ -927,6 +926,69 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
+        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
+      </div>
+    </template>
+
+    <!-- BROADCAST mode -->
+    <template v-if="mode === 'broadcast'">
+      <!-- Header -->
+      <div class="mb-6">
+        <p class="type-label text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
+        <h1 class="type-page-title">{{ selectedGenre }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
+        <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
+      </div>
+
+      <!-- Leaderboard -->
+      <div v-if="finalRows.length > 0">
+        <div :class="broadcastColumns === '2col' ? 'grid grid-cols-2 gap-x-4 gap-y-1.5' : 'flex flex-col gap-1.5'">
+          <template v-for="(row, idx) in finalRows" :key="row.participantName">
+            <div
+              class="para-chip flex items-start gap-3 px-4 py-3"
+              :class="idx === 0 ? 'border-l-[3px] border-[color:var(--accent-color)]' : 'bg-surface-700/10'"
+              :style="broadcastColumns === '2col' && idx < Math.ceil(finalRows.length / 2)
+                ? `order: ${idx * 2}`
+                : broadcastColumns === '2col'
+                  ? `order: ${(idx - Math.ceil(finalRows.length / 2)) * 2 + 1}`
+                  : ''"
+            >
+              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1; min-width: 38px">{{ row.id }}</span>
+              <span class="flex-1 type-body text-content-primary" style="font-size: 16px">{{ row.participantName }}</span>
+              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1">{{ row.totalScore }}</span>
+            </div>
+          </template>
+        </div>
+
+        <!-- Top N line -->
+        <div
+          v-if="selectedTopN !== 'All' && (!topNResult.hasTieBreaker || tieBreakerConfirmed)"
+          role="separator"
+          :aria-label="`Top ${topNResult.cutoff} line`"
+          class="relative h-px my-6"
+          style="background: linear-gradient(90deg, transparent, var(--accent-color) 50%, transparent); box-shadow: 0 0 14px var(--accent-muted);"
+        >
+          <span class="absolute right-0 -top-6 type-label text-content-muted">▲ TOP {{ topNResult.cutoff }}</span>
+        </div>
+
+        <!-- Eliminated summary (collapsed) -->
+        <p
+          v-if="eliminatedSummary"
+          class="type-label text-content-muted/50 text-center py-3"
+        >⋯ {{ eliminatedSummary.count }} ELIMINATED · LOWEST {{ eliminatedSummary.lowestScore }} ⋯</p>
+
+        <!-- Unresolved tie pending strip (Broadcast read-only) -->
+        <div
+          v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
+          role="status"
+          class="mt-4 px-4 py-3 border-l-[3px] border-amber-400 bg-amber-500/8 flex flex-wrap items-center gap-3"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></span>
+          <p class="type-label text-amber-400">{{ topNResult.tiedCount }} TIED AT {{ topNResult.tieBreakerScore }} · TIES PENDING — RESOLVE IN CONTROL</p>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-else class="flex flex-col items-center justify-center py-20 text-center">
         <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
       </div>
     </template>
