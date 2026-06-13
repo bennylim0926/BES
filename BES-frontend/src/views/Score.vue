@@ -324,9 +324,12 @@ const statusBanner = computed(() => {
   if (total < n) {
     return { tone: 'insufficient', message: `ONLY ${total} SCORED — TOP ${n} NOT YET REACHABLE` }
   }
-  if (t.hasTieBreaker) {
+  if (t.hasTieBreaker && !tieBreakerConfirmed.value) {
     return { tone: 'tie', message: `TIE AT RANK ${t.cutoff} — ${t.tiedCount} AT ${t.tieBreakerScore} — RESOLVE BELOW` }
   }
+  // After confirm, the inline emerald banner at the cut already says "TOP N CONFIRMED" —
+  // showing a second status banner up here is redundant.
+  if (t.hasTieBreaker && tieBreakerConfirmed.value) return null
   return { tone: 'clean', message: `TOP ${n} READY — 0 TIES` }
 })
 
