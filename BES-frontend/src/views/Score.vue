@@ -534,105 +534,87 @@ function transformForScore(data) {
     <div class="color-bleed"></div>
     <div class="relative z-10">
 
-    <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+    <!-- Header row -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
       <div>
-        <!-- h1 for document outline -->
-        <h1 class="type-page-title mb-1">Scoreboard</h1>
-        <p class="type-label text-content-muted">View and compare scores across genres and judges</p>
+        <p class="type-label text-content-muted mb-1">SCOREBOARD · {{ selectedEvent }}</p>
+        <h1 class="type-page-title">
+          {{ selectedGenre || 'No Genre' }}
+          <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
+        </h1>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Release Results pill (admin/organiser only) -->
+        <button
+          v-if="isAdminOrOrganiser"
+          @click="toggleRelease"
+          :aria-pressed="resultsReleased"
+          class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all"
+          :class="resultsReleased
+            ? 'border-emerald-500/40 text-emerald-400'
+            : 'text-content-muted hover:text-content-primary'"
+        >
+          <span class="w-1.5 h-1.5 rounded-full" :class="resultsReleased ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]' : 'bg-content-muted/40'"></span>
+          {{ resultsReleased ? 'RELEASED' : 'HIDDEN' }}
+        </button>
+        <!-- Mode toggle -->
+        <div class="flex p-0.5 border border-surface-600 bg-surface-800/50" role="group" aria-label="Display mode">
+          <button
+            v-for="m in ['control', 'broadcast']"
+            :key="m"
+            @click="mode = m"
+            :aria-pressed="mode === m"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="mode === m
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+          >{{ m.toUpperCase() }}</button>
+        </div>
       </div>
     </div>
 
-    <!-- Filter card -->
-    <div class="card p-5 mb-6">
+    <!-- Secondary filter row (Control mode only) -->
+    <div v-if="mode === 'control'" class="card p-3 mb-6">
       <div class="flex flex-wrap items-center gap-3">
-        <!-- Event name -->
-        <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-        <span class="text-surface-600 select-none">|</span>
-
-        <!-- Genre toggle — role=group + aria-pressed so toggle state is exposed beyond color -->
+        <!-- Genre -->
         <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
+          <span class="type-label text-content-muted self-center mr-1">GENRE</span>
           <button
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
             :aria-pressed="selectedGenre === g"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
         <span class="text-surface-600 select-none" aria-hidden="true">|</span>
-
-        <!-- Group By toggle -->
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Tabulation method">
+        <!-- View (formerly "Group By") -->
+        <div class="flex flex-wrap gap-1" role="group" aria-label="View">
+          <span class="type-label text-content-muted self-center mr-1">VIEW</span>
           <button
             v-for="t in tabulationMethod"
             :key="t"
             @click="selectedTabulation = t"
             :aria-pressed="selectedTabulation === t"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedTabulation === t
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ t }}</button>
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedTabulation === t ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ t.toUpperCase() }}</button>
         </div>
-        <span class="text-surface-600 select-none" aria-hidden="true">|</span>
-
-        <!-- Show Top toggle -->
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Show top N">
-          <button
-            v-for="n in topNOptions"
-            :key="n"
-            @click="selectedTopN = n"
-            :aria-pressed="selectedTopN === n"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedTopN === n
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ n }}</button>
-        </div>
-
-        <!-- Type toggle (conditional) -->
         <template v-if="hasTeamAndSoloMix">
           <span class="text-surface-600 select-none" aria-hidden="true">|</span>
           <div class="flex flex-wrap gap-1" role="group" aria-label="Entry type">
+            <span class="type-label text-content-muted self-center mr-1">TYPE</span>
             <button
               v-for="t in ['Teams', 'Solo']"
               :key="t"
               @click="selectedEntryType = t"
               :aria-pressed="selectedEntryType === t"
-              class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-              :class="selectedEntryType === t
-                ? 'text-accent border-[color:var(--accent-muted)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >{{ t }}</button>
+              class="para-chip-sm px-3 py-1.5 type-label transition-all"
+              :class="selectedEntryType === t ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+            >{{ t.toUpperCase() }}</button>
           </div>
         </template>
-      </div>
-
-      <!-- Release Results toggle (admin/organiser only) -->
-      <div v-if="isAdminOrOrganiser" class="section-rule mt-4 pt-4">
-        <span class="section-rule-label">Results Portal</span>
-        <div class="section-rule-line"></div>
-      </div>
-      <div v-if="isAdminOrOrganiser" class="flex items-center justify-between mt-3">
-        <p class="type-label text-content-muted">
-          {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
-        </p>
-        <!-- aria-pressed: release toggle exposes its on/off state to assistive tech -->
-        <button
-          @click="toggleRelease"
-          :aria-pressed="resultsReleased"
-          class="type-label transition-all duration-200 inline-flex items-center gap-1.5"
-          :class="resultsReleased
-            ? 'bg-accent para-chip-sm px-3 py-1.5 text-surface-900'
-            : 'para-chip-sm px-3 py-1.5 border-accent text-content-muted hover:text-content-primary'"
-        >
-          <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'" aria-hidden="true"></i>
-          {{ resultsReleased ? 'Released' : 'Release Results' }}
-        </button>
       </div>
     </div>
 
