@@ -409,6 +409,11 @@ const openQR = (name) => {
   }
 }
 
+// Mobile row-action overflow sheet
+const rowActionSheet = ref({ open: false, name: '' })
+function showRowActions(name) { rowActionSheet.value = { open: true, name } }
+function closeRowActions() { rowActionSheet.value.open = false }
+
 // Group feedback tags by group name for display
 const groupTags = (tags) => {
   const groups = {}
@@ -692,11 +697,19 @@ function transformForScore(data) {
               <p v-if="judgeMetaLine(finalRows[0])" class="type-label text-content-muted/70 mt-0.5">{{ judgeMetaLine(finalRows[0]) }}</p>
             </div>
             <span class="type-stat flex-shrink-0" style="font-size: 28px; line-height: 1">{{ finalRows[0].totalScore }}</span>
-            <div v-if="isAdminOrOrganiser" class="flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
+            <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
               <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(finalRows[0].participantName)" :aria-label="`View score breakdown for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
               <button @click="viewFeedback(finalRows[0].participantName)" :aria-label="`View judge feedback for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
               <button v-if="resultsReleased && refsMap[finalRows[0].participantName]" @click="openQR(finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
             </div>
+            <button
+              v-if="isAdminOrOrganiser"
+              @click="showRowActions(finalRows[0].participantName)"
+              :aria-label="`Actions for ${finalRows[0].participantName}`"
+              class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
+            >
+              <i class="pi pi-ellipsis-v text-sm" aria-hidden="true"></i>
+            </button>
           </div>
 
           <!-- Standard rows: rank 2 through N (excluding tied rows when band is rendering) -->
@@ -708,11 +721,19 @@ function transformForScore(data) {
                 <p v-if="judgeMetaLine(row)" class="type-label text-content-muted/50 mt-0.5">{{ judgeMetaLine(row) }}</p>
               </div>
               <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.totalScore }}</span>
-              <div v-if="isAdminOrOrganiser" class="flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
+              <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
                 <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(row.participantName)" :aria-label="`View score breakdown for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
                 <button @click="viewFeedback(row.participantName)" :aria-label="`View judge feedback for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
                 <button v-if="resultsReleased && refsMap[row.participantName]" @click="openQR(row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
               </div>
+              <button
+                v-if="isAdminOrOrganiser"
+                @click="showRowActions(row.participantName)"
+                :aria-label="`Actions for ${row.participantName}`"
+                class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
+              >
+                <i class="pi pi-ellipsis-v text-sm" aria-hidden="true"></i>
+              </button>
             </div>
           </template>
 
@@ -1127,6 +1148,20 @@ function transformForScore(data) {
             <p class="text-sm text-content-muted">No score data available</p>
           </div>
         </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Mobile Row-Action Bottom Sheet -->
+  <Teleport to="body">
+    <div v-if="rowActionSheet.open" class="fixed inset-0 z-50 flex items-end justify-center p-0">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeRowActions"></div>
+      <div role="dialog" aria-modal="true" aria-label="Row actions" class="relative z-10 w-full bg-surface-800 border-t border-surface-600/50 p-4 flex flex-col gap-2" style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
+        <p class="type-label text-content-muted mb-2">{{ rowActionSheet.name.toUpperCase() }}</p>
+        <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-chart-bar"></i>VIEW SCORE BREAKDOWN</button>
+        <button @click="viewFeedback(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-comment"></i>VIEW JUDGE FEEDBACK</button>
+        <button v-if="resultsReleased && refsMap[rowActionSheet.name]" @click="openQR(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
+        <button @click="closeRowActions" class="para-chip-sm type-label px-3 py-3 text-center text-content-muted">CANCEL</button>
       </div>
     </div>
   </Teleport>
