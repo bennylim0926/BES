@@ -44,6 +44,7 @@ public class ScoreService {
             dto.score = s.getValue();
             dto.aspect = s.getAspect() != null ? s.getAspect() : "";
             dto.format = s.getEventGenreParticipant().getFormat();
+            dto.auditionNumber = s.getEventGenreParticipant().getAuditionNumber();
             scoreListDto.add(dto);
         }
         return scoreListDto;
