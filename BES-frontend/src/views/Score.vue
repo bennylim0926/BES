@@ -287,7 +287,6 @@ const finalRows = computed(() => {
 })
 
 // Control-mode status banner — sits below the Top N picker.
-// eslint-disable-next-line no-unused-vars
 const statusBanner = computed(() => {
   const t = topNResult.value
   const total = filteredParticipantsForScore.value.rows?.length ?? 0
@@ -615,6 +614,53 @@ function transformForScore(data) {
             >{{ t.toUpperCase() }}</button>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- Top N hero picker (Control mode only) -->
+    <div v-if="mode === 'control' && selectedTabulation === 'By Total'" class="mb-6">
+      <p class="type-label text-content-muted mb-3">QUALIFY</p>
+      <div class="grid grid-cols-4 gap-2" role="group" aria-label="Qualify top N">
+        <button
+          v-for="n in topNOptions"
+          :key="n"
+          @click="selectedTopN = n"
+          :aria-pressed="selectedTopN === n"
+          class="para-chip py-5 flex flex-col items-center justify-center gap-1 transition-all"
+          :class="selectedTopN === n
+            ? 'border-[color:var(--accent-color)] shadow-[0_0_20px_var(--accent-subtle)]'
+            : 'opacity-50 hover:opacity-90'"
+        >
+          <span class="type-stat" style="font-size: 28px; line-height: 1">{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</span>
+          <span class="type-label" style="font-size: 9px">{{ n === 'All' ? `· ${allRowsForPool.length}` : 'TOP' }}</span>
+        </button>
+      </div>
+
+      <!-- Status banner -->
+      <div
+        v-if="statusBanner"
+        role="status"
+        aria-live="polite"
+        class="mt-4 px-4 py-3 flex items-center gap-3 border-l-[3px]"
+        :class="{
+          'border-emerald-400 bg-emerald-500/8': statusBanner.tone === 'clean',
+          'border-amber-400 bg-amber-500/8':    statusBanner.tone === 'tie',
+          'border-rose-400 bg-rose-500/8':      statusBanner.tone === 'insufficient',
+        }"
+      >
+        <span
+          class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          :class="{
+            'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]': statusBanner.tone === 'clean',
+            'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]':   statusBanner.tone === 'tie',
+            'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.6)]':     statusBanner.tone === 'insufficient',
+          }"
+        ></span>
+        <p class="type-label flex flex-wrap gap-2" :class="{
+          'text-emerald-400': statusBanner.tone === 'clean',
+          'text-amber-400':   statusBanner.tone === 'tie',
+          'text-rose-400':    statusBanner.tone === 'insufficient',
+        }">{{ statusBanner.message }}</p>
       </div>
     </div>
 
