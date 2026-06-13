@@ -361,6 +361,12 @@ default.conf       (dev)        default.prod.conf  (prod)
 
 If you add a new path, update both. **If you forget the prod one, it'll work locally but 404 in production.** There's no automatic sync — this is the one place dev/prod can drift.
 
+### Backend builds inside Docker (multi-stage)
+
+The backend `Dockerfile` is multi-stage: a `maven:3.9-amazoncorretto-17` build stage compiles the JAR, then a slim `amazoncorretto:17` runtime stage runs it. You **never need to install Maven or JDK on the server** — `docker compose up --build` handles everything.
+
+Implication for local dev: you can still run `mvn spring-boot:run` from `BES/` for hot reload (per `CLAUDE.md`), but `docker compose up --build` no longer requires `mvn package` first. The Docker build is self-contained.
+
 ### Why this structure (vs alternatives)
 
 - **Not `docker-compose.override.yml`** — Docker auto-loads that in dev too, which would have broken your local workflow.
