@@ -330,7 +330,7 @@ function judgeMetaLine(row) {
   if (judgeKeys.length <= 1) return ''
   return judgeKeys.map(j => {
     const v = row[j]
-    return v != null ? `${j[0].toUpperCase()} ${v}` : `${j[0].toUpperCase()} —`
+    return v != null ? `${j} ${v}` : `${j} —`
   }).join(' · ')
 }
 
