@@ -13,6 +13,40 @@ Placeholders used throughout — replace before running:
 
 ---
 
+## Pre-flight checklist — read before starting
+
+Roughly ordered by "how much it'll hurt if you skip it."
+
+### Critical — do these before Phase 1
+
+- [ ] **Back up your SSH private key.** Copy `~/.ssh/id_ed25519` to a safe location (password manager secure note, iCloud Keychain, encrypted USB). It's the only thing standing between you and a locked-out server. If your Mac dies without this, you'll need Hetzner Rescue mode to recover.
+- [ ] **Confirm `.env` and `credentials.json` are gitignored** before doing anything else:
+  ```bash
+  git check-ignore -v .env credentials.json
+  # both must print a .gitignore line. If silent → NOT ignored → add to .gitignore NOW
+  ```
+  Leaking either to a public repo = production passwords exposed.
+- [ ] **Enable 2FA on your Hetzner account** + use a strong unique password. Hetzner Console → Security → Two-factor authentication. Your server is one account compromise away from being deleted.
+- [ ] **Set a strong Hetzner Cloud Console root password.** Even with SSH keys, Rescue mode needs the Console password. Don't reuse the SSH passphrase.
+
+### Will bite you eventually
+
+- [ ] **`EMAIL_PASSWORD` must be a Gmail App Password**, not your real Gmail password. Google blocks plain passwords for SMTP. Generate one at: Google Account → Security → 2-Step Verification → App passwords → "Mail". 16 chars, no spaces.
+- [ ] **`BES_SECURE_COOKIE=true` means sessions only work over HTTPS.** If a user lands on `http://<DOMAIN>` and the HTTP→HTTPS redirect breaks, login fails silently with no useful error. Always test login on the actual HTTPS URL.
+- [ ] **`BES_COOKIE_DOMAIN=<DOMAIN>`** must be the bare domain (e.g. `kyrove.xyz`) — NOT `.kyrove.xyz`, NOT `www.kyrove.xyz`. Mismatches cause silent session loss when redirecting between `@` and `www`.
+- [ ] **Domain auto-renewal.** `.xyz` is ~$1 first year, ~$10/yr after. If it expires, your app goes dark. Either set a calendar reminder ~30 days before expiry, or enable Namecheap auto-renew (Domain List → Manage → Auto-Renew toggle).
+- [ ] **NEVER use `docker compose down -v` in production.** The `-v` flag deletes named volumes, including the postgres DB. Hetzner backups are server-wide and won't help if you accidentally nuke just the DB mid-day.
+- [ ] **First deploy runs Flyway migrations on a fresh DB.** Watch backend logs carefully on first `docker compose up`. If a migration fails, the backend won't start — look for `Migration V##__... failed` lines. Not a code issue, a schema issue.
+
+### Operational gotchas
+
+- [ ] **Phase 3 SSH hardening: confirm `deploy` login works from a second terminal BEFORE running 3.3.** If you lock root out without verifying deploy works, you're locked out entirely. Recovery requires Hetzner Rescue mode.
+- [ ] **Phase 6 certbot needs port 80 free.** If you accidentally `docker compose up` before certbot, you'll get "port already in use." Stop containers first: `docker compose down`.
+- [ ] **Hetzner billing is hourly, capped at monthly.** Destroying the server mid-month saves the rest of the month. Keep a card on file with ≥3 months of buffer.
+- [ ] **After this branch merges to master, Phase 5 instructions become wrong.** It says `git checkout feat/deploy-hetzner-https`. Once merged, clone master instead — update the doc accordingly.
+
+---
+
 ## Phase 0 — Prerequisites (~20 min, can run in parallel)
 
 ### 0a. Buy a domain on Namecheap
@@ -272,6 +306,68 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml restart
 
 ### Hetzner snapshot before risky changes
 Hetzner Console → Server → Snapshots → "Take Snapshot". €0.01/GB/mo.
+
+---
+
+## Architecture — how dev and prod configs differ
+
+Four files are involved. Two are shared; two are environment-specific.
+
+| File | When used | What it controls |
+|------|-----------|------------------|
+| `docker-compose.yml` | Always (dev + prod) | Service definitions: frontend, backend, postgres. Build contexts, env vars, ports, named volumes. |
+| `docker-compose.prod.yml` | Prod only (must pass `-f`) | Overrides on top of the base: bind-mounts `/etc/letsencrypt`, swaps in the prod nginx config, adds `restart: unless-stopped`. |
+| `BES-frontend/nginx/default.conf` | Dev only | `server_name=localhost`, self-signed cert. **Baked into the frontend image at build time.** |
+| `BES-frontend/nginx/default.prod.conf` | Prod only | `server_name=<DOMAIN>`, Let's Encrypt cert paths, HTTP→HTTPS redirect, HTTP/2, longer WebSocket timeouts. **Mounted at runtime**, overriding the baked-in dev config. |
+
+### How they're invoked
+
+**Local dev (your Mac):**
+```bash
+docker compose up --build --no-cache
+```
+Reads only `docker-compose.yml`. The frontend image is built with the dev nginx config baked in. Site at `http://localhost`.
+
+**Production (Hetzner server):**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+Merges both compose files. At runtime, the bind mount replaces the baked-in dev config with `default.prod.conf` inside the running container. Site at `https://<DOMAIN>`.
+
+The key insight: **the same image works in both** because nginx reads its config from disk at startup — and the prod compose mounts a different file over the same path.
+
+### Workflow impact
+
+| Activity | Change |
+|----------|--------|
+| Running locally | None — same command as before |
+| Editing Vue / Java code | None |
+| Running tests (`mvn test`, `npm test`) | None |
+| Editing nginx routes (e.g. add `/api/v2/...`) | **Update both `default.conf` AND `default.prod.conf`** — see gotcha below |
+| Deploying changes | SSH to server → `git pull` → run the prod compose command (see "Routine operations") |
+
+You don't need to touch `docker-compose.prod.yml` or `default.prod.conf` during normal dev work. They sit there waiting for the server.
+
+### Maintenance gotcha — duplicated nginx routes
+
+The routing rules (`/api/`, `/ws`, fallback `/`) are duplicated in both nginx configs:
+
+```
+default.conf       (dev)        default.prod.conf  (prod)
+├── /api/   →  backend          ├── /api/   →  backend
+├── /ws     →  backend          ├── /ws     →  backend
+└── /       →  SPA              └── /       →  SPA
+```
+
+If you add a new path, update both. **If you forget the prod one, it'll work locally but 404 in production.** There's no automatic sync — this is the one place dev/prod can drift.
+
+### Why this structure (vs alternatives)
+
+- **Not `docker-compose.override.yml`** — Docker auto-loads that in dev too, which would have broken your local workflow.
+- **Not two separate compose files** — would have duplicated all service definitions (env vars, build contexts, ports), creating drift risk.
+- **Not one templated config with `envsubst`** — adds runtime complexity, harder to read, requires entrypoint script changes.
+
+The override pattern is Docker's recommended way and keeps dev simple while making prod explicit.
 
 ---
 
