@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,7 @@ class AuditionFeedbackServiceTest {
     @Mock FeedbackTagRepository tagRepo;
     @Mock EventGenreParticpantRepo egpRepo;
     @Mock JudgeRepo judgeRepo;
+    @Mock SimpMessagingTemplate messagingTemplate;
     @InjectMocks AuditionFeedbackService service;
 
     @Test

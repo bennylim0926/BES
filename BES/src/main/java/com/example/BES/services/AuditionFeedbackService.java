@@ -16,11 +16,13 @@ import com.example.BES.respositories.FeedbackTagGroupRepository;
 import com.example.BES.respositories.FeedbackTagRepository;
 import com.example.BES.respositories.JudgeRepo;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,6 +43,19 @@ public class AuditionFeedbackService {
 
     @Autowired
     JudgeRepo judgeRepo;
+
+    @Autowired
+    SimpMessagingTemplate messagingTemplate;
+
+    // Same topic as ScoreService — Score.vue re-fetches both score and (open) feedback
+    // panels when this fires. Single topic keeps the frontend subscription simple.
+    private void broadcastScoreChange(String eventName, String reason) {
+        if (eventName == null) return;
+        messagingTemplate.convertAndSend(
+            "/topic/score/" + eventName,
+            Map.of("type", reason, "eventName", eventName)
+        );
+    }
 
     public List<GetFeedbackGroupDto> getAllFeedbackGroups() {
         List<FeedbackTagGroup> groups = tagGroupRepo.findAll();
@@ -104,6 +119,7 @@ public class AuditionFeedbackService {
         feedback.setTags(selectedTags);
         feedback.setNote(dto.getNote());
         feedbackRepo.save(feedback);
+        broadcastScoreChange(dto.getEventName(), "feedback-updated");
     }
 
     public List<GetParticipantFeedbackDto> getAllFeedbackForParticipant(
@@ -125,6 +141,7 @@ public class AuditionFeedbackService {
 
     public void resetFeedbackByJudge(String eventName, String genreName, String judgeName) {
         feedbackRepo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+        broadcastScoreChange(eventName, "feedback-reset");
     }
 
     public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,

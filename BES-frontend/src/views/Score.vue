@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants } from '@/utils/api';
-import DynamicTable from '@/components/DynamicTable.vue';
+import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
 
 const authStore = useAuthStore()
@@ -17,6 +18,17 @@ const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 // Auth
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
+
+// ── Mode toggle: Control (organiser) vs Broadcast (emcee) ─────────────────
+// Default is role-driven; user choice persists per event in localStorage.
+const modeKey = computed(() => `score_mode_${selectedEvent.value || 'global'}`)
+const initialMode = (() => {
+  const saved = localStorage.getItem(`score_mode_${authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || 'global'}`)
+  if (saved === 'control' || saved === 'broadcast') return saved
+  return userRole.value === 'ROLE_EMCEE' ? 'broadcast' : 'control'
+})()
+const mode = ref(initialMode)
+watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadcast')) localStorage.setItem(k, m) })
 
 // Results release state (admin/organiser only)
 const resultsReleased = ref(false)
@@ -38,6 +50,7 @@ const feedbackLoading = ref(false)
 // Tie-breaker resolution state
 const tieBreakerWinners = ref(new Set())
 const tieBreakerConfirmed = ref(false)
+const addedToPool = ref(new Set()) // manually-added pool members for the tie resolver
 
 // localStorage key scoped to event + genre + tabulation + topN
 const tbKey = computed(() =>
@@ -47,22 +60,26 @@ const saveTieBreaker = () => {
   localStorage.setItem(tbKey.value, JSON.stringify({
     winners: [...tieBreakerWinners.value],
     confirmed: tieBreakerConfirmed.value,
+    addedToPool: [...addedToPool.value],
   }))
 }
 const loadTieBreaker = () => {
   const saved = localStorage.getItem(tbKey.value)
   if (saved) {
-    const { winners, confirmed } = JSON.parse(saved)
+    const { winners, confirmed, addedToPool: added } = JSON.parse(saved)
     tieBreakerWinners.value = new Set(winners)
     tieBreakerConfirmed.value = confirmed
+    addedToPool.value = new Set(Array.isArray(added) ? added : [])
   } else {
     tieBreakerWinners.value = new Set()
     tieBreakerConfirmed.value = false
+    addedToPool.value = new Set()
   }
 }
 const resetTieBreaker = () => {
   tieBreakerWinners.value = new Set()
   tieBreakerConfirmed.value = false
+  addedToPool.value = new Set()
   localStorage.removeItem(tbKey.value)
 }
 
@@ -96,12 +113,47 @@ const loadAdminData = async (eventName) => {
   refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
 }
 
+// Re-fetch scores only — used by both the event watcher and the WebSocket signal.
+const refetchScores = async (eventName) => {
+  if (!eventName) return
+  const res = await getParticipantScore(eventName)
+  participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+}
+
+// ── Live updates via WebSocket ────────────────────────────────────────────
+// Backend broadcasts to /topic/score/{eventName} on score or feedback save/reset.
+// On any signal we re-fetch the full score list — payload is intentionally tiny.
+// If the feedback panel is open we also re-fetch its data.
+const wsClient = ref(null)
+const subscribeScoreUpdates = (eventName) => {
+  if (wsClient.value) {
+    deactivateClient(wsClient.value)
+    wsClient.value = null
+  }
+  if (!eventName) return
+  wsClient.value = createClient()
+  subscribeToChannel(wsClient.value, `/topic/score/${eventName}`, async () => {
+    await refetchScores(eventName)
+    // Refresh the open feedback panel for the visible participant, if any.
+    if (showFeedbackPanel.value && feedbackParticipant.value && selectedGenre.value) {
+      const fb = await getParticipantFeedback(eventName, selectedGenre.value, feedbackParticipant.value)
+      feedbackData.value = fb ?? []
+    }
+  })
+}
+onUnmounted(() => {
+  if (wsClient.value) {
+    deactivateClient(wsClient.value)
+    wsClient.value = null
+  }
+})
+
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
-    const res = await getParticipantScore(newVal)
-    participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
+    await refetchScores(newVal)
     await loadAdminData(newVal)
+    subscribeScoreUpdates(newVal)
   }
 }, { immediate: true });
 
@@ -175,6 +227,36 @@ const tiedParticipants = computed(() => {
   return rows.slice(rows.length - topNResult.value.tiedCount)
 })
 
+// Full ranked rows for the current genre+type, used to feed the pool helpers.
+const allRowsForPool = computed(() => filteredParticipantsForScore.value.rows ?? [])
+
+// Tie base = the auto-detected tied participants (cannot be removed from pool).
+const tieBaseNames = computed(() => new Set(tiedParticipants.value.map(r => r.participantName)))
+
+// Full pool = base + added (set).
+const eligibilityPoolNames = computed(() => {
+  const s = new Set(tieBaseNames.value)
+  for (const n of addedToPool.value) s.add(n)
+  return s
+})
+
+// Ordered list of added members (rank-sorted).
+const addedToPoolOrdered = computed(() =>
+  addedPoolOrdered(allRowsForPool.value, addedToPool.value)
+)
+
+// Next eligible to add — drives "+ INCLUDE <name> · <score>" button label.
+const nextEligibleAdd = computed(() =>
+  topNResult.value.hasTieBreaker
+    ? computeNextEligibleAdd(allRowsForPool.value, eligibilityPoolNames.value)
+    : null
+)
+
+// Next eligible to remove — drives "− EXCLUDE <name> · <score>" button label.
+const nextEligibleRemove = computed(() =>
+  computeNextEligibleRemove(allRowsForPool.value, tieBaseNames.value, addedToPool.value)
+)
+
 const toggleWinner = (name) => {
   const w = new Set(tieBreakerWinners.value)
   if (w.has(name)) {
@@ -201,6 +283,30 @@ const confirmTieBreaker = async () => {
   }
 }
 
+const includeNextInPool = () => {
+  const next = nextEligibleAdd.value
+  if (!next) return
+  const s = new Set(addedToPool.value)
+  s.add(next.participantName)
+  addedToPool.value = s
+  tieBreakerConfirmed.value = false
+  saveTieBreaker()
+}
+
+const excludeLastFromPool = () => {
+  const last = nextEligibleRemove.value
+  if (!last) return
+  const s = new Set(addedToPool.value)
+  s.delete(last.participantName)
+  // Also drop them from the winners selection if they were picked.
+  const w = new Set(tieBreakerWinners.value)
+  w.delete(last.participantName)
+  addedToPool.value = s
+  tieBreakerWinners.value = w
+  tieBreakerConfirmed.value = false
+  saveTieBreaker()
+}
+
 // Final rows for table & podium
 const finalRows = computed(() => {
   if (!topNResult.value.rows) return []
@@ -208,25 +314,85 @@ const finalRows = computed(() => {
     return topNResult.value.rows
   }
   const above = topNResult.value.rows.slice(0, topNResult.value.aboveCount)
-  const winners = tiedParticipants.value.filter(r => tieBreakerWinners.value.has(r.participantName))
+  // Winners can come from the tie base OR the manually-added pool.
+  const poolRows = [...tiedParticipants.value, ...addedToPoolOrdered.value]
+  const winners = poolRows.filter(r => tieBreakerWinners.value.has(r.participantName))
   return [...above, ...winners].map((r, i) => ({ ...r, id: i + 1 }))
 })
 
-// Pagination for the admin/organiser table
-const PAGE_SIZE = 10
-const tablePage = ref(1)
-watch(finalRows, () => { tablePage.value = 1 })
-const totalTablePages = computed(() => Math.max(1, Math.ceil(finalRows.value.length / PAGE_SIZE)))
-const pagedFinalRows = computed(() =>
-  finalRows.value.slice((tablePage.value - 1) * PAGE_SIZE, tablePage.value * PAGE_SIZE)
-)
-
-// Judge column keys for the custom admin table
-const judgeColumnKeys = computed(() => {
-  if (!topNResult.value.columns) return []
-  return topNResult.value.columns
+// Per-row judge-score meta line — "A 7.2 · J 7.1 · M 7.0 · S 7.1".
+function judgeMetaLine(row) {
+  if (!topNResult.value.columns) return ''
+  const judgeKeys = topNResult.value.columns
     .filter(c => !['id', 'participantName', 'totalScore'].includes(c.key))
     .map(c => c.key)
+  // Skip when 1 judge — the per-judge value duplicates the total shown on the right.
+  if (judgeKeys.length <= 1) return ''
+  return judgeKeys.map(j => {
+    const v = row[j]
+    return v != null ? `${j} ${v}` : `${j} —`
+  }).join(' · ')
+}
+
+// Standard in-cut rows (after rank 1, excluding the tied band rows when they're rendering).
+const inCutStandardRows = computed(() => {
+  if (!finalRows.value.length) return []
+  const skipFromEnd = (topNResult.value.hasTieBreaker && !tieBreakerConfirmed.value)
+    ? topNResult.value.tiedCount
+    : 0
+  return finalRows.value.slice(1, finalRows.value.length - skipFromEnd)
+})
+
+// Eliminated rows (below the cut), only computed when expanded.
+const eliminatedRows = computed(() => {
+  const visible = new Set(finalRows.value.map(r => r.participantName))
+  return allRowsForPool.value
+    .filter(r => !visible.has(r.participantName))
+    .map((r, i) => ({ ...r, id: finalRows.value.length + i + 1 }))
+})
+
+// Control-mode status banner — sits below the Top N picker.
+const statusBanner = computed(() => {
+  const t = topNResult.value
+  const total = filteredParticipantsForScore.value.rows?.length ?? 0
+  const n = selectedTopN.value === 'All' ? Infinity : parseInt(selectedTopN.value.replace('Top ', ''))
+  if (!Number.isFinite(n)) return null
+  if (total < n) {
+    return { tone: 'insufficient', message: `ONLY ${total} SCORED — TOP ${n} NOT YET REACHABLE` }
+  }
+  if (t.hasTieBreaker && !tieBreakerConfirmed.value) {
+    return { tone: 'tie', message: `TIE AT RANK ${t.cutoff} — ${t.tiedCount} AT ${t.tieBreakerScore} — RESOLVE BELOW` }
+  }
+  // After confirm, the inline emerald banner at the cut already says "TOP N CONFIRMED" —
+  // showing a second status banner up here is redundant.
+  if (t.hasTieBreaker && tieBreakerConfirmed.value) return null
+  return { tone: 'clean', message: `TOP ${n} READY — 0 TIES` }
+})
+
+// Summary of eliminated participants — drives the "⋯ N MORE ELIMINATED ⋯" collapse.
+const eliminatedSummary = computed(() => {
+  const all = allRowsForPool.value
+  const visible = new Set(finalRows.value.map(r => r.participantName))
+  const eliminated = all.filter(r => !visible.has(r.participantName))
+  if (eliminated.length === 0) return null
+  const lowestScore = Math.min(...eliminated.map(r => r.totalScore))
+  return { count: eliminated.length, lowestScore }
+})
+
+const eliminatedExpanded = ref(false)
+
+// Broadcast-mode column count — 1 below 640px or for very small N, 2 otherwise.
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const onResize = () => { viewportWidth.value = window.innerWidth }
+onMounted(() => { window.addEventListener('resize', onResize) })
+onUnmounted(() => { window.removeEventListener('resize', onResize) })
+
+const broadcastColumns = computed(() => {
+  if (viewportWidth.value < 640) return '1col'
+  const n = selectedTopN.value === 'All'
+    ? (allRowsForPool.value?.length ?? 0)
+    : parseInt(selectedTopN.value.replace('Top ', ''))
+  return n <= 12 ? '1col' : '2col'
 })
 
 // Release results toggle
@@ -282,6 +448,11 @@ const openQR = (name) => {
     window.open(`/results-qr?ref=${encodeURIComponent(ref)}&name=${encodeURIComponent(name)}`, '_blank')
   }
 }
+
+// Mobile row-action overflow sheet
+const rowActionSheet = ref({ open: false, name: '' })
+function showRowActions(name) { rowActionSheet.value = { open: true, name } }
+function closeRowActions() { rowActionSheet.value.open = false }
 
 // Group feedback tags by group name for display
 const groupTags = (tags) => {
@@ -415,412 +586,349 @@ function transformForScore(data) {
     <div class="color-bleed"></div>
     <div class="relative z-10">
 
-    <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
-      <div>
-        <!-- h1 for document outline -->
-        <h1 class="type-page-title mb-1">Scoreboard</h1>
-        <p class="type-label text-content-muted">View and compare scores across genres and judges</p>
+    <!-- Header row — title block is Control-only; Broadcast renders its own header below.
+         Release pill is Control-only (spec §4.1). Mode toggle stays in both modes so user can flip. -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+      <div v-if="mode === 'control'">
+        <p class="type-label text-content-muted mb-1">SCOREBOARD · {{ selectedEvent }}</p>
+        <h1 class="type-page-title">
+          {{ selectedGenre || 'No Genre' }}
+          <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
+        </h1>
+      </div>
+      <div v-else></div>
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Release Results pill (admin/organiser only, Control mode only) -->
+        <button
+          v-if="isAdminOrOrganiser && mode === 'control'"
+          @click="toggleRelease"
+          :aria-pressed="resultsReleased"
+          class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all"
+          :class="resultsReleased
+            ? 'border-emerald-500/40 text-emerald-400'
+            : 'text-content-muted hover:text-content-primary'"
+        >
+          <span class="w-1.5 h-1.5 rounded-full" :class="resultsReleased ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]' : 'bg-content-muted/40'"></span>
+          {{ resultsReleased ? 'RELEASED' : 'HIDDEN' }}
+        </button>
+        <!-- Mode toggle -->
+        <div class="flex p-0.5 border border-surface-600 bg-surface-800/50" role="group" aria-label="Display mode">
+          <button
+            v-for="m in ['control', 'broadcast']"
+            :key="m"
+            @click="mode = m"
+            :aria-pressed="mode === m"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="mode === m
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+          >{{ m.toUpperCase() }}</button>
+        </div>
       </div>
     </div>
 
-    <!-- Filter card -->
-    <div class="card p-5 mb-6">
+    <!-- Secondary filter row (Control mode only) -->
+    <div v-if="mode === 'control'" class="card p-3 mb-6">
       <div class="flex flex-wrap items-center gap-3">
-        <!-- Event name -->
-        <span class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
-        <span class="text-surface-600 select-none">|</span>
-
-        <!-- Genre toggle — role=group + aria-pressed so toggle state is exposed beyond color -->
+        <!-- Genre -->
         <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
+          <span class="type-label text-content-muted self-center mr-1">GENRE</span>
           <button
             v-for="g in uniqueGenres"
             :key="g"
             @click="selectedGenre = g"
             :aria-pressed="selectedGenre === g"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedGenre === g
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
         <span class="text-surface-600 select-none" aria-hidden="true">|</span>
-
-        <!-- Group By toggle -->
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Tabulation method">
+        <!-- View (formerly "Group By") -->
+        <div class="flex flex-wrap gap-1" role="group" aria-label="View">
+          <span class="type-label text-content-muted self-center mr-1">VIEW</span>
           <button
             v-for="t in tabulationMethod"
             :key="t"
             @click="selectedTabulation = t"
             :aria-pressed="selectedTabulation === t"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedTabulation === t
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ t }}</button>
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedTabulation === t ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ t.toUpperCase() }}</button>
         </div>
-        <span class="text-surface-600 select-none" aria-hidden="true">|</span>
-
-        <!-- Show Top toggle -->
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Show top N">
-          <button
-            v-for="n in topNOptions"
-            :key="n"
-            @click="selectedTopN = n"
-            :aria-pressed="selectedTopN === n"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-            :class="selectedTopN === n
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ n }}</button>
-        </div>
-
-        <!-- Type toggle (conditional) -->
         <template v-if="hasTeamAndSoloMix">
           <span class="text-surface-600 select-none" aria-hidden="true">|</span>
           <div class="flex flex-wrap gap-1" role="group" aria-label="Entry type">
+            <span class="type-label text-content-muted self-center mr-1">TYPE</span>
             <button
               v-for="t in ['Teams', 'Solo']"
               :key="t"
               @click="selectedEntryType = t"
               :aria-pressed="selectedEntryType === t"
-              class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
-              :class="selectedEntryType === t
-                ? 'text-accent border-[color:var(--accent-muted)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >{{ t }}</button>
+              class="para-chip-sm px-3 py-1.5 type-label transition-all"
+              :class="selectedEntryType === t ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+            >{{ t.toUpperCase() }}</button>
           </div>
         </template>
       </div>
+    </div>
 
-      <!-- Release Results toggle (admin/organiser only) -->
-      <div v-if="isAdminOrOrganiser" class="section-rule mt-4 pt-4">
-        <span class="section-rule-label">Results Portal</span>
-        <div class="section-rule-line"></div>
-      </div>
-      <div v-if="isAdminOrOrganiser" class="flex items-center justify-between mt-3">
-        <p class="type-label text-content-muted">
-          {{ resultsReleased ? 'Participants can view their scores and feedback' : 'Results are hidden from participants' }}
-        </p>
-        <!-- aria-pressed: release toggle exposes its on/off state to assistive tech -->
+    <!-- Top N hero picker (Control mode only) -->
+    <div v-if="mode === 'control' && selectedTabulation === 'By Total'" class="mb-6">
+      <p class="type-label text-content-muted mb-3">QUALIFY</p>
+      <div class="grid grid-cols-4 gap-2" role="group" aria-label="Qualify top N">
         <button
-          @click="toggleRelease"
-          :aria-pressed="resultsReleased"
-          class="type-label transition-all duration-200 inline-flex items-center gap-1.5"
-          :class="resultsReleased
-            ? 'bg-accent para-chip-sm px-3 py-1.5 text-surface-900'
-            : 'para-chip-sm px-3 py-1.5 border-accent text-content-muted hover:text-content-primary'"
+          v-for="n in topNOptions"
+          :key="n"
+          @click="selectedTopN = n"
+          :aria-pressed="selectedTopN === n"
+          class="para-chip py-5 flex flex-col items-center justify-center gap-1 transition-all"
+          :class="selectedTopN === n
+            ? 'border-[color:var(--accent-color)] shadow-[0_0_20px_var(--accent-subtle)]'
+            : 'opacity-50 hover:opacity-90'"
         >
-          <i :class="resultsReleased ? 'pi pi-eye' : 'pi pi-eye-slash'" aria-hidden="true"></i>
-          {{ resultsReleased ? 'Released' : 'Release Results' }}
+          <span v-if="n !== 'All'" class="type-label" style="font-size: 9px">TOP</span>
+          <span class="type-stat" style="font-size: 28px; line-height: 1">{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</span>
+          <span v-if="n === 'All'" class="type-label" style="font-size: 9px">· {{ allRowsForPool.length }}</span>
         </button>
+      </div>
+
+      <!-- Status banner -->
+      <div
+        v-if="statusBanner"
+        role="status"
+        aria-live="polite"
+        class="mt-4 px-4 py-3 flex items-center gap-3 border-l-[3px]"
+        :class="{
+          'border-emerald-400 bg-emerald-500/8': statusBanner.tone === 'clean',
+          'border-amber-400 bg-amber-500/8':    statusBanner.tone === 'tie',
+          'border-rose-400 bg-rose-500/8':      statusBanner.tone === 'insufficient',
+        }"
+      >
+        <span
+          class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          :class="{
+            'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]': statusBanner.tone === 'clean',
+            'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]':   statusBanner.tone === 'tie',
+            'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.6)]':     statusBanner.tone === 'insufficient',
+          }"
+        ></span>
+        <p class="type-label flex flex-wrap gap-2" :class="{
+          'text-emerald-400': statusBanner.tone === 'clean',
+          'text-amber-400':   statusBanner.tone === 'tie',
+          'text-rose-400':    statusBanner.tone === 'insufficient',
+        }">{{ statusBanner.message }}</p>
       </div>
     </div>
 
-    <!-- By Total: ranked leaderboard -->
-    <template v-if="selectedTabulation === 'By Total'">
+    <!-- By Total: cut-line leaderboard -->
+    <template v-if="mode === 'control' && selectedTabulation === 'By Total'">
       <div v-if="topNResult.rows && topNResult.rows.length > 0">
+        <p class="type-label text-content-muted mb-3 flex justify-between">
+          <span>RANKINGS · {{ allRowsForPool.length }} SCORED</span>
+        </p>
 
-        <!-- Tie-breaker section -->
-        <template v-if="topNResult.hasTieBreaker">
-
-          <!-- Resolved banner -->
+        <!-- Rows -->
+        <div class="flex flex-col gap-1">
+          <!-- Leader row: rank 1, in cut, larger -->
           <div
-            v-if="tieBreakerConfirmed"
-            class="flex items-center justify-between gap-3 px-4 py-3 mb-5 rounded-xl border border-emerald-500/40 bg-emerald-500/8"
+            v-if="finalRows[0]"
+            class="para-chip flex items-start gap-3 px-4 py-3 border-l-[3px] border-[color:var(--accent-color)]"
           >
-            <div class="flex items-center gap-3">
-              <i class="pi pi-check-circle text-emerald-400 flex-shrink-0"></i>
-              <div>
-                <p class="text-sm font-bold text-emerald-400">Tie-breaker resolved</p>
-                <p class="text-xs text-emerald-300/80 mt-0.5">
-                  {{ tieBreakerWinners.size }} participant{{ tieBreakerWinners.size > 1 ? 's' : '' }} advanced from the tie at score {{ topNResult.tieBreakerScore }}.
-                  {{ topNResult.tiedCount - tieBreakerWinners.size }} eliminated.
-                </p>
-              </div>
+            <span class="type-stat flex-shrink-0" style="font-size: 24px; line-height: 1; min-width: 40px">{{ finalRows[0].id }}</span>
+            <div class="flex-1 min-w-0">
+              <p class="type-body text-content-primary" style="font-size: 16px">{{ finalRows[0].participantName }}</p>
+              <p v-if="judgeMetaLine(finalRows[0])" class="type-label text-content-muted/70 mt-0.5">{{ judgeMetaLine(finalRows[0]) }}</p>
+            </div>
+            <span class="type-stat flex-shrink-0" style="font-size: 28px; line-height: 1">{{ finalRows[0].totalScore }}</span>
+            <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
+              <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(finalRows[0].participantName)" :aria-label="`View score breakdown for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
+              <button @click="viewFeedback(finalRows[0].participantName)" :aria-label="`View judge feedback for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
+              <button v-if="resultsReleased && refsMap[finalRows[0].participantName]" @click="openQR(finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
             </div>
             <button
-              @click="resetTieBreaker"
-              class="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg border border-surface-600/50 bg-surface-700/50
-                     text-content-muted hover:border-surface-500 hover:bg-surface-700 transition-all"
+              v-if="isAdminOrOrganiser"
+              @click="showRowActions(finalRows[0].participantName)"
+              :aria-label="`Actions for ${finalRows[0].participantName}`"
+              class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
             >
-              Reset
+              <i class="pi pi-ellipsis-v text-sm" aria-hidden="true"></i>
             </button>
           </div>
 
-          <!-- Pending banner + resolution panel -->
-          <template v-else>
-            <!-- Warning banner -->
-            <div class="flex items-start gap-3 px-4 py-3 mb-4 rounded-xl border border-amber-500/40 bg-amber-500/8">
-              <i class="pi pi-exclamation-triangle text-amber-400 mt-0.5 flex-shrink-0"></i>
-              <div>
-                <p class="text-sm font-bold text-amber-400">Tie-breaker required at rank {{ topNResult.cutoff }}</p>
-                <p class="text-xs text-amber-300/80 mt-0.5">
-                  {{ topNResult.tiedCount }} participants tied at score {{ topNResult.tieBreakerScore }}.
-                  {{ spotsFromTie }} spot{{ spotsFromTie > 1 ? 's' : '' }} available — select who advances below.
-                </p>
+          <!-- Standard rows: rank 2 through N (excluding tied rows when band is rendering) -->
+          <template v-for="row in inCutStandardRows" :key="row.participantName">
+            <div class="para-chip flex items-start gap-3 px-4 py-2 bg-surface-700/10">
+              <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
+              <div class="flex-1 min-w-0">
+                <p class="type-body text-content-primary">{{ row.participantName }}</p>
+                <p v-if="judgeMetaLine(row)" class="type-label text-content-muted/50 mt-0.5">{{ judgeMetaLine(row) }}</p>
               </div>
+              <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.totalScore }}</span>
+              <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
+                <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(row.participantName)" :aria-label="`View score breakdown for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
+                <button @click="viewFeedback(row.participantName)" :aria-label="`View judge feedback for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
+                <button v-if="resultsReleased && refsMap[row.participantName]" @click="openQR(row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
+              </div>
+              <button
+                v-if="isAdminOrOrganiser"
+                @click="showRowActions(row.participantName)"
+                :aria-label="`Actions for ${row.participantName}`"
+                class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
+              >
+                <i class="pi pi-ellipsis-v text-sm" aria-hidden="true"></i>
+              </button>
+            </div>
+          </template>
+
+          <!-- Tie resolver band -->
+          <div
+            v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
+            role="region"
+            aria-label="Tie-breaker resolution"
+            class="border border-amber-500/40 bg-amber-500/[0.05] p-4 my-3"
+          >
+            <!-- Header -->
+            <div class="flex justify-between items-baseline mb-3 flex-wrap gap-2">
+              <span class="type-label text-amber-400 font-bold">
+                RESOLVE TIE @ {{ topNResult.tieBreakerScore }} — POOL OF {{ eligibilityPoolNames.size }} FOR {{ spotsFromTie }} SPOT{{ spotsFromTie > 1 ? 'S' : '' }}
+              </span>
+              <span class="type-label text-content-muted">{{ tieBreakerWinners.size }} SELECTED</span>
             </div>
 
-            <!-- Resolution panel -->
-            <div class="card p-5 mb-6 border-amber-500/25">
-              <div class="flex items-center justify-between mb-4">
-                <div>
-                  <h3 class="font-heading font-bold text-content-primary text-sm">Tie-breaker Resolution</h3>
-                  <p class="text-xs text-content-muted mt-0.5">
-                    Select <span class="font-bold text-amber-400">{{ spotsFromTie }}</span>
-                    participant{{ spotsFromTie > 1 ? 's' : '' }} who advance{{ spotsFromTie === 1 ? 's' : '' }}
-                  </p>
+            <!-- Tie base section -->
+            <p class="type-label text-content-muted/60 mb-1" style="font-size: 8px; letter-spacing: 0.24em">TIE BASE · LOCKED</p>
+            <div class="flex flex-col gap-1 mb-3">
+              <button
+                v-for="p in tiedParticipants"
+                :key="p.participantName"
+                @click="toggleWinner(p.participantName)"
+                :disabled="!tieBreakerWinners.has(p.participantName) && tieBreakerWinners.size >= spotsFromTie"
+                :aria-pressed="tieBreakerWinners.has(p.participantName)"
+                class="flex items-center justify-between px-3 py-2 border-l-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                :class="tieBreakerWinners.has(p.participantName)
+                  ? 'bg-emerald-500/10 border-emerald-400 ring-1 ring-emerald-500/30'
+                  : 'bg-surface-700/10 border-surface-600/40 hover:border-surface-500'"
+              >
+                <div class="flex items-center gap-3">
+                  <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                    :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
+                    <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
+                  </span>
+                  <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
+                    {{ p.participantName }}
+                  </span>
                 </div>
-                <!-- Slot counter -->
-                <div class="flex items-center gap-1.5">
-                  <span
-                    class="font-source font-bold text-lg leading-none"
-                    :class="tieBreakerWinners.size === spotsFromTie ? 'text-emerald-400' : 'text-amber-400'"
-                  >{{ tieBreakerWinners.size }}</span>
-                  <span class="text-content-muted text-sm">/</span>
-                  <span class="font-source font-bold text-lg text-content-muted leading-none">{{ spotsFromTie }}</span>
-                  <span class="text-xs text-content-muted ml-1">selected</span>
+                <div class="flex items-center gap-2">
+                  <span class="type-stat" style="font-size: 14px">{{ p.totalScore }}</span>
+                  <span v-if="tieBreakerWinners.has(p.participantName)" class="type-label px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">ADVANCES</span>
                 </div>
-              </div>
+              </button>
+            </div>
 
-              <!-- Tied participant toggles -->
-              <div class="flex flex-col gap-2 mb-5">
+            <!-- Added pool section -->
+            <template v-if="addedToPoolOrdered.length > 0">
+              <div class="relative h-px my-3" style="background: linear-gradient(90deg, transparent, rgba(245,158,11,0.4), transparent);">
+                <span class="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-surface-900 px-2 type-label text-amber-400" style="font-size: 8px">ADDED · {{ addedToPoolOrdered.length }}</span>
+              </div>
+              <div class="flex flex-col gap-1 mb-3">
                 <button
-                  v-for="p in tiedParticipants"
+                  v-for="p in addedToPoolOrdered"
                   :key="p.participantName"
                   @click="toggleWinner(p.participantName)"
                   :disabled="!tieBreakerWinners.has(p.participantName) && tieBreakerWinners.size >= spotsFromTie"
-                  class="flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-150 text-left
-                         disabled:opacity-40 disabled:cursor-not-allowed"
-                  :class="tieBreakerWinners.has(p.participantName)
-                    ? 'bg-emerald-500/10 border-emerald-500/50 ring-1 ring-emerald-500/30'
-                    : 'bg-surface-700/30 border-surface-600/40 hover:border-surface-500/60 hover:bg-surface-700/50'"
+                  :aria-pressed="tieBreakerWinners.has(p.participantName)"
+                  class="flex items-center justify-between px-3 py-2 border-l-2 border-amber-500/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500/10 ring-1 ring-emerald-500/30' : 'bg-surface-700/10 hover:bg-surface-700/30'"
                 >
                   <div class="flex items-center gap-3">
-                    <!-- Check indicator -->
-                    <div
-                      class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                      :class="tieBreakerWinners.has(p.participantName)
-                        ? 'bg-emerald-500 border-emerald-500'
-                        : 'border-surface-500'"
-                    >
-                      <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size:10px"></i>
-                    </div>
-                    <span
-                      class="font-heading font-bold text-sm"
-                      :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400' : 'text-content-primary'"
-                    >
+                    <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                      :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
+                      <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
+                    </span>
+                    <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
                       {{ p.participantName }}
                     </span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="font-source font-bold text-content-muted text-sm">{{ p.totalScore }}</span>
-                    <span
-                      v-if="tieBreakerWinners.has(p.participantName)"
-                      class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold"
-                    >Advances</span>
-                    <span
-                      v-else-if="tieBreakerWinners.size >= spotsFromTie"
-                      class="text-xs px-2 py-0.5 rounded-full bg-surface-700 text-surface-400 border border-surface-600/30 font-semibold"
-                    >Eliminated</span>
+                    <span class="type-stat" style="font-size: 14px">{{ p.totalScore }}</span>
+                    <span v-if="tieBreakerWinners.has(p.participantName)" class="type-label px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">ADVANCES</span>
                   </div>
                 </button>
               </div>
+            </template>
 
-              <!-- Confirm button -->
+            <!-- Stepper buttons -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button
+                @click="excludeLastFromPool"
+                :disabled="!nextEligibleRemove"
+                :aria-label="nextEligibleRemove ? `Exclude ${nextEligibleRemove.participantName} from tie pool, score ${nextEligibleRemove.totalScore}` : 'Exclude (disabled)'"
+                :aria-disabled="!nextEligibleRemove"
+                class="para-chip-sm px-3 py-2.5 type-label text-left disabled:opacity-30 disabled:cursor-not-allowed text-content-muted hover:text-content-primary"
+              >
+                <span class="opacity-50">−  EXCLUDE</span>&nbsp;
+                <span v-if="nextEligibleRemove">{{ nextEligibleRemove.participantName }} · {{ nextEligibleRemove.totalScore }}</span>
+                <span v-else>—</span>
+              </button>
+              <button
+                @click="includeNextInPool"
+                :disabled="!nextEligibleAdd"
+                :aria-label="nextEligibleAdd ? `Include ${nextEligibleAdd.participantName} in tie pool, score ${nextEligibleAdd.totalScore}` : 'Include (disabled)'"
+                :aria-disabled="!nextEligibleAdd"
+                class="para-chip-sm px-3 py-2.5 type-label text-left bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/15 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <span class="opacity-70">+  INCLUDE</span>&nbsp;
+                <span v-if="nextEligibleAdd">{{ nextEligibleAdd.participantName }} · {{ nextEligibleAdd.totalScore }}</span>
+                <span v-else>—</span>
+              </button>
+            </div>
+
+            <!-- Confirm + Reset -->
+            <div class="flex gap-2">
               <button
                 @click="confirmTieBreaker"
                 :disabled="tieBreakerWinners.size !== spotsFromTie"
-                class="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200
-                       disabled:opacity-30 disabled:cursor-not-allowed"
-                :class="tieBreakerWinners.size === spotsFromTie
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:bg-emerald-700'
-                  : 'bg-surface-700 text-content-muted border border-surface-600'"
+                class="flex-1 py-2.5 type-label font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                :class="tieBreakerWinners.size === spotsFromTie ? 'bg-emerald-500 text-surface-900 hover:bg-emerald-400' : 'bg-surface-700 text-content-muted border border-surface-600'"
               >
-                <i class="pi pi-check mr-2"></i>
-                Confirm Tie-breaker Result
+                <i class="pi pi-check mr-1"></i>CONFIRM TOP {{ topNResult.cutoff }}
               </button>
-            </div>
-          </template>
-        </template>
-
-        <!-- Top 3 podium cards — single column on mobile (winner first), 2-1-3 layout on sm+ -->
-        <div
-          v-if="finalRows.length >= 3"
-          class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"
-        >
-          <div class="stat-card relative order-2 sm:order-1">
-            <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">2nd</span>
-            <div class="type-body text-content-secondary mb-1">
-              {{ finalRows[1].participantName }}
-            </div>
-            <div class="type-stat">
-              {{ finalRows[1].totalScore }}
+              <button @click="resetTieBreaker" class="px-4 py-2.5 type-label border border-surface-600 text-content-muted hover:text-content-primary">RESET</button>
             </div>
           </div>
+          <div v-else-if="topNResult.hasTieBreaker && tieBreakerConfirmed" class="px-4 py-2 border-l-2 border-emerald-400 bg-emerald-500/8 type-label text-emerald-400 flex items-center justify-between">
+            <span>✓ TOP {{ topNResult.cutoff }} CONFIRMED — {{ tieBreakerWinners.size }} ADVANCED</span>
+            <button @click="resetTieBreaker" class="type-label text-content-muted hover:text-content-primary">RESET</button>
+          </div>
+
+          <!-- Top N line (separator) -->
           <div
-            class="stat-card relative order-1 sm:order-2"
-            style="box-shadow: 0 0 0 1px var(--accent-muted), 0 8px 40px var(--accent-subtle);"
+            v-if="topNResult.rows.length >= (selectedTopN === 'All' ? 0 : parseInt(selectedTopN.replace('Top ','')))
+                  && selectedTopN !== 'All'
+                  && (!topNResult.hasTieBreaker || tieBreakerConfirmed)"
+            role="separator"
+            :aria-label="`Top ${topNResult.cutoff} line`"
+            class="relative h-px my-3"
+            style="background: linear-gradient(90deg, transparent, var(--accent-color) 50%, transparent); box-shadow: 0 0 12px var(--accent-muted);"
           >
-            <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">1st</span>
-            <div class="type-body text-content-primary mb-1">
-              {{ finalRows[0].participantName }}
-            </div>
-            <div class="type-stat text-accent">
-              {{ finalRows[0].totalScore }}
-            </div>
+            <span class="absolute right-0 -top-5 type-label text-content-muted">▲ TOP {{ topNResult.cutoff }}</span>
           </div>
-          <div class="stat-card relative order-3">
-            <div class="corner-bar-tl"></div>
-            <span class="badge-neutral type-label mb-1">3rd</span>
-            <div class="type-body text-content-muted mb-1">
-              {{ finalRows[2].participantName }}
-            </div>
-            <div class="type-stat">
-              {{ finalRows[2].totalScore }}
-            </div>
-          </div>
+
+          <!-- Eliminated rows (collapsed by default) -->
+          <template v-if="eliminatedSummary">
+            <template v-if="eliminatedExpanded">
+              <div v-for="row in eliminatedRows" :key="row.participantName" class="para-chip flex items-center gap-3 px-4 py-2 opacity-30">
+                <span class="type-stat flex-shrink-0" style="font-size: 16px; line-height: 1; min-width: 40px">{{ row.id }}</span>
+                <span class="flex-1 type-body text-content-primary">{{ row.participantName }}</span>
+                <span class="type-stat flex-shrink-0" style="font-size: 18px; line-height: 1">{{ row.totalScore }}</span>
+              </div>
+            </template>
+            <button
+              @click="eliminatedExpanded = !eliminatedExpanded"
+              class="type-label text-content-muted/60 hover:text-content-primary text-center py-2 mt-1"
+            >⋯ {{ eliminatedSummary.count }} {{ eliminatedExpanded ? 'ELIMINATED · COLLAPSE' : `MORE ELIMINATED · LOWEST ${eliminatedSummary.lowestScore} · EXPAND` }} ⋯</button>
+          </template>
         </div>
-
-        <div class="section-rule mb-4 mt-8">
-          <span class="section-rule-label">Full Rankings</span>
-          <div class="section-rule-line"></div>
-        </div>
-
-        <!-- Full rankings table: custom for admin/organiser, standard for others -->
-        <template v-if="isAdminOrOrganiser">
-          <div class="w-full overflow-x-auto rounded-xl border border-surface-600/50 shadow-sm">
-            <table class="min-w-full text-sm text-content-primary">
-              <thead>
-                <tr class="bg-surface-900 text-content-secondary">
-                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Rank</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Participant</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Total Score</th>
-                  <th
-                    v-for="judge in judgeColumnKeys"
-                    :key="judge"
-                    class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
-                  >{{ judge }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-surface-600/30">
-                <tr
-                  v-for="row in pagedFinalRows"
-                  :key="row.id"
-                  class="bg-surface-800 even:bg-surface-700/40 hover:bg-accent/5 transition-colors duration-150"
-                >
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span class="text-content-secondary">{{ row.id }}</span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span class="type-body text-content-primary">{{ row.participantName }}</span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span class="text-content-secondary">{{ row.totalScore }}</span>
-                  </td>
-                  <td
-                    v-for="judge in judgeColumnKeys"
-                    :key="judge"
-                    class="px-4 py-3 whitespace-nowrap"
-                  >
-                    <span class="text-content-secondary">{{ row[judge] !== undefined && row[judge] !== null ? row[judge] : '—' }}</span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <div class="flex items-center gap-1.5">
-                      <!-- Score breakdown button (multi-criteria only) -->
-                      <!-- aria-labels: icon-only row actions get accessible names; p-2 enlarges hit area -->
-                      <button
-                        v-if="topNResult.isMultiAspect"
-                        @click="viewBreakdown(row.participantName)"
-                        title="View score breakdown"
-                        :aria-label="`View score breakdown for ${row.participantName}`"
-                        class="p-2 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
-                      >
-                        <i class="pi pi-chart-bar text-sm" aria-hidden="true"></i>
-                      </button>
-                      <!-- Feedback button -->
-                      <button
-                        @click="viewFeedback(row.participantName)"
-                        title="View judge feedback"
-                        :aria-label="`View judge feedback for ${row.participantName}`"
-                        class="p-2 rounded-lg text-content-muted hover:text-accent hover:bg-surface-700 transition-colors"
-                      >
-                        <i class="pi pi-comment text-sm" aria-hidden="true"></i>
-                      </button>
-                      <!-- QR button: only visible when results are released and ref code exists -->
-                      <button
-                        v-if="resultsReleased && refsMap[row.participantName]"
-                        @click="openQR(row.participantName)"
-                        title="Show QR code for results portal"
-                        :aria-label="`Show results QR code for ${row.participantName}`"
-                        class="p-2 rounded-lg text-content-muted hover:text-emerald-400 hover:bg-surface-700 transition-colors"
-                      >
-                        <i class="pi pi-qrcode text-sm" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-if="finalRows.length === 0">
-                  <td :colspan="3 + judgeColumnKeys.length + 1" class="px-4 py-10 text-center text-content-muted text-sm">
-                    <i class="pi pi-inbox text-2xl block mb-2 opacity-40"></i>
-                    No data available
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination bar -->
-          <div v-if="totalTablePages > 1" class="flex items-center justify-between mt-3 px-1">
-            <span class="text-xs text-content-muted">
-              {{ (tablePage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(tablePage * PAGE_SIZE, finalRows.length) }}
-              of {{ finalRows.length }}
-            </span>
-            <div class="flex items-center gap-1">
-              <!-- aria-label: icon-only pagination controls -->
-              <button
-                @click="tablePage--"
-                :disabled="tablePage === 1"
-                aria-label="Previous page"
-                class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
-                       text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              ><i class="pi pi-chevron-left text-xs" aria-hidden="true"></i></button>
-              <button
-                v-for="p in totalTablePages"
-                :key="p"
-                @click="tablePage = p"
-                class="w-8 h-8 rounded-lg text-sm font-semibold border transition-all"
-                :class="tablePage === p
-                  ? 'bg-accent text-surface-900 border-accent'
-                  : 'border-surface-600 bg-surface-800 text-content-secondary hover:bg-surface-700'"
-              >{{ p }}</button>
-              <button
-                @click="tablePage++"
-                :disabled="tablePage === totalTablePages"
-                aria-label="Next page"
-                class="px-2.5 py-1.5 rounded-lg text-sm font-semibold border border-surface-600 bg-surface-800
-                       text-content-secondary hover:bg-surface-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              ><i class="pi pi-chevron-right text-xs" aria-hidden="true"></i></button>
-            </div>
-          </div>
-        </template>
-        <template v-else>
-          <DynamicTable
-            v-model:tableValue="finalRows"
-            :tableConfig="topNResult.columns"
-          />
-        </template>
-
-        <p
-          v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
-          class="text-xs text-amber-400/70 mt-3 text-center"
-        >
-          Showing {{ topNResult.rows.length }} participants — {{ topNResult.tiedCount }} tied at the Top {{ topNResult.cutoff }} cutoff
-        </p>
       </div>
 
       <!-- Empty state -->
@@ -833,8 +941,8 @@ function transformForScore(data) {
       </div>
     </template>
 
-    <!-- By Judge: separate tables per judge -->
-    <template v-if="selectedTabulation === 'By Judge'">
+    <!-- By Judge sub-view (Control mode only) -->
+    <template v-if="mode === 'control' && selectedTabulation === 'By Judge'">
       <template v-if="filteredParticipantsForScore.byJudge && Object.keys(filteredParticipantsForScore.byJudge).length > 0">
         <div
           v-for="(group, judge) in filteredParticipantsForScore.byJudge"
@@ -845,20 +953,114 @@ function transformForScore(data) {
             <span class="section-rule-label">{{ judge }}</span>
             <div class="section-rule-line"></div>
           </div>
-          <DynamicTable
-            v-model:tableValue="group.rows"
-            :tableConfig="group.columns"
-          />
+          <div class="flex flex-col gap-1">
+            <div
+              v-for="row in group.rows"
+              :key="row.participantName"
+              class="para-chip flex items-center gap-3 px-4 py-2 bg-surface-700/10"
+            >
+              <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
+              <span class="flex-1 type-body text-content-primary">{{ row.participantName }}</span>
+              <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.score }}</span>
+            </div>
+          </div>
         </div>
       </template>
-
-      <!-- Empty state -->
       <div v-else class="flex flex-col items-center justify-center py-20 text-center">
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
         <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
-        <p class="type-label text-content-muted mt-1">{{ selectedGenre ? 'Judges need to submit scores for this genre' : 'Select an event and genre to view scores' }}</p>
+      </div>
+    </template>
+
+    <!-- BROADCAST mode -->
+    <template v-if="mode === 'broadcast'">
+      <!-- Header -->
+      <div class="mb-4">
+        <p class="type-label text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
+        <h1 class="type-page-title">{{ selectedGenre }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
+        <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
+      </div>
+
+      <!-- Compact genre + Top N switchers — practical override of "no chrome" rule so
+           emcees can switch genres / cut threshold without flipping to Control mid-show. -->
+      <div class="flex flex-wrap items-center gap-3 mb-6">
+        <div v-if="uniqueGenres.length > 1" class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
+          <button
+            v-for="g in uniqueGenres"
+            :key="g"
+            @click="selectedGenre = g"
+            :aria-pressed="selectedGenre === g"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ g }}</button>
+        </div>
+        <span v-if="uniqueGenres.length > 1" class="text-surface-600 select-none" aria-hidden="true">|</span>
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Qualify top N">
+          <span class="type-label text-content-muted self-center mr-1">TOP</span>
+          <button
+            v-for="n in topNOptions"
+            :key="n"
+            @click="selectedTopN = n"
+            :aria-pressed="selectedTopN === n"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="selectedTopN === n ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</button>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div v-if="finalRows.length > 0">
+        <div :class="broadcastColumns === '2col' ? 'grid grid-cols-2 gap-x-4 gap-y-1.5' : 'flex flex-col gap-1.5'">
+          <template v-for="(row, idx) in finalRows" :key="row.participantName">
+            <div
+              class="para-chip flex items-start gap-3 px-4 py-3"
+              :class="idx === 0 ? 'border-l-[3px] border-[color:var(--accent-color)]' : 'bg-surface-700/10'"
+              :style="broadcastColumns === '2col' && idx < Math.ceil(finalRows.length / 2)
+                ? `order: ${idx * 2}`
+                : broadcastColumns === '2col'
+                  ? `order: ${(idx - Math.ceil(finalRows.length / 2)) * 2 + 1}`
+                  : ''"
+            >
+              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1; min-width: 38px">{{ row.id }}</span>
+              <span class="flex-1 type-body text-content-primary" style="font-size: 16px">{{ row.participantName }}</span>
+              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1">{{ row.totalScore }}</span>
+            </div>
+          </template>
+        </div>
+
+        <!-- Top N line -->
+        <div
+          v-if="selectedTopN !== 'All' && (!topNResult.hasTieBreaker || tieBreakerConfirmed)"
+          role="separator"
+          :aria-label="`Top ${topNResult.cutoff} line`"
+          class="relative h-px my-6"
+          style="background: linear-gradient(90deg, transparent, var(--accent-color) 50%, transparent); box-shadow: 0 0 14px var(--accent-muted);"
+        >
+          <span class="absolute right-0 -top-6 type-label text-content-muted">▲ TOP {{ topNResult.cutoff }}</span>
+        </div>
+
+        <!-- Eliminated summary (collapsed) -->
+        <p
+          v-if="eliminatedSummary"
+          class="type-label text-content-muted/50 text-center py-3"
+        >⋯ {{ eliminatedSummary.count }} ELIMINATED · LOWEST {{ eliminatedSummary.lowestScore }} ⋯</p>
+
+        <!-- Unresolved tie pending strip (Broadcast read-only) -->
+        <div
+          v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
+          role="status"
+          class="mt-4 px-4 py-3 border-l-[3px] border-amber-400 bg-amber-500/8 flex flex-wrap items-center gap-3"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></span>
+          <p class="type-label text-amber-400">{{ topNResult.tiedCount }} TIED AT {{ topNResult.tieBreakerScore }} · TIES PENDING — RESOLVE IN CONTROL</p>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
       </div>
     </template>
 
@@ -879,23 +1081,24 @@ function transformForScore(data) {
 
       <!-- Panel — role=dialog so the modal is announced; labelled close button -->
       <div role="dialog" aria-modal="true" aria-label="Judge feedback"
-        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col"
+        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
-          <div>
-            <h3 class="font-heading font-bold text-content-primary">Judge Feedback</h3>
-            <p class="text-xs text-content-muted mt-0.5">
-              {{ feedbackParticipant }}
-              <span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
-            </p>
+        <div class="px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="type-page-title" style="font-size: 18px">JUDGE FEEDBACK</h3>
+            <button
+              @click="showFeedbackPanel = false"
+              aria-label="Close feedback panel"
+              class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            >
+              <i class="pi pi-times text-sm" aria-hidden="true"></i>
+            </button>
           </div>
-          <button
-            @click="showFeedbackPanel = false"
-            aria-label="Close feedback panel"
-            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
-          >
-            <i class="pi pi-times text-sm" aria-hidden="true"></i>
-          </button>
+          <div class="section-rule"><div class="section-rule-line"></div></div>
+          <p class="type-label text-content-muted mt-2">
+            {{ feedbackParticipant }}<span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
+          </p>
         </div>
 
         <!-- Content -->
@@ -944,10 +1147,10 @@ function transformForScore(data) {
                     <span
                       v-for="tag in tags"
                       :key="tag.label"
-                      class="text-xs px-2.5 py-1 rounded-full font-medium border"
+                      class="para-chip-sm type-label px-3 py-1"
                       :class="groupName === 'Strengths'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30'"
+                        ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                        : 'border-amber-500/30 text-amber-400 bg-amber-500/10'"
                     >{{ tag.label }}</span>
                   </div>
                 </div>
@@ -975,20 +1178,22 @@ function transformForScore(data) {
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBreakdown = false"></div>
       <!-- role=dialog + labelled close button -->
       <div role="dialog" aria-modal="true" aria-label="Score breakdown"
-        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col"
+        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
-          <div>
-            <h3 class="font-heading font-bold text-content-primary">Score Breakdown</h3>
-            <p class="text-xs text-content-muted mt-0.5">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
+        <div class="px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="type-page-title" style="font-size: 18px">SCORE BREAKDOWN</h3>
+            <button
+              @click="showBreakdown = false"
+              aria-label="Close score breakdown"
+              class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            >
+              <i class="pi pi-times text-sm" aria-hidden="true"></i>
+            </button>
           </div>
-          <button
-            @click="showBreakdown = false"
-            aria-label="Close score breakdown"
-            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
-          >
-            <i class="pi pi-times text-sm" aria-hidden="true"></i>
-          </button>
+          <div class="section-rule"><div class="section-rule-line"></div></div>
+          <p class="type-label text-content-muted mt-2">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
         </div>
         <!-- Content -->
         <div class="overflow-y-auto px-5 py-4 flex-1 space-y-5">
@@ -1013,6 +1218,20 @@ function transformForScore(data) {
             <p class="text-sm text-content-muted">No score data available</p>
           </div>
         </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Mobile Row-Action Bottom Sheet -->
+  <Teleport to="body">
+    <div v-if="rowActionSheet.open" class="fixed inset-0 z-50 flex items-end justify-center p-0">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeRowActions"></div>
+      <div role="dialog" aria-modal="true" aria-label="Row actions" class="relative z-10 w-full bg-surface-800 border-t border-surface-600/50 p-4 flex flex-col gap-2" style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
+        <p class="type-label text-content-muted mb-2">{{ rowActionSheet.name.toUpperCase() }}</p>
+        <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-chart-bar"></i>VIEW SCORE BREAKDOWN</button>
+        <button @click="viewFeedback(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-comment"></i>VIEW JUDGE FEEDBACK</button>
+        <button v-if="resultsReleased && refsMap[rowActionSheet.name]" @click="openQR(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
+        <button @click="closeRowActions" class="para-chip-sm type-label px-3 py-3 text-center text-content-muted">CANCEL</button>
       </div>
     </div>
   </Teleport>

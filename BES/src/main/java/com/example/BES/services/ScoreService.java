@@ -2,8 +2,10 @@ package com.example.BES.services;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,20 @@ public class ScoreService {
     @Autowired
     JudgeRepo judgeRepo;
 
+    @Autowired
+    SimpMessagingTemplate messagingTemplate;
+
+    // Sent after any score mutation so Score.vue (and any future live scoreboard)
+    // refetches without polling. Payload is intentionally tiny — clients re-fetch
+    // /score on receipt.
+    private void broadcastScoreChange(String eventName, String reason) {
+        if (eventName == null) return;
+        messagingTemplate.convertAndSend(
+            "/topic/score/" + eventName,
+            Map.of("type", reason, "eventName", eventName)
+        );
+    }
+
     public List<GetParticipatnScoreDto> getAllScore(String eventName) {
         List<Score> scoreList = repo.findbyEvent(eventName);
         List<GetParticipatnScoreDto> scoreListDto = new ArrayList<>();
@@ -44,6 +60,7 @@ public class ScoreService {
             dto.score = s.getValue();
             dto.aspect = s.getAspect() != null ? s.getAspect() : "";
             dto.format = s.getEventGenreParticipant().getFormat();
+            dto.auditionNumber = s.getEventGenreParticipant().getAuditionNumber();
             scoreListDto.add(dto);
         }
         return scoreListDto;
@@ -90,6 +107,7 @@ public class ScoreService {
                 repo.save(newScore);
             }
         }
+        broadcastScoreChange(dto.eventName, "score-updated");
     }
 
     public Integer deleteScoreByEventService(DeleteScoreByEventDto dto) {
@@ -99,5 +117,6 @@ public class ScoreService {
     @Transactional
     public void resetScoresByJudge(String eventName, String genreName, String judgeName) {
         repo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+        broadcastScoreChange(eventName, "score-reset");
     }
 }
