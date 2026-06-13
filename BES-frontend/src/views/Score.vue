@@ -990,23 +990,24 @@ function transformForScore(data) {
 
       <!-- Panel — role=dialog so the modal is announced; labelled close button -->
       <div role="dialog" aria-modal="true" aria-label="Judge feedback"
-        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col"
+        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
-          <div>
-            <h3 class="font-heading font-bold text-content-primary">Judge Feedback</h3>
-            <p class="text-xs text-content-muted mt-0.5">
-              {{ feedbackParticipant }}
-              <span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
-            </p>
+        <div class="px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="type-page-title" style="font-size: 18px">JUDGE FEEDBACK</h3>
+            <button
+              @click="showFeedbackPanel = false"
+              aria-label="Close feedback panel"
+              class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            >
+              <i class="pi pi-times text-sm" aria-hidden="true"></i>
+            </button>
           </div>
-          <button
-            @click="showFeedbackPanel = false"
-            aria-label="Close feedback panel"
-            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
-          >
-            <i class="pi pi-times text-sm" aria-hidden="true"></i>
-          </button>
+          <div class="section-rule"><div class="section-rule-line"></div></div>
+          <p class="type-label text-content-muted mt-2">
+            {{ feedbackParticipant }}<span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
+          </p>
         </div>
 
         <!-- Content -->
@@ -1055,10 +1056,10 @@ function transformForScore(data) {
                     <span
                       v-for="tag in tags"
                       :key="tag.label"
-                      class="text-xs px-2.5 py-1 rounded-full font-medium border"
+                      class="para-chip-sm type-label px-3 py-1"
                       :class="groupName === 'Strengths'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30'"
+                        ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                        : 'border-amber-500/30 text-amber-400 bg-amber-500/10'"
                     >{{ tag.label }}</span>
                   </div>
                 </div>
@@ -1086,20 +1087,22 @@ function transformForScore(data) {
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBreakdown = false"></div>
       <!-- role=dialog + labelled close button -->
       <div role="dialog" aria-modal="true" aria-label="Score breakdown"
-        class="relative z-10 w-full sm:max-w-lg bg-surface-800 rounded-t-2xl sm:rounded-2xl border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col">
+        class="relative z-10 w-full sm:max-w-lg bg-surface-800 border border-surface-600/50 shadow-xl max-h-[85vh] flex flex-col"
+        style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
-          <div>
-            <h3 class="font-heading font-bold text-content-primary">Score Breakdown</h3>
-            <p class="text-xs text-content-muted mt-0.5">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
+        <div class="px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="type-page-title" style="font-size: 18px">SCORE BREAKDOWN</h3>
+            <button
+              @click="showBreakdown = false"
+              aria-label="Close score breakdown"
+              class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
+            >
+              <i class="pi pi-times text-sm" aria-hidden="true"></i>
+            </button>
           </div>
-          <button
-            @click="showBreakdown = false"
-            aria-label="Close score breakdown"
-            class="w-11 h-11 flex items-center justify-center rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors"
-          >
-            <i class="pi pi-times text-sm" aria-hidden="true"></i>
-          </button>
+          <div class="section-rule"><div class="section-rule-line"></div></div>
+          <p class="type-label text-content-muted mt-2">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
         </div>
         <!-- Content -->
         <div class="overflow-y-auto px-5 py-4 flex-1 space-y-5">
