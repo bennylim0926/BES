@@ -205,7 +205,6 @@ const eligibilityPoolNames = computed(() => {
 })
 
 // Ordered list of added members (rank-sorted).
-// eslint-disable-next-line no-unused-vars
 const addedToPoolOrdered = computed(() =>
   addedPoolOrdered(allRowsForPool.value, addedToPool.value)
 )
@@ -222,7 +221,6 @@ const nextEligibleRemove = computed(() =>
   computeNextEligibleRemove(allRowsForPool.value, tieBaseNames.value, addedToPool.value)
 )
 
-// eslint-disable-next-line no-unused-vars
 const toggleWinner = (name) => {
   const w = new Set(tieBreakerWinners.value)
   if (w.has(name)) {
@@ -235,7 +233,6 @@ const toggleWinner = (name) => {
   saveTieBreaker()
 }
 
-// eslint-disable-next-line no-unused-vars
 const confirmTieBreaker = async () => {
   if (tieBreakerWinners.value.size === spotsFromTie.value) {
     // Save resolved names server-side FIRST so BattleControl can read them from DB.
@@ -250,7 +247,6 @@ const confirmTieBreaker = async () => {
   }
 }
 
-// eslint-disable-next-line no-unused-vars
 const includeNextInPool = () => {
   const next = nextEligibleAdd.value
   if (!next) return
@@ -261,7 +257,6 @@ const includeNextInPool = () => {
   saveTieBreaker()
 }
 
-// eslint-disable-next-line no-unused-vars
 const excludeLastFromPool = () => {
   const last = nextEligibleRemove.value
   if (!last) return
@@ -283,7 +278,9 @@ const finalRows = computed(() => {
     return topNResult.value.rows
   }
   const above = topNResult.value.rows.slice(0, topNResult.value.aboveCount)
-  const winners = tiedParticipants.value.filter(r => tieBreakerWinners.value.has(r.participantName))
+  // Winners can come from the tie base OR the manually-added pool.
+  const poolRows = [...tiedParticipants.value, ...addedToPoolOrdered.value]
+  const winners = poolRows.filter(r => tieBreakerWinners.value.has(r.participantName))
   return [...above, ...winners].map((r, i) => ({ ...r, id: i + 1 }))
 })
 
@@ -740,8 +737,122 @@ function transformForScore(data) {
             </div>
           </template>
 
-          <!-- Tie band slot — rendered in Task 7 -->
-          <div v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed" data-tie-band-placeholder class="opacity-50 px-4 py-2 text-xs text-amber-400">[ tie band — Task 7 ]</div>
+          <!-- Tie resolver band -->
+          <div
+            v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
+            role="region"
+            aria-label="Tie-breaker resolution"
+            class="border border-amber-500/40 bg-amber-500/[0.05] p-4 my-3"
+          >
+            <!-- Header -->
+            <div class="flex justify-between items-baseline mb-3 flex-wrap gap-2">
+              <span class="type-label text-amber-400 font-bold">
+                RESOLVE TIE @ {{ topNResult.tieBreakerScore }} — POOL OF {{ eligibilityPoolNames.size }} FOR {{ spotsFromTie }} SPOT{{ spotsFromTie > 1 ? 'S' : '' }}
+              </span>
+              <span class="type-label text-content-muted">{{ tieBreakerWinners.size }} SELECTED</span>
+            </div>
+
+            <!-- Tie base section -->
+            <p class="type-label text-content-muted/60 mb-1" style="font-size: 8px; letter-spacing: 0.24em">TIE BASE · LOCKED</p>
+            <div class="flex flex-col gap-1 mb-3">
+              <button
+                v-for="p in tiedParticipants"
+                :key="p.participantName"
+                @click="toggleWinner(p.participantName)"
+                :disabled="!tieBreakerWinners.has(p.participantName) && tieBreakerWinners.size >= spotsFromTie"
+                :aria-pressed="tieBreakerWinners.has(p.participantName)"
+                class="flex items-center justify-between px-3 py-2 border-l-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                :class="tieBreakerWinners.has(p.participantName)
+                  ? 'bg-emerald-500/10 border-emerald-400 ring-1 ring-emerald-500/30'
+                  : 'bg-surface-700/10 border-surface-600/40 hover:border-surface-500'"
+              >
+                <div class="flex items-center gap-3">
+                  <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                    :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
+                    <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
+                  </span>
+                  <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
+                    {{ p.participantName }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="type-stat" style="font-size: 14px">{{ p.totalScore }}</span>
+                  <span v-if="tieBreakerWinners.has(p.participantName)" class="type-label px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">ADVANCES</span>
+                </div>
+              </button>
+            </div>
+
+            <!-- Added pool section -->
+            <template v-if="addedToPoolOrdered.length > 0">
+              <div class="relative h-px my-3" style="background: linear-gradient(90deg, transparent, rgba(245,158,11,0.4), transparent);">
+                <span class="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-surface-900 px-2 type-label text-amber-400" style="font-size: 8px">ADDED · {{ addedToPoolOrdered.length }}</span>
+              </div>
+              <div class="flex flex-col gap-1 mb-3">
+                <button
+                  v-for="p in addedToPoolOrdered"
+                  :key="p.participantName"
+                  @click="toggleWinner(p.participantName)"
+                  :disabled="!tieBreakerWinners.has(p.participantName) && tieBreakerWinners.size >= spotsFromTie"
+                  :aria-pressed="tieBreakerWinners.has(p.participantName)"
+                  class="flex items-center justify-between px-3 py-2 border-l-2 border-amber-500/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500/10 ring-1 ring-emerald-500/30' : 'bg-surface-700/10 hover:bg-surface-700/30'"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                      :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
+                      <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
+                    </span>
+                    <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
+                      {{ p.participantName }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="type-stat" style="font-size: 14px">{{ p.totalScore }}</span>
+                    <span v-if="tieBreakerWinners.has(p.participantName)" class="type-label px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">ADVANCES</span>
+                  </div>
+                </button>
+              </div>
+            </template>
+
+            <!-- Stepper buttons -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button
+                @click="excludeLastFromPool"
+                :disabled="!nextEligibleRemove"
+                :aria-label="nextEligibleRemove ? `Exclude ${nextEligibleRemove.participantName} from tie pool, score ${nextEligibleRemove.totalScore}` : 'Exclude (disabled)'"
+                :aria-disabled="!nextEligibleRemove"
+                class="para-chip-sm px-3 py-2.5 type-label text-left disabled:opacity-30 disabled:cursor-not-allowed text-content-muted hover:text-content-primary"
+              >
+                <span class="opacity-50">−  EXCLUDE</span>&nbsp;
+                <span v-if="nextEligibleRemove">{{ nextEligibleRemove.participantName }} · {{ nextEligibleRemove.totalScore }}</span>
+                <span v-else>—</span>
+              </button>
+              <button
+                @click="includeNextInPool"
+                :disabled="!nextEligibleAdd"
+                :aria-label="nextEligibleAdd ? `Include ${nextEligibleAdd.participantName} in tie pool, score ${nextEligibleAdd.totalScore}` : 'Include (disabled)'"
+                :aria-disabled="!nextEligibleAdd"
+                class="para-chip-sm px-3 py-2.5 type-label text-left bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/15 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <span class="opacity-70">+  INCLUDE</span>&nbsp;
+                <span v-if="nextEligibleAdd">{{ nextEligibleAdd.participantName }} · {{ nextEligibleAdd.totalScore }}</span>
+                <span v-else>—</span>
+              </button>
+            </div>
+
+            <!-- Confirm + Reset -->
+            <div class="flex gap-2">
+              <button
+                @click="confirmTieBreaker"
+                :disabled="tieBreakerWinners.size !== spotsFromTie"
+                class="flex-1 py-2.5 type-label font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                :class="tieBreakerWinners.size === spotsFromTie ? 'bg-emerald-500 text-surface-900 hover:bg-emerald-400' : 'bg-surface-700 text-content-muted border border-surface-600'"
+              >
+                <i class="pi pi-check mr-1"></i>CONFIRM TOP {{ topNResult.cutoff }}
+              </button>
+              <button @click="resetTieBreaker" class="px-4 py-2.5 type-label border border-surface-600 text-content-muted hover:text-content-primary">RESET</button>
+            </div>
+          </div>
           <div v-else-if="topNResult.hasTieBreaker && tieBreakerConfirmed" class="px-4 py-2 border-l-2 border-emerald-400 bg-emerald-500/8 type-label text-emerald-400 flex items-center justify-between">
             <span>✓ TOP {{ topNResult.cutoff }} CONFIRMED — {{ tieBreakerWinners.size }} ADVANCED</span>
             <button @click="resetTieBreaker" class="type-label text-content-muted hover:text-content-primary">RESET</button>
