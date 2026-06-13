@@ -1,150 +1,354 @@
-# BES Deployment Guide: Free/Low-Cost Hosting with GitHub Actions
+# Kyrove Deployment Guide — Hetzner + HTTPS
 
-This guide will walk you through deploying your Spring Boot + Vue.js + PostgreSQL application. Since you are using Docker Compose, the most straightforward and cost-effective approach is to use a **Virtual Private Server (VPS)**. 
+This is the step-by-step runbook for deploying Kyrove to a public server with a custom domain and HTTPS.
 
-## 1. Hosting Architecture Choice
+**Stack:** Hetzner CX22 (Ubuntu 24.04) · Namecheap domain · Let's Encrypt TLS · Docker Compose · Nginx (in the frontend container)
 
-Because Spring Boot + PostgreSQL can be slightly memory-intensive (often needing at least 1GB to run comfortably), platform-as-a-service free tiers (like Heroku or Render) either don't support Docker-compose easily or will spin down constantly. 
+**Cost:** ~$6/mo server + ~$10/yr domain. No CI/CD in this phase — deploys are `git pull && docker compose up -d --build` on the server.
 
-**Recommended Options:**
-1. **AWS EC2 (Free Tier)**: Free for 12 months (`t2.micro` or `t3.micro` instances provide 1GB RAM).
-2. **Hetzner / DigitalOcean**: If you want something permanent and reliable without a 12-month limit, a basic entry-level server costs about **$4 - $6 / month**.
-
-Since you don't have a domain, you can simply access your website via the **Server's Public IP Address** (e.g., `http://192.168.1.100`).
-
----
-
-## 2. Setting up the Server
-
-Regardless of whether you choose AWS, DigitalOcean, or Hetzner, the steps are largely the same.
-
-### Step 2.1: Spin up the server
-- OS: **Ubuntu 22.04 LTS** or **24.04 LTS**.
-- Once the server is running, note down the **Public IP Address**.
-- You will be given an SSH Key pair during creation. Keep the `.pem` private key safe.
-
-### Step 2.2: Prepare the Server (SSH into it)
-Open your terminal and SSH into the server:
-```bash
-ssh -i /path/to/your-key.pem ubuntu@<YOUR_PUBLIC_IP>
-```
-
-### Step 2.3: Add a Swap File (CRITICAL)
-Servers with 1GB RAM will run out of memory when starting Spring Boot with an active DB. Adding a swap file prevents the server from crashing:
-```bash
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-# Make it permanent across reboots
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
-### Step 2.4: Install Docker and Docker Compose
-Run the following commands on your server to install Docker:
-```bash
-# Add Docker's official GPG key:
-sudo apt-get update
-sudo apt-get install ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-# Add the repository to Apt sources:
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-
-# Install Docker
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# Make docker run without sudo
-sudo usermod -aG docker $USER
-```
-*(After this, exit the SSH session and log back in so the permissions apply)*
-
-### Step 2.5: Clone your project on the server
-Create the folder where your project will live:
-```bash
-mkdir -p /home/ubuntu/BES
-```
-*(We will let GitHub actions automate placing the files here.)*
+Placeholders used throughout — replace before running:
+- `<SERVER_IP>` — your Hetzner server's IPv4
+- `<DOMAIN>` — your registered domain, e.g. `kyrove.xyz`
+- `<EMAIL>` — your email (for Let's Encrypt + Hetzner)
 
 ---
 
-## 3. GitHub Actions CI/CD Integration
+## Phase 0 — Prerequisites (~20 min, can run in parallel)
 
-We'll set up a GitHub Workflow that triggers every time you push to the `main` branch. It will SSH into your server, copy the latest files, reconstruct your `.env` and `credentials.json` file securely, and restart the Docker containers.
+### 0a. Buy a domain on Namecheap
 
-### Step 3.1: Add Secrets to your GitHub Repository
-Go to your project repository on GitHub web -> **Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret**.
+1. namecheap.com → search a name (`.xyz` ~$1 first year, `.com` ~$10/yr)
+2. Disable upsells at checkout. Keep WhoisGuard (free).
+3. After purchase: **Domain List → Manage** → confirm nameservers say "Namecheap BasicDNS".
 
-Add the following secrets:
-* `HOST`: Your server's Public IP address.
-* `USERNAME`: `ubuntu` (or `root` if using DigitalOcean).
-* `SSH_KEY`: The entire contents of your private `.pem` SSH key file that you downloaded when creating the server.
-* `ENV_FILE`: The contents of your `.env` file (containing EMAIL, SPRING_DATASOURCE_URL, etc.). Set the URL variable inside to `jdbc:postgresql://postgres:5432/<dbname>` and the domain to your public IP.
-* `GOOGLE_CREDENTIALS_JSON`: The entire contents of your `credentials.json` file. (Never commit this to your public codebase).
+### 0b. Create a Hetzner account
 
-### Step 3.2: Create the CI/CD Pipeline Configuration
-Create `.github/workflows/deploy.yml` in your project with the following code.
+1. https://accounts.hetzner.com/signUp
+2. Use a real name matching your card.
+3. **Heads up:** Hetzner may email you within an hour asking for ID verification (passport/IC). Reply promptly. This is the #1 timing blocker — start it first.
 
+### 0c. Generate an SSH key on your Mac (if you don't already have one)
+
+```bash
+ls ~/.ssh/id_ed25519.pub 2>/dev/null || ssh-keygen -t ed25519 -C "kyrove-deploy" -f ~/.ssh/id_ed25519
+cat ~/.ssh/id_ed25519.pub   # copy this for the next step
+```
+
+---
+
+## Phase 1 — Provision the server (~10 min)
+
+Hetzner Cloud Console → **New Project** → name it `kyrove`.
+
+**Add Server:**
+- Location: **Singapore** (or closest to your users)
+- Image: **Ubuntu 24.04**
+- Type: **CX22** (€4.59/mo · 2 vCPU · 4 GB RAM · 40 GB SSD)
+- Networking: **Public IPv4** ✓
+- SSH Keys: paste `id_ed25519.pub`
+- Name: `kyrove-prod`
+- **Enable Backups** (+20% cost, ~$1/mo — recommended)
+
+Copy the **IPv4 address** that appears → this is `<SERVER_IP>`.
+
+Smoke-test from your Mac:
+```bash
+ssh root@<SERVER_IP>
+```
+
+---
+
+## Phase 2 — Point DNS at the server (~5 min + ~15 min wait)
+
+Namecheap → **Domain List → Manage → Advanced DNS**. Delete any default parking records. Add:
+
+| Type | Host | Value         | TTL       |
+|------|------|---------------|-----------|
+| A    | `@`  | `<SERVER_IP>` | Automatic |
+| A    | `www`| `<SERVER_IP>` | Automatic |
+
+Wait ~15 min, then verify from your Mac:
+```bash
+dig +short <DOMAIN>
+dig +short www.<DOMAIN>
+```
+Both must print `<SERVER_IP>` before you proceed — Let's Encrypt will fail otherwise.
+
+---
+
+## Phase 3 — Harden the server (~15 min)
+
+SSH in as root: `ssh root@<SERVER_IP>`
+
+```bash
+# 3.1 — create deploy user
+adduser deploy            # set a strong password when prompted
+usermod -aG sudo deploy
+
+# 3.2 — copy SSH key
+rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
+```
+
+**Open a SECOND terminal on your Mac** and verify `ssh deploy@<SERVER_IP>` works **before** doing 3.3 — if you lock root out without confirming deploy works, you're locked out entirely.
+
+```bash
+# 3.3 — disable root SSH + password auth (only after deploy login confirmed)
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+systemctl restart ssh
+
+# 3.4 — firewall
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+ufw status
+```
+
+From now on always log in as `deploy`: `ssh deploy@<SERVER_IP>`.
+
+---
+
+## Phase 4 — Install Docker + Certbot (~5 min)
+
+As `deploy`:
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y docker.io docker-compose-v2 git certbot
+sudo usermod -aG docker deploy
+exit                      # log out so the docker group applies
+```
+
+Reconnect and verify:
+```bash
+docker --version
+docker compose version
+```
+
+---
+
+## Phase 5 — Clone the repo + write `.env` (~10 min)
+
+```bash
+cd ~
+git clone https://github.com/bennylim0926/BES.git kyrove
+cd kyrove
+git checkout feat/deploy-hetzner-https     # the branch with prod configs
+cp .env.example .env
+nano .env
+```
+
+In `.env`, set production values. **Generate fresh strong passwords** — don't reuse local dev values.
+
+Required:
+```
+DOMAIN=<DOMAIN>
+BES_COOKIE_DOMAIN=<DOMAIN>
+BES_SECURE_COOKIE=true
+BES_ALLOWED_ORIGINS=https://<DOMAIN>,https://www.<DOMAIN>
+EMAIL=<your gmail>
+EMAIL_PASSWORD=<gmail app password>
+SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/<dbname>
+SPRING_DATASOURCE_USERNAME=<db user>
+SPRING_DATASOURCE_PASSWORD=<strong password>
+SPRING_DATASOURCE_DBNAME=<dbname>
+BES_ADMIN_PASSWORD=<strong>
+BES_EMCEE_PASSWORD=<strong>
+BES_JUDGE_PASSWORD=<strong>
+BES_ORGANISER_PASSWORD=<strong>
+```
+
+Copy your Google API credentials from your Mac (run on Mac, not server):
+```bash
+scp /Users/bennylim/Documents/BES/credentials.json deploy@<SERVER_IP>:~/kyrove/
+```
+
+---
+
+## Phase 6 — Get the TLS certificate (~5 min)
+
+On the server, with nothing yet bound to port 80:
+```bash
+sudo certbot certonly --standalone \
+  -d <DOMAIN> -d www.<DOMAIN> \
+  --agree-tos -m <EMAIL> --no-eff-email
+```
+
+Verify the cert exists:
+```bash
+sudo ls /etc/letsencrypt/live/<DOMAIN>/
+# expect: fullchain.pem  privkey.pem  cert.pem  chain.pem
+```
+
+---
+
+## Phase 7 — Repo configuration (already in `feat/deploy-hetzner-https`)
+
+Two files were added in this branch — you don't need to write them, just confirm they exist and the domain is correct.
+
+### `docker-compose.prod.yml`
+Mounts the host's `/etc/letsencrypt` into the frontend container and overrides the nginx config.
+
+### `BES-frontend/nginx/default.prod.conf`
+HTTP → HTTPS redirect, real domain `server_name`, Let's Encrypt cert paths, WebSocket upgrade.
+
+If `server_name` still says `yourdomain.com`, swap it from your Mac and push:
+```bash
+sed -i '' 's/yourdomain\.com/<DOMAIN>/g' BES-frontend/nginx/default.prod.conf
+git add BES-frontend/nginx/default.prod.conf
+git commit -m "chore: set production domain"
+git push
+```
+
+Then on the server: `git pull`.
+
+---
+
+## Phase 8 — First deploy (~10 min)
+
+On the server:
+```bash
+cd ~/kyrove
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose ps           # all 3 services should show "Up"
+docker compose logs -f backend
+# wait for "Started BesApplication" — Ctrl+C
+```
+
+Test from your Mac:
+```bash
+curl -I https://<DOMAIN>     # expect 200, valid cert
+curl -I http://<DOMAIN>      # expect 301 -> https
+```
+
+Open `https://<DOMAIN>` in a browser — green padlock, app loads.
+
+---
+
+## Phase 9 — Auto-renew the TLS cert (~5 min)
+
+Let's Encrypt certs expire every 90 days. Add a renewal cron on the server:
+```bash
+sudo crontab -e
+```
+Add:
+```
+0 3 * * * certbot renew --pre-hook "docker stop bes_frontend" --post-hook "docker start bes_frontend" >> /var/log/certbot-renew.log 2>&1
+```
+
+Dry-run to confirm renewal logic works:
+```bash
+sudo certbot renew --dry-run
+```
+
+---
+
+## Routine operations
+
+### Deploy a new version
+```bash
+ssh deploy@<SERVER_IP>
+cd ~/kyrove
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+### Check logs
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs --tail=200 postgres
+```
+
+### Database access (read-only sanity check)
+```bash
+docker compose exec postgres psql -U <db user> -d <dbname>
+```
+
+### Restart everything
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml restart
+```
+
+### Hetzner snapshot before risky changes
+Hetzner Console → Server → Snapshots → "Take Snapshot". €0.01/GB/mo.
+
+---
+
+## Troubleshooting
+
+### `certbot` fails with "DNS problem" / "connection refused on port 80"
+- DNS hasn't propagated yet → re-run `dig +short <DOMAIN>`, must return `<SERVER_IP>`.
+- Something is bound to port 80 already → `sudo ss -tlnp | grep ':80 '`. Stop it before re-running certbot.
+
+### Browser shows "Not secure" or self-signed cert warning
+- The container is still using the localhost cert from the dev `default.conf`.
+- Verify `docker-compose.prod.yml` was actually included on `up`: the command must have **both** `-f` flags.
+- Check inside the container:
+  ```bash
+  docker compose exec frontend cat /etc/nginx/conf.d/default.conf | head -5
+  # should reference /etc/letsencrypt/live/<DOMAIN>/...
+  ```
+
+### WebSocket connections drop after ~60s
+- The 1-hour `proxy_read_timeout` is already set in `default.prod.conf`. If issues persist, check Hetzner cloud firewall isn't dropping idle connections (it shouldn't by default).
+
+### 502 Bad Gateway from `/api/`
+- Backend container probably died — `docker compose logs backend`.
+- Most common cause: bad `SPRING_DATASOURCE_*` values in `.env`, or Flyway migration mismatch.
+
+### Site is suddenly down
+1. `ssh deploy@<SERVER_IP>` — server reachable?
+2. `docker compose ps` — any container exited?
+3. `docker compose logs --tail=200 <service>` — root cause
+4. `sudo systemctl status docker` — is the docker daemon alive?
+5. Worst case: restore from Hetzner backup (Hetzner Console → Server → Backups).
+
+---
+
+## Phase 2 — CI/CD with GitHub Actions (deferred, do later)
+
+Once the manual deploy is stable, add auto-deploy on push to `master`.
+
+### Add repo secrets
+GitHub repo → **Settings → Secrets and variables → Actions**:
+- `HOST` — `<SERVER_IP>`
+- `USERNAME` — `deploy`
+- `SSH_KEY` — full contents of `~/.ssh/id_ed25519` (private key)
+
+### Add `.github/workflows/deploy.yml`
 ```yaml
-name: Deploy to Server
+name: Deploy to production
 
 on:
   push:
-    branches:
-      - main # Triggers on every push to the main branch
+    branches: [master]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Copy files to server via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "."
-          target: "/home/ubuntu/BES"
-          rm: true # Clean up old files before copying
-
-      - name: Execute deployment commands via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/ubuntu/BES
-            
-            # Create the .env file from GitHub Secrets
-            echo "${{ secrets.ENV_FILE }}" > .env
-            
-            # Create the credentials.json file securely
-            echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
-            
-            # Re-build and start the containers
-            docker compose down
-            docker compose up -d --build
+            cd ~/kyrove
+            git pull origin master
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            docker compose ps
 ```
+
+This uses `git pull` on the server (not SCP), keeping `.env` and `credentials.json` in place — they don't need to be in GitHub secrets.
 
 ---
 
-## 4. Verification & Testing
+## What's still deferred
 
-Once you commit and push the newly added `.github/workflows/deploy.yml` to your repository:
+- **Daily DB backup** to Backblaze B2 (`pg_dump` cron). Hetzner backups cover server-level recovery; per-DB dumps are better for fine-grained restore.
+- **Uptime monitoring** — UptimeRobot free tier, 5-min ping on `https://<DOMAIN>`.
+- **Log aggregation** — for now, `docker compose logs` is enough.
 
-1. **Check the Build**: Go to the **Actions** tab in your GitHub repository. You will see the job currently running.
-2. **Access your site**: Once the job successfully completes, open your browser and navigate to `http://<YOUR_PUBLIC_IP>` (since your frontend binds to port 80).
-3. **Continuous Deployment**: Going forward, anytime you make changes to your frontend or backend and push to `main`, GitHub will automatically push the updates to the server and spin up the new version.
-
-### Final Checklist for frontend configuration
-Your frontend code seems to connect to the backend. Make sure your frontend environment variables point your API calls toward `http://<YOUR_PUBLIC_IP>` instead of `localhost`. When deploying to production, this usually involves updating the `.env.production` in your `BES-frontend` folder to use the generic server IP.
+Tackle in this order after CI/CD: DB backups → uptime monitor → log aggregation.
