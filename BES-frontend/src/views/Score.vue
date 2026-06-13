@@ -355,26 +355,6 @@ const broadcastColumns = computed(() => {
   return n <= 12 ? '1col' : '2col'
 })
 
-// Pagination for the admin/organiser table
-const PAGE_SIZE = 10
-const tablePage = ref(1)
-watch(finalRows, () => { tablePage.value = 1 })
-// eslint-disable-next-line no-unused-vars
-const totalTablePages = computed(() => Math.max(1, Math.ceil(finalRows.value.length / PAGE_SIZE)))
-// eslint-disable-next-line no-unused-vars
-const pagedFinalRows = computed(() =>
-  finalRows.value.slice((tablePage.value - 1) * PAGE_SIZE, tablePage.value * PAGE_SIZE)
-)
-
-// Judge column keys for the custom admin table
-// eslint-disable-next-line no-unused-vars
-const judgeColumnKeys = computed(() => {
-  if (!topNResult.value.columns) return []
-  return topNResult.value.columns
-    .filter(c => !['id', 'participantName', 'totalScore'].includes(c.key))
-    .map(c => c.key)
-})
-
 // Release results toggle
 const toggleRelease = async () => {
   const newVal = !resultsReleased.value
