@@ -394,6 +394,18 @@ sudo certbot certificates
 | Snapshot pile-up (limit ~5 per project) | Delete old snapshots when you take a new one |
 | Long DNS TTL stretches the cutover | Lower TTL to 60s a few hours BEFORE pausing |
 
+### Interaction with the deploy workflow
+
+The tag-based deploy workflow keeps working across pause/resume because `DEPLOY_HOST` is set to `kyrove.live` (domain, not IP). Once you update Namecheap on resume, GitHub Actions SSHes to the new server automatically. **No GitHub secrets need changing.**
+
+Two specific points to know:
+
+1. **Don't cut releases while paused.** Pushing a `v*` tag triggers the workflow, which will fail with SSH connection refused (server doesn't exist). Merge PRs freely while paused — the workflow only runs on tag push or manual dispatch, not on merge. Just wait until after resume to cut the next release.
+
+2. **First deploy after resume — pick one of these.** The server's local git is at the last deployed tag, which may be behind `master` if you merged work during the pause. To catch up:
+   - **Cut a new release** with the `release` skill (or `git tag` manually) — deploys the new tag, advances the server.
+   - **Or use workflow_dispatch** — Actions → Deploy → Run workflow → ref = `master` → deploys current master without bumping a tag. Use this if you don't want to cut a version yet.
+
 ---
 
 ## Architecture — how dev and prod configs differ
