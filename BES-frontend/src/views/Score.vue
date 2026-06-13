@@ -686,8 +686,9 @@ function transformForScore(data) {
             ? 'border-[color:var(--accent-color)] shadow-[0_0_20px_var(--accent-subtle)]'
             : 'opacity-50 hover:opacity-90'"
         >
+          <span v-if="n !== 'All'" class="type-label" style="font-size: 9px">TOP</span>
           <span class="type-stat" style="font-size: 28px; line-height: 1">{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</span>
-          <span class="type-label" style="font-size: 9px">{{ n === 'All' ? `· ${allRowsForPool.length}` : 'TOP' }}</span>
+          <span v-if="n === 'All'" class="type-label" style="font-size: 9px">· {{ allRowsForPool.length }}</span>
         </button>
       </div>
 
