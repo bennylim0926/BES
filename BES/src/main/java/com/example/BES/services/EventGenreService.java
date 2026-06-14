@@ -1,14 +1,20 @@
 package com.example.BES.services;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.example.BES.dtos.AddGenreToEventDto;
 import com.example.BES.dtos.GetEventDivisionDto;
+import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventGenre;
 import com.example.BES.models.Genre;
@@ -110,7 +116,63 @@ public class EventGenreService {
             if (div.format != null && !div.format.isBlank()) {
                 eventGenre.setFormat(div.format.trim());
             }
+            // Auto-link this genre to the event so empty-category genres still appear as groups.
+            if (eventGenre.getGenre() != null) {
+                ensureGenreLinked(e, eventGenre.getGenre());
+            }
             eventGenreRepo.save(eventGenre);
+        }
+    }
+
+    @Transactional
+    public void linkGenresToEvent(String eventName, List<Long> genreIds) {
+        Event e = eventRepo.findByEventNameIgnoreCase(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        if (e.getLinkedGenres() == null) e.setLinkedGenres(new ArrayList<>());
+        Set<Long> existing = new HashSet<>();
+        for (Genre g : e.getLinkedGenres()) existing.add(g.getGenreId());
+        for (Long id : genreIds) {
+            if (id == null || existing.contains(id)) continue;
+            Genre g = genreRepo.findById(id).orElse(null);
+            if (g == null) continue;
+            e.getLinkedGenres().add(g);
+            existing.add(id);
+        }
+        eventRepo.save(e);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GetGenreDto> getLinkedGenresService(String eventName) {
+        Event e = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
+        if (e == null || e.getLinkedGenres() == null) return new ArrayList<>();
+        List<GetGenreDto> out = new ArrayList<>();
+        for (Genre g : e.getLinkedGenres()) {
+            GetGenreDto dto = new GetGenreDto();
+            dto.id = g.getGenreId();
+            dto.genreName = g.getGenreName();
+            out.add(dto);
+        }
+        return out;
+    }
+
+    @Transactional
+    public void unlinkGenreFromEvent(String eventName, Long genreId) {
+        Event e = eventRepo.findByEventNameIgnoreCase(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        if (e.getLinkedGenres() == null) return;
+        e.getLinkedGenres().removeIf(g -> g.getGenreId().equals(genreId));
+        eventRepo.save(e);
+    }
+
+    private void ensureGenreLinked(Event e, Genre g) {
+        if (e.getLinkedGenres() == null) {
+            e.setLinkedGenres(new ArrayList<>());
+        }
+        boolean alreadyLinked = e.getLinkedGenres().stream()
+            .anyMatch(existing -> existing.getGenreId().equals(g.getGenreId()));
+        if (!alreadyLinked) {
+            e.getLinkedGenres().add(g);
+            eventRepo.save(e);
         }
     }
 }

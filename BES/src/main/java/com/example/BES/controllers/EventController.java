@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.BES.dtos.AddDivisionDto;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.LinkGenresDto;
 import com.example.BES.dtos.AddScoringCriteriaDto;
 import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
@@ -307,6 +308,40 @@ public class EventController {
             return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Link genres to event", description = "Records which genres an event uses, independent of categories. Idempotent.")
+    @PostMapping("/{eventName}/linked-genres")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> linkGenresToEvent(
+            @PathVariable String eventName,
+            @Valid @RequestBody LinkGenresDto dto) {
+        try {
+            eventGenreService.linkGenresToEvent(eventName, dto.genreIds);
+            return new ResponseEntity<>(gson.toJson("Genres linked"), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Operation(summary = "Get linked genres for event", description = "Returns genres this event uses, even if they have zero categories.")
+    @GetMapping("/{eventName}/linked-genres")
+    public ResponseEntity<List<GetGenreDto>> getLinkedGenres(@PathVariable String eventName) {
+        return new ResponseEntity<>(eventGenreService.getLinkedGenresService(eventName), HttpStatus.OK);
+    }
+
+    @Operation(summary = "Unlink genre from event", description = "Removes the event↔genre link. Existing categories under this genre are not deleted automatically.")
+    @DeleteMapping("/{eventName}/linked-genres/{genreId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<String> unlinkGenreFromEvent(
+            @PathVariable String eventName,
+            @PathVariable Long genreId) {
+        try {
+            eventGenreService.unlinkGenreFromEvent(eventName, genreId);
+            return new ResponseEntity<>(gson.toJson("Genre unlinked"), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
     }
 
