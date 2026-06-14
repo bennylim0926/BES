@@ -7,6 +7,7 @@ import { setActiveEvent } from '@/utils/auth'
 const props = defineProps({
   role:        { type: String, required: true },
   activeEvent: { type: Object, default: null },
+  theme:       { type: String, default: 'dark' },
 })
 
 const emit = defineEmits([
@@ -15,10 +16,16 @@ const emit = defineEmits([
   'goToEventDetails',
   'goToAllEvents',
   'changeEvent',
+  'goHome',
+  'goAdmin',
+  'toggleTheme',
+  'logout',
 ])
 
 const ALL_TILES = [
-  { key: 'details',      icon: 'pi-cog',      label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
+  { key: 'home',         icon: 'pi-home',      label: 'Home',         roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
+  { key: 'admin',        icon: 'pi-cog',       label: 'Admin',        roles: ['ROLE_ADMIN'] },
+  { key: 'details',      icon: 'pi-cog',       label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
   { key: 'audition',     icon: 'pi-list',      label: 'Audition',     roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
   { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
   { key: 'score',        icon: 'pi-chart-bar', label: 'Score',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE'] },
@@ -47,7 +54,11 @@ const visibleTiles = computed(() =>
 )
 
 function handleTile(tile) {
-  if (tile.key === 'details') {
+  if (tile.key === 'home') {
+    emit('goHome')
+  } else if (tile.key === 'admin') {
+    emit('goAdmin')
+  } else if (tile.key === 'details') {
     emit('goToEventDetails')
   } else if (tile.key === 'battle' && props.role === 'ROLE_JUDGE') {
     emit('navigate', 'Battle Judge')
@@ -147,7 +158,7 @@ function handleSwitchEvent(event) {
     </template>
 
     <template v-else>
-      <div v-if="!isSessionRole" class="mt-auto border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
+      <div v-if="!isSessionRole" class="border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
         <button
           @click="emit('changeEvent'); emit('close')"
           class="w-full type-label text-content-muted hover:text-content-primary transition-colors text-center py-1"
@@ -156,6 +167,25 @@ function handleSwitchEvent(event) {
         </button>
       </div>
     </template>
+
+    <!-- Mobile-only utility row (theme + logout). Desktop has these in the topbar. -->
+    <div class="md:hidden mt-auto border-t border-[rgba(255,255,255,0.07)] p-3 space-y-0.5">
+      <button
+        @click="emit('toggleTheme')"
+        :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        class="w-full flex items-center gap-3 px-3 py-3 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left"
+      >
+        <i class="pi text-sm opacity-70" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
+        {{ theme === 'dark' ? 'Light theme' : 'Dark theme' }}
+      </button>
+      <button
+        @click="emit('logout'); emit('close')"
+        class="w-full flex items-center gap-3 px-3 py-3 type-label text-red-400 hover:bg-red-950 transition-colors text-left"
+      >
+        <i class="pi pi-sign-out text-sm" aria-hidden="true"></i>
+        Logout
+      </button>
+    </div>
 
   </div>
 </template>

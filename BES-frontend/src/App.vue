@@ -14,7 +14,6 @@ const route  = useRoute()
 const modalTitle   = ref('')
 const modalMessage = ref('')
 const showModal    = ref(false)
-const isOpen       = ref(false)
 
 const accentServer = ref('#ffffff')
 const wsAccentClient = ref(null)
@@ -75,7 +74,6 @@ const handleAccept = () => {
 }
 
 const logoutNow = async () => {
-  isOpen.value = false
   await logout()
   authStore.logout()
 }
@@ -111,6 +109,21 @@ function goToAllEvents() {
   router.push({ name: 'Event' })
 }
 
+function goToHome() {
+  panelOpen.value = false
+  router.push('/')
+}
+
+function goToAdmin() {
+  panelOpen.value = false
+  router.push('/admin')
+}
+
+function handlePanelLogout() {
+  panelOpen.value = false
+  openModal('Logout Confirmation', 'Are you sure you want to securely log out?')
+}
+
 // ── Theme ───────────────────────────────────────────────────────────────────
 const theme = ref(localStorage.getItem('bes-theme') || 'dark')
 
@@ -134,7 +147,6 @@ function toggleTheme() {
 
 // ── Watchers ───────────────────────────────────────────────────────────────
 watch(route, () => {
-  isOpen.value = false
   panelOpen.value = false
 })
 
@@ -195,7 +207,7 @@ onUnmounted(() => {
     class="fixed top-0 left-0 w-full z-50 bg-surface-900/95 border-b border-[rgba(255,255,255,0.07)] transition-all duration-300"
   >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
+      <div class="flex items-center h-16 gap-4">
 
         <!-- Left: Kyrove wordmark + glowing dot -->
         <router-link :to="isJudgeRole ? '/judge/session' : isEmceeRole ? '/emcee/session' : isHelperRole ? '/helper/session' : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
@@ -204,7 +216,7 @@ onUnmounted(() => {
         </router-link>
 
         <!-- Center: Primary nav as parallelogram chips -->
-        <div class="hidden md:flex items-center justify-center gap-2">
+        <div class="hidden md:flex flex-1 items-center justify-center gap-2">
           <router-link v-if="!isJudgeRole && !isEmceeRole && !isHelperRole" to="/" v-slot="{ isActive }">
             <span
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
@@ -223,37 +235,23 @@ onUnmounted(() => {
           </router-link>
         </div>
 
-        <!-- Right: always-visible chip + desktop utilities + mobile hamburger -->
-        <div class="flex items-center gap-2">
+        <!-- Right: event chip (mobile menu trigger) + desktop utilities -->
+        <div class="flex items-center justify-end gap-2 ml-auto md:ml-0">
 
-          <!-- Event chip — visible on all screen sizes -->
+          <!-- Single mobile entry point: event chip / menu button (always opens EventPanel) -->
           <div v-if="isAuthenticated" class="relative">
-            <!-- Session roles (judge/emcee/helper): event name is locked, displayed as static chip -->
-            <span
-              v-if="activeEvent && (isJudgeSession || isEmceeSession || isHelperSession)"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-name-sm para-chip-sm text-content-secondary max-w-[200px] md:max-w-[240px]"
-            >
-              <span class="truncate">{{ activeEvent.name }}</span>
-            </span>
-            <!-- Normal user: interactive event chip -->
             <button
-              v-else-if="activeEvent && !isEmceeSession && !isHelperSession"
               @click="panelOpen = !panelOpen"
               :aria-expanded="panelOpen"
               aria-haspopup="dialog"
-              aria-label="Open event menu"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-name-sm para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
+              :aria-label="activeEvent ? 'Open event menu' : 'Open menu'"
+              class="inline-flex items-center gap-2 px-4 py-2 type-name para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[260px] md:max-w-[320px]"
             >
-              <span class="truncate">{{ activeEvent.name }}</span>
-              <i class="pi pi-chevron-right text-[10px] flex-shrink-0 opacity-50 transition-transform duration-200"
+              <i v-if="!activeEvent" class="pi pi-bars text-base flex-shrink-0" aria-hidden="true"></i>
+              <span v-if="activeEvent" class="truncate">{{ activeEvent.name }}</span>
+              <span v-else class="type-label">Menu</span>
+              <i class="pi pi-chevron-right text-xs flex-shrink-0 opacity-50 transition-transform duration-200"
                  :class="panelOpen ? 'rotate-90' : ''"></i>
-            </button>
-            <button
-              v-else
-              @click="router.push({ name: 'EventSelector' })"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-muted hover:text-content-primary border border-[color:var(--accent-muted)] transition-all duration-200"
-            >
-              Select Event →
             </button>
           </div>
 
@@ -290,74 +288,18 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <!-- Mobile hamburger — aria-expanded announces menu state; removed focus:outline-none so the global focus ring shows -->
-          <button @click="isOpen = !isOpen"
-            :aria-expanded="isOpen"
-            aria-label="Toggle navigation menu"
-            class="md:hidden inline-flex items-center justify-center w-11 h-11 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-colors">
-            <i class="pi text-lg" :class="isOpen ? 'pi-times' : 'pi-bars'" aria-hidden="true"></i>
-          </button>
+          <!-- Login for unauthenticated users on mobile -->
+          <router-link v-if="!isAuthenticated" to="/login" class="md:hidden">
+            <span
+              class="px-4 py-1.5 type-label text-surface-900 bg-accent cursor-pointer"
+              style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
+            >Login</span>
+          </router-link>
 
         </div>
 
       </div>
     </div>
-
-    <!-- Mobile Dropdown -->
-    <Transition
-      enter-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-2"
-      enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition duration-150 ease-in"
-      leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-2"
-    >
-      <div v-show="isOpen" class="md:hidden border-t border-[rgba(255,255,255,0.07)] bg-surface-900/98">
-        <div class="px-3 py-3 space-y-0.5">
-          <router-link v-if="!isJudgeRole && !isEmceeRole && !isHelperRole" to="/" v-slot="{ isActive }">
-            <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
-              :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
-              Home
-            </span>
-          </router-link>
-          <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
-            <span class="flex items-center gap-3 px-4 py-3 type-label cursor-pointer transition-colors duration-150"
-              :class="isActive ? 'text-accent' : 'text-content-secondary hover:text-content-primary'">
-              Admin
-            </span>
-          </router-link>
-
-        </div>
-
-        <div class="px-3 py-3 border-t border-[rgba(255,255,255,0.07)]">
-          <div v-if="isAuthenticated" class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span v-if="roleDisplay" class="badge-neutral type-label inline-flex items-center gap-1.5">
-                <span class="opacity-50">{{ roleDisplay.label }}</span>
-                <span v-if="roleDisplay.name" class="text-content-primary">{{ roleDisplay.name }}</span>
-              </span>
-              <!-- aria-label + 44px tap target for mobile theme toggle -->
-              <button @click="toggleTheme"
-                :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-                class="inline-flex items-center justify-center w-11 h-11 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-                <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
-              </button>
-            </div>
-            <button @click="openModal('Logout Confirmation', 'Are you sure you want to securely log out?')"
-              class="flex items-center gap-2 px-4 py-2 type-label text-red-400 bg-red-950 hover:bg-red-900 transition-colors cursor-pointer"
-              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
-              Logout
-            </button>
-          </div>
-          <router-link v-else to="/login">
-            <span
-              class="flex items-center justify-center px-4 py-2.5 type-label text-surface-900 bg-accent w-full cursor-pointer"
-              style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
-            >Login</span>
-          </router-link>
-        </div>
-      </div>
-    </Transition>
 
     <!-- Backdrop -->
     <Transition
@@ -394,23 +336,21 @@ onUnmounted(() => {
         <EventPanel
           :role="role"
           :activeEvent="activeEvent"
+          :theme="theme"
           @close="panelOpen = false"
           @navigate="goToSection"
           @goToEventDetails="goToEventDetails"
           @goToAllEvents="goToAllEvents"
           @changeEvent="changeEvent"
+          @goHome="goToHome"
+          @goAdmin="goToAdmin"
+          @toggleTheme="toggleTheme"
+          @logout="handlePanelLogout"
         />
       </div>
     </Transition>
 
   </nav>
-
-  <!-- Click-outside backdrop for mobile menu -->
-  <div
-    v-if="isOpen && !hideNav"
-    class="fixed inset-0 z-30 md:hidden"
-    @click="isOpen = false"
-  ></div>
 
   <!-- Navbar height spacer -->
   <div v-if="!hideNav" class="h-16"></div>
