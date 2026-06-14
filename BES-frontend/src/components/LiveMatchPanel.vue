@@ -325,7 +325,7 @@ const viewedPairList = computed(() => {
           v-for="g in uniqueGenres"
           :key="g"
           @click="$emit('request-genre-change', g)"
-          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label transition-all duration-150 inline-flex items-center gap-1.5"
+          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-name-sm transition-all duration-150 inline-flex items-center gap-1.5"
           :class="[
             selectedGenre === g
               ? 'text-accent border-[color:var(--accent-muted)]'
@@ -747,9 +747,9 @@ const viewedPairList = computed(() => {
           <div class="corner-bar-tl"></div>
           <span class="type-label text-content-muted mb-1">Previous</span>
           <template v-if="previousBattlePair">
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[0] }}</span>
+            <span class="type-name text-content-secondary block">{{ previousBattlePair[0] }}</span>
             <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ previousBattlePair[1] }}</span>
+            <span class="type-name text-content-secondary block">{{ previousBattlePair[1] }}</span>
           </template>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
@@ -760,9 +760,9 @@ const viewedPairList = computed(() => {
           <div class="corner-bar-tl"></div>
           <span class="type-label text-accent mb-1">Current</span>
           <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0] }}</span>
+            <span class="type-name text-content-primary block">{{ currentBattlePair[0] }}</span>
             <span class="type-label text-content-muted my-0.5 block">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1] }}</span>
+            <span class="type-name text-content-primary block">{{ currentBattlePair[1] }}</span>
           </template>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
@@ -770,9 +770,9 @@ const viewedPairList = computed(() => {
           <div class="corner-bar-tl"></div>
           <span class="type-label text-content-muted mb-1">Next</span>
           <template v-if="nextBattlePair">
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[0] }}</span>
+            <span class="type-name text-content-secondary block">{{ nextBattlePair[0] }}</span>
             <span class="type-label text-content-muted">vs</span>
-            <span class="type-body text-content-secondary block">{{ nextBattlePair[1] }}</span>
+            <span class="type-name text-content-secondary block">{{ nextBattlePair[1] }}</span>
           </template>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>

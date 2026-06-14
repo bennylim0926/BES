@@ -274,7 +274,7 @@ onMounted(async () => {
         </div>
         <div class="flex items-center gap-2 mt-3 pt-3 border-t border-surface-600/30">
           <i class="pi pi-users text-content-muted text-sm"></i>
-          <span class="type-label text-content-muted">
+          <span class="type-prose text-content-muted">
             Showing <span class="text-accent">{{ filtered.length }}</span>
             of <span class="text-accent">{{ participants.length }}</span> participants
           </span>
@@ -480,9 +480,9 @@ onMounted(async () => {
 .genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .genre-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 12px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 5px 12px; font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: 0.02em;
   border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.5); cursor: pointer;
+  color: rgba(255,255,255,0.6); cursor: pointer;
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
   transition: all 0.15s;
 }

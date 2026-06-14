@@ -590,7 +590,7 @@ function transformForScore(data) {
          Release pill is Control-only (spec §4.1). Mode toggle stays in both modes so user can flip. -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
       <div v-if="mode === 'control'">
-        <p class="type-label text-content-muted mb-1">SCOREBOARD · {{ selectedEvent }}</p>
+        <p class="type-label text-content-muted mb-1">SCOREBOARD · <span class="type-name-sm">{{ selectedEvent }}</span></p>
         <h1 class="type-page-title">
           {{ selectedGenre || 'No Genre' }}
           <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
@@ -638,7 +638,7 @@ function transformForScore(data) {
             :key="g"
             @click="selectedGenre = g"
             :aria-pressed="selectedGenre === g"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            class="para-chip-sm px-3 py-1.5 type-name-sm transition-all"
             :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
@@ -978,7 +978,7 @@ function transformForScore(data) {
     <template v-if="mode === 'broadcast'">
       <!-- Header -->
       <div class="mb-4">
-        <p class="type-label text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
+        <p class="type-name-sm text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
         <h1 class="type-page-title">{{ selectedGenre }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
         <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
       </div>
@@ -992,7 +992,7 @@ function transformForScore(data) {
             :key="g"
             @click="selectedGenre = g"
             :aria-pressed="selectedGenre === g"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            class="para-chip-sm px-3 py-1.5 type-name-sm transition-all"
             :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>

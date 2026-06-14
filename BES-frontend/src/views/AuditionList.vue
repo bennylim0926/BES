@@ -726,11 +726,11 @@ onMounted(async () => {
       v-if="hasActiveSession"
       class="para-chip px-4 py-2.5 mb-4 flex-shrink-0 flex items-center justify-between"
     >
-      <div class="flex items-center gap-2 type-label text-content-muted flex-wrap">
+      <div class="flex items-center gap-2 type-name-sm text-content-muted flex-wrap">
         <button
           v-if="isJudgeSession"
           @click="router.push({ name: 'JudgeSession' })"
-          class="text-accent hover:text-content-primary transition-colors whitespace-nowrap"
+          class="type-label text-accent hover:text-content-primary transition-colors whitespace-nowrap"
         >← SESSION</button>
         <span v-if="isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span v-if="isAdmin || isOrganiser" class="text-accent">{{ selectedEvent }}</span>
@@ -738,10 +738,10 @@ onMounted(async () => {
         <span>{{ selectedGenre }}</span>
         <template v-if="isAdmin || isOrganiser">
           <span class="text-content-muted opacity-30">·</span>
-          <span class="uppercase tracking-widest">{{ judgingMode }}</span>
+          <span class="type-label">{{ judgingMode }}</span>
         </template>
         <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
-        <span v-if="!isJudgeSession">{{ selectedRole }}</span>
+        <span v-if="!isJudgeSession" class="type-label">{{ selectedRole }}</span>
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">
