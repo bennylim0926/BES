@@ -49,7 +49,7 @@ const actions = [
     >
       <div class="corner-bar-tl"></div>
       <div class="flex items-center gap-3">
-        <div class="type-body flex-1 line-clamp-2">
+        <div class="type-name flex-1 line-clamp-2">
           {{ props.buttonName }}
         </div>
 

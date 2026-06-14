@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Team members -->
-        <div v-if="slot.person.memberNames?.length" class="flex items-center gap-1.5 type-label text-content-muted mb-3">
+        <div v-if="slot.person.memberNames?.length" class="flex items-center gap-1.5 type-prose text-content-muted mb-3">
           <i class="pi pi-users" style="font-size:0.65rem"></i>
           <span>{{ slot.person.memberNames.join(' · ') }}</span>
         </div>
@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
             ></span>
 
             <!-- Division name -->
-            <span class="type-body text-content-primary flex-1">{{ g.genreName }}</span>
+            <span class="type-name text-content-primary flex-1">{{ g.genreName }}</span>
 
             <!-- Number area -->
             <div class="flex items-baseline gap-1 tabular-nums min-w-[5rem] justify-end">
@@ -344,14 +344,15 @@ onBeforeUnmount(() => {
           :class="i === 0 ? 'border-white/15' : 'opacity-50'"
         >
           <!-- Name -->
-          <span class="type-body text-content-primary shrink-0 min-w-[6rem]">{{ person.name }}</span>
+          <span class="type-name text-content-primary shrink-0 min-w-[6rem]">{{ person.name }}</span>
 
           <!-- Division chips -->
           <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">
             <span
               v-for="g in person.genres"
               :key="g.genreName"
-              class="inline-flex items-center gap-1 badge-neutral capitalize"
+              class="inline-flex items-center gap-1 badge-neutral"
+              style="text-transform:none;letter-spacing:0.02em;"
             >
               <span class="text-content-muted">{{ g.genreName }}</span>
               <span class="text-accent">#{{ g.auditionNumber }}</span>

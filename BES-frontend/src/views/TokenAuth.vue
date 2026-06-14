@@ -70,7 +70,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   background: #111111;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
 }
 
 .color-bleed {

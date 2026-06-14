@@ -2027,7 +2027,7 @@ onUnmounted(() => {
     <!-- Page header — h1 for document outline -->
     <div>
       <h1 class="type-page-title">Battle Control</h1>
-      <p class="type-label text-content-muted mt-1">Manage brackets, rounds, and live voting</p>
+      <p class="type-prose mt-1">Manage brackets, rounds, and live voting.</p>
     </div>
 
     <!-- Quick access links -->
@@ -2188,7 +2188,7 @@ onUnmounted(() => {
               @click="toggleBattleJudge(j.name)"
               @keydown.enter.prevent="toggleBattleJudge(j.name)"
               @keydown.space.prevent="toggleBattleJudge(j.name)"
-              class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
+              class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-name-sm inline-flex items-center gap-1.5 transition-all duration-150 cursor-pointer select-none"
               :class="j.active
                 ? 'text-accent border-[color:var(--accent-muted)] bg-[color:var(--accent-subtle)]'
                 : 'text-content-muted/40 hover:text-content-muted border-surface-600/30'"
@@ -2221,7 +2221,7 @@ onUnmounted(() => {
               class="card-hover p-2 relative inline-flex items-center gap-2 px-3"
             >
               <div class="corner-bar-tl"></div>
-              <span class="type-body text-content-primary">{{ j.name }}</span>
+              <span class="type-name text-content-primary">{{ j.name }}</span>
               <div class="flex items-center gap-1">
                 <span class="type-label text-content-muted" style="font-size:9px;letter-spacing:0.12em">WT</span>
                 <span class="type-body text-content-muted" style="font-size:12px;min-width:2.5rem;text-align:center">{{ j.weightage ?? 1 }}</span>
@@ -2326,7 +2326,7 @@ onUnmounted(() => {
               <i class="pi pi-star text-accent flex-shrink-0 mt-0.5" style="font-size:0.6rem"></i>
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="type-body text-content-primary">{{ g.guestName }}</span>
+                  <span class="type-name text-content-primary">{{ g.guestName }}</span>
                   <!-- round display / inline edit -->
                   <template v-if="!isSmoke">
                     <template v-if="editingGuestId === g.id">
@@ -2341,8 +2341,8 @@ onUnmounted(() => {
                 </div>
                 <div
                   v-if="g.memberNames?.length"
-                  class="type-label text-content-muted normal-case mt-0.5"
-                  style="font-size:11px;letter-spacing:0.04em;opacity:0.7"
+                  class="type-prose text-content-muted mt-0.5"
+                  style="font-size:12px;opacity:0.85"
                 >{{ g.memberNames.join(' · ') }}</div>
               </div>
             </div>
@@ -2479,7 +2479,7 @@ onUnmounted(() => {
                   style="touch-action: none;"
                 >
                   <div class="flex items-center gap-1 min-w-0">
-                    <span class="type-body break-words">{{ match[0] }}</span>
+                    <span class="type-name break-words">{{ match[0] }}</span>
                     <span v-if="isGuestSlot(match[0])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
                   <div v-if="getMembersFor(match[0]).length" class="flex flex-wrap gap-1">
@@ -2525,7 +2525,7 @@ onUnmounted(() => {
                   style="touch-action: none;"
                 >
                   <div class="flex items-center gap-1 min-w-0">
-                    <span class="type-body break-words">{{ match[1] }}</span>
+                    <span class="type-name break-words">{{ match[1] }}</span>
                     <span v-if="isGuestSlot(match[1])" class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded" style="font-size:9px;font-weight:700;letter-spacing:0.1em"><i class="pi pi-star" style="font-size:7px"></i>GUEST</span>
                   </div>
                   <div v-if="getMembersFor(match[1]).length" class="flex flex-wrap gap-1">
@@ -2574,7 +2574,7 @@ onUnmounted(() => {
               class="flex items-center gap-1.5 px-3 py-2 min-w-0 flex-1 select-none"
               :class="match.name ? 'cursor-grab active:cursor-grabbing' : ''"
             >
-              <span class="type-body truncate" :class="match.name ? 'text-content-primary' : 'text-surface-600/50 italic'">{{ match.name || '—' }}</span>
+              <span class="type-name truncate" :class="match.name ? 'text-content-primary' : 'text-surface-600/50 italic'">{{ match.name || '—' }}</span>
               <span
                 v-if="match.name && isGuestSlot(match.name)"
                 class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px text-amber-400 bg-amber-500/20 border border-amber-500/50 rounded"
@@ -2932,7 +2932,7 @@ onUnmounted(() => {
           </div>
           <div v-if="(battleJudges?.judges ?? []).length" class="flex flex-wrap gap-1.5 mb-3">
             <span v-for="j in battleJudges.judges" :key="j.id"
-              class="badge-neutral type-label px-2 py-0.5 text-xs">{{ j.name }}</span>
+              class="badge-neutral px-2 py-0.5 text-xs" style="text-transform:none;letter-spacing:0.02em;">{{ j.name }}</span>
           </div>
           <p v-else class="type-label text-red-400 mb-3">⚠ No judges assigned — add judges before starting</p>
 
@@ -3052,7 +3052,7 @@ onUnmounted(() => {
 .overlay-toggle input:checked + .overlay-toggle-track::after { transform: translateX(16px); }
 .anim-theme-group { display: inline-flex; gap: 6px; }
 .anim-theme-btn {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.18em;
   padding: 5px 12px;
@@ -3084,7 +3084,7 @@ onUnmounted(() => {
   padding: 10px 18px;
   border-left: 3px solid rgba(52,211,153,0.85);
   background: rgba(52,211,153,0.07);
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
 }
 .recovery-dot {
   flex-shrink: 0;
@@ -3119,7 +3119,7 @@ onUnmounted(() => {
   padding: 12px 18px;
   border-left: 3px solid rgba(239,68,68,0.85);
   background: rgba(239,68,68,0.07);
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
 }
 .view-only-body {
   display: flex;
@@ -3157,7 +3157,7 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 .view-only-return-btn {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;

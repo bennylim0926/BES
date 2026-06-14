@@ -240,7 +240,7 @@ const groupTags = (tags) => {
                         :key="judge"
                         class="para-chip px-3 py-2.5"
                       >
-                        <div class="type-body text-content-secondary mb-2">{{ judge }}</div>
+                        <div class="type-name text-content-secondary mb-2">{{ judge }}</div>
                         <div class="space-y-1">
                           <div
                             v-for="(score, aspect) in aspects"
@@ -262,7 +262,7 @@ const groupTags = (tags) => {
                         :key="score.judgeName"
                         class="para-chip px-3 py-2.5"
                       >
-                        <div class="type-label text-content-muted truncate">{{ score.judgeName }}</div>
+                        <div class="type-name-sm text-content-muted truncate">{{ score.judgeName }}</div>
                         <div class="type-stat text-[22px]">{{ score.score }}</div>
                       </div>
                     </div>
@@ -285,7 +285,7 @@ const groupTags = (tags) => {
                         :key="entry.judgeName"
                         class="para-chip px-3 py-3"
                       >
-                        <div class="type-body text-content-secondary mb-2">{{ entry.judgeName }}</div>
+                        <div class="type-name text-content-secondary mb-2">{{ entry.judgeName }}</div>
 
                         <template v-if="entry.tags && entry.tags.length > 0">
                           <div
@@ -305,7 +305,7 @@ const groupTags = (tags) => {
                         </template>
 
                         <div v-if="entry.note" class="mt-2 pt-2" style="border-top: 1px solid rgba(255,255,255,0.06)">
-                          <p class="type-body text-content-secondary">"{{ entry.note }}"</p>
+                          <p class="type-prose text-content-secondary" style="font-size:14px;">"{{ entry.note }}"</p>
                         </div>
 
                         <p

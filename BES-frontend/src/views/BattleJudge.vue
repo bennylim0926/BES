@@ -543,7 +543,7 @@ onUnmounted(() => {
 .pip-right { background: var(--right-color); box-shadow: 0 0 8px var(--right-color); animation-delay: 1.2s; }
 
 .brand-wordmark {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.25em;
   color: rgba(255,255,255,0.28);
@@ -575,7 +575,7 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 .judge-chip-label { font-size: 8px; font-weight: 700; letter-spacing: 0.18em; color: rgba(255,255,255,0.35); }
-.judge-chip-name  { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: rgba(255,255,255,0.9); text-transform: uppercase; }
+.judge-chip-name  { font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: 0.02em; color: rgba(255,255,255,0.92); }
 .judge-chip-clear {
   background: none; border: none; cursor: pointer;
   font-size: 10px; color: rgba(255,255,255,0.3);
@@ -709,9 +709,9 @@ onUnmounted(() => {
 }
 
 .direction-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(18px, 5.5vw, 44px);
-  letter-spacing: 0.08em; text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: rgba(255,255,255,0.4);
   line-height: 1.1;
   text-align: center;
@@ -720,7 +720,11 @@ onUnmounted(() => {
   max-width: 90%;
   transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.direction-tie { font-size: clamp(16px, 4vw, 32px); }
+.direction-tie {
+  font-size: clamp(16px, 4vw, 32px);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
 
 .is-armed .direction-label {
   color: rgba(255,255,255,0.92);
@@ -800,13 +804,13 @@ onUnmounted(() => {
 .banner-right { background: linear-gradient(to top, color-mix(in srgb, var(--right-color) 85%, black) 0%, color-mix(in srgb, var(--right-color) 30%, transparent) 72%, transparent 100%); }
 .banner-tie   { background: linear-gradient(to top, rgba(71,85,105,0.85) 0%, rgba(71,85,105,0.3) 72%, transparent 100%); }
 .banner-winner-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(28px, 5.5vw, 58px);
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: white; line-height: 1;
+  letter-spacing: 0.02em;
+  color: white; line-height: 1.05;
 }
 .banner-wins {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(14px, 2.5vw, 30px);
   letter-spacing: 0.35em; text-transform: uppercase;
   color: rgba(52,211,153,0.9);
@@ -846,10 +850,10 @@ onUnmounted(() => {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(15px, 3vw, 22px);
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.75);
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.85);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   -webkit-tap-highlight-color: transparent;

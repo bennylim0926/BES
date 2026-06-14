@@ -448,7 +448,7 @@ body.transparent-page #app {
 .smoke-root {
   position: fixed;
   inset: 0;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   background: #06080e;
   overflow: hidden;
   display: flex;
@@ -611,7 +611,7 @@ body.transparent-page #app {
 }
 .bg-name {
   flex: 1;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(32px, 8vw, 110px);
   letter-spacing: 0.06em; line-height: 1.05;
   opacity: 0.1;
@@ -622,7 +622,7 @@ body.transparent-page #app {
 .bg-name-left  { color: var(--left-color);  text-shadow: 0 0 40px var(--left-color); text-align: left; }
 .bg-name-right { color: var(--right-color); text-shadow: 0 0 40px var(--right-color); text-align: right; }
 .bg-vs {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(10px, 2vw, 24px); letter-spacing: 0.2em;
   color: rgba(255,255,255,0.08);
   flex-shrink: 0; padding: 0 12px;
@@ -665,11 +665,11 @@ body.transparent-page #app {
 }
 
 .result-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(28px, 5.5vw, 88px);
-  letter-spacing: 0.07em;
-  line-height: 1;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  text-transform: none;
   animation: resultSlam 520ms cubic-bezier(0.2, 0, 0.3, 1) both;
 }
 .result-left {
@@ -745,9 +745,9 @@ body.transparent-page #app {
 }
 .judge-row { display: flex; align-items: center; gap: 9px; }
 .judge-name {
-  font-family: 'Anton SC', sans-serif;
-  font-size: 22px; color: rgba(255,255,255,0.90);
-  letter-spacing: 0.06em; text-transform: uppercase; line-height: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 22px; color: rgba(255,255,255,0.92);
+  letter-spacing: 0.02em; line-height: 1.05;
 }
 .judge-name-tie { color: rgba(255,255,255,0.32) !important; }
 .vote-arrow {
@@ -760,7 +760,7 @@ body.transparent-page #app {
 .arrow-lit-left  { opacity: 1; background: var(--left-color);  filter: drop-shadow(0 0 8px var(--left-color)); }
 .arrow-lit-right { opacity: 1; background: var(--right-color); filter: drop-shadow(0 0 8px var(--right-color)); }
 .tie-badge {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 13px; letter-spacing: 0.35em;
   color: rgba(255,255,255,0.55); text-align: center; width: 100%;
   border: 1px solid rgba(255,255,255,0.18); border-radius: 4px; padding: 2px 0;
@@ -807,7 +807,7 @@ body.transparent-page #app {
   animation: champBurst 0.6s ease-out both;
 }
 .champ-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(36px, 7vw, 110px);
   letter-spacing: 0.08em; line-height: 1;
   text-transform: uppercase;

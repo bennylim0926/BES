@@ -947,7 +947,7 @@ onUnmounted(() => {
   animation: blankPulse 2.4s ease-in-out infinite;
 }
 .blank-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(22px, 3.5vw, 42px);
   letter-spacing: 0.28em; text-transform: uppercase;
   color: rgba(255,255,255,0.85);
@@ -987,7 +987,7 @@ onUnmounted(() => {
   filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
 }
 .logo-wm-genre {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 72px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -1009,7 +1009,7 @@ onUnmounted(() => {
   top: 0; left: 0;
   width: 100vw; height: 100vh;
   overflow: hidden;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   background: #060818;
   /* Default CSS custom properties — overridden by :style binding */
   --left-color: #dc2626;
@@ -1141,7 +1141,7 @@ onUnmounted(() => {
 .weight-tally {
   display: flex; align-items: center; justify-content: center; gap: 14px;
   margin-top: 8px;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 15px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1195,12 +1195,12 @@ onUnmounted(() => {
 /* Judge name + arrow row */
 .judge-row { display: flex; align-items: center; gap: 9px; }
 .judge-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 22px;
-  color: rgba(255,255,255,0.90);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1;
+  color: rgba(255,255,255,0.92);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  line-height: 1.05;
 }
 
 /* Direction arrows */
@@ -1227,7 +1227,7 @@ onUnmounted(() => {
 /* Tie state */
 .judge-name-tie { color: rgba(255,255,255,0.32) !important; }
 .tie-badge {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 13px; letter-spacing: 0.35em;
   color: rgba(255,255,255,0.55);
   text-align: center; width: 100%;
@@ -1359,11 +1359,11 @@ onUnmounted(() => {
 }
 .name-overlay-right { align-items: flex-end; }
 .name-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(22px, 4.5vw, 72px);
-  text-transform: uppercase;
+  text-transform: none;
   color: #fff;
-  line-height: 1; letter-spacing: 0.07em;
+  line-height: 1.05; letter-spacing: 0.02em;
 }
 .name-text-left {
   text-shadow: 3px 3px 0 var(--left-color),
@@ -1385,11 +1385,11 @@ onUnmounted(() => {
   padding: 0 8px;
 }
 .name-giant {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(28px, 5.5vw, 90px);
-  text-transform: uppercase;
+  text-transform: none;
   color: #fff;
-  line-height: 1; letter-spacing: 0.06em;
+  line-height: 1.05; letter-spacing: 0.02em;
   word-break: break-word; text-align: center;
 }
 .name-giant-left {
@@ -1403,10 +1403,10 @@ onUnmounted(() => {
 
 /* Member list — compact row under battler name */
 .member-list {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(14px, 1.6vw, 26px);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: rgba(255,255,255,0.55);
   line-height: 1.2;
   display: block;
@@ -1420,7 +1420,7 @@ onUnmounted(() => {
 
 /* Score badges */
 .score-badge {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(12px, 1.6vw, 28px);
   line-height: 1;
   color: rgba(255,255,255,0.92);
@@ -1431,7 +1431,7 @@ onUnmounted(() => {
   letter-spacing: 0.05em;
 }
 .score-badge-large {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(16px, 2.5vw, 42px);
   color: rgba(255,255,255,0.6);
   letter-spacing: 0.05em;
@@ -1446,7 +1446,7 @@ onUnmounted(() => {
   z-index: 30;
 }
 .vs-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(24px, 4.2vw, 72px);
   color: rgba(255,255,255,0.88);
   letter-spacing: 0.14em;
@@ -1510,7 +1510,7 @@ onUnmounted(() => {
 
 /* ── Winner label — Anton SC, same design language as name ── */
 .winner-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(14px, 2.2vw, 38px);
   letter-spacing: 0.5em;
   text-transform: uppercase;
@@ -1683,7 +1683,7 @@ onUnmounted(() => {
 
 /* ── Broadcast timer (text-only top-right) ───────── */
 .timer-overlay { position: absolute; top: 16px; right: 20px; z-index: 100; pointer-events: none; }
-.timer-countdown { font-family: 'Anton SC', sans-serif; font-size: 28px; letter-spacing: 0.08em; color: var(--accent-color, #fff); text-align: right; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+.timer-countdown { font-family: 'Oswald', sans-serif; font-size: 28px; letter-spacing: 0.08em; color: var(--accent-color, #fff); text-align: right; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
 .timer-text-warning { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5); animation: timer-pulse-text 0.5s ease-in-out infinite alternate; }
 .timer-enter-enter-active { animation: timer-slide-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .timer-enter-leave-active { animation: timer-slide-out 200ms ease-in; }
@@ -1733,14 +1733,14 @@ onUnmounted(() => {
   gap: 16px;
 }
 .fmt-bar-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 9px;
   letter-spacing: 0.30em;
   color: rgba(255, 255, 255, 0.30);
   line-height: 1;
 }
 .fmt-bar-time {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 28px;
   letter-spacing: 0.06em;
   line-height: 1;

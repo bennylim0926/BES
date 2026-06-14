@@ -83,8 +83,8 @@ const print = () => window.print()
 
         <!-- Instructions -->
         <div class="para-chip px-5 py-4 text-center w-full max-w-sm">
-          <p class="type-label text-content-muted">Scan this QR code to view your scores and feedback</p>
-          <p class="type-label text-content-muted mt-1 opacity-60">Results are released by the organiser after all auditions</p>
+          <p class="type-prose">Scan this QR code to view your scores and feedback.</p>
+          <p class="type-prose-sm mt-1">Results are released by the organiser after all auditions.</p>
         </div>
 
         <!-- Print button (hidden in print) -->

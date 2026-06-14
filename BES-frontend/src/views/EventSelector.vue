@@ -71,7 +71,7 @@ const handleSubmit = async () => {
               >
                 <div class="corner-bar-tl"></div>
                 <div class="flex items-start justify-between gap-2">
-                  <div class="type-body mb-1 event-card-name">{{ event.name }}</div>
+                  <div class="type-name mb-1 event-card-name">{{ event.name }}</div>
                   <i v-if="selectedEventId === event.id" class="pi pi-check-circle text-accent flex-shrink-0" aria-hidden="true"></i>
                 </div>
               </button>

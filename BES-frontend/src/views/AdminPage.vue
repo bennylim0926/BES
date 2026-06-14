@@ -240,7 +240,7 @@ onMounted(async () => {
           <div class="section-rule-line"></div>
         </div>
 
-        <p class="type-label text-content-muted mb-4">Genres — used to group divisions when setting up events.</p>
+        <p class="type-prose mb-4">Genres — used to group divisions when setting up events.</p>
 
         <div class="flex gap-3 mb-5">
           <!-- aria-label: input needs an accessible name beyond placeholder -->
@@ -266,7 +266,7 @@ onMounted(async () => {
             <div class="flex items-center justify-between">
               <button
                 @click="selectId(g.id, 'genre')"
-                class="type-body text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
+                class="type-name text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
               >
                 {{ g.genreName }}
               </button>
@@ -294,7 +294,7 @@ onMounted(async () => {
           <span class="section-rule-label">Reset Scores</span>
           <div class="section-rule-line"></div>
         </div>
-        <p class="type-label text-content-muted mb-4">Permanently removes all scores for an event.</p>
+        <p class="type-prose mb-4">Permanently removes all scores for an event.</p>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           <div
@@ -303,7 +303,7 @@ onMounted(async () => {
             class="card-hover p-3 relative flex items-center justify-between"
           >
             <div class="corner-bar-tl"></div>
-            <span class="type-body text-content-secondary truncate flex-1">{{ e.name }}</span>
+            <span class="type-name text-content-secondary truncate flex-1">{{ e.name }}</span>
             <button
               @click="confirmResetScore(e.id, 'Reset Scores?', `This will permanently delete all scores for ${e.name}.`)"
               class="ml-2 flex-shrink-0 para-chip-sm type-label px-2 py-1 text-red-400 hover:bg-red-950 transition-all"
@@ -342,7 +342,7 @@ onMounted(async () => {
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
-              <span class="type-body text-content-primary">{{ group.name }}</span>
+              <span class="type-name text-content-primary">{{ group.name }}</span>
               <button
                 @click="submitDeleteGroup(group.id)"
                 class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
@@ -357,7 +357,7 @@ onMounted(async () => {
               <div
                 v-for="tag in group.tags"
                 :key="tag.id"
-                class="para-chip-sm px-3 py-1 type-label text-content-secondary flex items-center gap-1.5"
+                class="para-chip-sm px-3 py-1 type-name-sm text-content-secondary flex items-center gap-1.5"
               >
                 {{ tag.label }}
                 <!-- aria-label + padding: tiny × target gets an accessible name and a usable hit area -->
@@ -458,7 +458,7 @@ onMounted(async () => {
           <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Create Account</button>
         </div>
 
-        <p class="type-label text-content-muted mb-4">Assign or remove events for each organiser.</p>
+        <p class="type-prose mb-4">Assign or remove events for each organiser.</p>
 
         <div class="space-y-3">
           <div
@@ -468,7 +468,7 @@ onMounted(async () => {
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
-              <span class="type-body text-content-primary">{{ org.username }}</span>
+              <span class="type-name text-content-primary">{{ org.username }}</span>
               <button
                 @click="confirmDeleteOrganiser(org.id, org.username)"
                 class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
@@ -486,7 +486,7 @@ onMounted(async () => {
                 :key="e.id"
                 @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
                 :aria-pressed="isEventAssigned(org, e.id)"
-                class="para-chip-sm type-label px-3 py-1.5 transition-all duration-150 inline-flex items-center gap-1.5"
+                class="para-chip-sm type-name-sm px-3 py-1.5 transition-all duration-150 inline-flex items-center gap-1.5"
                 :class="isEventAssigned(org, e.id) ? 'text-green-300 border-green-500/50 bg-green-500/15' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
               >
                 <i v-if="isEventAssigned(org, e.id)" class="pi pi-check text-xs" aria-hidden="true"></i>
@@ -511,7 +511,7 @@ onMounted(async () => {
         </div>
         <div class="card-hover p-6 relative">
           <div class="corner-bar-tl"></div>
-          <p class="type-label text-content-muted mb-4">Sets the global accent color for all connected clients in real-time.</p>
+          <p class="type-prose mb-4">Sets the global accent color for all connected clients in real-time.</p>
           <div class="flex items-center gap-4">
             <input type="color" v-model="accentInput" aria-label="Accent color picker" class="w-12 h-11 cursor-pointer bg-transparent border-0" />
             <span class="type-body text-accent">{{ accentInput }}</span>

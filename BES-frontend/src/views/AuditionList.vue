@@ -726,11 +726,11 @@ onMounted(async () => {
       v-if="hasActiveSession"
       class="para-chip px-4 py-2.5 mb-4 flex-shrink-0 flex items-center justify-between"
     >
-      <div class="flex items-center gap-2 type-label text-content-muted flex-wrap">
+      <div class="flex items-center gap-2 type-name-sm text-content-muted flex-wrap">
         <button
           v-if="isJudgeSession"
           @click="router.push({ name: 'JudgeSession' })"
-          class="text-accent hover:text-content-primary transition-colors whitespace-nowrap"
+          class="type-label text-accent hover:text-content-primary transition-colors whitespace-nowrap"
         >← SESSION</button>
         <span v-if="isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span v-if="isAdmin || isOrganiser" class="text-accent">{{ selectedEvent }}</span>
@@ -738,10 +738,10 @@ onMounted(async () => {
         <span>{{ selectedGenre }}</span>
         <template v-if="isAdmin || isOrganiser">
           <span class="text-content-muted opacity-30">·</span>
-          <span class="uppercase tracking-widest">{{ judgingMode }}</span>
+          <span class="type-label">{{ judgingMode }}</span>
         </template>
         <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
-        <span v-if="!isJudgeSession">{{ selectedRole }}</span>
+        <span v-if="!isJudgeSession" class="type-label">{{ selectedRole }}</span>
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">
@@ -806,7 +806,7 @@ onMounted(async () => {
         <!-- Mobile: vertical stack; Tablet+: horizontal wrap -->
         <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 sm:gap-3">
           <!-- Event name (hidden for session judges — locked) -->
-          <span v-if="!isJudgeSession" class="type-body text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
+          <span v-if="!isJudgeSession" class="type-name text-content-primary whitespace-nowrap">{{ selectedEvent }}</span>
           <span v-if="!isJudgeSession" class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Role toggle (hidden for session judges and emcees — role is fixed) -->
@@ -836,7 +836,7 @@ onMounted(async () => {
                 :key="g"
                 @click="switchGenre(g)"
                 :aria-pressed="selectedGenre === g"
-                class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-label transition-all duration-150"
+                class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1 type-name-sm transition-all duration-150"
                 :class="selectedGenre === g
                   ? 'text-accent border-[color:var(--accent-muted)]'
                   : 'text-content-muted hover:text-content-primary'"
@@ -953,7 +953,7 @@ onMounted(async () => {
         <i class="pi pi-list text-content-muted text-xl"></i>
       </div>
       <p class="type-body text-content-secondary">No participants in {{ selectedGenre }}</p>
-      <p class="type-label text-content-muted mt-1">Participants will appear here once they are checked in and have audition numbers</p>
+      <p class="type-prose-sm mt-1">Participants will appear here once they're checked in and have audition numbers.</p>
       <div class="mt-4 px-5 py-3" style="border-left:3px solid rgba(245,158,11,0.8);background:rgba(245,158,11,0.07);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
         <p class="type-label text-amber-300/80">
           {{ participants.filter(p => p.genreName === selectedGenre).length }} total in {{ selectedGenre }}
@@ -968,7 +968,7 @@ onMounted(async () => {
     >
       <div>
         <p class="type-page-title text-content-primary mb-1" style="font-size:1.4rem">Who are you?</p>
-        <p class="type-label text-content-muted">Select your name to start scoring</p>
+        <p class="type-prose">Select your name to start scoring.</p>
       </div>
 
       <!-- No judges configured -->
@@ -992,7 +992,7 @@ onMounted(async () => {
           v-for="judge in availableJudges"
           :key="judge"
           @click="pendingJudge = judge; showJudgeConfirm = true"
-          class="w-full para-chip px-4 py-3.5 type-body text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-center"
+          class="w-full para-chip px-4 py-3.5 type-name text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150 text-center"
         >
           {{ judge }}
         </button>
@@ -1056,7 +1056,7 @@ onMounted(async () => {
           {{ participants.filter(p => p.genreName === selectedGenre && p.auditionNumber !== null).length }} have audition numbers
         </p>
       </div>
-      <p class="type-label text-content-muted mt-3 max-w-xs">
+      <p class="type-prose-sm mt-3 max-w-xs">
         No participants found in this division. Try a different genre or ask an organiser to add participants.
       </p>
     </div>
@@ -1070,7 +1070,7 @@ onMounted(async () => {
         <i class="pi pi-list text-content-muted text-xl"></i>
       </div>
       <p class="type-body text-content-secondary">No participants found</p>
-      <p class="type-label text-content-muted mt-1">Select a different event or genre</p>
+      <p class="type-prose-sm mt-1">Try a different event or genre.</p>
     </div>
 
     <!-- No role selected -->
@@ -1082,7 +1082,7 @@ onMounted(async () => {
         <i class="pi pi-filter text-accent text-xl"></i>
       </div>
       <p class="type-body text-content-secondary">Select your role to begin</p>
-      <p class="type-label text-content-muted mt-1">Choose Emcee or Judge in the filter panel above</p>
+      <p class="type-prose-sm mt-1">Choose Emcee or Judge in the filter panel above.</p>
     </div>
 
     <!-- Catch-all fallback: prevent blank page while data is loading -->
@@ -1094,7 +1094,7 @@ onMounted(async () => {
         <i class="pi pi-spinner pi-spin text-accent text-xl"></i>
       </div>
       <p class="type-body text-content-secondary">Loading…</p>
-      <p class="type-label text-content-muted mt-1">Fetching audition data for {{ selectedEvent }}</p>
+      <p class="type-prose-sm mt-1">Fetching audition data for {{ selectedEvent }}…</p>
     </div>
 
     </div>
@@ -1148,8 +1148,8 @@ onMounted(async () => {
     @accept="() => { currentJudge = pendingJudge; filteredJudge = pendingJudge; showJudgeConfirm = false; pendingJudge = null }"
     @close="() => { showJudgeConfirm = false; pendingJudge = null }"
   >
-    <p class="type-body text-content-secondary">
-      You are judging as <span class="text-accent">{{ pendingJudge }}</span>?
+    <p class="type-prose text-content-secondary" style="font-size:14px;">
+      You are judging as <span class="type-name text-accent">{{ pendingJudge }}</span>?
     </p>
   </ActionDoneModal>
 </template>

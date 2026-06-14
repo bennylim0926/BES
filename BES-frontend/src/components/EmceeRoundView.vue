@@ -217,8 +217,8 @@ const swipeHint = computed(() => {
               <div v-else class="flex items-start gap-2 flex-wrap">
                 <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
                 <div class="min-w-0">
-                  <span class="type-body block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
-                  <span v-if="slot.memberNames?.length" class="type-label text-content-muted normal-case block" style="font-size:15px;letter-spacing:0.04em">{{ slot.memberNames.join(' · ') }}</span>
+                  <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
+                  <span v-if="slot.memberNames?.length" class="type-prose text-content-muted block" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</span>
                 </div>
                 <span v-if="mode === 'PAIR' && sIdx === 0" class="text-white/20 text-xs">&amp;</span>
               </div>
@@ -280,9 +280,9 @@ const swipeHint = computed(() => {
                   <div v-if="mode === 'PAIR' && sIdx > 0" class="text-white/20 text-sm my-1 pl-1">&amp;</div>
                   <div class="flex items-baseline gap-2">
                     <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
-                    <span class="type-body text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
+                    <span class="type-name text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
                   </div>
-                  <div v-if="slot.memberNames?.length" class="type-label text-content-muted normal-case mt-0.5 pl-1" style="font-size:15px;letter-spacing:0.04em">{{ slot.memberNames.join(' · ') }}</div>
+                  <div v-if="slot.memberNames?.length" class="type-prose text-content-muted mt-0.5 pl-1" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</div>
                   <div v-if="slot.judgeName" class="text-xs text-white/25 mt-0.5 pl-1">{{ slot.judgeName }}</div>
                 </div>
               </template>

@@ -323,7 +323,7 @@ if (props.recoveryState) recoverFromState(props.recoveryState)
 }
 
 .format-countdown {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 22px;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -349,7 +349,7 @@ if (props.recoveryState) recoverFromState(props.recoveryState)
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--content-primary, #fff);
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 13px;
   letter-spacing: 0.05em;
   padding: 6px 8px;
