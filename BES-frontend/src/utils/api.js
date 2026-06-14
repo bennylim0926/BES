@@ -321,6 +321,45 @@ export const linkGenreToEvent = async(eventName, divisions) =>{
   }
 }
 
+export const linkGenresToEvent = async (eventName, genreIds) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/linked-genres`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ genreIds })
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const getLinkedGenres = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/linked-genres`, {
+      method: 'GET',
+      credentials: 'include'
+    })
+    return res.ok ? await res.json() : []
+  } catch (e) {
+    console.log(e)
+    return []
+  }
+}
+
+export const unlinkGenreFromEvent = async (eventName, genreId) => {
+  try {
+    return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/linked-genres/${genreId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
 export const addParticipantToSystem = async (fileId, eventName)=>{
   try{
   return await fetch(`${domain}/api/v1/event/participants/`, {

@@ -1,13 +1,43 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getAuditionDisplayState } from '@/utils/api'
+import { getAuditionDisplayState, getGenresByEvent, updateGenreNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
+import { useAuthStore } from '@/utils/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const eventName = ref(route.query.event || '')
 const state = ref(null)
 const client = ref(null)
+
+// ── Operator overlay: visible only to logged-in operators, hidden in OBS broadcasts ──
+const isOperator = computed(() => !!authStore.isAuthenticated && !!authStore.user)
+const showOperatorPanel = ref(false)
+const eventGenres = ref([])
+const activeGenreEntry = computed(() => {
+  if (!state.value?.genreName) return null
+  return eventGenres.value.find(g => g.name === state.value.genreName) ?? null
+})
+
+async function loadGenresForOperator() {
+  if (!isOperator.value || !eventName.value) return
+  eventGenres.value = await getGenresByEvent(eventName.value) ?? []
+}
+
+async function saveOperatorNumberColor(color) {
+  const entry = activeGenreEntry.value
+  if (!entry) return
+  const next = color || null
+  await updateGenreNumberColor(eventName.value, entry.eventGenreId, next)
+  entry.numberColor = next
+  if (state.value) state.value = { ...state.value, numberColor: next }
+}
+
+watch(() => state.value?.genreName, () => {
+  // Refresh the matched genre cache when the active genre changes
+  if (isOperator.value && eventGenres.value.length === 0) loadGenresForOperator()
+})
 
 // ── Local timer ticker (reconstructed from backend timerStartedAt + timerDuration) ──
 const displayTimeLeft = ref(0)
@@ -37,7 +67,7 @@ const roundLabel = computed(() => {
   if (!state.value || !state.value.totalRounds) return ''
   return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
 })
-const genreRoundLabel = computed(() => state.value?.roundLabel ?? null)
+const genreRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor     = computed(() => state.value?.numberColor ?? null)
 const currentSlots = computed(() => state.value?.currentSlots ?? [])
 const nextSlots    = computed(() => state.value?.nextSlots ?? [])
@@ -70,6 +100,8 @@ onMounted(async () => {
   subscribeToChannel(client.value, `/topic/audition/${eventName.value}/display`, (msg) => {
     applyState(msg)
   })
+
+  await loadGenresForOperator()
 })
 
 onUnmounted(() => {
@@ -104,7 +136,7 @@ onUnmounted(() => {
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
           <span class="event-header-genre">{{ genreName }}</span>
-          <span v-if="genreRoundLabel" class="event-header-round-label">{{ genreRoundLabel }}</span>
+          <span class="event-header-round-label">{{ genreRoundLabel }}</span>
         </div>
 
         <!-- Round counter -->
@@ -158,6 +190,47 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Operator overlay — only visible to logged-in operators (OBS broadcasts have no session) -->
+      <div v-if="isOperator" class="operator-overlay">
+        <button
+          class="op-toggle"
+          :class="{ 'op-toggle-active': showOperatorPanel }"
+          @click="showOperatorPanel = !showOperatorPanel"
+          title="Display settings"
+        >
+          <i class="pi" :class="showOperatorPanel ? 'pi-times' : 'pi-cog'"></i>
+        </button>
+        <div v-if="showOperatorPanel" class="op-panel">
+          <div class="op-panel-header">
+            <span class="op-panel-title">Display Settings</span>
+            <span class="op-panel-genre">{{ state?.genreName || '—' }}</span>
+          </div>
+          <div class="op-row">
+            <span class="op-row-label">Audition Number Color</span>
+            <div class="op-row-controls">
+              <input
+                type="color"
+                :disabled="!activeGenreEntry"
+                :value="state?.numberColor || '#ffffff'"
+                @change="saveOperatorNumberColor($event.target.value)"
+                class="op-color-input"
+                title="Pick a color for this category's audition number"
+              />
+              <span class="op-row-value">{{ state?.numberColor || 'Default' }}</span>
+              <button
+                v-if="state?.numberColor"
+                class="op-reset"
+                @click="saveOperatorNumberColor(null)"
+                title="Reset to default"
+              ><i class="pi pi-times"></i></button>
+            </div>
+          </div>
+          <p v-if="!activeGenreEntry" class="op-warn">
+            Waiting for a genre to be active — start a round to enable controls.
+          </p>
+        </div>
+      </div>
+
       <!-- UP NEXT (secondary area) -->
       <div v-if="nextSlots.length > 0" class="up-next-area">
         <div class="section-rule mb-2">
@@ -170,8 +243,8 @@ onUnmounted(() => {
             </div>
             <div v-else class="next-slot-entry">
               <span class="type-stat" style="font-size:24px;opacity:0.5">#{{ slot.auditionNumber }}</span>
-              <span class="type-body" style="font-size:20px;opacity:0.4;margin-left:8px">{{ slot.participantName }}</span>
-              <span v-if="slot.memberNames?.length" class="type-label" style="opacity:0.3;font-size:12px;margin-left:8px">{{ slot.memberNames.join(' · ') }}</span>
+              <span class="next-slot-name" style="margin-left:8px">{{ slot.participantName }}</span>
+              <span v-if="slot.memberNames?.length" class="next-slot-members" style="margin-left:8px">{{ slot.memberNames.join(' · ') }}</span>
             </div>
             <span v-if="mode === 'PAIR' && sIdx === 0 && nextSlots.length > 1" style="opacity:0.2;margin:0 8px">&amp;</span>
           </template>
@@ -191,7 +264,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
 }
 
@@ -267,26 +340,26 @@ onUnmounted(() => {
   gap: 2px;
 }
 .event-header-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(42px, 8vw, 100px);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: none;
   color: rgba(255,255,255,0.9);
 }
 .event-header-genre {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(22px, 3.5vw, 52px);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: none;
   color: rgba(255,255,255,0.45);
 }
 .event-header-round-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(14px, 2vw, 28px);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
-  margin-top: 2px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: rgba(255,255,255,0.55);
+  margin-top: 4px;
 }
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
@@ -350,21 +423,26 @@ onUnmounted(() => {
 }
 
 .participant-name {
+  font-family: 'Oswald', sans-serif;
   font-size: clamp(48px, 9vw, 120px);
-  letter-spacing: 0.04em;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: #ffffff;
   margin-top: 2px;
+  padding-bottom: 0.15em; /* room for lowercase descenders so member names don't get covered */
   hyphens: none;
   overflow-wrap: normal;
   word-break: keep-all;
 }
 
 .member-names {
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.35);
+  font-family: 'Oswald', sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.45);
   text-transform: none;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .pair-sep {
@@ -425,6 +503,22 @@ onUnmounted(() => {
   align-items: baseline;
 }
 
+/* Up Next: name + members shown as typed (sentence case) */
+.next-slot-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(255,255,255,0.55);
+}
+.next-slot-members {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(255,255,255,0.30);
+}
+
 /* ── Section rule (defined locally since this is a standalone page) ───────── */
 .section-rule {
   display: flex;
@@ -441,6 +535,118 @@ onUnmounted(() => {
 }
 .section-rule-label {
   flex-shrink: 0;
+}
+
+/* ── Operator overlay (hidden in OBS, visible when logged in) ─────────────── */
+.operator-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+}
+.op-toggle {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 20, 20, 0.7);
+  color: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: color 0.15s ease, background 0.15s ease;
+  backdrop-filter: blur(6px);
+}
+.op-toggle:hover { color: rgba(255,255,255,0.9); background: rgba(30,30,30,0.75); }
+.op-toggle-active { color: var(--accent-color); }
+.op-panel {
+  width: 320px;
+  background: rgba(15,15,15,0.92);
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(8px);
+  padding: 16px;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+}
+.op-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 12px;
+}
+.op-panel-title {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.7);
+}
+.op-panel-genre {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--accent-color);
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.op-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.op-row-label {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.55);
+}
+.op-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.op-color-input {
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  border-radius: 2px;
+}
+.op-color-input:disabled { cursor: not-allowed; opacity: 0.4; }
+.op-row-value {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.45);
+  min-width: 56px;
+  text-transform: uppercase;
+}
+.op-reset {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  font-size: 10px;
+}
+.op-reset:hover { color: rgba(255,255,255,0.85); }
+.op-warn {
+  margin-top: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: rgba(245,158,11,0.85);
+  line-height: 1.4;
 }
 
 /* ── Corner bars ─────────────────────────────────────────────────────────── */
