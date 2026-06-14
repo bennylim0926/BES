@@ -97,14 +97,6 @@ const uniqueGenres = computed(() => {
   return [...new Set([...fromEvent, ...fromScores])].sort()
 })
 
-// True when the active genre exists for the event but has no scores yet —
-// drives the "no scores yet" empty state instead of hiding the genre.
-const selectedGenreHasNoScores = computed(() =>
-  selectedGenre.value
-  && uniqueGenres.value.includes(selectedGenre.value)
-  && !participants.value.some(p => p.genreName === selectedGenre.value)
-)
-
 const hasTeamAndSoloMix = computed(() => {
   const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
   const hasTeam = gp.some(p => p.format && p.format !== '1v1')
