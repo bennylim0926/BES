@@ -26,7 +26,7 @@ if (!currentSelected.value && props.options.length > 0) {
 
         <!-- Trigger Button -->
         <ListboxButton
-          class="w-full flex items-center justify-between gap-2 px-3 py-2 para-chip type-label transition-all duration-200"
+          class="w-full flex items-center justify-between gap-2 px-3 py-2 para-chip type-name-sm transition-all duration-200"
           :class="[
             currentSelected ? 'text-accent' : 'text-content-muted'
           ]"
@@ -59,7 +59,7 @@ if (!currentSelected.value && props.options.length > 0) {
             >
               <li
                 class="flex items-center justify-between px-4 py-2.5
-                       cursor-pointer type-body select-none
+                       cursor-pointer type-name select-none
                        transition-colors duration-100"
                 :class="[
                   active   ? 'text-accent bg-[rgba(255,255,255,0.04)]' : 'text-content-secondary',

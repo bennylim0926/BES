@@ -46,7 +46,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-calendar text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Events</div>
-          <p class="type-label text-content-muted">Manage and browse events</p>
+          <p class="type-prose">Manage and browse events.</p>
         </router-link>
 
         <!-- Event Day (Helper) -->
@@ -58,7 +58,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-calendar-clock text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Event Day</div>
-          <p class="type-label text-content-muted">Walk-ins, check-in, audition screen</p>
+          <p class="type-prose">Walk-ins, check-in, audition screen.</p>
         </router-link>
 
         <!-- Audition List -->
@@ -70,7 +70,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-list text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Audition</div>
-          <p class="type-label text-content-muted">Score and timer controls</p>
+          <p class="type-prose">Score and timer controls.</p>
         </router-link>
 
         <!-- Participants (Admin / Organiser) -->
@@ -82,7 +82,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-users text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Participants</div>
-          <p class="type-label text-content-muted">Manage registrations and judges</p>
+          <p class="type-prose">Manage registrations and judges.</p>
         </router-link>
 
         <!-- Scoreboard (Admin / Organiser / Emcee) -->
@@ -94,7 +94,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-chart-bar text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Scoreboard</div>
-          <p class="type-label text-content-muted">Live leaderboard</p>
+          <p class="type-prose">Live leaderboard.</p>
         </router-link>
 
         <!-- Battle Control (Admin / Organiser) -->
@@ -106,7 +106,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-bolt text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Battle</div>
-          <p class="type-label text-content-muted">Bracket and match control</p>
+          <p class="type-prose">Bracket and match control.</p>
         </router-link>
 
         <!-- Admin (Admin only) -->
@@ -118,7 +118,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Admin</div>
-          <p class="type-label text-content-muted">Genres, judges, theme config</p>
+          <p class="type-prose">Genres, judges, theme config.</p>
         </router-link>
 
       </div>

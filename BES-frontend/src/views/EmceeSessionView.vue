@@ -102,7 +102,7 @@ function navigate(routeName) {
   align-items: center;
   justify-content: center;
   background: #111111;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
   padding: 16px;
 }
@@ -230,7 +230,7 @@ function navigate(routeName) {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.6);
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.15s ease;

@@ -170,7 +170,7 @@ function isDecided(match) {
 
 /* ── Shared section rule (used in smoke header) ───────────── */
 .section-rule-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -232,7 +232,7 @@ function isDecided(match) {
 }
 
 .smoke-pos {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 18px;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.25);
@@ -246,11 +246,10 @@ function isDecided(match) {
 }
 
 .smoke-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 14px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.80);
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
   line-height: 1.1;
   flex: 1;
   overflow: hidden;
@@ -259,7 +258,7 @@ function isDecided(match) {
 }
 
 .smoke-score {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 22px;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.40);
@@ -274,7 +273,7 @@ function isDecided(match) {
 }
 
 .smoke-badge {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -327,7 +326,7 @@ function isDecided(match) {
 }
 
 .round-label-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -397,7 +396,7 @@ function isDecided(match) {
 }
 
 .slot-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 13px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -414,7 +413,7 @@ function isDecided(match) {
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 8px;
   letter-spacing: 0.18em;
   padding: 2px 6px;
@@ -474,7 +473,7 @@ function isDecided(match) {
 }
 
 .round-empty .type-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;

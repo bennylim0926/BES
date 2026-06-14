@@ -239,7 +239,7 @@ onMounted(async () => {
         <div>
           <!-- h1 for document outline -->
           <h1 class="type-page-title mb-1">Participants</h1>
-          <p class="type-label text-content-muted">Manage entries, edit names, assign judges</p>
+          <p class="type-prose">Manage entries, edit names, assign judges.</p>
         </div>
         <button
           @click="showCreate = true"
@@ -539,8 +539,8 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: center;
 }
 .participant-name {
-  font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: rgba(255,255,255,0.85);
+  font-size: 14px; letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.92);
 }
 .format-badge {
   font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
@@ -557,7 +557,7 @@ onMounted(async () => {
 .genre-pill {
   display: inline-block; padding: 1px 8px;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 11px; letter-spacing: 0.02em;
   clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
 }
 .pt-col-actions { display: flex; gap: 4px; flex-shrink: 0; }

@@ -77,9 +77,9 @@ const moveTo = (index) => {
                 <div class="flex-1 min-w-0">
                   <div class="flex items-baseline gap-1.5 truncate">
                     <span class="type-stat leading-none flex-shrink-0 text-accent" style="font-size: 1.4rem">#{{ card.auditionNumber }}</span>
-                    <span class="type-body text-content-primary truncate" style="font-size: 1.1rem">{{ card.participantName }}</span>
+                    <span class="type-name text-content-primary truncate" style="font-size: 1.1rem">{{ card.participantName }}</span>
                   </div>
-                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case truncate mt-0.5" style="font-size: 13px; letter-spacing: 0.04em">{{ card.memberNames.join(' · ') }}</div>
+                  <div v-if="card.memberNames?.length" class="type-prose text-content-muted truncate mt-0.5" style="font-size: 12px;">{{ card.memberNames.join(' · ') }}</div>
                 </div>
                 <span
                   class="type-stat text-[16px] flex-shrink-0"

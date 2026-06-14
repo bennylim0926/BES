@@ -597,7 +597,7 @@ const viewedPairList = computed(() => {
             <span class="type-label text-content-muted text-[10px] w-5 flex-shrink-0">{{ mIdx + 1 }}</span>
 
             <!-- Left name -->
-            <span class="type-body flex-1 truncate min-w-0" :class="match[2] === match[0] && match[0] ? 'text-green-400' : match[0] ? 'text-content-primary' : 'text-content-muted/40'">
+            <span class="type-name-sm flex-1 truncate min-w-0" :class="match[2] === match[0] && match[0] ? 'text-green-400' : match[0] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[0] || '---' }}
               <span v-if="match[2] === match[0] && match[0]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
@@ -623,7 +623,7 @@ const viewedPairList = computed(() => {
             ><i class="pi pi-crown" style="font-size:9px"></i></button>
 
             <!-- Right name -->
-            <span class="type-body flex-1 truncate text-right min-w-0" :class="match[2] === match[1] && match[1] ? 'text-green-400' : match[1] ? 'text-content-primary' : 'text-content-muted/40'">
+            <span class="type-name-sm flex-1 truncate text-right min-w-0" :class="match[2] === match[1] && match[1] ? 'text-green-400' : match[1] ? 'text-content-primary' : 'text-content-muted/40'">
               {{ match[1] || '---' }}
               <span v-if="match[2] === match[1] && match[1]" class="type-label text-green-400 ml-1" style="font-size:8px">WIN</span>
             </span>
@@ -787,15 +787,15 @@ const viewedPairList = computed(() => {
           <div class="corner-bar-tl"></div>
           <span class="type-label text-accent mb-1">Current Match</span>
           <template v-if="currentBattlePair">
-            <span class="type-body text-content-primary block">{{ currentBattlePair[0]?.name ?? currentBattlePair[0] }} ({{ currentBattlePair[0]?.score ?? '?' }})</span>
+            <span class="type-name text-content-primary block">{{ currentBattlePair[0]?.name ?? currentBattlePair[0] }} <span class="type-label text-content-muted">({{ currentBattlePair[0]?.score ?? '?' }})</span></span>
             <span class="type-label text-content-muted my-0.5 block">vs</span>
-            <span class="type-body text-content-primary block">{{ currentBattlePair[1]?.name ?? currentBattlePair[1] }} ({{ currentBattlePair[1]?.score ?? '?' }})</span>
+            <span class="type-name text-content-primary block">{{ currentBattlePair[1]?.name ?? currentBattlePair[1] }} <span class="type-label text-content-muted">({{ currentBattlePair[1]?.score ?? '?' }})</span></span>
           </template>
         </div>
         <div class="stat-card relative">
           <div class="corner-bar-tl"></div>
           <span class="type-label text-content-muted mb-1">Queue</span>
-          <span v-if="nextBattlePair" class="type-body text-content-secondary block">{{ Array.isArray(nextBattlePair) ? nextBattlePair.join(', ') : nextBattlePair }}</span>
+          <span v-if="nextBattlePair" class="type-name text-content-secondary block">{{ Array.isArray(nextBattlePair) ? nextBattlePair.join(', ') : nextBattlePair }}</span>
           <span v-else class="type-stat text-content-disabled opacity-30">—</span>
         </div>
       </div>
@@ -814,7 +814,7 @@ const viewedPairList = computed(() => {
             style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04)"
           >
             <i class="pi pi-star text-accent" style="font-size:0.55rem"></i>
-            <span class="type-body text-content-primary" style="font-size:12px">{{ g.guestName }}</span>
+            <span class="type-name-sm text-content-primary">{{ g.guestName }}</span>
             <span v-if="!isSmoke" class="type-label text-content-muted" style="font-size:10px">→ {{ g.entryRound }}</span>
           </span>
         </div>
@@ -1037,7 +1037,7 @@ const viewedPairList = computed(() => {
               }"
               @click="confirmSmokeWinner(b)"
             >
-              <span class="type-body flex-1 truncate">{{ b.name }}</span>
+              <span class="type-name flex-1 truncate">{{ b.name }}</span>
               <span class="smoke-score-badge">{{ b.score ?? 0 }} <span style="font-size:9px;opacity:0.6">SMK</span></span>
               <span v-if="autoSmokeWinner?.name === b.name" class="type-label text-accent ml-2" style="font-size:9px">HIGHEST</span>
               <i class="pi pi-chevron-right text-content-muted text-xs ml-1"></i>
@@ -1135,7 +1135,7 @@ const viewedPairList = computed(() => {
 }
 
 .section-rule-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -1214,7 +1214,7 @@ button.border-accent:hover:not(:disabled) {
 
 /* Typography — using Anton SC via the scoped fallback */
 .type-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -1222,7 +1222,7 @@ button.border-accent:hover:not(:disabled) {
 }
 
 .type-body {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 15px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1230,7 +1230,7 @@ button.border-accent:hover:not(:disabled) {
 }
 
 .type-stat {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 48px;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -1302,7 +1302,7 @@ i.pi {
 }
 
 .smoke-score-badge {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 16px;
   letter-spacing: 0.02em;
   color: var(--accent-color, #fff);

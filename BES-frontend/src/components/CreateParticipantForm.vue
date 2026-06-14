@@ -201,7 +201,7 @@ onMounted(async () => {
             <div class="flex items-center gap-2">
               <i class="pi pi-user-plus text-content-muted text-xs"></i>
               <span class="type-body text-content-primary">{{ props.title }}</span>
-              <span class="badge-neutral type-label">{{ props.event }}</span>
+              <span class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">{{ props.event }}</span>
             </div>
           </div>
 
@@ -235,7 +235,7 @@ onMounted(async () => {
                     :key="g.genreName"
                     type="button"
                     @click="toggleGenre(g.genreName)"
-                    class="para-chip-sm px-3 py-1.5 type-label transition-all flex items-center gap-1.5"
+                    class="para-chip-sm px-3 py-1.5 type-name-sm transition-all flex items-center gap-1.5"
                     :class="createTable.genres.includes(g.genreName)
                       ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
                       : 'text-content-secondary hover:text-accent'"
@@ -247,7 +247,7 @@ onMounted(async () => {
                         : 'background:rgba(255,255,255,0.2)'"
                     ></span>
                     {{ g.genreName }}
-                    <span v-if="g.format" class="opacity-40 normal-case">{{ g.format }}</span>
+                    <span v-if="g.format" class="opacity-50" style="font-size:11px;">· {{ g.format }}</span>
                   </button>
                 </template>
               </div>
@@ -257,7 +257,7 @@ onMounted(async () => {
             <template v-for="g in createTable.genres" :key="g">
               <template v-if="isTeamFormat(g)">
                 <div class="section-rule">
-                  <span class="section-rule-label">{{ g }} · {{ selectedFormat(g) }}</span>
+                  <span class="type-name text-content-secondary" style="font-size:14px;">{{ g }} <span class="type-label text-content-muted">· {{ selectedFormat(g) }}</span></span>
                   <div class="section-rule-line"></div>
                 </div>
 
@@ -268,7 +268,7 @@ onMounted(async () => {
                   style="border-left: 3px solid rgb(251 191 36); background: rgba(251,191,36,0.07);"
                 >
                   <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 6px rgba(251,191,36,0.6)"></span>
-                  <span class="type-label text-amber-400">Solo entries not allowed — team entry only.</span>
+                  <span class="type-prose" style="color:rgb(251 191 36);">Solo entries not allowed — team entry only.</span>
                 </div>
 
                 <!-- Team / Solo toggle -->
@@ -296,7 +296,7 @@ onMounted(async () => {
                       Solo
                     </button>
                   </div>
-                  <p v-if="entryModes[g] === 'solo'" class="type-label text-content-muted mt-1.5">
+                  <p v-if="entryModes[g] === 'solo'" class="type-prose mt-1.5">
                     Auditions individually. Can be grouped into a crew after auditions.
                   </p>
                 </div>
@@ -316,7 +316,7 @@ onMounted(async () => {
                   </div>
                   <div>
                     <label class="type-label text-content-muted mb-1.5 block">Team Members</label>
-                    <p class="type-label text-content-muted mb-2 normal-case" style="font-size:0.65rem">
+                    <p class="type-prose mb-2">
                       {{ name || 'Stage name' }} is Member 1. Enter the other {{ additionalMembersCountForGenre(g) }}.
                     </p>
                     <div class="space-y-2">

@@ -164,7 +164,7 @@ const applyToAllGenres = async () => {
             <div class="flex items-center gap-2">
               <i class="pi pi-sliders-h text-content-muted text-xs"></i>
               <span class="type-body text-content-primary">Scoring Criteria</span>
-              <span class="badge-neutral type-label">{{ props.eventName }}</span>
+              <span class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">{{ props.eventName }}</span>
             </div>
           </div>
 
@@ -190,21 +190,21 @@ const applyToAllGenres = async () => {
 
           <!-- Tab description -->
           <div class="px-4 pt-2 pb-0 flex-shrink-0">
-            <p v-if="activeTab === 'event-level'" class="type-label text-content-muted">
+            <p v-if="activeTab === 'event-level'" class="type-prose-sm">
               Applies to any genre without its own criteria.
             </p>
-            <p v-else class="type-label text-content-muted">
-              Criteria for <span class="text-accent">{{ activeTab }}</span> — overrides event default.
+            <p v-else class="type-prose-sm">
+              Criteria for <span class="text-accent" style="font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.18em;">{{ activeTab }}</span> — overrides event default.
             </p>
           </div>
 
           <!-- Criteria list (scrollable) -->
           <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
-            <div v-if="loading" class="type-label text-content-muted py-4 text-center">Loading…</div>
+            <div v-if="loading" class="type-prose-sm py-4 text-center">Loading…</div>
 
             <div
               v-else-if="activeCriteria.length === 0 && !showAdd"
-              class="type-label text-content-muted py-4 text-center"
+              class="type-prose py-4 text-center"
             >
               No criteria — judges use a single 0–10 score.
             </div>
@@ -226,7 +226,7 @@ const applyToAllGenres = async () => {
                       ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
                       : 'background:rgba(255,255,255,0.15)'"
                   ></span>
-                  <span class="type-body text-content-primary flex-1 truncate">{{ c.name }}</span>
+                  <span class="type-name text-content-primary flex-1 truncate">{{ c.name }}</span>
                   <span v-if="c.weight != null" class="badge-neutral type-label shrink-0">×{{ c.weight }}</span>
                   <div class="flex items-center gap-1 shrink-0">
                     <button
@@ -346,7 +346,7 @@ const applyToAllGenres = async () => {
               {{ appliedAll ? 'Copied!' : 'Copy to all genres' }}
             </button>
           </div>
-          <p class="type-label text-content-muted/40 text-center py-1.5 shrink-0">Tap outside to close</p>
+          <p class="type-prose-sm text-center py-1.5 shrink-0 opacity-60">Tap outside to close</p>
         </div>
       </div>
     </Transition>

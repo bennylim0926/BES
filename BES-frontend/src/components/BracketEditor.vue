@@ -427,7 +427,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 .section-rule-label {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -454,7 +454,7 @@ onUnmounted(() => {
 }
 
 .round-tab {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -502,7 +502,7 @@ onUnmounted(() => {
 }
 
 .editor-placeholder-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -511,7 +511,7 @@ onUnmounted(() => {
 }
 
 .editor-placeholder-sub {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -571,7 +571,7 @@ onUnmounted(() => {
 
 /* Position number */
 .smoke-pos {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 18px;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.25);
@@ -583,11 +583,10 @@ onUnmounted(() => {
 
 /* Participant name */
 .smoke-name {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 14px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
   line-height: 1.1;
   flex: 1;
   overflow: hidden;
@@ -602,7 +601,7 @@ onUnmounted(() => {
 
 /* Score display */
 .smoke-score {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 20px;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.35);
@@ -619,7 +618,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -686,7 +685,7 @@ onUnmounted(() => {
 }
 
 .smoke-empty-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;

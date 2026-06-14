@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
 
 /* ── Countdown display (28px Anton SC) ──────────────────────────── */
 .countdown-display {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 28px;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -355,7 +355,7 @@ onBeforeUnmount(() => {
 }
 
 .burst-text {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 42px;
   letter-spacing: 0.06em;
   color: var(--accent-color, #fff);

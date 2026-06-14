@@ -231,7 +231,7 @@ onUnmounted(() => {
             <!-- Session roles (judge/emcee/helper): event name is locked, displayed as static chip -->
             <span
               v-if="activeEvent && (isJudgeSession || isEmceeSession || isHelperSession)"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary max-w-[200px] md:max-w-[240px]"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-name-sm para-chip-sm text-content-secondary max-w-[200px] md:max-w-[240px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
             </span>
@@ -242,7 +242,7 @@ onUnmounted(() => {
               :aria-expanded="panelOpen"
               aria-haspopup="dialog"
               aria-label="Open event menu"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-label para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 type-name-sm para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[200px] md:max-w-[240px]"
             >
               <span class="truncate">{{ activeEvent.name }}</span>
               <i class="pi pi-chevron-right text-[10px] flex-shrink-0 opacity-50 transition-transform duration-200"

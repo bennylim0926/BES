@@ -88,7 +88,7 @@ function handleSwitchEvent(event) {
 
     <div class="flex items-center justify-between px-4 py-3 border-b border-[rgba(255,255,255,0.07)] flex-shrink-0">
       <div class="corner-bar-tl"></div>
-      <span class="type-body truncate pr-4">
+      <span class="type-name truncate pr-4">
         {{ activeEvent ? activeEvent.name : 'No Event Selected' }}
       </span>
       <button data-close @click="emit('close')"
@@ -128,7 +128,7 @@ function handleSwitchEvent(event) {
             v-for="event in filteredEvents"
             :key="event.id"
             @click="handleSwitchEvent(event)"
-            class="w-full flex items-center gap-2 px-2 py-2 type-label text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+            class="w-full flex items-center gap-2 px-2 py-2 type-name-sm text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
             :class="event.id === activeEvent?.id ? 'text-accent' : 'text-content-secondary'"
           >
             <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors"

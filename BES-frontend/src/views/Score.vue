@@ -736,8 +736,8 @@ function transformForScore(data) {
           >
             <span class="type-stat flex-shrink-0" style="font-size: 24px; line-height: 1; min-width: 40px">{{ finalRows[0].id }}</span>
             <div class="flex-1 min-w-0">
-              <p class="type-body text-content-primary" style="font-size: 16px">{{ finalRows[0].participantName }}</p>
-              <p v-if="judgeMetaLine(finalRows[0])" class="type-label text-content-muted/70 mt-0.5">{{ judgeMetaLine(finalRows[0]) }}</p>
+              <p class="type-name text-content-primary" style="font-size: 16px">{{ finalRows[0].participantName }}</p>
+              <p v-if="judgeMetaLine(finalRows[0])" class="type-prose text-content-muted/80 mt-0.5">{{ judgeMetaLine(finalRows[0]) }}</p>
             </div>
             <span class="type-stat flex-shrink-0" style="font-size: 28px; line-height: 1">{{ finalRows[0].totalScore }}</span>
             <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
@@ -760,8 +760,8 @@ function transformForScore(data) {
             <div class="para-chip flex items-start gap-3 px-4 py-2 bg-surface-700/10">
               <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
               <div class="flex-1 min-w-0">
-                <p class="type-body text-content-primary">{{ row.participantName }}</p>
-                <p v-if="judgeMetaLine(row)" class="type-label text-content-muted/50 mt-0.5">{{ judgeMetaLine(row) }}</p>
+                <p class="type-name text-content-primary">{{ row.participantName }}</p>
+                <p v-if="judgeMetaLine(row)" class="type-prose text-content-muted/70 mt-0.5">{{ judgeMetaLine(row) }}</p>
               </div>
               <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.totalScore }}</span>
               <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
@@ -814,7 +814,7 @@ function transformForScore(data) {
                     :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
                     <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
                   </span>
-                  <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
+                  <span class="type-name" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
                     {{ p.participantName }}
                   </span>
                 </div>
@@ -845,7 +845,7 @@ function transformForScore(data) {
                       :class="tieBreakerWinners.has(p.participantName) ? 'bg-emerald-500 border-emerald-500' : 'border-surface-500'">
                       <i v-if="tieBreakerWinners.has(p.participantName)" class="pi pi-check text-white" style="font-size: 9px"></i>
                     </span>
-                    <span class="type-body" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
+                    <span class="type-name" :class="tieBreakerWinners.has(p.participantName) ? 'text-emerald-400 font-bold' : 'text-content-primary'">
                       {{ p.participantName }}
                     </span>
                   </div>
@@ -867,7 +867,7 @@ function transformForScore(data) {
                 class="para-chip-sm px-3 py-2.5 type-label text-left disabled:opacity-30 disabled:cursor-not-allowed text-content-muted hover:text-content-primary"
               >
                 <span class="opacity-50">−  EXCLUDE</span>&nbsp;
-                <span v-if="nextEligibleRemove">{{ nextEligibleRemove.participantName }} · {{ nextEligibleRemove.totalScore }}</span>
+                <span v-if="nextEligibleRemove" class="type-name-sm">{{ nextEligibleRemove.participantName }} · {{ nextEligibleRemove.totalScore }}</span>
                 <span v-else>—</span>
               </button>
               <button
@@ -878,7 +878,7 @@ function transformForScore(data) {
                 class="para-chip-sm px-3 py-2.5 type-label text-left bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/15 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <span class="opacity-70">+  INCLUDE</span>&nbsp;
-                <span v-if="nextEligibleAdd">{{ nextEligibleAdd.participantName }} · {{ nextEligibleAdd.totalScore }}</span>
+                <span v-if="nextEligibleAdd" class="type-name-sm">{{ nextEligibleAdd.participantName }} · {{ nextEligibleAdd.totalScore }}</span>
                 <span v-else>—</span>
               </button>
             </div>
@@ -919,7 +919,7 @@ function transformForScore(data) {
             <template v-if="eliminatedExpanded">
               <div v-for="row in eliminatedRows" :key="row.participantName" class="para-chip flex items-center gap-3 px-4 py-2 opacity-30">
                 <span class="type-stat flex-shrink-0" style="font-size: 16px; line-height: 1; min-width: 40px">{{ row.id }}</span>
-                <span class="flex-1 type-body text-content-primary">{{ row.participantName }}</span>
+                <span class="flex-1 type-name text-content-primary">{{ row.participantName }}</span>
                 <span class="type-stat flex-shrink-0" style="font-size: 18px; line-height: 1">{{ row.totalScore }}</span>
               </div>
             </template>
@@ -960,7 +960,7 @@ function transformForScore(data) {
               class="para-chip flex items-center gap-3 px-4 py-2 bg-surface-700/10"
             >
               <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
-              <span class="flex-1 type-body text-content-primary">{{ row.participantName }}</span>
+              <span class="flex-1 type-name text-content-primary">{{ row.participantName }}</span>
               <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.score }}</span>
             </div>
           </div>
@@ -1024,7 +1024,7 @@ function transformForScore(data) {
                   : ''"
             >
               <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1; min-width: 38px">{{ row.id }}</span>
-              <span class="flex-1 type-body text-content-primary" style="font-size: 16px">{{ row.participantName }}</span>
+              <span class="flex-1 type-name text-content-primary" style="font-size: 16px">{{ row.participantName }}</span>
               <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1">{{ row.totalScore }}</span>
             </div>
           </template>
@@ -1193,7 +1193,7 @@ function transformForScore(data) {
             </button>
           </div>
           <div class="section-rule"><div class="section-rule-line"></div></div>
-          <p class="type-label text-content-muted mt-2">{{ breakdownParticipant }} · {{ selectedGenre }}</p>
+          <p class="type-name text-content-muted mt-2"><span class="text-content-secondary">{{ breakdownParticipant }}</span> <span class="type-label">·</span> {{ selectedGenre }}</p>
         </div>
         <!-- Content -->
         <div class="overflow-y-auto px-5 py-4 flex-1 space-y-5">
@@ -1202,7 +1202,7 @@ function transformForScore(data) {
             :key="judge"
             class="rounded-xl border border-surface-600/40 bg-surface-700/20 p-4"
           >
-            <p class="text-xs font-bold text-content-secondary mb-3">{{ judge }}</p>
+            <p class="type-name-sm text-content-secondary mb-3">{{ judge }}</p>
             <div class="space-y-1.5">
               <div
                 v-for="(score, aspect) in aspects"
@@ -1227,7 +1227,7 @@ function transformForScore(data) {
     <div v-if="rowActionSheet.open" class="fixed inset-0 z-50 flex items-end justify-center p-0">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeRowActions"></div>
       <div role="dialog" aria-modal="true" aria-label="Row actions" class="relative z-10 w-full bg-surface-800 border-t border-surface-600/50 p-4 flex flex-col gap-2" style="clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);">
-        <p class="type-label text-content-muted mb-2">{{ rowActionSheet.name.toUpperCase() }}</p>
+        <p class="type-name text-content-secondary mb-2">{{ rowActionSheet.name }}</p>
         <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-chart-bar"></i>VIEW SCORE BREAKDOWN</button>
         <button @click="viewFeedback(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-comment"></i>VIEW JUDGE FEEDBACK</button>
         <button v-if="resultsReleased && refsMap[rowActionSheet.name]" @click="openQR(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>

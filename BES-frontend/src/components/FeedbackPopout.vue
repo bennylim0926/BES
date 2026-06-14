@@ -98,7 +98,7 @@ function onNoteInput() {
                 v-for="tag in group.tags"
                 :key="tag.id"
                 @click="toggleTag(tag.id)"
-                class="para-chip-sm type-label inline-flex items-center gap-1.5 px-2.5 py-1 transition-all duration-150"
+                class="para-chip-sm type-name-sm inline-flex items-center gap-1.5 px-2.5 py-1 transition-all duration-150"
                 :class="selectedTagIds.has(tag.id)
                   ? 'text-accent border-[color:var(--accent-color)]'
                   : 'text-content-primary border-white/20 hover:border-white/40'"

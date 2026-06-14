@@ -158,7 +158,7 @@ function navigateToBattle() {
   align-items: center;
   justify-content: center;
   background: #111111;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
   padding: 16px;
 }
@@ -323,7 +323,7 @@ function navigateToBattle() {
 }
 
 .action-btn {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;

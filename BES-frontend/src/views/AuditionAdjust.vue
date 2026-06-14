@@ -254,7 +254,7 @@ onUnmounted(() => {
     <!-- Header — h1 for document outline -->
     <div class="mb-4">
       <h1 class="type-page-title mb-1">Audition Adjustment</h1>
-      <p class="type-label text-content-muted">Manually assign, swap, or release audition numbers</p>
+      <p class="type-prose">Manually assign, swap, or release audition numbers.</p>
     </div>
 
     <!-- No event guard -->
@@ -263,7 +263,7 @@ onUnmounted(() => {
         <i class="pi pi-exclamation-triangle text-amber-400 text-2xl"></i>
       </div>
       <p class="type-body text-content-secondary">No active event selected</p>
-      <p class="type-label text-content-muted mt-1">Select an event first from the event menu</p>
+      <p class="type-prose-sm mt-1">Select an event first from the event menu.</p>
     </div>
 
     <template v-else>
@@ -311,7 +311,7 @@ onUnmounted(() => {
                 v-for="p in unassignedParticipants"
                 :key="p.participantId"
                 @click="selectAssignPart(p)"
-                class="w-full para-chip-sm px-3 py-2 type-label text-left transition-all duration-150 flex items-center justify-between"
+                class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
                 :class="assignPart?.participantId === p.participantId
                   ? 'text-accent border-[color:var(--accent-muted)]'
                   : 'text-content-muted hover:text-content-primary'"
@@ -376,7 +376,7 @@ onUnmounted(() => {
                     <div class="space-y-1.5">
                       <div v-for="g in alreadyAssignedGenres" :key="g.genreName"
                         class="flex items-center justify-between para-chip-sm px-3 py-2 opacity-40">
-                        <span class="type-label text-content-secondary">{{ g.genreName }}</span>
+                        <span class="type-name-sm text-content-secondary">{{ g.genreName }}</span>
                         <span class="type-label text-content-muted tabular-nums">#{{ g.auditionNumber }}</span>
                       </div>
                     </div>
@@ -425,7 +425,7 @@ onUnmounted(() => {
                 v-for="d in divisionStats"
                 :key="d.eventGenreId"
                 @click="resetSwapOnGenreChange(d)"
-                class="w-full para-chip-sm px-3 py-2 type-label text-left transition-all duration-150 flex items-center justify-between"
+                class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
                 :class="swapGenre?.eventGenreId === d.eventGenreId
                   ? 'text-accent border-[color:var(--accent-muted)]'
                   : 'text-content-muted hover:text-content-primary'"
@@ -452,7 +452,7 @@ onUnmounted(() => {
                   v-for="p in assignedInSwapGenre"
                   :key="p.participantId"
                   @click="selectSwap(p)"
-                  class="w-full para-chip-sm px-3 py-2 type-label text-left transition-all duration-150 flex items-center justify-between"
+                  class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
                   :class="swapPart1?.participantId === p.participantId || swapPart2?.participantId === p.participantId
                     ? 'text-accent border-[color:var(--accent-muted)]'
                     : 'text-content-muted hover:text-content-primary'"
@@ -467,9 +467,9 @@ onUnmounted(() => {
               </div>
               <div v-if="swapPart1 && swapPart2" class="pt-3 border-t border-surface-600/30 flex-shrink-0">
                 <div class="flex items-center gap-3 mb-3 flex-wrap">
-                  <span class="type-body text-content-primary">{{ swapPart1.label }} <span class="text-accent">#{{ swapNum(swapPart1) }}</span></span>
+                  <span class="type-name text-content-primary">{{ swapPart1.label }} <span class="text-accent">#{{ swapNum(swapPart1) }}</span></span>
                   <i class="pi pi-arrow-right-arrow-left text-content-muted text-xs"></i>
-                  <span class="type-body text-content-primary">{{ swapPart2.label }} <span class="text-accent">#{{ swapNum(swapPart2) }}</span></span>
+                  <span class="type-name text-content-primary">{{ swapPart2.label }} <span class="text-accent">#{{ swapNum(swapPart2) }}</span></span>
                 </div>
                 <button @click="doSwap" class="w-full bg-accent para-chip-sm px-4 py-2 type-label">
                   Confirm Swap
@@ -501,7 +501,7 @@ onUnmounted(() => {
                 v-for="p in assignedParticipants"
                 :key="p.participantId"
                 @click="releasePart = p"
-                class="w-full para-chip-sm px-3 py-2 type-label text-left transition-all duration-150 flex items-center justify-between"
+                class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
                 :class="releasePart?.participantId === p.participantId
                   ? 'text-accent border-[color:var(--accent-muted)]'
                   : 'text-content-muted hover:text-content-primary'"
@@ -522,14 +522,14 @@ onUnmounted(() => {
             <p v-if="!releasePart" class="type-label text-content-muted py-4 text-center">Select a participant</p>
             <template v-else>
               <div class="flex-1 overflow-y-auto min-h-0" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
-                <p class="type-body text-content-primary mb-3">{{ releasePart.label }}</p>
+                <p class="type-name text-content-primary mb-3" style="font-size:16px;">{{ releasePart.label }}</p>
                 <div class="space-y-1.5 mb-4">
                   <div
                     v-for="g in releasePart.genres.filter(g => g.auditionNumber !== null)"
                     :key="g.genreName"
                     class="flex items-center justify-between para-chip-sm px-3 py-2"
                   >
-                    <span class="type-label text-content-secondary">{{ g.genreName }}</span>
+                    <span class="type-name-sm text-content-secondary">{{ g.genreName }}</span>
                     <span class="type-stat text-accent" style="font-size:1.1rem">#{{ g.auditionNumber }}</span>
                   </div>
                 </div>

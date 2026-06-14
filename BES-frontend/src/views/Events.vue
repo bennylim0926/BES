@@ -78,7 +78,7 @@ onMounted(async () => {
       <div>
         <!-- h1 for document outline -->
         <h1 class="type-page-title mb-1">Events</h1>
-        <p class="type-label text-content-muted">Select an event to manage participants and scores</p>
+        <p class="type-prose">Select an event to manage participants and scores.</p>
       </div>
       <span class="badge-neutral type-label self-start sm:self-auto px-3 py-1">
         {{ filtered.length }} event{{ filtered.length !== 1 ? 's' : '' }}

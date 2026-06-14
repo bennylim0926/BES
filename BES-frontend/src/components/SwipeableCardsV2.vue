@@ -155,8 +155,8 @@ onMounted(observeCards)
                     <!-- Left: participant info -->
                     <div class="flex-1 min-w-0">
                       <span class="type-stat text-accent leading-none block" style="font-size: 2rem;">#{{ card.auditionNumber }}</span>
-                      <div class="type-body text-content-primary leading-tight mt-1" style="font-size:1.9rem; overflow-wrap: break-word">{{ card.participantName }}</div>
-                      <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case mt-1 leading-snug" style="font-size:16px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
+                      <div class="type-name text-content-primary leading-tight mt-1" style="font-size:1.9rem; overflow-wrap: break-word">{{ card.participantName }}</div>
+                      <div v-if="card.memberNames?.length" class="type-prose text-content-muted mt-1 leading-snug" style="font-size:15px;">{{ card.memberNames.join(' · ') }}</div>
                       <div v-if="card.saving" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-accent/60 normal-case" style="background:rgba(255,255,255,0.05);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
                         <i class="pi pi-spin pi-spinner text-[10px]"></i> Saving…
                       </div>
@@ -179,9 +179,9 @@ onMounted(observeCards)
                 <template v-else>
                   <div class="flex items-baseline gap-2">
                     <span class="type-stat text-accent leading-none flex-shrink-0" style="font-size:1.4rem">#{{ card.auditionNumber }}</span>
-                    <span class="type-body text-content-primary truncate" style="font-size:1rem">{{ card.participantName }}</span>
+                    <span class="type-name text-content-primary truncate" style="font-size:1rem">{{ card.participantName }}</span>
                   </div>
-                  <div v-if="card.memberNames?.length" class="type-label text-content-muted normal-case mt-0.5 truncate" style="font-size:13px;letter-spacing:0.04em">{{ card.memberNames.join(' · ') }}</div>
+                  <div v-if="card.memberNames?.length" class="type-prose text-content-muted mt-0.5 truncate" style="font-size:12px;">{{ card.memberNames.join(' · ') }}</div>
                 </template>
               </div>
 
@@ -204,7 +204,7 @@ onMounted(observeCards)
                         : 'background: rgba(255,255,255,0.03)'"
                     >
                       <div class="flex items-center gap-1.5">
-                        <span class="type-body"
+                        <span class="type-name"
                           :class="getActiveCriterion(idx) === criterion.name ? 'text-content-primary' : 'text-content-muted'"
                         >{{ criterion.name }}</span>
                         <span v-if="criterion.weight != null" class="type-label text-accent/70">×{{ criterion.weight }}</span>
@@ -240,7 +240,7 @@ onMounted(observeCards)
                       ? 'background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
                       : 'background: rgba(255,255,255,0.06)'"
                   >
-                    <span class="criteria-tab-label type-label leading-none" style="color: inherit;"
+                    <span class="criteria-tab-label type-name-sm leading-none" style="color: inherit;"
                     >{{ criterion.name }}</span>
                     <span
                       class="criteria-tab-score font-bold leading-none mt-0.5"
@@ -261,7 +261,7 @@ onMounted(observeCards)
                         @click="setCriteriaScore(card, criterion.name, 10)"
                         class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
                         style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                      >10 — Full</button>
+                      >10 — FULL</button>
                       <button
                         v-if="props.feedbackEnabled"
                         @click.stop="emit('open-feedback', card)"
@@ -311,7 +311,7 @@ onMounted(observeCards)
                     @click="setSingleScore(card, 10)"
                     class="flex-1 py-3 font-bold text-sm border transition-all duration-150 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
                     style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: rgb(245,158,11);"
-                  >10 — Full</button>
+                  >10 — FULL</button>
                   <button
                     v-if="props.feedbackEnabled"
                     @click.stop="emit('open-feedback', card)"

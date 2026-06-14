@@ -659,7 +659,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   filter: drop-shadow(0 0 16px rgba(255,255,255,0.18));
 }
 .logo-banner-genre {
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 72px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -671,7 +671,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 /* ── Empty / Smoke ────────────────────────────────────── */
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
 .empty-icon  { font-size: 36px; opacity: 0.45; }
-.empty-title { font-family: 'Anton SC', sans-serif; font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--c-muted); }
+.empty-title { font-family: 'Oswald', sans-serif; font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--c-muted); }
 .empty-sub   { font-size: 12px; color: var(--c-muted); opacity: 0.5; }
 
 .smoke-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 24px; overflow-y: auto; }
@@ -683,11 +683,11 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 }
 .smoke-active { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.25); }
 .smoke-next   { border-color: rgba(255,255,255,0.1); }
-.smoke-pos    { font-family: 'Anton SC', sans-serif; font-size: 11px; color: var(--c-muted); width: 18px; letter-spacing: 0.08em; }
-.smoke-name   { flex: 1; font-family: 'Anton SC', sans-serif; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-text); }
-.smoke-score  { font-family: 'Anton SC', sans-serif; font-size: 13px; color: rgba(255,255,255,0.65); letter-spacing: 0.05em; }
+.smoke-pos    { font-family: 'Oswald', sans-serif; font-size: 11px; color: var(--c-muted); width: 18px; letter-spacing: 0.08em; }
+.smoke-name   { flex: 1; font-family: 'Oswald', sans-serif; font-size: 14px; letter-spacing: 0.02em; color: var(--c-text); }
+.smoke-score  { font-family: 'Oswald', sans-serif; font-size: 13px; color: rgba(255,255,255,0.65); letter-spacing: 0.05em; }
 .smoke-badge  {
-  font-family: 'Anton SC', sans-serif; font-size: 8px; letter-spacing: 0.2em;
+  font-family: 'Oswald', sans-serif; font-size: 8px; letter-spacing: 0.2em;
   padding: 2px 9px; background: var(--c-win-bg); color: rgba(255,255,255,0.65);
   clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
 }
@@ -696,7 +696,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 /* ── Round label ──────────────────────────────────────── */
 .round-label {
   flex-shrink: 0;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 9px; letter-spacing: 0.3em;
   color: rgba(255,255,255,0.38); text-align: center;
   padding: 6px 0; opacity: 0.52;
@@ -790,9 +790,9 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 .slot-loser  .battler-name { color: var(--c-lose-text); }
 
 .battler-name {
-  font-family: 'Anton SC', sans-serif;
-  font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--c-text); opacity: 0.88;
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px; letter-spacing: 0.02em;
+  color: var(--c-text); opacity: 0.92;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
   display: inline-block; transform: skewX(4deg);
   transition: opacity 1s ease;
@@ -842,7 +842,7 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
 }
 .final-vs {
   text-align: center;
-  font-family: 'Anton SC', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 11px; letter-spacing: 0.32em;
   color: rgba(255,255,255,0.3); opacity: 0.38;
 }
@@ -864,18 +864,18 @@ onUnmounted(() => { if (wsClient) wsClient.deactivate() })
   text-align: center;
 }
 .champ-genre-tag {
-  font-family: 'Anton SC', sans-serif; font-size: 9px;
+  font-family: 'Oswald', sans-serif; font-size: 9px;
   letter-spacing: 0.45em; text-transform: uppercase;
   color: rgba(255,255,255,0.3);
 }
 .champ-label {
-  font-family: 'Anton SC', sans-serif; font-size: 11px;
+  font-family: 'Oswald', sans-serif; font-size: 11px;
   letter-spacing: 0.5em; text-transform: uppercase;
   color: rgba(245,158,11,0.85);
 }
 .champ-name-slam {
-  font-family: 'Anton SC', sans-serif; font-size: 15vw;
-  letter-spacing: 0.07em; text-transform: uppercase; line-height: 1;
+  font-family: 'Oswald', sans-serif; font-size: 15vw;
+  letter-spacing: 0.02em; text-transform: none; line-height: 1.05;
   color: #fff;
   text-shadow: 0 0 40px rgba(245,158,11,0.65), 0 0 80px rgba(245,158,11,0.3);
 }
