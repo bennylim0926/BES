@@ -114,7 +114,7 @@ const remove = async (id) => {
         <button
           @click="add"
           :disabled="saving || !newName.trim()"
-          class="flex-1 py-1.5 bg-accent para-chip type-label text-surface-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          class="flex-1 py-1.5 para-chip type-label border-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           <i v-if="saving" class="pi pi-spin pi-spinner mr-1" />
           Add

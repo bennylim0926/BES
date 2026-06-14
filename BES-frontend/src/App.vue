@@ -275,7 +275,10 @@ onUnmounted(() => {
             </button>
 
             <router-link v-if="!isAuthenticated" to="/login">
-              <span class="px-4 py-1.5 para-chip type-label text-surface-900 bg-accent cursor-pointer">Login</span>
+              <span
+                class="px-4 py-1.5 type-label text-surface-900 bg-accent cursor-pointer"
+                style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
+              >Login</span>
             </router-link>
 
             <!-- aria-label: icon-only logout button needs an accessible name -->
@@ -347,7 +350,10 @@ onUnmounted(() => {
             </button>
           </div>
           <router-link v-else to="/login">
-            <span class="flex items-center justify-center px-4 py-2.5 type-label para-chip text-surface-900 bg-accent w-full cursor-pointer">Login</span>
+            <span
+              class="flex items-center justify-center px-4 py-2.5 type-label text-surface-900 bg-accent w-full cursor-pointer"
+              style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
+            >Login</span>
           </router-link>
         </div>
       </div>

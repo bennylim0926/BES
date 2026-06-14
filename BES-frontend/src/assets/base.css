@@ -361,12 +361,26 @@
     cursor: not-allowed;
   }
 
-  /* ── Tab bar navigation (context switcher, not action buttons) ── */
+  /* ── Tab bar navigation (context switcher, not action buttons) ──
+     Horizontal scroll with edge-fade so it stays a single row instead of
+     wrapping to multiple lines on mobile. The fade hints "there's more"
+     without needing arrow buttons or JS overflow detection. */
   .tab-bar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
     border-bottom: 1px solid rgba(255,255,255,0.07);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-behavior: smooth;
+    /* Fade both edges. When everything fits the fade only affects empty
+       whitespace; when content overflows the rightmost/leftmost tabs fade
+       into the background as the scroll cue. */
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
   }
+  .tab-bar::-webkit-scrollbar { display: none; }
   .tab-item {
     position: relative;
     padding: 8px 16px 10px;

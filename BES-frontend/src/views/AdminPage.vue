@@ -252,7 +252,10 @@ onMounted(async () => {
             class="input-base flex-1 max-w-xs"
             @keyup.enter="submitAddGenre"
           />
-          <button @click="submitAddGenre" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Add Genre</button>
+          <button @click="submitAddGenre" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
+            <i class="pi pi-plus text-sm"></i>
+            Add Genre
+          </button>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -331,7 +334,10 @@ onMounted(async () => {
             class="input-base flex-1 max-w-xs"
             @keyup.enter="submitAddGroup"
           />
-          <button @click="submitAddGroup" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Add Group</button>
+          <button @click="submitAddGroup" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
+            <i class="pi pi-plus text-sm"></i>
+            Add Group
+          </button>
         </div>
 
         <div class="space-y-5">
@@ -455,7 +461,10 @@ onMounted(async () => {
             class="input-base flex-1 sm:max-w-xs"
             @keyup.enter="submitCreateOrganiser"
           />
-          <button @click="submitCreateOrganiser" class="bg-accent para-chip-sm type-label text-surface-900 px-4 py-2 min-h-[44px]">Create Account</button>
+          <button @click="submitCreateOrganiser" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
+            <i class="pi pi-user-plus text-sm"></i>
+            Create Account
+          </button>
         </div>
 
         <p class="type-prose mb-4">Assign or remove events for each organiser.</p>
@@ -515,7 +524,10 @@ onMounted(async () => {
           <div class="flex items-center gap-4">
             <input type="color" v-model="accentInput" aria-label="Accent color picker" class="w-12 h-11 cursor-pointer bg-transparent border-0" />
             <span class="type-body text-accent">{{ accentInput }}</span>
-            <button @click="saveAccent" class="bg-accent para-chip type-label text-surface-900 px-4 py-2 min-h-[44px]">Apply Accent Color</button>
+            <button @click="saveAccent" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
+              <i class="pi pi-check text-sm"></i>
+              Apply Accent Color
+            </button>
           </div>
         </div>
       </div>

@@ -98,16 +98,24 @@ const submitLogin = async () => {
 
     <!-- ── Right panel: Login form ───────────────────────────── -->
     <div class="flex-1 flex items-center justify-center p-8 relative z-10">
-      <div class="w-full max-w-sm relative">
-        <!-- Corner bars on form panel -->
-        <div class="corner-bar-tl"></div>
-        <div class="corner-bar-bl"></div>
+      <div class="w-full max-w-sm">
+        <!-- Mobile-only wordmark (hero panel is hidden < lg). Plain centered text —
+             corner bars + glow dot live with the hero panel; on mobile a clean
+             wordmark reads better than a fragment of that chrome. -->
+        <div class="lg:hidden mb-8 text-center">
+          <span class="type-display block" style="font-size: clamp(32px, 9vw, 44px)">{{ APP_NAME }}</span>
+        </div>
 
-        <div class="p-8 bg-surface-900 border border-[rgba(255,255,255,0.07)]"
-          style="clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+        <div class="relative">
+          <!-- Corner bars belong to the form panel, not the wordmark -->
+          <div class="corner-bar-tl"></div>
+          <div class="corner-bar-bl"></div>
+
+          <div class="p-8 bg-surface-900 border border-[rgba(255,255,255,0.07)]"
+            style="clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
 
           <div class="mb-8">
-            <div class="type-page-title mb-1">Sign In</div>
+            <div class="type-page-title leading-none pb-2">Sign In</div>
             <p class="type-label text-content-muted">{{ APP_TAGLINE }}</p>
           </div>
 
@@ -169,6 +177,7 @@ const submitLogin = async () => {
               {{ isLoading ? 'Signing in...' : 'Sign In' }}
             </button>
           </form>
+          </div>
         </div>
       </div>
     </div>

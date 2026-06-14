@@ -243,7 +243,7 @@ onMounted(async () => {
         </div>
         <button
           @click="showCreate = true"
-          class="bg-accent para-chip type-label text-surface-900 px-4 py-2 flex items-center gap-2"
+          class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2"
         >
           <i class="pi pi-plus text-xs"></i> Add Participant
         </button>
@@ -330,7 +330,7 @@ onMounted(async () => {
             <button class="expand-btn" @click="toggle(p.participantId)"
               :aria-expanded="expanded.has(p.participantId)"
               :aria-label="`Show genres for ${p.name}`">
-              {{ expanded.has(p.participantId) ? '▾' : '▸' }}
+              <i class="pi" :class="expanded.has(p.participantId) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true"></i>
             </button>
             <div class="pt-col-name">
               <span class="participant-name">{{ p.name }}</span>
@@ -495,27 +495,29 @@ onMounted(async () => {
   font-size: 9px; padding: 0 4px; border-radius: 2px;
 }
 
-.participant-table { display: flex; flex-direction: column; gap: 2px; }
+.participant-table { display: flex; flex-direction: column; gap: 4px; }
 .pt-header {
   display: grid;
   grid-template-columns: 20px 32px 1fr auto auto auto;
   gap: 8px; align-items: center;
   padding: 6px 12px;
-  font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+  font-family: 'Oswald', sans-serif;
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
   color: rgba(255,255,255,0.3);
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 .pt-row {
   display: grid;
   grid-template-columns: 20px 32px 1fr auto auto auto;
-  gap: 8px; align-items: center;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  transition: background 0.15s;
+  gap: 10px; align-items: center;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: background 0.15s, border-color 0.15s;
 }
-.pt-row:hover { background: rgba(255,255,255,0.05); }
-.pt-row.selected { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.pt-row:hover { background: rgba(255,255,255,0.06); border-color: var(--accent-muted); }
+.pt-row.selected { background: rgba(255,255,255,0.08); border-color: var(--accent-muted); }
 .row-check { width: 14px; height: 14px; accent-color: var(--accent-color); cursor: pointer; flex-shrink: 0; }
 .bulk-bar {
   display: flex; align-items: center; gap: 10px;
@@ -533,43 +535,66 @@ onMounted(async () => {
   border-top: none; font-size: 12px;
 }
 .expand-btn {
-  background: none; border: 1px solid rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.45); font-size: 10px;
-  width: 24px; height: 24px; cursor: pointer;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.55);
+  font-size: 10px;
+  width: 28px; height: 28px;
+  cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.expand-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--accent-muted);
+  color: rgba(255,255,255,0.9);
 }
 .participant-name {
-  font-size: 14px; letter-spacing: 0.02em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 15px; letter-spacing: 0.02em;
   color: rgba(255,255,255,0.92);
 }
+/* Format + genre chips reuse para-chip styling so they match the rest of the app */
 .format-badge {
-  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
-  padding: 2px 8px;
+  display: inline-flex; align-items: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  color: rgba(255,255,255,0.75);
 }
-.format-badge.solo {
-  background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3);
-  color: #a5b4fc;
-}
-.format-badge.team {
-  background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.3);
-  color: #5eead4;
-}
+.format-badge.solo { color: rgba(255,255,255,0.55); }
+.format-badge.team { color: var(--accent-color); border-color: var(--accent-muted); }
 .genre-pill {
-  display: inline-block; padding: 1px 8px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-  font-size: 11px; letter-spacing: 0.02em;
-  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
+  display: inline-block;
+  font-family: 'Oswald', sans-serif;
+  padding: 2px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  font-size: 12px; letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.78);
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
 }
-.pt-col-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.pt-col-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .btn-action {
-  background: none; border: 1px solid rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.5); font-size: 10px; letter-spacing: 0.08em;
-  padding: 4px 10px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  color: rgba(255,255,255,0.55);
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px; letter-spacing: 0.18em;
+  padding: 5px 12px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
   text-transform: uppercase;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.btn-action:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.8); }
-.btn-action.danger { border-color: rgba(239,68,68,0.2); color: rgba(248,113,113,0.6); }
-.btn-action.danger:hover { border-color: rgba(239,68,68,0.5); color: #f87171; }
+.btn-action:hover { background: rgba(255,255,255,0.08); border-color: var(--accent-muted); color: rgba(255,255,255,0.9); }
+.btn-action.danger { color: rgba(248,113,113,0.7); border-color: rgba(239,68,68,0.2); }
+.btn-action.danger:hover { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.5); color: #f87171; }
 .subrow-indent { color: rgba(255,255,255,0.25); }
 .subrow-label { font-size: 11px; color: rgba(255,255,255,0.3); }
 .judge-select {

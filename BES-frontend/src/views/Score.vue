@@ -1,14 +1,18 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getGenresByEvent } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
 
 const authStore = useAuthStore()
 const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem("selectedEvent") || "")
-const selectedGenre = ref(localStorage.getItem("selectedGenre") || "All")
-const selectedTabulation = ref(localStorage.getItem("selectedTabMethod") || "")
+// Per-event localStorage keys — selectedGenre / selectedTabMethod must not leak
+// across events. Falls back to a sensible default (first genre, By Total).
+const genreKey = (eventName) => `selectedGenre_${eventName || 'global'}`
+const tabKey   = (eventName) => `selectedTabMethod_${eventName || 'global'}`
+const selectedGenre = ref(localStorage.getItem(genreKey(selectedEvent.value)) || '')
+const selectedTabulation = ref(localStorage.getItem(tabKey(selectedEvent.value)) || 'By Total')
 const selectedTopN = ref("All")
 const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const participants = ref([])
@@ -83,10 +87,23 @@ const resetTieBreaker = () => {
   localStorage.removeItem(tbKey.value)
 }
 
+// All genres configured for the event (loaded from /event/genres).
+// Falls back to the genres derived from scored participants so unauthenticated
+// or pre-init events still render something.
+const eventGenres = ref([])
 const uniqueGenres = computed(() => {
-  const genres = participants.value.map(p => p.genreName);
-  return [...new Set(genres)].sort();
+  const fromEvent = eventGenres.value.map(g => g.name)
+  const fromScores = participants.value.map(p => p.genreName)
+  return [...new Set([...fromEvent, ...fromScores])].sort()
 })
+
+// True when the active genre exists for the event but has no scores yet —
+// drives the "no scores yet" empty state instead of hiding the genre.
+const selectedGenreHasNoScores = computed(() =>
+  selectedGenre.value
+  && uniqueGenres.value.includes(selectedGenre.value)
+  && !participants.value.some(p => p.genreName === selectedGenre.value)
+)
 
 const hasTeamAndSoloMix = computed(() => {
   const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
@@ -151,6 +168,14 @@ onUnmounted(() => {
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
+    eventGenres.value = await getGenresByEvent(newVal) ?? []
+    // Re-read per-event preferences (or fall back to defaults) so switching
+    // events does not carry over the previous event's genre selection.
+    const savedGenre = localStorage.getItem(genreKey(newVal))
+    const savedTab   = localStorage.getItem(tabKey(newVal))
+    selectedGenre.value = savedGenre
+      || (eventGenres.value[0]?.name ?? '')
+    selectedTabulation.value = savedTab || 'By Total'
     await refetchScores(newVal)
     await loadAdminData(newVal)
     subscribeScoreUpdates(newVal)
@@ -159,7 +184,7 @@ watch(selectedEvent, async (newVal) => {
 
 watch(selectedGenre, async (newVal) => {
   if (newVal) {
-    localStorage.setItem("selectedGenre", newVal)
+    localStorage.setItem(genreKey(selectedEvent.value), newVal)
     selectedTopN.value = 'All'
     selectedEntryType.value = 'Teams'
     if (selectedEvent.value && newVal !== 'All') {
@@ -170,7 +195,7 @@ watch(selectedGenre, async (newVal) => {
   }
 }, { immediate: true });
 watch(selectedTabulation, (newVal) => {
-  if (newVal) { localStorage.setItem("selectedTabMethod", newVal); selectedTopN.value = 'All' }
+  if (newVal) { localStorage.setItem(tabKey(selectedEvent.value), newVal); selectedTopN.value = 'All' }
   resetTieBreaker()
 }, { immediate: true });
 // Load persisted tie-breaker state whenever the scoped key changes
