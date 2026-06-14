@@ -16,6 +16,19 @@
   src: url('./fonts/anton-sc-v1-latin-regular.woff2') format('woff2');
 }
 
+/* Oswald — condensed sans with proper lowercase glyphs. Used everywhere the
+   broadcast-style typography needs to read as sentence case (or all caps via
+   text-transform). Anton SC is kept loaded for the 3 broadcast displays
+   (BattleOverlay, BracketVisualization, Chart) that explicitly reference it. */
+@font-face {
+  font-display: swap;
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 500;
+  src: url('./fonts/oswald-v57-latin-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
 @font-face {
   font-family: 'Source Code Pro';
   src: url('./fonts/SourceCodePro-VariableFont_wght.ttf') format('truetype');
@@ -43,10 +56,10 @@
 ───────────────────────────────────────── */
 @theme {
   /* Typography */
-  --font-sans:    'Anton SC', sans-serif;
+  --font-sans:    'Oswald', sans-serif;
   --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-eagle:   'EagleHorizonP', sans-serif;
-  --font-anton:   'Anton SC', sans-serif;
+  --font-anton:   'Anton SC', sans-serif; /* broadcast displays only — BattleOverlay, BracketVisualization, Chart */
   --font-source:  'JetBrains Mono', 'Source Code Pro', monospace;
 
   /* Brand — Red (the ONE interactive color) */
@@ -203,22 +216,24 @@
     box-shadow: 0 8px 30px rgba(0,0,0,0.4);
   }
 
-  /* Inputs */
+  /* Inputs — user typed text is shown as-typed (no forced uppercase). Placeholders
+     and label chrome around inputs may still use uppercase via .type-label. */
   .input-base {
     width: 100%;
     clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 0.625rem 1rem;
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 15px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.88);
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: rgba(255, 255, 255, 0.92);
   }
   .input-base::placeholder {
-    color: rgba(255, 255, 255, 0.25);
-    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.30);
+    letter-spacing: 0.02em;
+    text-transform: none;
   }
   .input-base:focus {
     outline: none;
@@ -293,7 +308,7 @@
   }
 
   .stat-value {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 48px;
     letter-spacing: 0.02em;
     color: #ffffff;
@@ -302,7 +317,7 @@
   }
 
   .stat-label {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -358,7 +373,7 @@
     background: transparent;
     border: none;
     cursor: pointer;
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 12px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -373,6 +388,13 @@
   }
   .tab-item:hover { color: rgba(255,255,255,0.70); }
   .tab-item.is-active { color: var(--accent-color); }
+  /* Tab modifier for tabs whose label is user data (genre names, participant
+     names) — keeps the tab styling but renders the label as typed. */
+  .tab-item.tab-item-data {
+    text-transform: none;
+    letter-spacing: 0.04em;
+    font-size: 13px;
+  }
   .tab-item::after {
     content: '';
     position: absolute;
@@ -407,13 +429,25 @@
     background: rgba(255, 255, 255, 0.07);
   }
   .section-rule-label {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.28);
     white-space: nowrap;
   }
+  /* Larger section header for sub-sections inside a card where the
+     default rule label disappears against body text. */
+  .section-rule-lg .section-rule-label {
+    font-size: 15px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.62);
+  }
+  .section-rule-lg .section-rule-line {
+    background: rgba(255, 255, 255, 0.10);
+  }
+  [data-theme="light"] .section-rule-lg .section-rule-label { color: rgba(0,0,0,0.62); }
+  [data-theme="light"] .section-rule-lg .section-rule-line { background: rgba(0,0,0,0.16); }
 
   /* ── Corner accent bars (panels, modals) ───────────────────── */
   .corner-bar-tl {
@@ -474,7 +508,7 @@
 
   /* ── Typography tier utilities ──────────────────────────────── */
   .type-display {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: clamp(36px, 5vw, 56px);
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -482,36 +516,75 @@
     text-shadow: 2px 2px 0 var(--accent-muted);
   }
   .type-page-title {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 32px;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
+    /* Mode 2 — mixed Anton SC: tall uppercase letters + small-cap lowercase.
+       No text-transform so the font's small-caps glyphs render naturally. */
     line-height: 1;
     text-shadow: 1px 1px 0 var(--accent-muted);
   }
   .type-section {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 14px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     line-height: 1;
   }
   .type-body {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 15px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     line-height: 1.1;
   }
   .type-label {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 12px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     line-height: 1;
   }
+  /* User-data display tier — names, team names, member names, anything the user typed.
+     Uses Oswald (so it still has the broadcast condensed feel) but keeps the user's
+     original casing instead of forcing uppercase. Apply to every place that shows
+     a participant / team / member / judge / event name. */
+  .type-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    line-height: 1.15;
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .type-name-sm {
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  [data-theme="light"] .type-name,
+  [data-theme="light"] .type-name-sm { color: rgba(0,0,0,0.88); }
+
+  /* Soft sentence-case prose for quiet status text, helpers, and hints.
+     One tier — used for ALL descriptive text across the app. Uses Inter and
+     explicitly disables uppercase so it reads quietly against the all-caps
+     Anton SC chrome. `.type-prose-sm` is kept as an alias for back-compat. */
+  .type-prose,
+  .type-prose-sm {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  [data-theme="light"] .type-prose,
+  [data-theme="light"] .type-prose-sm { color: rgba(0,0,0,0.55); }
   .type-stat {
-    font-family: 'Anton SC', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-size: 48px;
     letter-spacing: 0.02em;
     line-height: 1;
