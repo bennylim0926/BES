@@ -1044,7 +1044,7 @@ const checkIn = async (p) => {
   checkingInId.value = null
 }
 
-const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', refCode: null, errorMessage: '' })
+const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', refCode: null, errorMessage: '', qrImageUrl: null })
 // phase: 'confirm' → 'generating' → 'done'
 
 // Dialog slot machine animation state
@@ -1101,7 +1101,11 @@ const closeCheckinDialog = () => {
       cancelled: true
     })
   }
-  checkinConfirm.value.show = false
+  // Revoke QR image URL to free memory
+  if (checkinConfirm.value.qrImageUrl) {
+    URL.revokeObjectURL(checkinConfirm.value.qrImageUrl)
+  }
+  checkinConfirm.value = { show: false, participant: null, phase: 'confirm', refCode: null, errorMessage: '', qrImageUrl: null }
 }
 
 const confirmCheckIn = async () => {
@@ -1132,6 +1136,21 @@ const confirmCheckIn = async () => {
   // Get ref code from fresh verifiedDbParticipants data
   const refEntry = verifiedDbParticipants.value.find(ep => ep.participantId === p.participantId)
   checkinConfirm.value.refCode = refEntry?.referenceCode || null
+
+  // Generate QR code if feedback is enabled
+  if (feedbackEnabled.value && checkinConfirm.value.refCode) {
+    try {
+      const res = await fetch(`/api/v1/results/qr?ref=${encodeURIComponent(checkinConfirm.value.refCode)}`, {
+        credentials: 'include'
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        checkinConfirm.value.qrImageUrl = URL.createObjectURL(blob)
+      }
+    } catch (e) {
+      console.error('Error generating check-in QR:', e)
+    }
+  }
 
   // Queue animations from the now-fresh checkinList data (no WS dependency)
   const freshParticipant = checkinList.value.find(ep => ep.participantId === p.participantId)
@@ -2828,8 +2847,20 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Ref code (done state only) -->
-          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode" class="mb-5">
+          <!-- Results QR (done state, feedback enabled) -->
+          <div v-if="checkinConfirm.phase === 'done' && feedbackEnabled && checkinConfirm.qrImageUrl" class="mb-5">
+            <div class="section-rule mb-3">
+              <span class="section-rule-label">Your Results QR</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="flex flex-col items-center gap-3">
+              <img :src="checkinConfirm.qrImageUrl" alt="Results QR Code" class="w-28 h-28 block border border-surface-600/50 p-2" />
+              <p class="type-prose-sm text-content-muted text-center">Scan to view your scores and feedback</p>
+            </div>
+          </div>
+
+          <!-- Ref code (done state only, shown if feedback disabled or QR not available) -->
+          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode && (!feedbackEnabled || !checkinConfirm.qrImageUrl)" class="mb-5">
             <div class="section-rule mb-3">
               <span class="section-rule-label">Ref Code</span>
               <div class="section-rule-line"></div>
