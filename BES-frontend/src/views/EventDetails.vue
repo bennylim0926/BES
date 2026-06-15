@@ -1051,6 +1051,8 @@ const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', r
 const dialogFakeNums = ref({})
 const dialogRollingIntervals = {}
 const dialogNumberQueue = []
+const genrePoolSizes = ref({}) // { genreName: poolSize }
+
 function processNextDialogNumber() {
   if (dialogNumberQueue.length === 0) {
     checkinConfirm.value.phase = 'done'
@@ -1060,10 +1062,20 @@ function processNextDialogNumber() {
   const g = checkinConfirm.value.participant?.genres.find(x => x.genreName === genre)
   if (!g) { processNextDialogNumber(); return }
 
+  const poolSize = genrePoolSizes.value[genre] ?? 99
+
+  // Skip animation if only one number is available
+  if (poolSize === 1) {
+    g.rolling = false
+    g.auditionNumber = auditionNumber
+    processNextDialogNumber()
+    return
+  }
+
   g.rolling = true
   clearInterval(dialogRollingIntervals[genre])
   dialogRollingIntervals[genre] = setInterval(() => {
-    dialogFakeNums.value = { ...dialogFakeNums.value, [genre]: Math.floor(Math.random() * 99) + 1 }
+    dialogFakeNums.value = { ...dialogFakeNums.value, [genre]: Math.floor(Math.random() * poolSize) + 1 }
   }, 80)
 
   setTimeout(() => {
@@ -1104,6 +1116,17 @@ const closeCheckinDialog = () => {
   // Revoke QR image URL to free memory
   if (checkinConfirm.value.qrImageUrl) {
     URL.revokeObjectURL(checkinConfirm.value.qrImageUrl)
+  }
+  // Clear pool sizes from completed check-in
+  if (checkinConfirm.value.participant) {
+    checkinConfirm.value.participant.genres.forEach(g => {
+      const key = g.genreName
+      if (key in genrePoolSizes.value) {
+        const next = { ...genrePoolSizes.value }
+        delete next[key]
+        genrePoolSizes.value = next
+      }
+    })
   }
   checkinConfirm.value = { show: false, participant: null, phase: 'confirm', refCode: null, errorMessage: '', qrImageUrl: null }
 }
@@ -1240,6 +1263,10 @@ onMounted(async () => {
     let refreshPending = false
     subscribeToChannel(wsClient, '/topic/audition/', (msg) => {
       if (msg.eventName !== props.eventName) return
+      // Store pool size for modal animation
+      if (msg.genre && msg.poolSize !== undefined) {
+        genrePoolSizes.value = { ...genrePoolSizes.value, [msg.genre]: msg.poolSize }
+      }
       const participant = checkinList.value.find(p => p.participantId === msg.participantId)
       if (participant) {
         const genre = participant.genres.find(g => g.genreName === msg.genre)

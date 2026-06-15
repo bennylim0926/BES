@@ -232,6 +232,7 @@ public class EventGenreParticpantService {
             auditMsg.put("walkin", false);
             auditMsg.put("refCode", refCode != null ? refCode : "");
             auditMsg.put("format", participantInEventGenre.getFormat() != null ? participantInEventGenre.getFormat() : "");
+            auditMsg.put("poolSize", pool.size());
             messagingTemplate.convertAndSend("/topic/audition/", auditMsg);
         }else{
             messagingTemplate.convertAndSend("/topic/error/",
