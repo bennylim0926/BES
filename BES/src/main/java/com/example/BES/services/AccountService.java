@@ -40,7 +40,8 @@ public class AccountService {
                 a.getUsername(),
                 a.getAssignedEvents() != null
                     ? a.getAssignedEvents().stream().map(Event::getEventId).collect(Collectors.toList())
-                    : List.of()
+                    : List.of(),
+                a.getTier()
             ))
             .collect(Collectors.toList());
     }
