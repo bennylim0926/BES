@@ -33,6 +33,8 @@ import com.example.BES.dtos.admin.DeleteScoreByEventDto;
 import com.example.BES.dtos.admin.GetOrganiserDto;
 import com.example.BES.dtos.admin.UpdateGenreDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
+import com.example.BES.dtos.admin.UpdateOrganiserTierDto;
+import com.example.BES.models.Account;
 import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
 import com.example.BES.services.AccountService;
@@ -191,6 +193,17 @@ public class AdminController {
     public ResponseEntity<?> deleteOrganiser(@PathVariable Long accountId) {
         accountService.deleteOrganiser(accountId);
         return ResponseEntity.ok(Map.of("message", "deleted"));
+    }
+
+    @PostMapping("/organisers/tier")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setOrganiserTier(@Valid @RequestBody UpdateOrganiserTierDto dto) {
+        Account account = accountService.setOrganiserTier(dto.getAccountId(), dto.getTier());
+        return ResponseEntity.ok(Map.of(
+            "accountId", account.getAccountId(),
+            "username", account.getUsername(),
+            "tier", account.getTier()
+        ));
     }
 
     @DeleteMapping("/organisers/assign")

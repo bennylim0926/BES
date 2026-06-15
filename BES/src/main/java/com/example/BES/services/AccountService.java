@@ -92,6 +92,14 @@ public class AccountService {
         accountRepository.delete(account);
     }
 
+    @Transactional
+    public Account setOrganiserTier(Long accountId, String tier) {
+        Account account = accountRepository.findById(accountId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        account.setTier(tier);
+        return accountRepository.save(account);
+    }
+
     private String generateReferralCode() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
     }
