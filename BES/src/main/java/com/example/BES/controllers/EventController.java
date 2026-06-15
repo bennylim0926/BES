@@ -82,6 +82,7 @@ import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
+import com.example.BES.services.TierAccessService;
 import com.example.BES.dtos.GetAuditionFeedbackDto;
 import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
@@ -148,6 +149,9 @@ public class EventController {
 
     @Autowired
     CheckinPreviewService checkinPreviewService;
+
+    @Autowired
+    TierAccessService tierAccessService;
 
     @Autowired
     SimpMessagingTemplate messagingTemplate;
@@ -252,11 +256,16 @@ public class EventController {
     @PostMapping("/{eventName}/genres/{eventGenreId}/format")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> updateEventGenreFormat(
+            Authentication auth,
             @PathVariable String eventName,
             @PathVariable Long eventGenreId,
             @Valid @RequestBody Map<String, String> body) {
+        String format = body.get("format");
+        if (format != null && !format.isBlank()) {
+            tierAccessService.requireBattleAccess(auth, eventName);
+        }
         try {
-            eventGenreService.updateEventGenreFormat(eventGenreId, body.get("format"));
+            eventGenreService.updateEventGenreFormat(eventGenreId, format);
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
