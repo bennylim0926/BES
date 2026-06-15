@@ -48,6 +48,7 @@ export const useAuthStore = defineStore('auth',{
         user: null,
         isAuthenticated: false,
         activeEvent: getActiveEvent(),
+        activeEventBattleEnabled: false,
         judgeId: null,
         judgeName: null
     }),
@@ -62,6 +63,7 @@ export const useAuthStore = defineStore('auth',{
             this.user = null;
             this.isAuthenticated = false;
             this.activeEvent = null;
+            this.activeEventBattleEnabled = false;
             this.judgeId = null;
             this.judgeName = null;
             clearVerifiedEvents();
@@ -70,10 +72,17 @@ export const useAuthStore = defineStore('auth',{
             localStorage.removeItem('selectedGenre');
             localStorage.removeItem('currentJudge');
         },
+        fetchEventBattleEnabled(eventName) {
+            fetch(`/api/v1/event/${encodeURIComponent(eventName)}/battle-enabled`, { credentials: 'include' })
+                .then(res => res.json())
+                .then(data => { this.activeEventBattleEnabled = !!data.battleEnabled })
+                .catch(() => { this.activeEventBattleEnabled = false })
+        },
         setActive(id, name, folderID = null) {
             const event = { id: Number(id), name, folderID: folderID ?? null }
             sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(event))
             this.activeEvent = event
+            this.fetchEventBattleEnabled(name)
         }
     },
     getters:{
