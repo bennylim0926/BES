@@ -7,6 +7,7 @@ import ActionDoneModal from './views/ActionDoneModal.vue'
 import EventPanel from './components/EventPanel.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { APP_NAME } from './utils/branding.js'
+import { useTierAccess } from './utils/useTierAccess'
 
 const router = useRouter()
 const route  = useRoute()
@@ -19,6 +20,7 @@ const accentServer = ref('#ffffff')
 const wsAccentClient = ref(null)
 
 const authStore = useAuthStore()
+const { battleEnabled } = useTierAccess()
 
 // ── Computed ───────────────────────────────────────────────────────────────
 const role = computed(() =>
@@ -167,6 +169,9 @@ onMounted(async () => {
   try {
     const res = await whoami()
     authStore.login(res)
+    if (authStore.activeEvent) {
+      authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
+    }
   } catch {
     // not authenticated — ok
   }
@@ -334,6 +339,7 @@ onUnmounted(() => {
           :role="role"
           :activeEvent="activeEvent"
           :theme="theme"
+          :battleEnabled="battleEnabled"
           @close="panelOpen = false"
           @navigate="goToSection"
           @goToEventDetails="goToEventDetails"

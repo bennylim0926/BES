@@ -1707,7 +1707,7 @@ export const setOrganiserTier = async (accountId, tier) => {
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ accountId, tier })
     })
-    return await res.json()
+    return { ok: res.ok, status: res.status, data: res.ok ? await res.json() : null, error: res.ok ? null : await res.text() }
   } catch (e) {
     console.error(e)
     return null

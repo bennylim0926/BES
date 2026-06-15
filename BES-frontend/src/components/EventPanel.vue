@@ -5,9 +5,10 @@ import { fetchAllEvents } from '@/utils/api'
 import { setActiveEvent } from '@/utils/auth'
 
 const props = defineProps({
-  role:        { type: String, required: true },
-  activeEvent: { type: Object, default: null },
-  theme:       { type: String, default: 'dark' },
+  role:          { type: String, required: true },
+  activeEvent:   { type: Object, default: null },
+  theme:         { type: String, default: 'dark' },
+  battleEnabled: { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
@@ -50,7 +51,7 @@ const isSessionRole = computed(() =>
 )
 
 const visibleTiles = computed(() =>
-  ALL_TILES.filter(t => t.roles.includes(props.role))
+  ALL_TILES.filter(t => t.roles.includes(props.role) && (t.key !== 'battle' || props.battleEnabled))
 )
 
 function handleTile(tile) {

@@ -1,8 +1,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useAuthStore } from '@/utils/auth'
+import { useTierAccess } from '@/utils/useTierAccess'
 
 const authStore = useAuthStore()
+const { battleEnabled } = useTierAccess()
 
 const role = computed(() =>
   authStore.user ? authStore.user['role'][0]['authority'] : ''
@@ -111,7 +113,7 @@ const roleDisplay = computed(() => {
 
         <!-- Battle Control (Admin / Organiser) -->
         <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          v-if="battleEnabled && activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
           :to="{ name: 'Battle Control' }"
           class="card-hover p-6 relative cursor-pointer group"
         >

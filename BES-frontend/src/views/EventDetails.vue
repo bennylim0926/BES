@@ -3,9 +3,11 @@ import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenresToEvent, getLinkedGenres, unlinkGenreFromEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
+import { useTierAccess } from '@/utils/useTierAccess';
 import { useDelay } from '@/utils/utils';
 
 const authStore = useAuthStore()
+const { battleEnabled } = useTierAccess()
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
@@ -1833,7 +1835,7 @@ onUnmounted(() => {
 
             <!-- SETTINGS. Name lives in the header (with a pencil), not here, so
                  it isn't shown twice. Only format / solo / delete this category. -->
-            <section>
+            <section v-if="battleEnabled">
               <div class="section-rule section-rule-lg mb-3">
                 <span class="section-rule-label">Settings</span>
                 <div class="section-rule-line"></div>

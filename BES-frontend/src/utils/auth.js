@@ -73,9 +73,13 @@ export const useAuthStore = defineStore('auth',{
             localStorage.removeItem('currentJudge');
         },
         fetchEventBattleEnabled(eventName) {
+            if (!eventName) { this.activeEventBattleEnabled = false; return }
             fetch(`/api/v1/event/${encodeURIComponent(eventName)}/battle-enabled`, { credentials: 'include' })
-                .then(res => res.json())
-                .then(data => { this.activeEventBattleEnabled = !!data.battleEnabled })
+                .then(res => {
+                    if (!res.ok) { this.activeEventBattleEnabled = false; return }
+                    return res.json()
+                })
+                .then(data => { if (data) this.activeEventBattleEnabled = !!data.battleEnabled })
                 .catch(() => { this.activeEventBattleEnabled = false })
         },
         setActive(id, name, folderID = null) {

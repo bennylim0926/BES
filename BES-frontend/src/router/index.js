@@ -176,8 +176,33 @@ const router = createRouter({
 })
 
 const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession', 'AuditionDisplay']
+const BATTLE_ROUTES = ['Battle Control', 'Battle Judge', 'StreamOverlay', 'Smoke', 'BracketVisualization']
 
 router.beforeEach(async (to) => {
+    // Battle route guard: redirect authenticated PRO users away from all battle routes
+    if (BATTLE_ROUTES.includes(to.name)) {
+        try {
+            const authStore = useAuthStore()
+            let user = authStore.user
+            if (!user) {
+                user = await whoami()
+                if (user?.authenticated) authStore.login(user)
+            }
+            if (user?.authenticated) {
+                const authorities = (user.role ?? []).map(r => r.authority)
+                let battleEnabled
+                if (authorities.includes('ROLE_ADMIN')) {
+                    battleEnabled = true
+                } else if (authorities.includes('ROLE_ORGANISER')) {
+                    battleEnabled = user.tier === 'MAX'
+                } else {
+                    battleEnabled = authStore.activeEventBattleEnabled
+                }
+                if (!battleEnabled) return { name: 'Main' }
+            }
+        } catch { /* let existing checks handle it */ }
+    }
+
     if (PUBLIC_ROUTES.includes(to.name)) return true
     try {
         const authStore = useAuthStore()
