@@ -1,7 +1,7 @@
 <script setup>
-import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser } from '@/utils/adminApi';
+import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { fetchAllEvents, fetchAllGenres, getAppConfig, postAppConfig } from '@/utils/api';
 import UpdateFieldForm from '@/components/UpdateFieldForm.vue';
@@ -55,6 +55,26 @@ const dynamicHandler = ref(() => {})
 const organisers = ref([])
 const newOrganiserUsername = ref('')
 const newOrganiserPassword = ref('')
+const tierFilter = ref('All')
+
+const filteredOrganisers = computed(() => {
+  if (tierFilter.value === 'All') return organisers.value
+  return organisers.value.filter(o => o.tier === tierFilter.value.toUpperCase())
+})
+
+const onTierChange = async (org, newTier) => {
+  if (newTier === org.tier) return
+  const prev = org.tier
+  org.tier = newTier
+  const result = await setOrganiserTier(org.id, newTier)
+  if (result?.ok === true) {
+    openModal('Tier Updated', `Set "${org.username}" to ${newTier}.`, 'info')
+  } else {
+    org.tier = prev
+    organisers.value = await getOrganisers() ?? []
+    openModal('Error', result?.error || 'Failed to update tier.', 'warning')
+  }
+}
 
 const submitCreateOrganiser = async () => {
   if (checkInputNull(newOrganiserUsername.value) || checkInputNull(newOrganiserPassword.value)) {
@@ -467,25 +487,46 @@ onMounted(async () => {
           </button>
         </div>
 
+        <div v-if="organisers.length > 0" class="flex flex-wrap gap-2 mb-4">
+          <button
+            v-for="f in ['All', 'Pro', 'Max']"
+            :key="f"
+            @click="tierFilter = f"
+            :aria-pressed="tierFilter === f"
+            class="para-chip-sm px-4 py-2 type-label transition-all duration-150"
+            :class="tierFilter === f ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+          >{{ f }}</button>
+        </div>
+
         <p class="type-prose mb-4">Assign or remove events for each organiser.</p>
 
         <div class="space-y-3">
           <div
-            v-for="org in organisers"
+            v-for="org in filteredOrganisers"
             :key="org.id"
             class="card-hover p-4 relative"
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
               <span class="type-name text-content-primary">{{ org.username }}</span>
-              <button
-                @click="confirmDeleteOrganiser(org.id, org.username)"
-                class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-                title="Delete organiser"
-                :aria-label="`Delete organiser ${org.username}`"
-              >
-                <i class="pi pi-times text-xs" aria-hidden="true"></i>
-              </button>
+              <div class="flex items-center gap-2">
+                <select
+                  :value="org.tier"
+                  @change="(e) => onTierChange(org, e.target.value)"
+                  class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
+                >
+                  <option value="PRO">PRO</option>
+                  <option value="MAX">MAX</option>
+                </select>
+                <button
+                  @click="confirmDeleteOrganiser(org.id, org.username)"
+                  class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
+                  title="Delete organiser"
+                  :aria-label="`Delete organiser ${org.username}`"
+                >
+                  <i class="pi pi-times text-xs" aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
 
             <div class="flex flex-wrap gap-2">

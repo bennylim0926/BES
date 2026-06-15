@@ -1,5 +1,7 @@
 const domain = ""
 
+export { setOrganiserTier } from '@/utils/api'
+
 export const addGenre = async(genreName)=>{
     try{
         return await fetch(`${domain}/api/v1/admin/genre`,{
