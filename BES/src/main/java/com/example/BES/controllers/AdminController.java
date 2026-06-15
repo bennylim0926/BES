@@ -196,7 +196,6 @@ public class AdminController {
     }
 
     @PostMapping("/organisers/tier")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> setOrganiserTier(@Valid @RequestBody UpdateOrganiserTierDto dto) {
         Account account = accountService.setOrganiserTier(dto.getAccountId(), dto.getTier());
         return ResponseEntity.ok(Map.of(

@@ -96,6 +96,9 @@ public class AccountService {
     public Account setOrganiserTier(Long accountId, String tier) {
         Account account = accountRepository.findById(accountId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        if (!"ORGANISER".equals(account.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not an organiser");
+        }
         account.setTier(tier);
         return accountRepository.save(account);
     }
