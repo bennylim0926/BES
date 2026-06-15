@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +48,7 @@ import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.services.BattleService;
+import com.example.BES.services.TierAccessService;
 
 @RestController
 @CrossOrigin
@@ -57,10 +60,17 @@ public class BattleController {
     @Autowired
     BattleService battleService;
 
+    @Autowired
+    TierAccessService tierAccessService;
+
     private String resolveEvent(String dtoEventName) {
         return (dtoEventName != null && !dtoEventName.isBlank())
             ? dtoEventName
             : battleService.getActiveEventName() != null ? battleService.getActiveEventName() : "";
+    }
+
+    private void checkBattleAccess(Authentication auth, String eventName) {
+        tierAccessService.requireBattleAccess(auth, eventName);
     }
 
     @GetMapping("/modes")
@@ -83,7 +93,8 @@ public class BattleController {
 
     @PostMapping("/battle-mode")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setSelectedMode(@Valid @RequestBody SetBattleModeDto dto){
+    public ResponseEntity<?> setSelectedMode(Authentication auth, @Valid @RequestBody SetBattleModeDto dto){
+        checkBattleAccess(auth, null);
         battleService.setSelectedMode(dto);
         return ResponseEntity.ok(
             Map.of(
@@ -116,8 +127,10 @@ public class BattleController {
 
     @PostMapping("/battle-pair")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setBattlerPair(@Valid @RequestBody SetBattlerPairDto dto){
-        battleService.setBattlerPairService(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> setBattlerPair(Authentication auth, @Valid @RequestBody SetBattlerPairDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.setBattlerPairService(eName, dto);
         return ResponseEntity.ok(Map.of(
             "message", "successfully set the battle pair",
             "left", battleService.getCurrentPair().getLeftBattler().getName(),
@@ -127,8 +140,10 @@ public class BattleController {
 
     @DeleteMapping("/battle-pair")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> clearBattlePair(@RequestParam(required = false) String event){
-        battleService.clearBattlePairService(resolveEvent(event));
+    public ResponseEntity<?> clearBattlePair(Authentication auth, @RequestParam(required = false) String event){
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        battleService.clearBattlePairService(eName);
         return ResponseEntity.ok(Map.of(
             "message", "battle pair cleared"
         ));
@@ -145,16 +160,20 @@ public class BattleController {
     @PostMapping("/format-timer")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> updateFormatTimer(
+            Authentication auth,
             @RequestParam(required = false) String event,
             @RequestBody Map<String, Object> payload) {
-        battleService.handleFormatTimerPayload(resolveEvent(event), payload);
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        battleService.handleFormatTimerPayload(eName, payload);
         return ResponseEntity.ok(Map.of("message", "Format timer updated"));
     }
 
     @PostMapping("/score")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setBattleScore(@RequestBody(required = false) SetBattleScoreDto dto){
+    public ResponseEntity<?> setBattleScore(Authentication auth, @RequestBody(required = false) SetBattleScoreDto dto){
         String eName = resolveEvent(dto != null ? dto.getEventName() : null);
+        checkBattleAccess(auth, eName);
         boolean isFinal = dto != null && dto.isFinal();
         Integer code = battleService.setScoreService(eName, isFinal);
         if(code == -2){
@@ -184,15 +203,19 @@ public class BattleController {
 
     @PostMapping("/revote")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> revote(@RequestParam(required = false) String event){
-        battleService.resetJudgeVotesService(resolveEvent(event));
+    public ResponseEntity<?> revote(Authentication auth, @RequestParam(required = false) String event){
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        battleService.resetJudgeVotesService(eName);
         return ResponseEntity.ok(Map.of("message", "Judge votes reset"));
     }
 
     @PostMapping("/champion-reveal")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> championReveal(@RequestBody ChampionRevealDto dto){
-        battleService.broadcastChampionReveal(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> championReveal(Authentication auth, @RequestBody ChampionRevealDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.broadcastChampionReveal(eName, dto);
         return ResponseEntity.ok(Map.of("message", "Champion reveal broadcast"));
     }
 
@@ -210,16 +233,20 @@ public class BattleController {
     
     @DeleteMapping("/judge")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> removeBattleJudge(@Valid @RequestBody SetJudgeDto dto){
+    public ResponseEntity<?> removeBattleJudge(Authentication auth, @Valid @RequestBody SetJudgeDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
         return ResponseEntity.ok(Map.of(
-            "judge removed", battleService.removeBattleJudgeService(resolveEvent(dto.getEventName()), dto)
+            "judge removed", battleService.removeBattleJudgeService(eName, dto)
         ));
     }
 
     @PostMapping("/judge")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setJudge(@Valid @RequestBody SetJudgeDto dto){
-        Integer status = battleService.setBattleJudgeService(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> setJudge(Authentication auth, @Valid @RequestBody SetJudgeDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        Integer status = battleService.setBattleJudgeService(eName, dto);
         if(status == -1) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             Map.of(
                 "message", "Judge not found"
@@ -237,8 +264,10 @@ public class BattleController {
 
     @PostMapping("/judge/weightage")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> updateJudgeWeightage(@Valid @RequestBody UpdateJudgeWeightageDto dto) {
-        battleService.updateJudgeWeightageService(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> updateJudgeWeightage(Authentication auth, @Valid @RequestBody UpdateJudgeWeightageDto dto) {
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.updateJudgeWeightageService(eName, dto);
         return ResponseEntity.ok(Map.of("message", "Weightage updated"));
     }
 
@@ -271,7 +300,8 @@ public class BattleController {
 
     @PostMapping("/upload")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> handleUpload(@RequestParam("file") MultipartFile file) throws IOException{
+    public ResponseEntity<?> handleUpload(Authentication auth, @RequestParam("file") MultipartFile file) throws IOException{
+        checkBattleAccess(auth, null);
         if (!Files.exists(uploadDir)) {
             Files.createDirectories(uploadDir);
         }
@@ -311,7 +341,8 @@ public class BattleController {
 
     @DeleteMapping("/image")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<String> deleteImage(@Valid @RequestBody DeleteImageDto dto) throws IOException{
+    public ResponseEntity<String> deleteImage(Authentication auth, @Valid @RequestBody DeleteImageDto dto) throws IOException{
+        checkBattleAccess(auth, null);
         Path file = uploadDir.resolve(dto.getName()).normalize();
         if (!file.startsWith(uploadDir.normalize())) {
             return ResponseEntity.badRequest().body("Invalid file path");
@@ -336,8 +367,10 @@ public class BattleController {
 
     @PostMapping("/smoke")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setSmokeList(@Valid @RequestBody SetSmokeBattlersDto dto){
-        battleService.setSmokeBattlersService(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> setSmokeList(Authentication auth, @Valid @RequestBody SetSmokeBattlersDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.setSmokeBattlersService(eName, dto);
         return ResponseEntity.ok(Map.of(
             "message", "List updated"
         ));
@@ -350,8 +383,10 @@ public class BattleController {
 
     @PostMapping("/phase")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setBattlePhase(@Valid @RequestBody SetBattlePhaseDto dto){
-        battleService.setBattlePhaseService(resolveEvent(dto.getEventName()), dto.getPhase(), dto.getChampion());
+    public ResponseEntity<?> setBattlePhase(Authentication auth, @Valid @RequestBody SetBattlePhaseDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.setBattlePhaseService(eName, dto.getPhase(), dto.getChampion());
         return ResponseEntity.ok(Map.of("phase", battleService.getBattlePhase()));
     }
 
@@ -364,8 +399,10 @@ public class BattleController {
 
     @PostMapping("/bracket")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setBracketState(@Valid @RequestBody SetBracketStateDto dto){
-        battleService.setBracketStateService(resolveEvent(dto.getEventName()), dto);
+    public ResponseEntity<?> setBracketState(Authentication auth, @Valid @RequestBody SetBracketStateDto dto){
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.setBracketStateService(eName, dto);
         return ResponseEntity.ok(Map.of("message", "Bracket state updated"));
     }
 
@@ -376,14 +413,17 @@ public class BattleController {
 
     @PostMapping("/overlay-config")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setOverlayConfig(@Valid @RequestBody SetOverlayConfigDto dto) {
-        battleService.setOverlayConfigService(resolveEvent(dto.getEventName()), dto);
-        return ResponseEntity.ok(battleService.getOverlayConfig(resolveEvent(dto.getEventName())));
+    public ResponseEntity<?> setOverlayConfig(Authentication auth, @Valid @RequestBody SetOverlayConfigDto dto) {
+        String eName = resolveEvent(dto.getEventName());
+        checkBattleAccess(auth, eName);
+        battleService.setOverlayConfigService(eName, dto);
+        return ResponseEntity.ok(battleService.getOverlayConfig(eName));
     }
 
     @PostMapping("/active-genre")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setActiveGenre(@Valid @RequestBody SetActiveGenreDto dto) {
+    public ResponseEntity<?> setActiveGenre(Authentication auth, @Valid @RequestBody SetActiveGenreDto dto) {
+        checkBattleAccess(auth, dto.getEventName());
         battleService.switchActiveGenreService(dto);
         return ResponseEntity.ok(Map.of("message", "Active genre set"));
     }
@@ -408,23 +448,32 @@ public class BattleController {
     @PostMapping("/logo-upload")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> uploadLogo(
+            Authentication auth,
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String event) throws IOException {
-        String url = battleService.uploadLogoService(resolveEvent(event), file);
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        String url = battleService.uploadLogoService(eName, file);
         return ResponseEntity.ok(Map.of("logoUrl", url));
     }
 
     @DeleteMapping("/logo")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> deleteLogo(
+            Authentication auth,
             @RequestParam(required = false) String event) throws IOException {
-        battleService.deleteLogoService(resolveEvent(event));
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        battleService.deleteLogoService(eName);
         return ResponseEntity.ok(Map.of("message", "Logo deleted"));
     }
 
     @GetMapping("/state")
-    public ResponseEntity<?> getBattleState(@RequestParam(required = false) String event) {
+    public ResponseEntity<?> getBattleState(Authentication auth, @RequestParam(required = false) String event) {
         String eName = resolveEvent(event);
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            checkBattleAccess(auth, eName);
+        }
         Map<String, Object> state = battleService.getBattleStateService(eName);
         if (state.containsKey("timer")) {
             battleService.rebroadcastTimer(eName, state.get("timer"));
@@ -434,7 +483,8 @@ public class BattleController {
 
     @PostMapping("/resolved-participants")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setResolvedParticipants(@Valid @RequestBody SetResolvedParticipantsDto dto) {
+    public ResponseEntity<?> setResolvedParticipants(Authentication auth, @Valid @RequestBody SetResolvedParticipantsDto dto) {
+        checkBattleAccess(auth, dto.getEventName());
         battleService.setResolvedParticipants(
             dto.getEventName(), dto.getGenreName(), dto.getParticipants());
         return ResponseEntity.ok(Map.of("message", "Resolved participants saved"));
