@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,5 +93,22 @@ public class AccountService {
 
     private String generateReferralCode() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * Resolve the {@link Account} for the currently authenticated user.
+     * Returns null when the authentication is missing, anonymous, or the username
+     * does not correspond to a known account.
+     */
+    @Transactional(readOnly = true)
+    public Account fromAuth(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        String username = auth.getName();
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return accountRepository.findByUsername(username).orElse(null);
     }
 }
