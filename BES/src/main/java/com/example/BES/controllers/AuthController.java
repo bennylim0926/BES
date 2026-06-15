@@ -28,10 +28,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.config.SecurityConfig;
+import com.example.BES.services.AccountService;
 import com.example.BES.services.ActiveSessionStore;
 import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
+import com.example.BES.models.Account;
 import com.example.BES.models.SessionToken;
 import com.example.BES.services.SessionTokenService;
 
@@ -56,6 +58,9 @@ public class AuthController {
 
     @Autowired
     private ActiveSessionStore activeSessionStore;
+
+    @Autowired
+    private AccountService accountService;
 
     private static final java.util.Set<String> UNLIMITED_ROLES =
         java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER");
@@ -85,6 +90,9 @@ public class AuthController {
             response.put("username", null);
             response.put("role", java.util.List.of());
         }
+
+        Account account = accountService.fromAuth(auth);
+        response.put("tier", account != null ? account.getTier() : null);
 
         HttpSession session = request.getSession(false);
         if (session != null) {
