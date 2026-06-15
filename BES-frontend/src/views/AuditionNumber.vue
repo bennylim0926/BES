@@ -8,7 +8,7 @@ import { createClient, deactivateClient, subscribeToChannel } from '@/utils/webs
 const slotKey = (participantId, name) => String(participantId ?? name)
 
 const activeSlots = ref([])
-// { slotId: string, person: { participantId, name, refCode, memberNames, genres[] }, queue: [], running: false }
+// { slotId: string, person: { participantId, name, refCode, memberNames, genres[] }, queue: [], running: false, poolSize: {} }
 
 const history = ref([])
 const revealingRef = ref({})        // { [slotId | historyKey]: boolean }
@@ -73,11 +73,21 @@ function animateSlot(slotId, msg) {
     slot.person.genres.push(genre)
   }
 
+  const poolSize = msg.poolSize ?? 99
+
+  // Skip animation if only one number is available
+  if (poolSize === 1) {
+    genre.rolling = false
+    genre.auditionNumber = msg.auditionNumber
+    processSlotQueue(slotId)
+    return
+  }
+
   genre.rolling = true
   const intervalKey = `${slotId}-${msg.genre}`
   clearInterval(rollingIntervals[intervalKey])
   rollingIntervals[intervalKey] = setInterval(() => {
-    fakeNums.value = { ...fakeNums.value, [intervalKey]: Math.floor(Math.random() * 99) + 1 }
+    fakeNums.value = { ...fakeNums.value, [intervalKey]: Math.floor(Math.random() * poolSize) + 1 }
   }, 80)
 
   setTimeout(() => {

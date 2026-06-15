@@ -61,6 +61,18 @@ const roleDisplay = computed(() => {
           <p class="type-prose">Walk-ins, check-in, audition screen.</p>
         </router-link>
 
+        <!-- Event Details (Admin / Organiser) -->
+        <router-link
+          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          :to="{ name: 'Event Details', params: { eventName: activeEvent.name } }"
+          class="card-hover p-6 relative cursor-pointer group"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Event Details</div>
+          <p class="type-prose">Overview, genres, Google Drive setup.</p>
+        </router-link>
+
         <!-- Audition List -->
         <router-link
           v-if="activeEvent && role !== 'ROLE_HELPER'"

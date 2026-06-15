@@ -23,11 +23,11 @@ function mountPanel(role) {
 
 describe('EventPanel.vue — section tiles', () => {
   describe('Admin role', () => {
-    it('shows all 6 tiles', async () => {
+    it('shows all 8 tiles', async () => {
       const w = mountPanel('ROLE_ADMIN')
       await w.vm.$nextTick()
       const tiles = w.findAll('[data-tile]')
-      expect(tiles).toHaveLength(6)
+      expect(tiles).toHaveLength(8)
     })
 
     it('shows Details, Audition, Participants, Score, Battle, Numbers tiles', async () => {
@@ -41,10 +41,10 @@ describe('EventPanel.vue — section tiles', () => {
   })
 
   describe('Organiser role', () => {
-    it('shows all 6 tiles', async () => {
+    it('shows all 7 tiles', async () => {
       const w = mountPanel('ROLE_ORGANISER')
       await w.vm.$nextTick()
-      expect(w.findAll('[data-tile]')).toHaveLength(6)
+      expect(w.findAll('[data-tile]')).toHaveLength(7)
     })
   })
 

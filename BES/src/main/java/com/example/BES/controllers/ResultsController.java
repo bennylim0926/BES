@@ -38,8 +38,14 @@ public class ResultsController {
     public ResponseEntity<?> getResults(@RequestParam String ref) {
         GetResultsDto results = resultsService.getResultsByRefCode(ref);
         if (results == null) {
-            return ResponseEntity.status(404)
-                .body(Map.of("error", "Results not found or not yet released"));
+            // Check if ref code exists to provide specific error message
+            if (resultsService.refCodeExists(ref)) {
+                return ResponseEntity.status(404)
+                    .body(Map.of("error", "Organiser has not released the results yet. Please check back later."));
+            } else {
+                return ResponseEntity.status(404)
+                    .body(Map.of("error", "Invalid reference code. Please check and try again."));
+            }
         }
         return ResponseEntity.ok(results);
     }

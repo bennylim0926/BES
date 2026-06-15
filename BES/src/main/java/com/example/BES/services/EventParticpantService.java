@@ -80,8 +80,9 @@ public class EventParticpantService {
         List<EventParticipant> eps = eventParticipantRepo.findByEvent(event);
         List<Map<String, String>> result = new ArrayList<>();
         for (EventParticipant ep : eps) {
-            if (ep.getReferenceCode() == null) continue;
+            if (ep.getReferenceCode() == null || ep.getParticipant() == null) continue;
             Map<String, String> entry = new HashMap<>();
+            entry.put("participantId", String.valueOf(ep.getParticipant().getParticipantId()));
             entry.put("participantName", ep.getDisplayName());
             entry.put("referenceCode", ep.getReferenceCode());
             result.add(entry);

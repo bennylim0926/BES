@@ -1,8 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { getResultsByRefCode } from '@/utils/api'
 import { APP_NAME } from '../utils/branding.js'
 
+const route = useRoute()
 const refCode = ref('')
 const loading = ref(false)
 const results = ref(null)
@@ -37,6 +39,15 @@ const lookup = async () => {
     results.value = data
   }
 }
+
+onMounted(async () => {
+  const queryRef = route.query.ref
+  if (queryRef) {
+    // Auto-load results if ref code is provided in URL
+    refCode.value = String(queryRef).toUpperCase().trim()
+    await lookup()
+  }
+})
 
 const isMultiCriteria = (scores) => scores?.some(s => s.aspect && s.aspect !== '')
 
