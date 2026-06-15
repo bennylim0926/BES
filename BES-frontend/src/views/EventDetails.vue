@@ -1835,23 +1835,25 @@ onUnmounted(() => {
 
             <!-- SETTINGS. Name lives in the header (with a pencil), not here, so
                  it isn't shown twice. Only format / solo / delete this category. -->
-            <section v-if="battleEnabled">
+            <section>
               <div class="section-rule section-rule-lg mb-3">
                 <span class="section-rule-label">Settings</span>
                 <div class="section-rule-line"></div>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="type-label text-content-muted">Format</span>
-                <select
-                  :value="div.format || ''"
-                  @change="saveDivisionFormat(div, $event.target.value)"
-                  class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
-                >
-                  <option value="">No format</option>
-                  <template v-for="opt in divFormatOptions" :key="opt">
-                    <option v-if="opt" :value="opt">{{ opt }}</option>
-                  </template>
-                </select>
+                <template v-if="battleEnabled">
+                  <span class="type-label text-content-muted">Format</span>
+                  <select
+                    :value="div.format || ''"
+                    @change="saveDivisionFormat(div, $event.target.value)"
+                    class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
+                  >
+                    <option value="">No format</option>
+                    <template v-for="opt in divFormatOptions" :key="opt">
+                      <option v-if="opt" :value="opt">{{ opt }}</option>
+                    </template>
+                  </select>
+                </template>
                 <button
                   v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
                   @click="askToggleSolo(div)"

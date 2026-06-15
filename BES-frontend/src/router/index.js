@@ -26,6 +26,7 @@ import EmceeSessionView from "@/views/EmceeSessionView.vue";
 import HelperSessionView from "@/views/HelperSessionView.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
+import { resolveBattleEnabled } from "@/utils/useTierAccess";
 
 const routes = [
     {
@@ -189,15 +190,7 @@ router.beforeEach(async (to) => {
                 if (user?.authenticated) authStore.login(user)
             }
             if (user?.authenticated) {
-                const authorities = (user.role ?? []).map(r => r.authority)
-                let battleEnabled
-                if (authorities.includes('ROLE_ADMIN')) {
-                    battleEnabled = true
-                } else if (authorities.includes('ROLE_ORGANISER')) {
-                    battleEnabled = user.tier === 'MAX'
-                } else {
-                    battleEnabled = authStore.activeEventBattleEnabled
-                }
+                const battleEnabled = resolveBattleEnabled(user, authStore.activeEventBattleEnabled)
                 if (!battleEnabled) return { name: 'Main' }
             }
         } catch { /* let existing checks handle it */ }
