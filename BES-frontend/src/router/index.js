@@ -180,6 +180,10 @@ const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results'
 const BATTLE_ROUTES = ['Battle Control', 'Battle Judge', 'StreamOverlay', 'Smoke', 'BracketVisualization']
 
 router.beforeEach(async (to) => {
+    // Public routes short-circuit before any auth or tier checks
+    // This ensures OBS displays (overlay/bracket/chart) work even in authenticated browser sessions
+    if (PUBLIC_ROUTES.includes(to.name)) return true
+
     // Battle route guard: redirect authenticated PRO users away from all battle routes
     if (BATTLE_ROUTES.includes(to.name)) {
         try {
@@ -195,8 +199,6 @@ router.beforeEach(async (to) => {
             }
         } catch { /* let existing checks handle it */ }
     }
-
-    if (PUBLIC_ROUTES.includes(to.name)) return true
     try {
         const authStore = useAuthStore()
         let user = authStore.user
