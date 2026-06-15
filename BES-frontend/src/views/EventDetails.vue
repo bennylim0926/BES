@@ -3,11 +3,9 @@ import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenresToEvent, getLinkedGenres, unlinkGenreFromEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
-import { useTierAccess } from '@/utils/useTierAccess';
 import { useDelay } from '@/utils/utils';
 
 const authStore = useAuthStore()
-const { battleEnabled } = useTierAccess()
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
@@ -1841,19 +1839,17 @@ onUnmounted(() => {
                 <div class="section-rule-line"></div>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <template v-if="battleEnabled">
-                  <span class="type-label text-content-muted">Format</span>
-                  <select
-                    :value="div.format || ''"
-                    @change="saveDivisionFormat(div, $event.target.value)"
-                    class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
-                  >
-                    <option value="">No format</option>
-                    <template v-for="opt in divFormatOptions" :key="opt">
-                      <option v-if="opt" :value="opt">{{ opt }}</option>
-                    </template>
-                  </select>
-                </template>
+                <span class="type-label text-content-muted">Format</span>
+                <select
+                  :value="div.format || ''"
+                  @change="saveDivisionFormat(div, $event.target.value)"
+                  class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
+                >
+                  <option value="">No format</option>
+                  <template v-for="opt in divFormatOptions" :key="opt">
+                    <option v-if="opt" :value="opt">{{ opt }}</option>
+                  </template>
+                </select>
                 <button
                   v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
                   @click="askToggleSolo(div)"

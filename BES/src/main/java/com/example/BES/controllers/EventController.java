@@ -263,16 +263,11 @@ public class EventController {
     @PostMapping("/{eventName}/genres/{eventGenreId}/format")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> updateEventGenreFormat(
-            Authentication auth,
             @PathVariable String eventName,
             @PathVariable Long eventGenreId,
             @Valid @RequestBody Map<String, String> body) {
-        String format = body.get("format");
-        if (format != null && !format.isBlank()) {
-            tierAccessService.requireBattleAccess(auth, eventName);
-        }
         try {
-            eventGenreService.updateEventGenreFormat(eventGenreId, format);
+            eventGenreService.updateEventGenreFormat(eventGenreId, body.get("format"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
