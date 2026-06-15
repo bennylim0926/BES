@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenresToEvent, getLinkedGenres, unlinkGenreFromEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenresToEvent, getLinkedGenres, unlinkGenreFromEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -56,6 +56,9 @@ const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
 const feedbackEnabled = ref(true)
 const feedbackSaving = ref(false)
+const resultsReleased = ref(false)
+const qrImageUrl = ref('')
+const loadingQr = ref(false)
 const sheetCategories = ref([])
 const pendingSuggestionCat = ref(null)
 const divRenameActive = ref(null)
@@ -153,6 +156,39 @@ function additionalMemberCount(fmt) {
   if (!fmt) return 0
   const m = fmt.match(/^(\d+)v\d+$/i)
   return m ? parseInt(m[1]) - 1 : 0
+}
+
+// Load results status and generate participant QR if available
+const loadResultsAndQr = async () => {
+  if (!feedbackEnabled.value || !props.eventName) return
+  try {
+    const status = await getResultsStatus(props.eventName)
+    resultsReleased.value = status?.released ?? false
+
+    // Find this user's participant record to get their ref code
+    const currentUserParticipantId = authStore.user?.participant?.participantId
+    if (currentUserParticipantId && resultsReleased.value) {
+      const refs = await getParticipantRefs(props.eventName)
+      const userRef = refs?.find(r => String(r.participantId) === String(currentUserParticipantId))
+      if (userRef) {
+        // Generate QR code
+        loadingQr.value = true
+        try {
+          const res = await fetch(`/api/v1/results/qr?ref=${encodeURIComponent(userRef.ref)}`, {
+            credentials: 'include'
+          })
+          if (res.ok) {
+            const blob = await res.blob()
+            qrImageUrl.value = URL.createObjectURL(blob)
+          }
+        } finally {
+          loadingQr.value = false
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error loading results QR:', e)
+  }
 }
 
 
@@ -1171,6 +1207,8 @@ onMounted(async () => {
       loadSessionTokens()
       const fb = await getFeedbackEnabled(props.eventName)
       if (fb && typeof fb.feedbackEnabled === 'boolean') feedbackEnabled.value = fb.feedbackEnabled
+      // Load results status and participant QR if feedback is enabled
+      await loadResultsAndQr()
     }
   } catch (e) {
     console.error('EventDetails mount error:', e)
@@ -2086,6 +2124,39 @@ onUnmounted(() => {
         <p class="type-prose-sm mt-1">Verified but no audition number yet.</p>
       </div>
     </div>
+
+    <!-- Results QR Section (only if feedback enabled) -->
+    <template v-if="feedbackEnabled">
+      <div class="card-hover p-6 relative mb-6">
+        <div class="corner-bar-tl"></div>
+        <div class="corner-bar-bl"></div>
+        <div class="flex items-start gap-4">
+          <!-- QR Code -->
+          <div v-if="resultsReleased && qrImageUrl" class="flex flex-col items-center gap-3">
+            <img :src="qrImageUrl" alt="Results QR Code" class="w-32 h-32 block" />
+            <p class="type-label text-content-muted text-center">Scan to view your results</p>
+          </div>
+          <!-- Status Message -->
+          <div class="flex-1 flex flex-col justify-center">
+            <p class="type-body text-content-primary mb-2">Your Results</p>
+            <template v-if="resultsReleased">
+              <p v-if="qrImageUrl" class="type-prose text-content-secondary">
+                Your scores and feedback are now available. Scan the QR code with your phone to view your results instantly.
+              </p>
+              <p v-else class="type-prose text-content-secondary">
+                Results have been released. You can view your scores and feedback.
+              </p>
+            </template>
+            <template v-else>
+              <div class="px-4 py-3 border-l-[3px] border-amber-400 bg-amber-500/8">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block mr-2" style="box-shadow: 0 0 6px rgba(245,158,11,0.7)"></span>
+                <p class="type-label text-amber-400 inline">Waiting for organiser to release results...</p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- Audition Number Pool ── tabbed per division -->
     <template v-if="divisionAuditionStats.length > 0">
