@@ -82,4 +82,9 @@ public class ResultsService {
             genreResults
         );
     }
+
+    // Check if ref code exists (for validation purposes)
+    public boolean refCodeExists(String refCode) {
+        return eventParticipantRepo.findByReferenceCode(refCode).isPresent();
+    }
 }

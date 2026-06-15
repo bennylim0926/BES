@@ -2854,7 +2854,7 @@ onUnmounted(() => {
               <div class="section-rule-line"></div>
             </div>
             <div class="flex flex-col items-center gap-3">
-              <img :src="checkinConfirm.qrImageUrl" alt="Results QR Code" class="w-28 h-28 block border border-surface-600/50 p-2" />
+              <img :src="checkinConfirm.qrImageUrl" alt="Results QR Code" class="w-48 h-48 block border border-surface-600/50 p-2" />
               <p class="type-prose-sm text-content-muted text-center">Scan to view your scores and feedback</p>
             </div>
           </div>
