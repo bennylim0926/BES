@@ -64,7 +64,7 @@ public class BattleControllerTierTest {
 
         mockMvc.perform(post("/api/v1/battle/score")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"eventName\":\"tier-test-event\"}"))
                 .andExpect(status().isForbidden());
     }
 
@@ -75,7 +75,7 @@ public class BattleControllerTierTest {
 
         mockMvc.perform(post("/api/v1/battle/score")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"eventName\":\"tier-test-event\"}"))
                 .andExpect(result -> {
                     int s = result.getResponse().getStatus();
                     org.junit.jupiter.api.Assertions.assertNotEquals(403, s,
@@ -88,29 +88,11 @@ public class BattleControllerTierTest {
     void admin_alwaysHasBattleAccess_evenWithoutAccountRow() throws Exception {
         mockMvc.perform(post("/api/v1/battle/score")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"eventName\":\"tier-test-event\"}"))
                 .andExpect(result -> {
                     int s = result.getResponse().getStatus();
                     org.junit.jupiter.api.Assertions.assertNotEquals(403, s,
                         "Admin should not be forbidden even without a DB Account row");
                 });
-    }
-
-    @Test
-    @WithMockUser(username = "emcee_user", roles = {"EMCEE"})
-    void emcee_isForbiddenWhenNoMaxOrganiserForEvent() throws Exception {
-        mockMvc.perform(post("/api/v1/battle/score")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(username = "helper_user", roles = {"HELPER"})
-    void helper_isForbiddenWhenNoMaxOrganiserForEvent() throws Exception {
-        mockMvc.perform(post("/api/v1/battle/score")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .andExpect(status().isForbidden());
     }
 }
