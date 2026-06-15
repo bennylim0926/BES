@@ -30,9 +30,6 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isJudgeRole = computed(() => role.value === 'ROLE_JUDGE')
 const isEmceeRole = computed(() => role.value === 'ROLE_EMCEE')
 const isHelperRole = computed(() => role.value === 'ROLE_HELPER')
-const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
-const isEmceeSession = computed(() => isEmceeRole.value && !!authStore.activeEvent)
-const isHelperSession = computed(() => isHelperRole.value && !!authStore.activeEvent)
 
 /** Hide the navbar on full-screen / immersive routes */
 const hideNav = computed(() =>
