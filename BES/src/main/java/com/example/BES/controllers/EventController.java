@@ -82,6 +82,7 @@ import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
 import com.example.BES.services.ScoreService;
 import com.example.BES.services.EmailTemplateService;
+import com.example.BES.services.TierAccessService;
 import com.example.BES.dtos.GetAuditionFeedbackDto;
 import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetEmailTemplateDto;
@@ -150,6 +151,9 @@ public class EventController {
     CheckinPreviewService checkinPreviewService;
 
     @Autowired
+    TierAccessService tierAccessService;
+
+    @Autowired
     SimpMessagingTemplate messagingTemplate;
 
     private static final Gson gson = new Gson();
@@ -210,6 +214,13 @@ public class EventController {
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }
+    }
+
+    @Operation(summary = "Check Battle Access", description = "Returns whether the current user has battle access for the event based on their tier")
+    @GetMapping("/{eventName}/battle-enabled")
+    public ResponseEntity<?> isBattleEnabled(Authentication auth, @PathVariable String eventName) {
+        boolean enabled = tierAccessService.hasBattleAccess(auth, eventName);
+        return ResponseEntity.ok(Map.of("battleEnabled", enabled));
     }
 
     @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event (admin only)")

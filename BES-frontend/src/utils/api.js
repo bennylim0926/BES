@@ -1698,3 +1698,18 @@ export const getAuditionDisplayState = async (eventName) => {
     return null
   }
 }
+
+export const setOrganiserTier = async (accountId, tier) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/admin/organisers/tier`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, tier })
+    })
+    return { ok: res.ok, status: res.status, data: res.ok ? await res.json() : null, error: res.ok ? null : await res.text() }
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}

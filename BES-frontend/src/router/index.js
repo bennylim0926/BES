@@ -26,6 +26,7 @@ import EmceeSessionView from "@/views/EmceeSessionView.vue";
 import HelperSessionView from "@/views/HelperSessionView.vue";
 import { whoami } from "@/utils/api";
 import { getActiveEvent, useAuthStore } from "@/utils/auth";
+import { resolveBattleEnabled } from "@/utils/useTierAccess";
 
 const routes = [
     {
@@ -176,9 +177,28 @@ const router = createRouter({
 })
 
 const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession', 'AuditionDisplay']
+const BATTLE_ROUTES = ['Battle Control', 'Battle Judge', 'StreamOverlay', 'Smoke', 'BracketVisualization']
 
 router.beforeEach(async (to) => {
+    // Public routes short-circuit before any auth or tier checks
+    // This ensures OBS displays (overlay/bracket/chart) work even in authenticated browser sessions
     if (PUBLIC_ROUTES.includes(to.name)) return true
+
+    // Battle route guard: redirect authenticated PRO users away from all battle routes
+    if (BATTLE_ROUTES.includes(to.name)) {
+        try {
+            const authStore = useAuthStore()
+            let user = authStore.user
+            if (!user) {
+                user = await whoami()
+                if (user?.authenticated) authStore.login(user)
+            }
+            if (user?.authenticated) {
+                const battleEnabled = resolveBattleEnabled(user, authStore.activeEventBattleEnabled)
+                if (!battleEnabled) return { name: 'Main' }
+            }
+        } catch { /* let existing checks handle it */ }
+    }
     try {
         const authStore = useAuthStore()
         let user = authStore.user

@@ -158,4 +158,35 @@ public class EventService {
         event.setAccessCode(newCode);
         repo.save(event);
     }
+
+    /**
+     * Return the list of organiser accounts assigned to the given event.
+     *
+     * <p>The organiser ↔ event relationship is owned by {@link Account#getAssignedEvents()}
+     * (join table {@code organiser_event}); the {@link Event} side has no inverse field.
+     * We therefore query all organisers and filter those whose assigned events contain
+     * this event. The set of organisers is expected to be small (single digits), so an
+     * in-memory filter is fine; revisit if scale becomes a concern.</p>
+     *
+     * @return the matching organisers, or an empty list when the event is unknown
+     */
+    @Transactional(readOnly = true)
+    public List<Account> getAssignedOrganisers(String eventName) {
+        if (eventName == null || eventName.isBlank()) {
+            return new ArrayList<>();
+        }
+        Event event = repo.findByEventName(eventName).orElse(null);
+        if (event == null) {
+            return new ArrayList<>();
+        }
+        List<Account> organisers = accountRepository.findByRole("ORGANISER");
+        List<Account> assigned = new ArrayList<>();
+        for (Account account : organisers) {
+            List<Event> events = account.getAssignedEvents();
+            if (events != null && events.contains(event)) {
+                assigned.add(account);
+            }
+        }
+        return assigned;
+    }
 }

@@ -37,6 +37,9 @@ public class Account {
     @Column(nullable = false, length = 20)
     private String role;
 
+    @Column(nullable = false, length = 10)
+    private String tier = "PRO";
+
     @Column(nullable = false)
     private int eventCredits = 0;
 

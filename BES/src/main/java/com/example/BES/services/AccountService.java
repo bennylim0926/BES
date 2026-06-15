@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +40,8 @@ public class AccountService {
                 a.getUsername(),
                 a.getAssignedEvents() != null
                     ? a.getAssignedEvents().stream().map(Event::getEventId).collect(Collectors.toList())
-                    : List.of()
+                    : List.of(),
+                a.getTier()
             ))
             .collect(Collectors.toList());
     }
@@ -90,7 +92,35 @@ public class AccountService {
         accountRepository.delete(account);
     }
 
+    @Transactional
+    public Account setOrganiserTier(Long accountId, String tier) {
+        Account account = accountRepository.findById(accountId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        if (!"ORGANISER".equals(account.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not an organiser");
+        }
+        account.setTier(tier);
+        return accountRepository.save(account);
+    }
+
     private String generateReferralCode() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * Resolve the {@link Account} for the currently authenticated user.
+     * Returns null when the authentication is missing, anonymous, or the username
+     * does not correspond to a known account.
+     */
+    @Transactional(readOnly = true)
+    public Account fromAuth(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        String username = auth.getName();
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return accountRepository.findByUsername(username).orElse(null);
     }
 }
