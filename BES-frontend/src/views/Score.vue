@@ -36,7 +36,7 @@ watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadca
 
 // Results release state (admin/organiser only)
 const resultsReleased = ref(false)
-const refsMap = ref({}) // participantName -> referenceCode
+const refsMap = ref({}) // participantId -> { name, ref }
 
 // Criteria for the selected genre (used for multi-aspect score aggregation)
 const criteriaForGenre = ref([])
@@ -119,7 +119,7 @@ const loadAdminData = async (eventName) => {
     getParticipantRefs(eventName)
   ])
   resultsReleased.value = status?.released ?? false
-  refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
+  refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantId, { name: r.participantName, ref: r.referenceCode }]))
 }
 
 // Re-fetch scores only — used by both the event watcher and the WebSocket signal.
@@ -421,7 +421,7 @@ const toggleRelease = async () => {
     if (newVal) {
       // Refresh refs in case new participants were added
       const refs = await getParticipantRefs(selectedEvent.value)
-      refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantName, r.referenceCode]))
+      refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantId, { name: r.participantName, ref: r.referenceCode }]))
     }
   }
 }
@@ -459,16 +459,16 @@ const viewFeedback = async (name) => {
 }
 
 // Open QR page in new tab
-const openQR = (name) => {
-  const ref = refsMap.value[name]
-  if (ref) {
-    window.open(`/results-qr?ref=${encodeURIComponent(ref)}&name=${encodeURIComponent(name)}`, '_blank')
+const openQR = (participantId, name) => {
+  const entry = refsMap.value[participantId]
+  if (entry) {
+    window.open(`/results-qr?ref=${encodeURIComponent(entry.ref)}&name=${encodeURIComponent(name)}`, '_blank')
   }
 }
 
 // Mobile row-action overflow sheet
-const rowActionSheet = ref({ open: false, name: '' })
-function showRowActions(name) { rowActionSheet.value = { open: true, name } }
+const rowActionSheet = ref({ open: false, name: '', participantId: null })
+function showRowActions(name, participantId) { rowActionSheet.value = { open: true, name, participantId } }
 function closeRowActions() { rowActionSheet.value.open = false }
 
 // Group feedback tags by group name for display
@@ -508,15 +508,17 @@ function transformForScore(data) {
     const byTotal = {}
 
     if (isMultiAspect) {
-      // Group by participant → judge → aspect
+      // Group by participant → judge → aspect; track participantId
       const grouped = {}
       data.forEach(d => {
-        if (!grouped[d.participantName]) grouped[d.participantName] = {}
+        if (!grouped[d.participantName]) grouped[d.participantName] = { participantId: d.participantId }
         if (!grouped[d.participantName][d.judgeName]) grouped[d.participantName][d.judgeName] = {}
         grouped[d.participantName][d.judgeName][d.aspect] = d.score
       })
       Object.entries(grouped).forEach(([name, judgeMap]) => {
-        byTotal[name] = { participantName: name, totalScore: 0 }
+        const participantId = judgeMap.participantId
+        byTotal[name] = { participantName: name, totalScore: 0, participantId }
+        delete judgeMap.participantId
         Object.entries(judgeMap).forEach(([judge, aspects]) => {
           const agg = aggregateJudgeScore(aspects)
           byTotal[name][judge] = Number(agg.toFixed(2))
@@ -526,7 +528,7 @@ function transformForScore(data) {
     } else {
       data.forEach(d => {
         if (!byTotal[d.participantName]) {
-          byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0 }
+          byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0, participantId: d.participantId }
         }
         byTotal[d.participantName][d.judgeName] = d.score
         byTotal[d.participantName].totalScore += d.score
@@ -760,11 +762,11 @@ function transformForScore(data) {
             <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
               <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(finalRows[0].participantName)" :aria-label="`View score breakdown for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
               <button @click="viewFeedback(finalRows[0].participantName)" :aria-label="`View judge feedback for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
-              <button v-if="resultsReleased && refsMap[finalRows[0].participantName]" @click="openQR(finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
+              <button v-if="resultsReleased && refsMap[finalRows[0].participantId]" @click="openQR(finalRows[0].participantId, finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
             </div>
             <button
               v-if="isAdminOrOrganiser"
-              @click="showRowActions(finalRows[0].participantName)"
+              @click="showRowActions(finalRows[0].participantName, finalRows[0].participantId)"
               :aria-label="`Actions for ${finalRows[0].participantName}`"
               class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
             >
@@ -784,11 +786,11 @@ function transformForScore(data) {
               <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
                 <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(row.participantName)" :aria-label="`View score breakdown for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
                 <button @click="viewFeedback(row.participantName)" :aria-label="`View judge feedback for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
-                <button v-if="resultsReleased && refsMap[row.participantName]" @click="openQR(row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
+                <button v-if="resultsReleased && refsMap[row.participantId]" @click="openQR(row.participantId, row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
               </div>
               <button
                 v-if="isAdminOrOrganiser"
-                @click="showRowActions(row.participantName)"
+                @click="showRowActions(row.participantName, row.participantId)"
                 :aria-label="`Actions for ${row.participantName}`"
                 class="sm:hidden p-2 rounded text-content-muted hover:text-content-primary"
               >
@@ -1247,7 +1249,7 @@ function transformForScore(data) {
         <p class="type-name text-content-secondary mb-2">{{ rowActionSheet.name }}</p>
         <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-chart-bar"></i>VIEW SCORE BREAKDOWN</button>
         <button @click="viewFeedback(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-comment"></i>VIEW JUDGE FEEDBACK</button>
-        <button v-if="resultsReleased && refsMap[rowActionSheet.name]" @click="openQR(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
+        <button v-if="resultsReleased && refsMap[rowActionSheet.participantId]" @click="openQR(rowActionSheet.participantId, rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
         <button @click="closeRowActions" class="para-chip-sm type-label px-3 py-3 text-center text-content-muted">CANCEL</button>
       </div>
     </div>

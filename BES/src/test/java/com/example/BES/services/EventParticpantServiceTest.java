@@ -46,12 +46,13 @@ class EventParticpantServiceTest {
     @Test
     void getParticipantRefs_skipsNullReferenceCodes() {
         Event e = new Event(); e.setEventName("Fest");
-        Participant p = new Participant(); p.setParticipantName("Player1");
+        Participant p = new Participant(); p.setParticipantName("Player1"); p.setParticipantId(1L);
         EventParticipant ep1 = new EventParticipant();
         ep1.setDisplayName("Player1");
         ep1.setReferenceCode(null); // should be skipped
         EventParticipant ep2 = new EventParticipant();
         ep2.setDisplayName("Player2");
+        ep2.setParticipant(p);
         ep2.setReferenceCode("ABC123");
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
         when(eventParticipantRepo.findByEvent(e)).thenReturn(List.of(ep1, ep2));
@@ -60,6 +61,7 @@ class EventParticpantServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).get("referenceCode")).isEqualTo("ABC123");
+        assertThat(result.get(0).get("participantId")).isEqualTo("1");
     }
 
     @Test
