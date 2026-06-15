@@ -99,11 +99,12 @@ const submitLogin = async () => {
     <!-- ── Right panel: Login form ───────────────────────────── -->
     <div class="flex-1 flex items-center justify-center p-8 relative z-10">
       <div class="w-full max-w-sm">
-        <!-- Mobile-only wordmark (hero panel is hidden < lg). Plain centered text —
+        <!-- Mobile-only wordmark + tagline (hero panel is hidden < lg). Plain centered text —
              corner bars + glow dot live with the hero panel; on mobile a clean
              wordmark reads better than a fragment of that chrome. -->
         <div class="lg:hidden mb-8 text-center">
           <span class="type-display block" style="font-size: clamp(32px, 9vw, 44px)">{{ APP_NAME }}</span>
+          <p class="type-label text-content-muted mt-3">{{ APP_TAGLINE }}</p>
         </div>
 
         <div class="relative">
@@ -115,8 +116,7 @@ const submitLogin = async () => {
             style="clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
 
           <div class="mb-8">
-            <div class="type-page-title leading-none pb-2">Sign In</div>
-            <p class="type-label text-content-muted">{{ APP_TAGLINE }}</p>
+            <div class="type-page-title leading-none">Sign In</div>
           </div>
 
           <form @submit.prevent="submitLogin" class="space-y-4">
