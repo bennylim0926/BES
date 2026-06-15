@@ -216,6 +216,13 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Check Battle Access", description = "Returns whether the current user has battle access for the event based on their tier")
+    @GetMapping("/{eventName}/battle-enabled")
+    public ResponseEntity<?> isBattleEnabled(Authentication auth, @PathVariable String eventName) {
+        boolean enabled = tierAccessService.hasBattleAccess(auth, eventName);
+        return ResponseEntity.ok(Map.of("battleEnabled", enabled));
+    }
+
     @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event (admin only)")
     @PostMapping("/feedback-enabled")
     @PreAuthorize("hasRole('ADMIN')")
