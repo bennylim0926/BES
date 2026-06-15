@@ -150,10 +150,14 @@ public class BattleController {
     }
 
     @PostMapping("/timer")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<?> updateTimer(
+            Authentication auth,
             @RequestParam(required = false) String event,
             @RequestBody Map<String, Object> payload) {
-        battleService.handleTimerPayload(resolveEvent(event), payload);
+        String eName = resolveEvent(event);
+        checkBattleAccess(auth, eName);
+        battleService.handleTimerPayload(eName, payload);
         return ResponseEntity.ok(Map.of("message", "Timer updated"));
     }
 
