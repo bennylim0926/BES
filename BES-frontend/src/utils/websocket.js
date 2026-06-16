@@ -10,8 +10,9 @@ export const createClient = () =>{
     })
 }
 export const subscribeToChannel = (client, topic, callback) =>{
+    let storedSub = null
     const doSubscribe = () => {
-        client.subscribe(topic, (msg) => {
+        storedSub = client.subscribe(topic, (msg) => {
             callback(JSON.parse(msg.body))
         })
     }
@@ -25,6 +26,7 @@ export const subscribeToChannel = (client, topic, callback) =>{
         doSubscribe()
     }
     if (!client.active) client.activate()
+    return { unsubscribe: () => { if (storedSub) storedSub.unsubscribe() } }
 }
 
 export const deactivateClient = (client) =>{
