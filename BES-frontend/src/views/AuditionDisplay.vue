@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getAuditionDisplayState, getGenresByEvent, updateGenreNumberColor } from '@/utils/api'
+import { getAuditionDisplayState, getCategoriesByEvent, updateCategoryNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { useAuthStore } from '@/utils/auth'
 
@@ -14,29 +14,29 @@ const client = ref(null)
 // ── Operator overlay: visible only to logged-in operators, hidden in OBS broadcasts ──
 const isOperator = computed(() => !!authStore.isAuthenticated && !!authStore.user)
 const showOperatorPanel = ref(false)
-const eventGenres = ref([])
-const activeGenreEntry = computed(() => {
-  if (!state.value?.genreName) return null
-  return eventGenres.value.find(g => g.name === state.value.genreName) ?? null
+const eventCategories = ref([])
+const activeCategoryEntry = computed(() => {
+  if (!state.value?.categoryName) return null
+  return eventCategories.value.find(g => g.name === state.value.categoryName) ?? null
 })
 
-async function loadGenresForOperator() {
+async function loadCategoriesForOperator() {
   if (!isOperator.value || !eventName.value) return
-  eventGenres.value = await getGenresByEvent(eventName.value) ?? []
+  eventCategories.value = await getCategoriesByEvent(eventName.value) ?? []
 }
 
 async function saveOperatorNumberColor(color) {
-  const entry = activeGenreEntry.value
+  const entry = activeCategoryEntry.value
   if (!entry) return
   const next = color || null
-  await updateGenreNumberColor(eventName.value, entry.eventGenreId, next)
+  await updateCategoryNumberColor(eventName.value, entry.eventCategoryId, next)
   entry.numberColor = next
   if (state.value) state.value = { ...state.value, numberColor: next }
 }
 
-watch(() => state.value?.genreName, () => {
-  // Refresh the matched genre cache when the active genre changes
-  if (isOperator.value && eventGenres.value.length === 0) loadGenresForOperator()
+watch(() => state.value?.categoryName, () => {
+  // Refresh the matched category cache when the active category changes
+  if (isOperator.value && eventCategories.value.length === 0) loadCategoriesForOperator()
 })
 
 // ── Local timer ticker (reconstructed from backend timerStartedAt + timerDuration) ──
@@ -61,13 +61,13 @@ function stopLocalTimer() {
 // ── Computed ──────────────────────────────────────────────────────────────────
 const isStandby  = computed(() => !state.value || state.value.standby)
 const mode       = computed(() => state.value?.mode ?? 'SOLO')
-const genreName  = computed(() => state.value?.genreName ?? '')
+const categoryName  = computed(() => state.value?.categoryName ?? '')
 const eventLabel = computed(() => state.value?.eventName ?? eventName.value ?? '')
 const roundLabel = computed(() => {
   if (!state.value || !state.value.totalRounds) return ''
   return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
 })
-const genreRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
+const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor     = computed(() => state.value?.numberColor ?? null)
 const currentSlots = computed(() => state.value?.currentSlots ?? [])
 const nextSlots    = computed(() => state.value?.nextSlots ?? [])
@@ -101,7 +101,7 @@ onMounted(async () => {
     applyState(msg)
   })
 
-  await loadGenresForOperator()
+  await loadCategoriesForOperator()
 })
 
 onUnmounted(() => {
@@ -130,13 +130,13 @@ onUnmounted(() => {
     <!-- ACTIVE display -->
     <div v-else class="active-container">
 
-      <!-- Main area: event/genre header, round counter, number+name+timer -->
+      <!-- Main area: event/category header, round counter, number+name+timer -->
       <div class="main-area">
-        <!-- Event name + genre stacked above everything -->
+        <!-- Event name + category stacked above everything -->
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
-          <span class="event-header-genre">{{ genreName }}</span>
-          <span class="event-header-round-label">{{ genreRoundLabel }}</span>
+          <span class="event-header-category">{{ categoryName }}</span>
+          <span class="event-header-round-label">{{ categoryRoundLabel }}</span>
         </div>
 
         <!-- Round counter -->
@@ -203,14 +203,14 @@ onUnmounted(() => {
         <div v-if="showOperatorPanel" class="op-panel">
           <div class="op-panel-header">
             <span class="op-panel-title">Display Settings</span>
-            <span class="op-panel-genre">{{ state?.genreName || '—' }}</span>
+            <span class="op-panel-category">{{ state?.categoryName || '—' }}</span>
           </div>
           <div class="op-row">
             <span class="op-row-label">Audition Number Color</span>
             <div class="op-row-controls">
               <input
                 type="color"
-                :disabled="!activeGenreEntry"
+                :disabled="!activeCategoryEntry"
                 :value="state?.numberColor || '#ffffff'"
                 @change="saveOperatorNumberColor($event.target.value)"
                 class="op-color-input"
@@ -225,8 +225,8 @@ onUnmounted(() => {
               ><i class="pi pi-times"></i></button>
             </div>
           </div>
-          <p v-if="!activeGenreEntry" class="op-warn">
-            Waiting for a genre to be active — start a round to enable controls.
+          <p v-if="!activeCategoryEntry" class="op-warn">
+            Waiting for a category to be active — start a round to enable controls.
           </p>
         </div>
       </div>
@@ -328,7 +328,7 @@ onUnmounted(() => {
   margin-top: 12vh;
 }
 
-/* Event name + genre — pinned to top, independent of the centred content */
+/* Event name + category — pinned to top, independent of the centred content */
 .event-header {
   position: absolute;
   top: 5vh;
@@ -346,7 +346,7 @@ onUnmounted(() => {
   text-transform: none;
   color: rgba(255,255,255,0.9);
 }
-.event-header-genre {
+.event-header-category {
   font-family: 'Oswald', sans-serif;
   font-size: clamp(22px, 3.5vw, 52px);
   letter-spacing: 0.04em;
@@ -589,7 +589,7 @@ onUnmounted(() => {
   letter-spacing: 0.18em;
   color: rgba(255,255,255,0.7);
 }
-.op-panel-genre {
+.op-panel-category {
   font-size: 11px;
   letter-spacing: 0.18em;
   color: var(--accent-color);

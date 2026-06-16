@@ -7,9 +7,9 @@ global.fetch = mockFetch
 
 vi.mock('@/utils/api', () => ({
   addWalkinToSystem: vi.fn(),
-  fetchAllGenres: vi.fn(() => Promise.resolve([
-    { genreName: 'Popping', format: '3v3' },
-    { genreName: 'Waacking', format: '1v1' },
+  fetchAllCategories: vi.fn(() => Promise.resolve([
+    { categoryName: 'Popping', format: '3v3' },
+    { categoryName: 'Waacking', format: '1v1' },
   ])),
   getAllJudges: vi.fn(() => Promise.resolve({})),
 }))
@@ -22,13 +22,13 @@ describe('CreateParticipantForm.vue', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders stage name input and genre chips when open', async () => {
+  it('renders stage name input and category chips when open', async () => {
     const wrapper = mount(CreateParticipantForm, {
       attachTo: document.body,
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [
+        eventCategories: [
           { name: 'Popping', format: '3v3' },
           { name: 'Waacking', format: '1v1' },
         ],
@@ -37,48 +37,48 @@ describe('CreateParticipantForm.vue', () => {
     await wrapper.vm.$nextTick()
     // Stage name input (teleported into document.body)
     expect(document.body.querySelector('input[type="text"]')).not.toBeNull()
-    // Genre chips rendered as buttons (not checkboxes)
+    // Category chips rendered as buttons (not checkboxes)
     expect(document.body.querySelector('input[type="checkbox"]')).toBeNull()
-    const genreButtons = Array.from(document.body.querySelectorAll('button')).filter(b => b.textContent.includes('Popping'))
-    expect(genreButtons.length).toBeGreaterThan(0)
+    const categoryButtons = Array.from(document.body.querySelectorAll('button')).filter(b => b.textContent.includes('Popping'))
+    expect(categoryButtons.length).toBeGreaterThan(0)
   })
 
-  it('toggleGenre adds and removes genre from createTable.genres', async () => {
+  it('toggleCategory adds and removes category from createTable.categories', async () => {
     const wrapper = mount(CreateParticipantForm, {
       attachTo: document.body,
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [{ name: 'Popping', format: '3v3' }],
+        eventCategories: [{ name: 'Popping', format: '3v3' }],
       },
     })
     await wrapper.vm.$nextTick()
-    expect(wrapper.vm.createTable.genres).toEqual([])
+    expect(wrapper.vm.createTable.categories).toEqual([])
 
-    wrapper.vm.toggleGenre('Popping')
+    wrapper.vm.toggleCategory('Popping')
     await wrapper.vm.$nextTick()
-    expect(wrapper.vm.createTable.genres).toContain('Popping')
+    expect(wrapper.vm.createTable.categories).toContain('Popping')
 
-    wrapper.vm.toggleGenre('Popping')
+    wrapper.vm.toggleCategory('Popping')
     await wrapper.vm.$nextTick()
-    expect(wrapper.vm.createTable.genres).not.toContain('Popping')
+    expect(wrapper.vm.createTable.categories).not.toContain('Popping')
   })
 
-  it('shows inline team section when a team-format genre chip is toggled on', async () => {
+  it('shows inline team section when a team-format category chip is toggled on', async () => {
     const wrapper = mount(CreateParticipantForm, {
       attachTo: document.body,
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [{ name: 'Popping', format: '3v3' }],
+        eventCategories: [{ name: 'Popping', format: '3v3' }],
       },
     })
     await wrapper.vm.$nextTick()
 
-    wrapper.vm.toggleGenre('Popping')
+    wrapper.vm.toggleCategory('Popping')
     await wrapper.vm.$nextTick()
 
-    // Section rule label for the genre (teleported into document.body)
+    // Section rule label for the category (teleported into document.body)
     expect(document.body.textContent).toContain('Popping')
     // Team/Solo toggle buttons appear
     const teamBtn = Array.from(document.body.querySelectorAll('button')).filter(b => b.textContent.trim() === 'Team')
@@ -91,15 +91,15 @@ describe('CreateParticipantForm.vue', () => {
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [{ name: 'Popping', format: '3v3' }],
+        eventCategories: [{ name: 'Popping', format: '3v3' }],
       },
     })
     await wrapper.vm.$nextTick()
 
-    wrapper.vm.toggleGenre('Popping')
+    wrapper.vm.toggleCategory('Popping')
     await wrapper.vm.$nextTick()
 
-    // entryModes defaults to 'team' for team-format genre
+    // entryModes defaults to 'team' for team-format category
     expect(wrapper.vm.entryModes['Popping']).toBe('team')
     // Team name input and member inputs present (teleported into document.body)
     const inputs = document.body.querySelectorAll('input[type="text"]')
@@ -113,13 +113,13 @@ describe('CreateParticipantForm.vue', () => {
       props: {
         show: true,
         event: 'TestEvent',
-        eventGenres: [{ name: 'Popping', format: '3v3' }],
+        eventCategories: [{ name: 'Popping', format: '3v3' }],
       },
     })
     await wrapper.vm.$nextTick()
 
     wrapper.vm.name = 'Dancer1'
-    wrapper.vm.toggleGenre('Popping')
+    wrapper.vm.toggleCategory('Popping')
     await wrapper.vm.$nextTick()
 
     wrapper.vm.entryModes['Popping'] = 'solo'

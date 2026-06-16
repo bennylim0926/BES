@@ -10,7 +10,7 @@ const props = defineProps({
   unplacedParticipants:    { type: Array, default: () => [] },
   setupLocked:             { type: Boolean, default: false },
   memberLookup:            { type: Object, default: () => ({}) },
-  guestsForCurrentGenre:   { type: Array, default: () => [] },
+  guestsForCurrentCategory: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits([
@@ -48,7 +48,7 @@ function roundLabel(roundKey) {
 
 // ── Guest check ───────────────────────────────────────────────
 const isGuestSlot = (name) =>
-  !!name && props.guestsForCurrentGenre.some(g => g.guestName === name)
+  !!name && props.guestsForCurrentCategory.some(g => g.guestName === name)
 
 // ── Members lookup ────────────────────────────────────────────
 const _getMembersFor = (name) => props.memberLookup[name] ?? []
@@ -195,7 +195,7 @@ function onDrop(tgtRound, tgtMatch, tgtSlot) {
     const name = poolDragName.value
     poolDragName.value = null
     dragOverKey.value = null
-    const guestNames = new Set(props.guestsForCurrentGenre.map(g => g.guestName))
+    const guestNames = new Set(props.guestsForCurrentCategory.map(g => g.guestName))
     if (guestNames.has(props.rounds[tgtRound]?.[tgtMatch]?.[tgtSlot])) return
     emit('update-rounds', {
       round: tgtRound,
@@ -236,7 +236,7 @@ function onDrop(tgtRound, tgtMatch, tgtSlot) {
 
 // ── Smoke slot drop (reorder or pool placement) ───────────────
 function onSmokeDrop(tgtIdx) {
-  const guestNames = new Set(props.guestsForCurrentGenre.map(g => g.guestName))
+  const guestNames = new Set(props.guestsForCurrentCategory.map(g => g.guestName))
   const rounds = Array.isArray(props.rounds) ? props.rounds : []
 
   // Pool → smoke slot
@@ -267,7 +267,7 @@ function onSmokeDrop(tgtIdx) {
 
 // ── Clear smoke slot ──────────────────────────────────────────
 function clearSmokeSlot(idx) {
-  const guestNames = new Set(props.guestsForCurrentGenre.map(g => g.guestName))
+  const guestNames = new Set(props.guestsForCurrentCategory.map(g => g.guestName))
   const rounds = Array.isArray(props.rounds) ? props.rounds : []
   if (rounds[idx]?.name && !guestNames.has(rounds[idx].name)) {
     emit('clear-slot', { round: 0, matchIdx: idx, slotIdx: 0 })

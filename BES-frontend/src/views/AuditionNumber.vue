@@ -8,14 +8,14 @@ import { createClient, deactivateClient, subscribeToChannel } from '@/utils/webs
 const slotKey = (participantId, name) => String(participantId ?? name)
 
 const activeSlots = ref([])
-// { slotId: string, person: { participantId, name, refCode, memberNames, genres[] }, queue: [], running: false, poolSize: {} }
+// { slotId: string, person: { participantId, name, refCode, memberNames, categories[] }, queue: [], running: false, poolSize: {} }
 
 const history = ref([])
 const revealingRef = ref({})        // { [slotId | historyKey]: boolean }
 
-// Per-slot rolling animation state — keyed by "${slotId}-${genreName}"
+// Per-slot rolling animation state — keyed by "${slotId}-${categoryName}"
 const fakeNums = ref({})
-const rollingIntervals = {}         // { "${slotId}-${genreName}": intervalId }
+const rollingIntervals = {}         // { "${slotId}-${categoryName}": intervalId }
 
 const modalTitle = ref('')
 const modalMessage = ref('')
@@ -30,8 +30,8 @@ const wsClients = []
 const setReveal = (key, val) => { revealingRef.value = { ...revealingRef.value, [key]: val } }
 const toggleReveal = (key) => { revealingRef.value = { ...revealingRef.value, [key]: !revealingRef.value[key] } }
 
-function stopRolling(slotId, genreName) {
-  const key = `${slotId}-${genreName}`
+function stopRolling(slotId, categoryName) {
+  const key = `${slotId}-${categoryName}`
   clearInterval(rollingIntervals[key])
   delete rollingIntervals[key]
   const next = { ...fakeNums.value }
@@ -42,14 +42,14 @@ function stopRolling(slotId, genreName) {
 function stopAllSlotRolling(slotId) {
   const slot = activeSlots.value.find(s => s.slotId === slotId)
   if (!slot) return
-  const allGenreKeys = new Set()
-  slot.person.genres.forEach(g => allGenreKeys.add(`${slotId}-${g.genreName}`))
-  allGenreKeys.forEach(k => {
+  const allCategoryKeys = new Set()
+  slot.person.categories.forEach(g => allCategoryKeys.add(`${slotId}-${g.categoryName}`))
+  allCategoryKeys.forEach(k => {
     clearInterval(rollingIntervals[k])
     delete rollingIntervals[k]
   })
   const next = { ...fakeNums.value }
-  allGenreKeys.forEach(k => delete next[k])
+  allCategoryKeys.forEach(k => delete next[k])
   fakeNums.value = next
 }
 
@@ -67,34 +67,34 @@ function animateSlot(slotId, msg) {
 
   if (msg.refCode && !slot.person.refCode) slot.person.refCode = msg.refCode
 
-  let genre = slot.person.genres.find(g => g.genreName === msg.genre)
-  if (!genre) {
-    genre = { genreName: msg.genre, auditionNumber: null, rolling: false }
-    slot.person.genres.push(genre)
+  let cat = slot.person.categories.find(g => g.categoryName === msg.category)
+  if (!cat) {
+    cat = { categoryName: msg.category, auditionNumber: null, rolling: false }
+    slot.person.categories.push(cat)
   }
 
   const poolSize = msg.poolSize ?? 99
 
   // Skip animation if only one number is available
   if (poolSize === 1) {
-    genre.rolling = false
-    genre.auditionNumber = msg.auditionNumber
+    cat.rolling = false
+    cat.auditionNumber = msg.auditionNumber
     processSlotQueue(slotId)
     return
   }
 
-  genre.rolling = true
-  const intervalKey = `${slotId}-${msg.genre}`
+  cat.rolling = true
+  const intervalKey = `${slotId}-${msg.category}`
   clearInterval(rollingIntervals[intervalKey])
   rollingIntervals[intervalKey] = setInterval(() => {
     fakeNums.value = { ...fakeNums.value, [intervalKey]: Math.floor(Math.random() * poolSize) + 1 }
   }, 80)
 
   setTimeout(() => {
-    stopRolling(slotId, msg.genre)
+    stopRolling(slotId, msg.category)
     const currentSlot = activeSlots.value.find(s => s.slotId === slotId)
     if (currentSlot) {
-      const g = currentSlot.person.genres.find(g => g.genreName === msg.genre)
+      const g = currentSlot.person.categories.find(g => g.categoryName === msg.category)
       if (g) {
         g.rolling = false
         g.auditionNumber = msg.auditionNumber
@@ -110,7 +110,7 @@ function processSlotQueue(slotId) {
 
   if (slot.queue.length === 0) {
     slot.running = false
-    if (slot.person.genres.every(g => g.auditionNumber !== null)) {
+    if (slot.person.categories.every(g => g.auditionNumber !== null)) {
       setTimeout(() => flushSlotToHistory(slotId), 1500)
     }
     return
@@ -138,10 +138,10 @@ const onPreview = (msg) => {
   const existing = activeSlots.value.find(s => s.slotId === id)
   if (existing) {
     if (msg.refCode && !existing.person.refCode) existing.person.refCode = msg.refCode
-    const existingGenres = new Set(existing.person.genres.map(g => g.genreName))
-    for (const g of (msg.genres ?? [])) {
-      if (!existingGenres.has(g.genreName)) {
-        existing.person.genres.push({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false })
+    const existingCategories = new Set(existing.person.categories.map(g => g.categoryName))
+    for (const g of (msg.categories ?? [])) {
+      if (!existingCategories.has(g.categoryName)) {
+        existing.person.categories.push({ categoryName: g.categoryName, auditionNumber: g.auditionNumber ?? null, rolling: false })
       }
     }
   } else {
@@ -152,7 +152,7 @@ const onPreview = (msg) => {
         name: msg.name,
         refCode: msg.refCode ?? null,
         memberNames: msg.memberNames ?? [],
-        genres: (msg.genres ?? []).map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null, rolling: false }))
+        categories: (msg.categories ?? []).map(g => ({ categoryName: g.categoryName, auditionNumber: g.auditionNumber ?? null, rolling: false }))
       },
       queue: [],
       running: false
@@ -165,8 +165,8 @@ const onReceiveAuditionNumber = (msg) => {
   const id = slotKey(msg.participantId, msg.name)
   const slot = activeSlots.value.find(s => s.slotId === id)
   if (slot) {
-    if (!slot.person.genres.find(g => g.genreName === msg.genre)) {
-      slot.person.genres.push({ genreName: msg.genre, auditionNumber: null, rolling: false })
+    if (!slot.person.categories.find(g => g.categoryName === msg.category)) {
+      slot.person.categories.push({ categoryName: msg.category, auditionNumber: null, rolling: false })
     }
     if (msg.refCode && !slot.person.refCode) slot.person.refCode = msg.refCode
     slot.queue.push(msg)
@@ -174,7 +174,7 @@ const onReceiveAuditionNumber = (msg) => {
   } else {
     const historyEntry = history.value.find(h => slotKey(h.participantId, h.name) === id)
     if (historyEntry) {
-      const hGenre = historyEntry.genres.find(g => g.genreName === msg.genre)
+      const hGenre = historyEntry.categories.find(g => g.categoryName === msg.category)
       if (hGenre) hGenre.auditionNumber = msg.auditionNumber
     }
   }
@@ -184,7 +184,7 @@ const onRepeatAudition = (msg) => {
   if (msg.eventName && msg.eventName !== activeEventName.value) return
   const judgeLabel = msg.judge ? ` · Judge: ${msg.judge}` : ''
   modalTitle.value = `Hey ${msg.name}!`
-  modalMessage.value = `Your audition number is ${msg.genre} #${msg.audition}${judgeLabel}`
+  modalMessage.value = `Your audition number is ${msg.category} #${msg.audition}${judgeLabel}`
   showModal.value = true
 }
 
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
             <span v-else class="type-label text-content-muted/40">Hold to reveal</span>
           </button>
           <!-- role=status: assigning indicator announced -->
-          <div v-else-if="slot.person.genres.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5" role="status">
+          <div v-else-if="slot.person.categories.some(g => g.auditionNumber === null)" class="flex-shrink-0 para-chip-sm px-3 py-2 flex items-center gap-1.5" role="status">
             <i class="pi pi-spin pi-spinner text-content-muted text-xs" aria-hidden="true"></i>
             <span class="type-label text-content-muted">Assigning…</span>
           </div>
@@ -294,8 +294,8 @@ onBeforeUnmount(() => {
 
         <div class="space-y-2">
           <div
-            v-for="g in slot.person.genres"
-            :key="g.genreName"
+            v-for="g in slot.person.categories"
+            :key="g.categoryName"
             class="flex items-center gap-3 para-chip-sm px-3 py-2.5"
             :style="g.auditionNumber !== null ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
           >
@@ -310,7 +310,7 @@ onBeforeUnmount(() => {
             ></span>
 
             <!-- Division name -->
-            <span class="type-name text-content-primary flex-1">{{ g.genreName }}</span>
+            <span class="type-name text-content-primary flex-1">{{ g.categoryName }}</span>
 
             <!-- Number area -->
             <div class="flex items-baseline gap-1 tabular-nums min-w-[5rem] justify-end">
@@ -318,7 +318,7 @@ onBeforeUnmount(() => {
               <template v-if="g.rolling">
                 <span class="type-label text-amber-400/60 text-xs">Drawing</span>
                 <span class="type-stat text-amber-400" style="font-size:1.6rem">
-                  {{ fakeNums[`${slot.slotId}-${g.genreName}`] ?? '—' }}
+                  {{ fakeNums[`${slot.slotId}-${g.categoryName}`] ?? '—' }}
                 </span>
               </template>
               <!-- Revealed -->
@@ -359,12 +359,12 @@ onBeforeUnmount(() => {
           <!-- Division chips -->
           <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">
             <span
-              v-for="g in person.genres"
-              :key="g.genreName"
+              v-for="g in person.categories"
+              :key="g.categoryName"
               class="inline-flex items-center gap-1 badge-neutral"
               style="text-transform:none;letter-spacing:0.02em;"
             >
-              <span class="text-content-muted">{{ g.genreName }}</span>
+              <span class="text-content-muted">{{ g.categoryName }}</span>
               <span class="text-accent">#{{ g.auditionNumber }}</span>
             </span>
           </div>

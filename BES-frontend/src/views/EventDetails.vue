@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, fetchAllGenres, getGenresByEvent, getVerifiedParticipantsByEvent, insertEventInTable, linkGenresToEvent, getLinkedGenres, unlinkGenreFromEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantGenre, addGenreToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventGenreFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -21,9 +21,8 @@ const modalErrors = ref([])
 const modalWarnings = ref([])
 const modalInfo = ref([])
 const importCounts = ref(null) // { imported, existing, skipped } — set only during sheet import
-const genreOptions = ref(null)
-const eventGenres = ref([])
-const linkedGenres = ref([]) // genres declared for this event; groups still render with zero categories
+const categoryOptions = ref(null)
+const eventCategories = ref([])
 const tableExist = ref(true)
 const loading = ref(false)
 const onStartLoading = ref(false)
@@ -52,7 +51,6 @@ const props = defineProps({
 
 const eventName = ref(props.eventName.split(" ").join("%20"));
 
-const selectedInitGenres = ref([])
 const paymentRequired = ref(false)
 const feedbackEnabled = ref(true)
 const feedbackSaving = ref(false)
@@ -98,7 +96,7 @@ const confirmNo = () => {
 const askRemoveDivision = (div) => askConfirm(
   'Remove Category?',
   `"${div.name}" will be permanently removed. Participants already enrolled will block this action — remove them first.`,
-  () => removeDivisionFromSection(div.eventGenreId)
+  () => removeDivisionFromSection(div.eventCategoryId)
 )
 const askRemoveJudgeGlobal = (j) => askConfirm(
   'Remove Judge from Event?',
@@ -123,27 +121,27 @@ const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? '
 // Setup tab is split into three sub-tabs to keep each screen scannable.
 // Persisted per event so switching events does not leak prior state.
 const setupSubTab = ref('genres') // 'genres' | 'judges' | 'links'
-// The single currently-expanded division inside the genres accordion (by eventGenreId).
+// The single currently-expanded division inside the categories accordion (by eventCategoryId).
 const expandedDivisionId = ref(null)
 const toggleDivision = (id) => {
   expandedDivisionId.value = expandedDivisionId.value === id ? null : id
 }
-const activeGenreTab = ref(null)
+const activeCategoryTab = ref(null)
 const poolTab = ref(null) // active division tab in number pool
 let refreshInterval = null
 let wsClient = null
 
-// Genre adjustment modal
+// Category adjustment modal
 const showAdjustModal = ref(false)
 const adjustSearch = ref('')
 const adjustParticipant = ref(null)
 const adjustParticipantIds = ref({ participantId: null, eventId: null })
 const adjustLoading = ref(false)
 
-// Team form for adding a team-format genre
-const genreAddForm = reactive({
+// Team form for adding a team-format category
+const categoryAddForm = reactive({
   show: false,
-  genre: null,
+  category: null,
   entryMode: 'team',
   teamName: '',
   members: []   // array of strings, length = additionalMemberCount
@@ -202,10 +200,10 @@ const openModal = (title, message, variant = 'success', errors = [], warnings = 
   showModal.value = true
 }
 
-const genreCounts = computed(() => {
+const categoryCounts = computed(() => {
   const counts = {}
   verifiedDbParticipants.value.forEach(p => {
-    let key = p.genreName.toLowerCase()
+    let key = p.categoryName.toLowerCase()
     if (key.includes('smoke')) key = 'smoke'
     else key = key.replace(/\s+/g, '')
     counts[key] = (counts[key] || 0) + 1
@@ -220,7 +218,7 @@ const totalDbRegistered = computed(() => {
     grouped[p.participantId].push(p)
   })
   // Walk-ins always count as registered (they showed up in person).
-  // Form participants count only when all genres have audition numbers.
+  // Form participants count only when all categories have audition numbers.
   return Object.values(grouped).filter(rows =>
     rows[0].walkin === true || rows.every(r => r.auditionNumber !== null)
   )
@@ -252,9 +250,9 @@ const divisionAuditionStats = computed(() => {
   const map = {}
   for (const p of checkinList.value) {
     for (const g of p.genres) {
-      if (!map[g.genreName]) map[g.genreName] = { total: 0, drawn: [] }
-      map[g.genreName].total++
-      if (g.auditionNumber !== null) map[g.genreName].drawn.push(g.auditionNumber)
+      if (!map[g.categoryName]) map[g.categoryName] = { total: 0, drawn: [] }
+      map[g.categoryName].total++
+      if (g.auditionNumber !== null) map[g.categoryName].drawn.push(g.auditionNumber)
     }
   }
   return Object.entries(map).map(([name, data]) => {
@@ -279,18 +277,18 @@ const registeredList = computed(() => {
       memberNames: rows.find(r => r.memberNames?.length)?.memberNames || [],
       entries: rows
         .filter(r => r.auditionNumber !== null)
-        .map(r => ({ genre: r.genreName, auditionNumber: r.auditionNumber }))
-        .sort((a, b) => a.genre.localeCompare(b.genre))
+        .map(r => ({ category: r.categoryName, auditionNumber: r.auditionNumber }))
+        .sort((a, b) => a.category.localeCompare(b.category))
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 const registeredSearch = ref('')
-const registeredGenreFilter = ref('')
+const registeredCategoryFilter = ref('')
 
-const registeredGenreOptions = computed(() => {
+const registeredCategoryOptions = computed(() => {
   const genres = new Set()
-  registeredList.value.forEach(p => p.entries.forEach(e => genres.add(e.genre)))
+  registeredList.value.forEach(p => p.entries.forEach(e => genres.add(e.category)))
   return [...genres].sort()
 })
 
@@ -299,16 +297,16 @@ const filteredRegisteredList = computed(() => {
   const q = registeredSearch.value.trim().toLowerCase()
   if (q) list = list.filter(p =>
     p.name.toLowerCase().includes(q) ||
-    p.entries.some(e => e.genre.toLowerCase().includes(q))
+    p.entries.some(e => e.category.toLowerCase().includes(q))
   )
-  if (registeredGenreFilter.value) {
+  if (registeredCategoryFilter.value) {
     list = list
-      .filter(p => p.entries.some(e => e.genre === registeredGenreFilter.value))
+      .filter(p => p.entries.some(e => e.category === registeredCategoryFilter.value))
       .map(p => ({
         ...p,
         entries: [
-          ...p.entries.filter(e => e.genre === registeredGenreFilter.value),
-          ...p.entries.filter(e => e.genre !== registeredGenreFilter.value)
+          ...p.entries.filter(e => e.category === registeredCategoryFilter.value),
+          ...p.entries.filter(e => e.category !== registeredCategoryFilter.value)
         ]
       }))
       .sort((a, b) => (a.entries[0]?.auditionNumber ?? 0) - (b.entries[0]?.auditionNumber ?? 0))
@@ -332,14 +330,14 @@ const adjustSearchResults = computed(() => {
 })
 
 // Filter all EGP rows for the currently selected participant by participantId (not display name)
-const adjustParticipantGenres = computed(() =>
+const adjustParticipantCategories = computed(() =>
   adjustParticipantIds.value.participantId
     ? verifiedDbParticipants.value.filter(p => p.participantId === adjustParticipantIds.value.participantId)
     : []
 )
 
 const adjustParticipantLocked = computed(() =>
-  adjustParticipantGenres.value.some(p => p.auditionNumber !== null)
+  adjustParticipantCategories.value.some(p => p.auditionNumber !== null)
 )
 
 // Clear selected participant when search input is cleared
@@ -347,79 +345,43 @@ watch(adjustSearch, (val) => {
   if (!val.trim()) adjustParticipant.value = null
 })
 
-function normalizeGenreName(name) {
+function normalizeCategoryName(name) {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, '');
   if (normalized.includes('7tosmoke')) return 'smoke';
   return normalized
 }
 
-const getUnregistered = (genre) => {
+const getUnregistered = (category) => {
   const participants = verifiedDbParticipants.value.map(p => ({
     ...p,
-    genreName: normalizeGenreName(p.genreName)
+    categoryName: normalizeCategoryName(p.categoryName)
   }))
   return {
     "registered": participants
-      .filter(p => p.genreName === genre && p.auditionNumber !== null && p.walkin === false)
+      .filter(p => p.categoryName === category && p.auditionNumber !== null && p.walkin === false)
       .sort((a, b) => a.auditionNumber - b.auditionNumber),
-    "unregistered": participants.filter(p => p.genreName === genre && p.auditionNumber === null && p.walkin === false)
+    "unregistered": participants.filter(p => p.categoryName === category && p.auditionNumber === null && p.walkin === false)
   }
 }
 
 const completeBreakdown = computed(() => {
-  const genreStats = {};
+  const categoryStats = {};
   for (const item of verifiedDbParticipants.value) {
-    const genre = normalizeGenreName(item.genreName);
-    if (!genreStats[genre]) {
-      genreStats[genre] = { registered: 0, unregistered: 0 };
+    const category = normalizeCategoryName(item.categoryName);
+    if (!categoryStats[category]) {
+      categoryStats[category] = { registered: 0, unregistered: 0 };
     }
     if (item.auditionNumber !== null) {
-      genreStats[genre].registered++;
+      categoryStats[category].registered++;
     } else {
-      genreStats[genre].unregistered++;
+      categoryStats[category].unregistered++;
     }
   }
-  return Object.entries(genreCounts.value).map(([genre, total]) => {
-    const stats = genreStats[genre] || { registered: 0, unregistered: 0 };
-    return { genre, total, registered: stats.registered, unregistered: stats.unregistered };
+  return Object.entries(categoryCounts.value).map(([category, total]) => {
+    const stats = categoryStats[category] || { registered: 0, unregistered: 0 };
+    return { category: category, total, registered: stats.registered, unregistered: stats.unregistered };
   });
 })
-
-const onSubmit = async () => {
-  if (loading.value) return
-  if (selectedInitGenres.value.length == 0) {
-    openModal("Missing Genres", "Please add at least one genre.", "warning")
-    return
-  }
-  loading.value = true
-  await insertEventInTable(props.eventName, paymentRequired.value)
-  const genreIds = selectedInitGenres.value.map(g => g.id)
-  const resp = await linkGenresToEvent(props.eventName, genreIds)
-  if (!resp) { loading.value = false; return }
-  resp.json().then(async result => {
-    loading.value = false
-    if (resp.ok) {
-      if (!dbEventId.value) {
-        const dbEvents = await fetchAllEvents() ?? []
-        const dbEvent = dbEvents.find(e => e.name === props.eventName)
-        if (dbEvent) dbEventId.value = dbEvent.id
-      }
-      if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
-      reloadOnClose.value = true
-      openModal('Event Initialised', 'Genres ready. Map categories from your Google Sheet or add them manually below.', 'success')
-    } else {
-      openModal('Error', typeof result === 'string' ? result : 'Failed to initialise event.', 'error')
-    }
-  })
-}
-
-const toggleInitGenre = (g, checked) => {
-  if (checked) {
-    selectedInitGenres.value.push(g)
-  } else {
-    selectedInitGenres.value = selectedInitGenres.value.filter(s => s.id !== g.id)
-  }
-}
 
 const refreshParticipant = async () => {
   importError.value = ''
@@ -431,8 +393,7 @@ const refreshParticipant = async () => {
         getVerifiedParticipantsByEvent(eventName.value).then(r => { verifiedFormParticipants.value = r }),
         getRegisteredParticipantsByEvent(eventName.value).then(r => { verifiedDbParticipants.value = r }),
         getUnverifiedParticipantsDB(props.eventName).then(r => { unverifiedParticipants.value = r }),
-        getGenresByEvent(props.eventName).then(r => { eventGenres.value = r }),
-        getLinkedGenres(props.eventName).then(r => { linkedGenres.value = r }),
+        getCategoriesByEvent(props.eventName).then(r => { eventCategories.value = r }),
         fetchCheckinList(),
       ])
       selectedUnverified.value = new Set()
@@ -499,12 +460,12 @@ const closeAdjustModal = () => {
   adjustParticipantIds.value = { participantId: null, eventId: null }
 }
 
-const toggleAdjustGenre = (genre) => {
+const toggleAdjustCategory = (category) => {
   if (adjustParticipantLocked.value || adjustLoading.value) return
-  const isEnrolled = adjustParticipantGenres.value.some(p => p.genreName === genre.name)
+  const isEnrolled = adjustParticipantCategories.value.some(p => p.categoryName === category.name)
   if (isEnrolled) {
     // Guard: prevent removing the last division
-    if (adjustParticipantGenres.value.length <= 1) {
+    if (adjustParticipantCategories.value.length <= 1) {
       askConfirm(
         'Cannot Remove',
         `"${adjustParticipant.value}" must be in at least one division. Add another division first before removing this one.`,
@@ -515,45 +476,45 @@ const toggleAdjustGenre = (genre) => {
     }
     askConfirm(
       'Remove Division',
-      `Remove "${adjustParticipant.value}" from ${genre.name}? This cannot be undone.`,
-      () => doGenreChange(genre, 'remove'),
+      `Remove "${adjustParticipant.value}" from ${category.name}? This cannot be undone.`,
+      () => doCategoryChange(category, 'remove'),
       { confirmLabel: 'Remove', destructive: true }
     )
   } else {
     // Team format — show the team details form
-    if (isTeamFormatLocal(genre.format)) {
-      const count = additionalMemberCount(genre.format)
-      genreAddForm.show = true
-      genreAddForm.genre = genre
-      genreAddForm.entryMode = 'team'
-      genreAddForm.teamName = ''
-      genreAddForm.members = Array(count).fill('')
+    if (isTeamFormatLocal(category.format)) {
+      const count = additionalMemberCount(category.format)
+      categoryAddForm.show = true
+      categoryAddForm.category = category
+      categoryAddForm.entryMode = 'team'
+      categoryAddForm.teamName = ''
+      categoryAddForm.members = Array(count).fill('')
       return
     }
     // Non-team — simple confirm
-    const fmtLabel = genre.format ? ` · ${genre.format}` : ''
+    const fmtLabel = category.format ? ` · ${category.format}` : ''
     askConfirm(
       'Add Division',
-      `Add "${adjustParticipant.value}" to ${genre.name}${fmtLabel}?`,
-      () => doGenreChange(genre, 'add'),
+      `Add "${adjustParticipant.value}" to ${category.name}${fmtLabel}?`,
+      () => doCategoryChange(category, 'add'),
       { confirmLabel: 'Add', destructive: false }
     )
   }
 }
 
-const submitGenreAddForm = () => {
-  const { genre, entryMode, teamName, members } = genreAddForm
-  genreAddForm.show = false
-  doGenreChange(genre, 'add', { entryMode, teamName, teamMembers: members.filter(m => m.trim()) })
+const submitCategoryAddForm = () => {
+  const { category, entryMode, teamName, members } = categoryAddForm
+  categoryAddForm.show = false
+  doCategoryChange(category, 'add', { entryMode, teamName, teamMembers: members.filter(m => m.trim()) })
 }
 
-const doGenreChange = async (genre, action, teamOpts = {}) => {
+const doCategoryChange = async (category, action, teamOpts = {}) => {
   adjustLoading.value = true
   try {
     if (action === 'remove') {
-      const egp = adjustParticipantGenres.value.find(p => p.genreName === genre.name)
+      const egp = adjustParticipantCategories.value.find(p => p.categoryName === category.name)
       if (egp) {
-        const res = await removeParticipantGenre(egp.participantId, egp.eventId, egp.eventGenreId)
+        const res = await removeParticipantCategory(egp.participantId, egp.eventId, egp.eventCategoryId)
         if (res && !res.ok) throw new Error(`Remove failed: ${res.status}`)
       }
     } else {
@@ -564,7 +525,7 @@ const doGenreChange = async (genre, action, teamOpts = {}) => {
       }
       const { participantId: pid, eventId: eid } = adjustParticipantIds.value
       if (pid && eid) {
-        const res = await addGenreToParticipant(pid, eid, genre.name, teamOpts.entryMode, teamOpts.teamName, teamOpts.teamMembers)
+        const res = await addCategoryToParticipant(pid, eid, category.name, teamOpts.entryMode, teamOpts.teamName, teamOpts.teamMembers)
         if (res && !res.ok) throw new Error(`Add failed: ${res.status}`)
       } else {
         throw new Error('Could not resolve participant ID')
@@ -576,7 +537,7 @@ const doGenreChange = async (genre, action, teamOpts = {}) => {
     ])
     const verb = action === 'add' ? 'added to' : 'removed from'
     openModal(`Division ${action === 'add' ? 'Added' : 'Removed'}`,
-      `"${adjustParticipant.value}" has been ${verb} ${genre.name}.`, 'success')
+      `"${adjustParticipant.value}" has been ${verb} ${category.name}.`, 'success')
   } catch (e) {
     console.error(e)
     askConfirm('Update Failed', `Could not update division: ${e.message}`, () => {}, { confirmLabel: 'OK', destructive: false })
@@ -584,61 +545,35 @@ const doGenreChange = async (genre, action, teamOpts = {}) => {
   adjustLoading.value = false
 }
 
-// ── Scoring criteria (per-genre, for inline display) ────────────────────────
-const criteriaByGenre = ref({}) // genreName → array of { id, name, weight }
+// ── Scoring criteria (per-category, for inline display) ─────────────────────
+const criteriaByCategory = ref({}) // categoryName → array of { id, name, weight }
 
-const loadCriteriaForAllGenres = async (genres) => {
+const loadCriteriaForAllCategories = async (categories) => {
   const map = {}
-  await Promise.all(genres.map(async (g) => {
+  await Promise.all(categories.map(async (g) => {
     map[g.name] = await getScoringCriteria(props.eventName, g.name) ?? []
   }))
-  criteriaByGenre.value = map
+  criteriaByCategory.value = map
 }
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── Divisions (post-init) ────────────────────────────────────────────────────
-// Groups are seeded from `linkedGenres` so genres with zero categories still show a header.
-// Divisions without a genreId fall into a synthetic 'custom' group.
-const divisionsByGenre = computed(() => {
+const divisionsByCategory = computed(() => {
   const groups = {}
-  for (const g of linkedGenres.value) {
-    groups[g.id] = { genreId: g.id, label: g.genreName, divisions: [], linked: true }
-  }
-  for (const div of eventGenres.value) {
-    const key = div.genreId ?? 'custom'
+  for (const div of eventCategories.value) {
+    const key = 'all'
     if (!groups[key]) {
-      let label = 'Custom'
-      if (div.genreId != null && genreOptions.value) {
-        const found = genreOptions.value.find(g => g.id === div.genreId)
-        if (found) label = found.genreName
-      }
-      groups[key] = { genreId: key, label, divisions: [], linked: div.genreId != null }
+      groups[key] = { divisions: [] }
     }
     groups[key].divisions.push(div)
   }
   return Object.values(groups)
 })
 
-const removeGenreGroup = async (group) => {
-  if (group.genreId === 'custom' || !group.linked) return
-  const res = await unlinkGenreFromEvent(props.eventName, group.genreId)
-  if (res && res.ok) {
-    linkedGenres.value = linkedGenres.value.filter(g => g.id !== group.genreId)
-  } else {
-    openModal('Cannot Remove Genre', 'Could not unlink this genre. Try again.', 'error')
-  }
-}
-
-const askRemoveGenreGroup = (group) => askConfirm(
-  'Remove Genre?',
-  `"${group.label}" will be removed from this event.${group.divisions.length > 0 ? ' Its categories will become unlinked.' : ''}`,
-  () => removeGenreGroup(group)
-)
-
 const matchCounts = computed(() => {
   const counts = {}
   const cats = sheetCategories.value.map(s => s.toLowerCase())
-  for (const div of eventGenres.value) {
+  for (const div of eventCategories.value) {
     const names = [div.name.toLowerCase()]
     if (div.sheetAliases) {
       names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
@@ -647,7 +582,7 @@ const matchCounts = computed(() => {
     for (const cat of cats) {
       if (names.some(n => cat === n)) count++
     }
-    counts[div.eventGenreId] = count
+    counts[div.eventCategoryId] = count
   }
   return counts
 })
@@ -655,7 +590,7 @@ const matchCounts = computed(() => {
 const unmatchedSheetValues = computed(() => {
   if (!sheetCategories.value.length) return []
   const matched = new Set()
-  for (const div of eventGenres.value) {
+  for (const div of eventCategories.value) {
     const names = [div.name.toLowerCase()]
     if (div.sheetAliases) {
       names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
@@ -675,14 +610,14 @@ const allSheetSuggestions = computed(() => {
 // True when any category has more sheet matches than imported participants
 const hasUnimportedParticipants = computed(() => {
   if (!sheetCategories.value.length) return false
-  return eventGenres.value.some(div =>
-    (matchCounts.value[div.eventGenreId] || 0) > div.participantCount
+  return eventCategories.value.some(div =>
+    (matchCounts.value[div.eventCategoryId] || 0) > div.participantCount
   ) || unmatchedSheetValues.value.length > 0
 })
 
 const suggestionCoveredSet = computed(() => {
   const covered = new Set()
-  for (const div of eventGenres.value) {
+  for (const div of eventCategories.value) {
     const names = [div.name.toLowerCase()]
     if (div.sheetAliases) {
       names.push(...div.sheetAliases.split(',').map(a => a.trim().toLowerCase()).filter(Boolean))
@@ -701,18 +636,18 @@ const loadSheetCategories = async () => {
 }
 
 const saveDivisionName = async (div) => {
-  await renameDivision(props.eventName, div.eventGenreId, divRenameInput.value)
+  await renameDivision(props.eventName, div.eventCategoryId, divRenameInput.value)
   div.name = divRenameInput.value
   divRenameActive.value = null
 }
 
 const saveDivisionFormat = async (div, format) => {
-  await updateEventGenreFormat(props.eventName, div.eventGenreId, format || null)
+  await updateEventCategoryFormat(props.eventName, div.eventCategoryId, format || null)
   div.format = format || null
   // Team formats default to no solo
   if (format && /^\d+v\d+$/i.test(format) && format.toLowerCase() !== '1v1') {
     if (div.soloAllowed !== false) {
-      await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, false)
+      await updateDivisionSoloAllowed(props.eventName, div.eventCategoryId, false)
       div.soloAllowed = false
     }
   }
@@ -720,38 +655,36 @@ const saveDivisionFormat = async (div, format) => {
 
 const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
-  await updateDivisionSoloAllowed(props.eventName, div.eventGenreId, newVal)
+  await updateDivisionSoloAllowed(props.eventName, div.eventCategoryId, newVal)
   div.soloAllowed = newVal
 }
 
-const addSuggestionToGenre = async (genreId, _genreLabel) => {
+const addSuggestionToCategory = async (categoryId, _categoryLabel) => {
   if (!pendingSuggestionCat.value) return
   const name = pendingSuggestionCat.value
   pendingSuggestionCat.value = null
-  const existingNames = eventGenres.value.map(d => d.name.toLowerCase())
+  const existingNames = eventCategories.value.map(d => d.name.toLowerCase())
   let finalName = name
   let i = 2
   while (existingNames.includes(finalName.toLowerCase())) {
     finalName = `${name} ${i++}`
   }
-  const resp = await addDivision(props.eventName, finalName, null, genreId === 'custom' ? null : genreId)
+  const resp = await addDivision(props.eventName, finalName, null, categoryId === 'custom' ? null : categoryId)
   if (resp && resp.ok) {
-    eventGenres.value = await getGenresByEvent(props.eventName)
-    linkedGenres.value = await getLinkedGenres(props.eventName)
+    eventCategories.value = await getCategoriesByEvent(props.eventName)
   }
 }
 
-const addDivisionToGroup = async (genreId, genreLabel) => {
-  const existingNames = eventGenres.value.map(d => d.name.toLowerCase())
-  let name = genreLabel
+const addDivisionToGroup = async (categoryId, categoryLabel) => {
+  const existingNames = eventCategories.value.map(d => d.name.toLowerCase())
+  let name = categoryLabel
   let i = 2
   while (existingNames.includes(name.toLowerCase())) {
-    name = `${genreLabel} ${i++}`
+    name = `${categoryLabel} ${i++}`
   }
-  const resp = await addDivision(props.eventName, name, null, genreId === 'custom' ? null : genreId)
+  const resp = await addDivision(props.eventName, name, null, categoryId === 'custom' ? null : categoryId)
   if (resp && resp.ok) {
-    eventGenres.value = await getGenresByEvent(props.eventName)
-    linkedGenres.value = await getLinkedGenres(props.eventName)
+    eventCategories.value = await getCategoriesByEvent(props.eventName)
   } else if (resp) {
     const err = await resp.text().catch(() => 'Unknown error')
     console.error('Add division failed:', resp.status, err)
@@ -764,7 +697,7 @@ const removeDivisionFromSection = async (divId) => {
     openModal('Cannot Delete Category', 'Remove all participants from the category before deleting it.', 'error')
     return
   }
-  eventGenres.value = eventGenres.value.filter(d => d.eventGenreId !== divId)
+  eventCategories.value = eventCategories.value.filter(d => d.eventCategoryId !== divId)
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -773,25 +706,25 @@ const divisionJudges = ref({})
 const allEventJudges = ref([])
 const globalJudgeInput = ref('')
 
-const loadJudgesForDivision = async (genre) => {
-  if (!genre) return
-  divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
+const loadJudgesForDivision = async (category) => {
+  if (!category) return
+  divisionJudges.value[category.name] = await getJudgesByDivision(props.eventName, category.eventCategoryId)
 }
 // Judges not yet assigned to a specific division
 const categoriesAssignedToJudge = (judgeId) => {
   const result = []
-  for (const [genreName, judges] of Object.entries(divisionJudges.value)) {
+  for (const [categoryName, judges] of Object.entries(divisionJudges.value)) {
     if (judges.some(j => j.judgeId === judgeId)) {
-      const genre = eventGenres.value.find(g => g.name === genreName)
-      if (genre) result.push(genre)
+      const category = eventCategories.value.find(g => g.name === categoryName)
+      if (category) result.push(category)
     }
   }
   return result
 }
 
 const categoriesUnassignedToJudge = (judgeId) => {
-  const assigned = new Set(categoriesAssignedToJudge(judgeId).map(g => g.eventGenreId))
-  return eventGenres.value.filter(g => !assigned.has(g.eventGenreId))
+  const assigned = new Set(categoriesAssignedToJudge(judgeId).map(g => g.eventCategoryId))
+  return eventCategories.value.filter(g => !assigned.has(g.eventCategoryId))
 }
 
 const submitAddJudgeGlobal = async () => {
@@ -818,9 +751,9 @@ const submitRemoveJudgeGlobal = async (judgeId) => {
   const res = await removeEventJudge(props.eventName, judgeId)
   if (res?.ok) {
     allEventJudges.value = await res.json()
-    for (const genre of eventGenres.value) {
-      if (divisionJudges.value[genre.name]) {
-        divisionJudges.value[genre.name] = await getJudgesByDivision(props.eventName, genre.eventGenreId)
+    for (const category of eventCategories.value) {
+      if (divisionJudges.value[category.name]) {
+        divisionJudges.value[category.name] = await getJudgesByDivision(props.eventName, category.eventCategoryId)
       }
     }
     await loadSessionTokens()
@@ -831,8 +764,8 @@ const submitAssignJudge = async (divisionId, judgeId) => {
   const res = await assignJudgeToDivision(props.eventName, divisionId, judgeId)
   if (res?.ok) {
     const judges = await res.json()
-    const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
-    if (genre) divisionJudges.value[genre.name] = judges
+    const category = eventCategories.value.find(g => g.eventCategoryId === divisionId)
+    if (category) divisionJudges.value[category.name] = judges
   }
 }
 
@@ -840,16 +773,16 @@ const submitRemoveJudge = async (divisionId, judgeId) => {
   const res = await removeJudgeFromDivision(props.eventName, divisionId, judgeId)
   if (res?.ok) {
     const judges = await res.json()
-    const genre = eventGenres.value.find(g => g.eventGenreId === divisionId)
-    if (genre) divisionJudges.value[genre.name] = judges
+    const category = eventCategories.value.find(g => g.eventCategoryId === divisionId)
+    if (category) divisionJudges.value[category.name] = judges
     allEventJudges.value = await getJudgesByEvent(props.eventName) ?? []
   }
 }
 
-watch(activeGenreTab, async (tabName) => {
+watch(activeCategoryTab, async (tabName) => {
   if (tabName && !divisionJudges.value[tabName]) {
-    const genre = eventGenres.value.find(g => g.name === tabName)
-    if (genre) await loadJudgesForDivision(genre)
+    const category = eventCategories.value.find(g => g.name === tabName)
+    if (category) await loadJudgesForDivision(category)
   }
 })
 // ───────────────────────────────────────────────────────────────────────────
@@ -1051,18 +984,18 @@ const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', r
 const dialogFakeNums = ref({})
 const dialogRollingIntervals = {}
 const dialogNumberQueue = []
-const genrePoolSizes = ref({}) // { genreName: poolSize }
+const categoryPoolSizes = ref({}) // { categoryName: poolSize }
 
 function processNextDialogNumber() {
   if (dialogNumberQueue.length === 0) {
     checkinConfirm.value.phase = 'done'
     return
   }
-  const { genre, auditionNumber } = dialogNumberQueue.shift()
-  const g = checkinConfirm.value.participant?.genres.find(x => x.genreName === genre)
+  const { category, auditionNumber } = dialogNumberQueue.shift()
+  const g = checkinConfirm.value.participant?.genres.find(x => x.categoryName === category)
   if (!g) { processNextDialogNumber(); return }
 
-  const poolSize = genrePoolSizes.value[genre] ?? 99
+  const poolSize = categoryPoolSizes.value[category] ?? 99
 
   // Skip animation if only one number is available
   if (poolSize === 1) {
@@ -1073,16 +1006,16 @@ function processNextDialogNumber() {
   }
 
   g.rolling = true
-  clearInterval(dialogRollingIntervals[genre])
-  dialogRollingIntervals[genre] = setInterval(() => {
-    dialogFakeNums.value = { ...dialogFakeNums.value, [genre]: Math.floor(Math.random() * poolSize) + 1 }
+  clearInterval(dialogRollingIntervals[category])
+  dialogRollingIntervals[category] = setInterval(() => {
+    dialogFakeNums.value = { ...dialogFakeNums.value, [category]: Math.floor(Math.random() * poolSize) + 1 }
   }, 80)
 
   setTimeout(() => {
-    clearInterval(dialogRollingIntervals[genre])
-    delete dialogRollingIntervals[genre]
+    clearInterval(dialogRollingIntervals[category])
+    delete dialogRollingIntervals[category]
     const next = { ...dialogFakeNums.value }
-    delete next[genre]
+    delete next[category]
     dialogFakeNums.value = next
     g.rolling = false
     g.auditionNumber = auditionNumber
@@ -1102,7 +1035,7 @@ const askCheckIn = (p) => {
     participantId: p.participantId,
     name: p.label,
     memberNames: p.memberNames ?? [],
-    genres: p.genres.map(g => ({ genreName: g.genreName, auditionNumber: g.auditionNumber ?? null }))
+    genres: p.genres.map(g => ({ categoryName: g.categoryName, auditionNumber: g.auditionNumber ?? null }))
   })
 }
 
@@ -1120,11 +1053,11 @@ const closeCheckinDialog = () => {
   // Clear pool sizes from completed check-in
   if (checkinConfirm.value.participant) {
     checkinConfirm.value.participant.genres.forEach(g => {
-      const key = g.genreName
-      if (key in genrePoolSizes.value) {
-        const next = { ...genrePoolSizes.value }
+      const key = g.categoryName
+      if (key in categoryPoolSizes.value) {
+        const next = { ...categoryPoolSizes.value }
         delete next[key]
-        genrePoolSizes.value = next
+        categoryPoolSizes.value = next
       }
     })
   }
@@ -1136,7 +1069,7 @@ const confirmCheckIn = async () => {
   if (!p || confirming.value) return
   confirming.value = true
 
-  // Reset genre display state
+  // Reset category display state
   p.genres.forEach(g => { g.auditionNumber = null; g.rolling = false })
 
   // Reset animation queue
@@ -1180,7 +1113,7 @@ const confirmCheckIn = async () => {
   if (freshParticipant) {
     for (const ug of freshParticipant.genres) {
       if (ug.auditionNumber != null) {
-        dialogNumberQueue.push({ genre: ug.genreName, auditionNumber: ug.auditionNumber })
+        dialogNumberQueue.push({ category: ug.categoryName, auditionNumber: ug.auditionNumber })
       }
     }
   }
@@ -1223,24 +1156,22 @@ onMounted(async () => {
       dbEventId.value = dbEvent.id
       setActiveEvent(dbEvent.id, dbEvent.name, resolvedFolderID)
     }
-    genreOptions.value = await fetchAllGenres()
-    eventGenres.value = await getGenresByEvent(props.eventName) ?? []
-    linkedGenres.value = await getLinkedGenres(props.eventName) ?? []
+    eventCategories.value = await getCategoriesByEvent(props.eventName) ?? []
     allEventJudges.value = await getJudgesByEvent(props.eventName) ?? []
-    if (eventGenres.value.length > 0) {
-      activeGenreTab.value = eventGenres.value[0].name
+    if (eventCategories.value.length > 0) {
+      activeCategoryTab.value = eventCategories.value[0].name
       // Load judges for ALL genres up front — categoriesAssignedToJudge() reads
       // from divisionJudges, so without this the Judge Pool would only show
-      // assignments belonging to the currently-active Genre Configuration tab.
-      await Promise.all(eventGenres.value.map(loadJudgesForDivision))
+      // assignments belonging to the currently-active Categories tab.
+      await Promise.all(eventCategories.value.map(loadJudgesForDivision))
       // Restore per-event setup sub-tab + auto-expand the first division.
       const savedSub = localStorage.getItem(`setupSubTab_${props.eventName}`)
       if (savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links') {
         setupSubTab.value = savedSub
       }
-      expandedDivisionId.value = eventGenres.value[0].eventGenreId
+      expandedDivisionId.value = eventCategories.value[0].eventCategoryId
     }
-    await loadCriteriaForAllGenres(eventGenres.value)
+    await loadCriteriaForAllCategories(eventCategories.value)
     if (tableExist.value) {
       verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
       verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
@@ -1264,13 +1195,13 @@ onMounted(async () => {
     subscribeToChannel(wsClient, '/topic/audition/', (msg) => {
       if (msg.eventName !== props.eventName) return
       // Store pool size for modal animation
-      if (msg.genre && msg.poolSize !== undefined) {
-        genrePoolSizes.value = { ...genrePoolSizes.value, [msg.genre]: msg.poolSize }
+      if (msg.category && msg.poolSize !== undefined) {
+        categoryPoolSizes.value = { ...categoryPoolSizes.value, [msg.category]: msg.poolSize }
       }
       const participant = checkinList.value.find(p => p.participantId === msg.participantId)
       if (participant) {
-        const genre = participant.genres.find(g => g.genreName === msg.genre)
-        if (genre) genre.auditionNumber = msg.auditionNumber
+        const cat = participant.genres.find(g => g.categoryName === msg.category)
+        if (cat) cat.auditionNumber = msg.auditionNumber
       }
       // Participant is now checked in — no longer in preview
       if (msg.participantId) delete previewingIds[msg.participantId]
@@ -1305,7 +1236,7 @@ const anyModalOpen = computed(() =>
   showCriteriaModal.value ||
   showAdjustModal.value ||
   showWalkInForm.value ||
-  genreAddForm.show ||
+  categoryAddForm.show ||
   checkinConfirm.value.show ||
   confirmDialog.value.show
 )
@@ -1582,72 +1513,9 @@ onUnmounted(() => {
       </label>
     </div>
 
-    <!-- Setup section (when no table exists) -->
-    <div v-if="!tableExist" class="card-hover p-6 relative">
-      <div class="corner-bar-tl"></div>
-      <div class="flex items-center gap-3 mb-6">
-        <i class="pi pi-exclamation-triangle text-amber-300 text-sm"></i>
-        <div>
-          <div class="type-body text-content-secondary">Event Setup Required</div>
-          <p class="type-prose">No record found for this event. Select genres to initialise.</p>
-        </div>
-      </div>
-
-      <div class="section-rule mb-4">
-        <span class="section-rule-label">Genres / Categories</span>
-        <div class="section-rule-line"></div>
-      </div>
-
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
-        <div
-          v-for="g in genreOptions"
-          :key="g.genreName"
-          class="para-chip-sm p-3 transition-all duration-150"
-          :class="selectedInitGenres.some(s => s.id === g.id) ? 'border-accent' : ''"
-        >
-          <label class="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              :id="g.genreName"
-              :checked="selectedInitGenres.some(s => s.id === g.id)"
-              @change="toggleInitGenre(g, $event.target.checked)"
-              class="w-4 h-4"
-            />
-            <span class="type-name">{{ g.genreName }}</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Payment required toggle -->
-      <div class="mb-6">
-        <label
-          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit"
-          :class="paymentRequired ? 'border-accent' : ''"
-        >
-          <input type="checkbox" v-model="paymentRequired" class="w-4 h-4" />
-          <div>
-            <span class="type-body">Payment Required</span>
-            <p class="type-label mt-0.5" :class="paymentRequired ? 'text-amber-400' : 'text-content-muted'">
-              {{ paymentRequired ? 'Participants will be placed in an unverified queue until you manually verify payment in-app.' : 'All participants will be auto-verified on import.' }}
-            </p>
-          </div>
-        </label>
-      </div>
-
-      <div class="flex justify-end">
-        <button
-          @click="onSubmit"
-          :disabled="loading"
-          class="bg-accent para-chip type-label disabled:opacity-50 px-5 py-2 flex items-center gap-2"
-        >
-          <i class="pi text-xs" :class="loading ? 'pi-spinner pi-spin' : 'pi-database'"></i>
-          {{ loading ? 'Setting up…' : 'Initialise Event' }}
-        </button>
-      </div>
-    </div>
 
   <!-- Empty state: no participants -->
-  <div v-if="tableExist && verifiedDbParticipants.length === 0 && unverifiedParticipants.length === 0 && eventGenres.length > 0" class="card p-8 text-center mt-6">
+  <div v-if="tableExist && verifiedDbParticipants.length === 0 && unverifiedParticipants.length === 0 && eventCategories.length > 0" class="card p-8 text-center mt-6">
     <div class="type-page-title text-content-muted mb-3">NO PARTICIPANTS YET</div>
     <p class="type-body text-content-muted mb-4">Import from Google Sheets or add a walk-in to get started.</p>
     <div class="flex justify-center gap-3">
@@ -1658,10 +1526,10 @@ onUnmounted(() => {
 
   <!-- Setup sub-tabs (post-init only) — splits the long Setup tab into
        focused screens so the user only sees the slice they're editing. -->
-  <div v-if="tableExist && eventGenres.length > 0" class="tab-bar mt-6" role="tablist" aria-label="Setup sub-sections">
+  <div v-if="tableExist && eventCategories.length > 0" class="tab-bar mt-6" role="tablist" aria-label="Setup sub-sections">
     <button
       v-for="sub in [
-        { key: 'genres', label: 'Genres & Categories' },
+        { key: 'genres', label: 'Categories' },
         { key: 'judges', label: 'Judges' },
         { key: 'links',  label: 'Share Links' },
       ]"
@@ -1674,18 +1542,18 @@ onUnmounted(() => {
     >{{ sub.label }}</button>
   </div>
 
-  <!-- ── Sub-tab: Genres & Categories (merged: Categories + per-genre Config) -->
+  <!-- ── Sub-tab: Categories -->
   <template v-if="setupSubTab === 'genres'">
 
-  <div v-if="tableExist && (eventGenres.length > 0 || linkedGenres.length > 0)" class="card-hover p-4 relative mt-6">
+  <div v-if="tableExist && eventCategories.length > 0" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
 
     <div class="section-rule mb-3">
-      <span class="section-rule-label">Genres & Categories</span>
+      <span class="section-rule-label">Categories</span>
       <div class="section-rule-line"></div>
     </div>
     <p class="type-prose mb-4">
-      Each category is a competition format within a genre (e.g. Popping 1v1, Popping 7 to Smoke).
+      Each category is a competition format (e.g. Popping 1v1, Popping 7 to Smoke).
       Click a category to expand its settings, roster status, scoring criteria and judges.
     </p>
 
@@ -1717,254 +1585,231 @@ onUnmounted(() => {
             class="absolute top-full left-0 mt-1 z-50 min-w-[160px]"
             style="background:var(--color-surface-800,#1a1a1a);border:1px solid rgba(255,255,255,0.12);"
           >
-            <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO GENRE:</p>
+            <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO CATEGORY:</p>
             <button
-              v-for="g in divisionsByGenre"
-              :key="g.genreId"
-              @click="addSuggestionToGenre(g.genreId, g.label)"
+              @click="addSuggestionToCategory('all', 'Category')"
               class="block w-full text-left px-3 py-2 type-name-sm text-content-secondary hover:text-accent transition-colors"
-            >{{ g.label }}</button>
+            >Add new category</button>
           </div>
         </span>
       </div>
     </div>
 
-    <!-- Per parent-genre group → per division accordion block -->
-    <div class="space-y-6">
-      <div v-for="group in divisionsByGenre" :key="group.genreId" class="space-y-2">
-
-        <!-- Thin parent-genre section header -->
-        <div class="flex items-center gap-2">
-          <span class="type-section-header text-content-secondary">{{ group.label }}</span>
-          <span class="badge-neutral type-label px-2 py-0.5 text-sm">{{ group.divisions.length }}</span>
+    <!-- Per division accordion block -->
+    <div class="space-y-2">
+      <div
+        v-for="div in eventCategories"
+        :key="div.eventCategoryId"
+        class="para-chip"
+        :class="sheetCategories.length > 0
+          ? (matchCounts[div.eventCategoryId] || 0) > 0
+            ? (div.participantCount >= (matchCounts[div.eventCategoryId] || 0)
+              ? 'border-l-[3px] border-l-emerald-500'
+              : 'border-l-[3px] border-l-amber-500')
+            : 'border-l-[3px] border-l-amber-500'
+          : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
+      >
+        <!-- Header. Rename takes over the entire row when active to avoid the
+             "category name appears twice" duplication you saw before. -->
+        <div v-if="divRenameActive === div.eventCategoryId" class="flex flex-wrap items-center gap-2 px-4 py-3">
+          <input
+            v-model="divRenameInput"
+            type="text"
+            class="input-base flex-1 min-w-[160px]"
+            placeholder="Category name"
+            autofocus
+            @keyup.enter="saveDivisionName(div); divRenameActive = null"
+            @keyup.escape="divRenameActive = null"
+          />
           <button
-            v-if="group.linked && group.genreId !== 'custom'"
-            @click="askRemoveGenreGroup(group)"
-            class="ml-auto para-chip-sm px-2.5 py-1 type-label text-content-muted hover:text-red-400 transition-colors flex items-center gap-1"
-            title="Unlink this genre — keeps existing categories but they will become custom"
-          ><i class="pi pi-times text-xs"></i>Unlink genre</button>
+            @click="saveDivisionName(div); divRenameActive = null"
+            class="para-chip-sm px-2.5 py-1.5 type-label text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
+          ><i class="pi pi-check text-sm"></i>Save</button>
+          <button
+            @click="divRenameActive = null"
+            class="para-chip-sm px-2.5 py-1.5 type-label text-content-muted hover:text-content-primary transition-colors flex items-center gap-1"
+          ><i class="pi pi-times text-sm"></i>Cancel</button>
+        </div>
+        <!-- Whole row toggles expand. Pencil button uses @click.stop so it
+             doesn't also trigger the toggle. role=button + keyboard handlers
+             keep the row activatable without a mouse. -->
+        <div
+          v-else
+          @click="toggleDivision(div.eventCategoryId)"
+          @keydown.enter.prevent="toggleDivision(div.eventCategoryId)"
+          @keydown.space.prevent="toggleDivision(div.eventCategoryId)"
+          role="button"
+          tabindex="0"
+          :aria-expanded="expandedDivisionId === div.eventCategoryId"
+          class="w-full flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-white/[0.02] cursor-pointer select-none"
+        >
+          <i class="pi text-xs text-content-muted shrink-0"
+             :class="expandedDivisionId === div.eventCategoryId ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+          <span class="type-name text-content-secondary truncate min-w-0">{{ div.name }}</span>
+          <button
+            @click.stop="divRenameActive = div.eventCategoryId; divRenameInput = div.name"
+            class="text-content-muted hover:text-accent transition-colors p-1"
+            aria-label="Rename category"
+            title="Rename category"
+          ><i class="pi pi-pencil text-xs"></i></button>
+
+          <template v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name))">
+            <span class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+              {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).registered }} reg
+            </span>
+            <span
+              v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered > 0"
+              class="inline-flex items-center gap-1.5 type-label text-amber-400 shrink-0"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
+              ⚠ {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered }}
+            </span>
+          </template>
+          <span
+            v-else-if="div.participantCount > 0"
+            class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0"
+            :title="`${div.participantCount} participant${div.participantCount === 1 ? '' : 's'}`"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+            {{ div.participantCount }}
+          </span>
         </div>
 
-        <!-- Per division: accordion block -->
-        <div
-          v-for="div in group.divisions"
-          :key="div.eventGenreId"
-          class="para-chip"
-          :class="sheetCategories.length > 0
-            ? (matchCounts[div.eventGenreId] || 0) > 0
-              ? (div.participantCount >= (matchCounts[div.eventGenreId] || 0)
-                ? 'border-l-[3px] border-l-emerald-500'
-                : 'border-l-[3px] border-l-amber-500')
-              : 'border-l-[3px] border-l-amber-500'
-            : div.participantCount > 0 ? 'border-l-[3px] border-l-emerald-500' : ''"
-        >
-          <!-- Header. Rename takes over the entire row when active to avoid the
-               "category name appears twice" duplication you saw before. -->
-          <div v-if="divRenameActive === div.eventGenreId" class="flex flex-wrap items-center gap-2 px-4 py-3">
-            <input
-              v-model="divRenameInput"
-              type="text"
-              class="input-base flex-1 min-w-[160px]"
-              placeholder="Category name"
-              autofocus
-              @keyup.enter="saveDivisionName(div); divRenameActive = null"
-              @keyup.escape="divRenameActive = null"
-            />
-            <button
-              @click="saveDivisionName(div); divRenameActive = null"
-              class="para-chip-sm px-2.5 py-1.5 type-label text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-            ><i class="pi pi-check text-sm"></i>Save</button>
-            <button
-              @click="divRenameActive = null"
-              class="para-chip-sm px-2.5 py-1.5 type-label text-content-muted hover:text-content-primary transition-colors flex items-center gap-1"
-            ><i class="pi pi-times text-sm"></i>Cancel</button>
-          </div>
-          <!-- Whole row toggles expand. Pencil button uses @click.stop so it
-               doesn't also trigger the toggle. role=button + keyboard handlers
-               keep the row activatable without a mouse. -->
-          <div
-            v-else
-            @click="toggleDivision(div.eventGenreId)"
-            @keydown.enter.prevent="toggleDivision(div.eventGenreId)"
-            @keydown.space.prevent="toggleDivision(div.eventGenreId)"
-            role="button"
-            tabindex="0"
-            :aria-expanded="expandedDivisionId === div.eventGenreId"
-            class="w-full flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-white/[0.02] cursor-pointer select-none"
-          >
-            <i class="pi text-xs text-content-muted shrink-0"
-               :class="expandedDivisionId === div.eventGenreId ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
-            <span class="type-name text-content-secondary truncate min-w-0">{{ div.name }}</span>
-            <button
-              @click.stop="divRenameActive = div.eventGenreId; divRenameInput = div.name"
-              class="text-content-muted hover:text-accent transition-colors p-1"
-              aria-label="Rename category"
-              title="Rename category"
-            ><i class="pi pi-pencil text-xs"></i></button>
+        <!-- Expanded content -->
+        <div v-if="expandedDivisionId === div.eventCategoryId" class="border-t border-white/[0.07] px-4 py-4 space-y-5">
 
-            <!-- Summary right-aligned via ml-auto on the first chip; remaining
-                 chips follow it. On narrow rows, ml-auto still pushes them to
-                 the right edge of the wrapped line. -->
-            <template v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(div.name))">
-              <span class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-                {{ completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).registered }} reg
+          <section>
+            <div class="section-rule section-rule-lg mb-3">
+              <span class="section-rule-label">Settings</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="type-label text-content-muted">Format</span>
+              <select
+                :value="div.format || ''"
+                @change="saveDivisionFormat(div, $event.target.value)"
+                class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
+              >
+                <option value="">No format</option>
+                <template v-for="opt in divFormatOptions" :key="opt">
+                  <option v-if="opt" :value="opt">{{ opt }}</option>
+                </template>
+              </select>
+              <button
+                v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
+                @click="askToggleSolo(div)"
+                :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
+                class="para-chip-sm px-2 py-1 type-label transition-colors"
+                :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
+              >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
+            </div>
+          </section>
+
+          <!-- ROSTER STATUS -->
+          <section v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name))">
+            <div class="section-rule section-rule-lg mb-3">
+              <span class="section-rule-label">Roster Status</span>
+              <div class="section-rule-line"></div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="para-chip-sm px-2.5 py-1 type-label text-content-secondary">{{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).total }} total</span>
+              <span class="para-chip-sm px-2.5 py-1 type-label" style="border-color:rgba(52,211,153,0.35);color:#34d399;">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+                {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).registered }} registered
               </span>
               <span
-                v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).unregistered > 0"
-                class="inline-flex items-center gap-1.5 type-label text-amber-400 shrink-0"
+                v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered > 0"
+                class="para-chip-sm px-2.5 py-1 type-label"
+                style="border-color:rgba(245,158,11,0.35);color:#f59e0b;"
               >
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
-                ⚠ {{ completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).unregistered }}
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
+                {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered }} unregistered
               </span>
-            </template>
-            <span
-              v-else-if="div.participantCount > 0"
-              class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0"
-              :title="`${div.participantCount} participant${div.participantCount === 1 ? '' : 's'}`"
-            >
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-              {{ div.participantCount }}
-            </span>
-          </div>
-
-          <!-- Expanded content -->
-          <div v-if="expandedDivisionId === div.eventGenreId" class="border-t border-white/[0.07] px-4 py-4 space-y-5">
-
-            <!-- SETTINGS. Name lives in the header (with a pencil), not here, so
-                 it isn't shown twice. Only format / solo / delete this category. -->
-            <section>
-              <div class="section-rule section-rule-lg mb-3">
-                <span class="section-rule-label">Settings</span>
-                <div class="section-rule-line"></div>
-              </div>
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="type-label text-content-muted">Format</span>
-                <select
-                  :value="div.format || ''"
-                  @change="saveDivisionFormat(div, $event.target.value)"
-                  class="type-name-sm px-2.5 py-1.5 para-chip-sm bg-transparent text-content-secondary"
-                >
-                  <option value="">No format</option>
-                  <template v-for="opt in divFormatOptions" :key="opt">
-                    <option v-if="opt" :value="opt">{{ opt }}</option>
-                  </template>
-                </select>
-                <button
-                  v-if="div.format && /^\d+v\d+$/i.test(div.format) && div.format.toLowerCase() !== '1v1'"
-                  @click="askToggleSolo(div)"
-                  :class="div.soloAllowed ? 'text-content-muted hover:text-amber-400' : 'text-amber-400 hover:text-content-muted'"
-                  class="para-chip-sm px-2 py-1 type-label transition-colors"
-                  :title="div.soloAllowed ? 'Solo entries allowed' : 'Solo entries blocked'"
-                >{{ div.soloAllowed ? 'SOLO OK' : 'NO SOLO' }}</button>
-              </div>
-            </section>
-
-            <!-- ROSTER STATUS -->
-            <section v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(div.name))">
-              <div class="section-rule section-rule-lg mb-3">
-                <span class="section-rule-label">Roster Status</span>
-                <div class="section-rule-line"></div>
-              </div>
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="para-chip-sm px-2.5 py-1 type-label text-content-secondary">{{ completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).total }} total</span>
-                <span class="para-chip-sm px-2.5 py-1 type-label" style="border-color:rgba(52,211,153,0.35);color:#34d399;">
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-                  {{ completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).registered }} registered
-                </span>
-                <span
-                  v-if="completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).unregistered > 0"
-                  class="para-chip-sm px-2.5 py-1 type-label"
-                  style="border-color:rgba(245,158,11,0.35);color:#f59e0b;"
-                >
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
-                  {{ completeBreakdown.find(b => b.genre === normalizeGenreName(div.name)).unregistered }} unregistered
-                </span>
-              </div>
-              <div v-if="getUnregistered(normalizeGenreName(div.name)).unregistered.length > 0" class="mt-2">
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="p in getUnregistered(normalizeGenreName(div.name)).unregistered"
-                    :key="p.participantName"
-                    class="para-chip-sm px-2.5 py-1 type-name-sm text-amber-400"
-                    style="border-color:rgba(245,158,11,0.25);"
-                  >{{ p.participantName }}</span>
-                </div>
-              </div>
-              <div v-else class="flex items-center gap-2 type-body text-emerald-400 mt-2">
-                <i class="pi pi-check-circle"></i>
-                <span>All participants registered</span>
-              </div>
-            </section>
-
-            <!-- SCORING CRITERIA -->
-            <section>
-              <div class="flex items-center gap-2 mb-3">
-                <div class="section-rule section-rule-lg flex-1 min-w-0">
-                  <span class="section-rule-label">Scoring Criteria</span>
-                  <div class="section-rule-line"></div>
-                </div>
-                <button
-                  @click="activeGenreTab = div.name; showCriteriaModal = true"
-                  class="para-chip-sm px-3 py-1.5 type-label shrink-0"
-                ><i class="pi pi-sliders-h mr-1" style="font-size:0.7rem"></i>Configure</button>
-              </div>
-              <div v-if="criteriaByGenre[div.name]?.length" class="flex flex-wrap gap-2">
-                <span
-                  v-for="c in criteriaByGenre[div.name]"
-                  :key="c.id"
-                  class="para-chip-sm px-3 py-1 type-label text-content-secondary inline-flex items-center gap-1.5"
-                >
-                  {{ c.name }}
-                  <span v-if="c.weight != null" class="text-content-muted">×{{ c.weight }}</span>
-                </span>
-              </div>
-              <p v-else class="type-prose">Default — single 0–10 score per judge.</p>
-            </section>
-
-            <!-- JUDGES (read-only) -->
-            <section>
-              <div class="section-rule section-rule-lg mb-3 flex-wrap">
-                <span class="section-rule-label">Judges</span>
-                <div class="section-rule-line"></div>
-                <button
-                  @click="setupSubTab = 'judges'; localStorage.setItem(`setupSubTab_${props.eventName}`, 'judges')"
-                  class="type-prose-sm text-content-muted hover:text-accent transition-colors hidden sm:inline"
-                  style="white-space:nowrap;"
-                >manage in Judges →</button>
-              </div>
-              <div v-if="(divisionJudges[div.name] || []).length > 0" class="flex flex-wrap gap-2">
-                <span
-                  v-for="j in (divisionJudges[div.name] || [])"
-                  :key="j.judgeId"
-                  class="flex items-center gap-1.5 para-chip px-2.5 py-1"
-                >
-                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-                  <span class="type-name-sm text-content-secondary">{{ j.judgeName }}</span>
-                </span>
-              </div>
-              <p v-else class="type-prose">No judges assigned. Add them in the Judges tab, then assign to this category.</p>
-            </section>
-
-            <!-- Danger zone — destructive action lives at the bottom so it isn't
-                 confused with the Settings row above. -->
-            <div class="pt-3 border-t border-rose-500/15 flex justify-end">
-              <button
-                @click="askRemoveDivision(div)"
-                class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-red-400 transition-colors flex items-center gap-1.5"
-                title="Delete this category — its participants and scores will be removed too"
-              ><i class="pi pi-trash text-xs"></i>Delete category</button>
             </div>
+            <div v-if="getUnregistered(normalizeCategoryName(div.name)).unregistered.length > 0" class="mt-2">
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="p in getUnregistered(normalizeCategoryName(div.name)).unregistered"
+                  :key="p.participantName"
+                  class="para-chip-sm px-2.5 py-1 type-name-sm text-amber-400"
+                  style="border-color:rgba(245,158,11,0.25);"
+                >{{ p.participantName }}</span>
+              </div>
+            </div>
+            <div v-else class="flex items-center gap-2 type-body text-emerald-400 mt-2">
+              <i class="pi pi-check-circle"></i>
+              <span>All participants registered</span>
+            </div>
+          </section>
 
+          <!-- SCORING CRITERIA -->
+          <section>
+            <div class="flex items-center gap-2 mb-3">
+              <div class="section-rule section-rule-lg flex-1 min-w-0">
+                <span class="section-rule-label">Scoring Criteria</span>
+                <div class="section-rule-line"></div>
+              </div>
+              <button
+                @click="activeCategoryTab = div.name; showCriteriaModal = true"
+                class="para-chip-sm px-3 py-1.5 type-label shrink-0"
+              ><i class="pi pi-sliders-h mr-1" style="font-size:0.7rem"></i>Configure</button>
+            </div>
+            <div v-if="criteriaByCategory[div.name]?.length" class="flex flex-wrap gap-2">
+              <span
+                v-for="c in criteriaByCategory[div.name]"
+                :key="c.id"
+                class="para-chip-sm px-3 py-1 type-label text-content-secondary inline-flex items-center gap-1.5"
+              >
+                {{ c.name }}
+                <span v-if="c.weight != null" class="text-content-muted">×{{ c.weight }}</span>
+              </span>
+            </div>
+            <p v-else class="type-prose">Default — single 0–10 score per judge.</p>
+          </section>
+
+          <!-- JUDGES (read-only) -->
+          <section>
+            <div class="section-rule section-rule-lg mb-3 flex-wrap">
+              <span class="section-rule-label">Judges</span>
+              <div class="section-rule-line"></div>
+              <button
+                @click="setupSubTab = 'judges'; localStorage.setItem(`setupSubTab_${props.eventName}`, 'judges')"
+                class="type-prose-sm text-content-muted hover:text-accent transition-colors hidden sm:inline"
+                style="white-space:nowrap;"
+              >manage in Judges →</button>
+            </div>
+            <div v-if="(divisionJudges[div.name] || []).length > 0" class="flex flex-wrap gap-2">
+              <span
+                v-for="j in (divisionJudges[div.name] || [])"
+                :key="j.judgeId"
+                class="flex items-center gap-1.5 para-chip px-2.5 py-1"
+              >
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
+                <span class="type-name-sm text-content-secondary">{{ j.judgeName }}</span>
+              </span>
+            </div>
+            <p v-else class="type-prose">No judges assigned. Add them in the Judges tab, then assign to this category.</p>
+          </section>
+
+          <!-- Danger zone — destructive action lives at the bottom so it isn't
+               confused with the Settings row above. -->
+          <div class="pt-3 border-t border-rose-500/15 flex justify-end">
+            <button
+              @click="askRemoveDivision(div)"
+              class="para-chip-sm px-3 py-1.5 type-label text-content-muted hover:text-red-400 transition-colors flex items-center gap-1.5"
+              title="Delete this category — its participants and scores will be removed too"
+            ><i class="pi pi-trash text-xs"></i>Delete category</button>
           </div>
-        </div>
 
-        <!-- Add division to group -->
-        <button
-          @click="addDivisionToGroup(group.genreId, group.label)"
-          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all w-full sm:w-auto"
-        >+ Add {{ group.label }} category</button>
+        </div>
       </div>
+
+      <!-- Add new category -->
+      <button
+        @click="addDivisionToGroup('all', 'Category')"
+        class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all w-full sm:w-auto"
+      >+ Add category</button>
     </div>
 
     <!-- Unmatched sheet values strip -->
@@ -1987,12 +1832,12 @@ onUnmounted(() => {
   </div>
 
   </template>
-  <!-- ── END Genres & Categories sub-tab ──────────────────────────────────── -->
+  <!-- ── END Categories sub-tab ─────────────────────────────────────────── -->
 
   <!-- ── Sub-tab: Judges ──────────────────────────────────────────────────── -->
   <template v-if="setupSubTab === 'judges'">
-  <!-- Judge Pool — sister card, kept above Genre Configuration so the two sections don't compete -->
-  <div v-if="tableExist && (eventGenres.length > 0 || linkedGenres.length > 0)" class="card-hover p-4 relative mt-6">
+  <!-- Judge Pool — sister card -->
+  <div v-if="tableExist && eventCategories.length > 0" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
 
     <div class="section-rule mb-1">
@@ -2039,12 +1884,12 @@ onUnmounted(() => {
           <div v-if="categoriesAssignedToJudge(j.judgeId).length > 0" class="flex flex-wrap gap-1.5 mb-1.5">
             <span
               v-for="cat in categoriesAssignedToJudge(j.judgeId)"
-              :key="cat.eventGenreId"
+              :key="cat.eventCategoryId"
               class="inline-flex items-center gap-2 para-chip-sm px-2.5 py-1.5 type-name-sm text-content-secondary"
             >
               {{ cat.name }}
               <button
-                @click="submitRemoveJudge(cat.eventGenreId, j.judgeId)"
+                @click="submitRemoveJudge(cat.eventCategoryId, j.judgeId)"
                 class="hover:text-red-400 transition-colors leading-none"
               ><i class="pi pi-times text-sm"></i></button>
             </span>
@@ -2061,8 +1906,8 @@ onUnmounted(() => {
           <option value="" disabled selected>+ Assign category</option>
           <option
             v-for="cat in categoriesUnassignedToJudge(j.judgeId)"
-            :key="cat.eventGenreId"
-            :value="cat.eventGenreId"
+            :key="cat.eventCategoryId"
+            :value="cat.eventCategoryId"
           >{{ cat.name }}</option>
         </select>
       </div>
@@ -2091,8 +1936,8 @@ onUnmounted(() => {
   </template>
   <!-- ── END Judges sub-tab ──────────────────────────────────────────────── -->
 
-  <!-- (Genre Configuration card removed — its content now lives inside each
-       division accordion block in the Genres & Categories sub-tab above.) -->
+  <!-- (Configuration card removed — its content now lives inside each
+       division accordion block in the Categories sub-tab above.) -->
 
 
   <!-- ── Sub-tab: Share Links ─────────────────────────────────────────────── -->
@@ -2330,7 +2175,7 @@ onUnmounted(() => {
                     <span class="type-label text-amber-400/80">No division assigned</span>
                   </span>
                   <!-- Per-division status: green = linked to division -->
-                  <span v-for="g in p.genres" :key="g.genreName"
+                  <span v-for="g in p.genres" :key="g.categoryName"
                     class="inline-flex items-center gap-1 badge-neutral"
                     style="text-transform:none;letter-spacing:0.02em;"
                   >
@@ -2338,7 +2183,7 @@ onUnmounted(() => {
                       class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
                       style="box-shadow:0 0 5px rgba(52,211,153,0.7)"
                     ></span>
-                    {{ g.genreName }}
+                    {{ g.categoryName }}
                     <span v-if="g.auditionNumber !== null" class="text-accent">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
@@ -2372,7 +2217,7 @@ onUnmounted(() => {
           <div class="flex gap-2">
             <div class="relative flex-1">
               <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
-              <input v-model="registeredSearch" type="text" placeholder="Search by name or genre…" autocomplete="off"
+              <input v-model="registeredSearch" type="text" placeholder="Search by name or category…" autocomplete="off"
                 class="input-base pr-8"
                 style="padding-left: 2.25rem"
               />
@@ -2381,15 +2226,15 @@ onUnmounted(() => {
                 <i class="pi pi-times text-xs"></i>
               </button>
             </div>
-            <select v-model="registeredGenreFilter"
+            <select v-model="registeredCategoryFilter"
               class="input-base"
               style="width: auto; flex-shrink: 0"
             >
-              <option value="">All genres</option>
-              <option v-for="g in registeredGenreOptions" :key="g" :value="g">{{ g }}</option>
+              <option value="">All categories</option>
+              <option v-for="g in registeredCategoryOptions" :key="g" :value="g">{{ g }}</option>
             </select>
           </div>
-          <p v-if="registeredSearch || registeredGenreFilter" class="type-label text-content-muted mt-2">
+          <p v-if="registeredSearch || registeredCategoryFilter" class="type-label text-content-muted mt-2">
             {{ filteredRegisteredList.length }} result{{ filteredRegisteredList.length !== 1 ? 's' : '' }}
           </p>
         </div>
@@ -2422,8 +2267,8 @@ onUnmounted(() => {
                 <span>{{ p.memberNames.join(', ') }}</span>
               </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
-                <span v-for="e in p.entries" :key="e.genre" class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">
-                  {{ e.genre }}<span style="color:var(--accent-color);margin-left:0.25rem">#{{ e.auditionNumber }}</span>
+                <span v-for="e in p.entries" :key="e.category" class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">
+                  {{ e.category }}<span style="color:var(--accent-color);margin-left:0.25rem">#{{ e.auditionNumber }}</span>
                 </span>
               </div>
             </div>
@@ -2524,13 +2369,13 @@ onUnmounted(() => {
   <CreateParticipantForm
     :show="showWalkInForm"
     :event="props.eventName"
-    :eventGenres="eventGenres"
+    :eventCategories="eventCategories"
     title="Add Walk-in Participant"
     @createNewEntry="handleWalkInCreated"
     @close="showWalkInForm = false"
   />
 
-  <!-- Genre Adjustment Modal -->
+  <!-- Category Adjustment Modal -->
   <Teleport to="body">
     <Transition
       enter-active-class="transition duration-200 ease-out"
@@ -2553,7 +2398,7 @@ onUnmounted(() => {
           <div class="flex items-center px-4 py-3 border-b border-surface-600/30 shrink-0">
             <div class="flex items-center gap-2">
               <i class="pi pi-sliders-h text-content-muted text-xs"></i>
-              <span class="type-body text-content-primary">Genre Entries</span>
+              <span class="type-body text-content-primary">Category Entries</span>
               <span class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">{{ props.eventName }}</span>
             </div>
           </div>
@@ -2618,23 +2463,23 @@ onUnmounted(() => {
               >
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow: 0 0 6px rgba(251,191,36,0.6)"></span>
                 <i class="pi pi-lock text-amber-400 text-xs shrink-0"></i>
-                <span class="type-prose" style="color:rgb(251 191 36);">Auditions have started — genre changes locked.</span>
+                <span class="type-prose" style="color:rgb(251 191 36);">Auditions have started — category changes locked.</span>
               </div>
 
-              <!-- Genre rows -->
+              <!-- Category rows -->
               <div class="space-y-2">
                 <div
-                  v-for="g in eventGenres"
+                  v-for="g in eventCategories"
                   :key="g.name"
                   class="para-chip flex items-center gap-3 px-3 py-2.5 transition-all duration-150"
-                  :class="adjustParticipantGenres.some(p => p.genreName === g.name)
+                  :class="adjustParticipantCategories.some(p => p.categoryName === g.name)
                     ? 'border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
                     : 'border-surface-600/40'"
                 >
                   <!-- Status indicator -->
                   <span
                     class="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                    :style="adjustParticipantGenres.some(p => p.genreName === g.name)
+                    :style="adjustParticipantCategories.some(p => p.categoryName === g.name)
                       ? 'background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)'
                       : 'background:rgba(255,255,255,0.15)'"
                   ></span>
@@ -2648,20 +2493,20 @@ onUnmounted(() => {
                   <!-- Action button -->
                   <button
                     v-if="!adjustParticipantLocked"
-                    @click="toggleAdjustGenre(g)"
+                    @click="toggleAdjustCategory(g)"
                     :disabled="adjustLoading"
                     class="para-chip-sm px-3 py-1 type-label transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                    :class="adjustParticipantGenres.some(p => p.genreName === g.name)
+                    :class="adjustParticipantCategories.some(p => p.categoryName === g.name)
                       ? 'text-red-400 border-red-500/40 hover:bg-red-500/10'
                       : 'text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)]'"
                   >
-                    {{ adjustParticipantGenres.some(p => p.genreName === g.name) ? 'Remove' : 'Add' }}
+                    {{ adjustParticipantCategories.some(p => p.categoryName === g.name) ? 'Remove' : 'Add' }}
                   </button>
                 </div>
               </div>
 
-              <p v-if="eventGenres.length === 0" class="type-prose text-center py-4">
-                No genres configured for this event.
+              <p v-if="eventCategories.length === 0" class="type-prose text-center py-4">
+                No categories configured for this event.
               </p>
             </template>
 
@@ -2673,12 +2518,12 @@ onUnmounted(() => {
     </Transition>
   </Teleport>
 
-  <!-- Genre Add Team Form -->
+  <!-- Category Add Team Form -->
   <Teleport to="body">
     <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
                 leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-      <div v-if="genreAddForm.show" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center pb-6 sm:p-4">
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="genreAddForm.show = false" />
+      <div v-if="categoryAddForm.show" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center pb-6 sm:p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="categoryAddForm.show = false" />
         <div class="card-hover relative w-full sm:max-w-sm flex flex-col" style="max-height:85vh">
           <div class="corner-bar-tl"></div>
           <div class="corner-bar-bl"></div>
@@ -2686,23 +2531,23 @@ onUnmounted(() => {
           <!-- Header -->
           <div class="px-4 py-3 border-b border-surface-600/30 shrink-0">
             <p class="type-body text-content-primary">Add Division</p>
-            <p class="type-label text-content-muted mt-0.5">{{ genreAddForm.genre?.name }} · {{ genreAddForm.genre?.format }}</p>
+            <p class="type-label text-content-muted mt-0.5">{{ categoryAddForm.category?.name }} · {{ categoryAddForm.category?.format }}</p>
           </div>
 
           <!-- Body -->
           <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
             <!-- Solo/Team toggle -->
-            <div v-if="genreAddForm.genre?.soloAllowed !== false">
+            <div v-if="categoryAddForm.category?.soloAllowed !== false">
               <label class="type-label text-content-muted mb-2 block">Entry Type</label>
               <div class="flex rounded-xl border border-surface-600/60 overflow-hidden text-sm">
-                <button type="button" @click="genreAddForm.entryMode = 'team'"
+                <button type="button" @click="categoryAddForm.entryMode = 'team'"
                   class="flex-1 px-4 py-2 type-label transition-all"
-                  :class="genreAddForm.entryMode === 'team' ? 'bg-[var(--accent-subtle)] text-accent border-r border-surface-600/60' : 'bg-surface-800 text-content-secondary hover:bg-surface-700 border-r border-surface-600/60'">
+                  :class="categoryAddForm.entryMode === 'team' ? 'bg-[var(--accent-subtle)] text-accent border-r border-surface-600/60' : 'bg-surface-800 text-content-secondary hover:bg-surface-700 border-r border-surface-600/60'">
                   Team
                 </button>
-                <button type="button" @click="genreAddForm.entryMode = 'solo'"
+                <button type="button" @click="categoryAddForm.entryMode = 'solo'"
                   class="flex-1 px-4 py-2 type-label transition-all"
-                  :class="genreAddForm.entryMode === 'solo' ? 'bg-[var(--accent-subtle)] text-accent' : 'bg-surface-800 text-content-secondary hover:bg-surface-700'">
+                  :class="categoryAddForm.entryMode === 'solo' ? 'bg-[var(--accent-subtle)] text-accent' : 'bg-surface-800 text-content-secondary hover:bg-surface-700'">
                   Solo
                 </button>
               </div>
@@ -2710,17 +2555,17 @@ onUnmounted(() => {
             <p v-else class="type-prose" style="color:rgb(251 191 36 / 0.85);">Solo entries not allowed — team entry only.</p>
 
             <!-- Team details -->
-            <template v-if="genreAddForm.entryMode === 'team'">
+            <template v-if="categoryAddForm.entryMode === 'team'">
               <div>
                 <label class="type-label text-content-muted mb-1.5 block">Team Name</label>
-                <input v-model="genreAddForm.teamName" type="text" placeholder="Enter team name…" class="input-base" />
+                <input v-model="categoryAddForm.teamName" type="text" placeholder="Enter team name…" class="input-base" />
               </div>
-              <div v-if="genreAddForm.members.length > 0">
+              <div v-if="categoryAddForm.members.length > 0">
                 <label class="type-label text-content-muted mb-1.5 block">Team Members</label>
-                <p class="type-prose-sm mb-2">{{ adjustParticipant }} is Member 1. Enter the other {{ genreAddForm.members.length }}.</p>
+                <p class="type-prose-sm mb-2">{{ adjustParticipant }} is Member 1. Enter the other {{ categoryAddForm.members.length }}.</p>
                 <div class="space-y-2">
-                  <input v-for="(_, i) in genreAddForm.members" :key="i"
-                    v-model="genreAddForm.members[i]"
+                  <input v-for="(_, i) in categoryAddForm.members" :key="i"
+                    v-model="categoryAddForm.members[i]"
                     type="text" :placeholder="`Member ${i + 2} stage name…`" class="input-base" />
                 </div>
               </div>
@@ -2729,11 +2574,11 @@ onUnmounted(() => {
 
           <!-- Footer -->
           <div class="flex gap-2 justify-end px-4 py-3 border-t border-surface-600/30 shrink-0">
-            <button @click="genreAddForm.show = false" class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary transition-colors">
+            <button @click="categoryAddForm.show = false" class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-content-primary transition-colors">
               Cancel
             </button>
-            <button @click="submitGenreAddForm"
-              :disabled="genreAddForm.entryMode === 'team' && !genreAddForm.teamName.trim()"
+            <button @click="submitCategoryAddForm"
+              :disabled="categoryAddForm.entryMode === 'team' && !categoryAddForm.teamName.trim()"
               class="para-chip-sm px-4 py-2 type-label text-accent border-[color:var(--accent-muted)] hover:bg-[var(--accent-subtle)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
               Add to Division
             </button>
@@ -2787,8 +2632,8 @@ onUnmounted(() => {
   <ScoringCriteriaModal
     v-model="showCriteriaModal"
     :eventName="props.eventName"
-    :genres="eventGenres.map(g => g.name)"
-    @update:modelValue="(v) => { if (!v) loadCriteriaForAllGenres(eventGenres) }"
+    :genres="eventCategories.map(g => g.name)"
+    @update:modelValue="(v) => { if (!v) loadCriteriaForAllCategories(eventCategories) }"
   />
 
   <!-- Check-In Confirmation Dialog -->
@@ -2838,7 +2683,7 @@ onUnmounted(() => {
             <div v-if="!checkinConfirm.participant?.genres?.length" class="type-label text-amber-400/80">
               No divisions assigned
             </div>
-            <div v-for="g in checkinConfirm.participant?.genres" :key="g.genreName"
+            <div v-for="g in checkinConfirm.participant?.genres" :key="g.categoryName"
               class="flex items-center gap-3 para-chip-sm px-3 py-2"
               :style="g.auditionNumber !== null
                 ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"
@@ -2851,13 +2696,13 @@ onUnmounted(() => {
                     ? 'background:rgba(245,158,11,0.7);box-shadow:0 0 6px rgba(245,158,11,0.5)'
                     : 'background:rgba(255,255,255,0.15)'">
               </span>
-              <span class="type-name text-content-primary flex-1">{{ g.genreName }}</span>
+              <span class="type-name text-content-primary flex-1">{{ g.categoryName }}</span>
               <!-- Number area -->
               <div class="flex items-baseline gap-1 tabular-nums min-w-[4rem] justify-end">
                 <template v-if="g.rolling">
                   <span class="type-label text-amber-400/60 text-xs">Drawing</span>
                   <span class="type-stat text-amber-400" style="font-size:1.4rem">
-                    {{ dialogFakeNums[g.genreName] ?? '—' }}
+                    {{ dialogFakeNums[g.categoryName] ?? '—' }}
                   </span>
                 </template>
                 <template v-else-if="g.auditionNumber !== null">

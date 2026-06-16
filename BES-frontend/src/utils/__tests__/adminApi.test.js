@@ -10,19 +10,6 @@ describe('adminApi.js', () => {
     mockFetch.mockReset()
   })
 
-  describe('addGenre', () => {
-    it('calls correct endpoint with genre name', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true })
-
-      await adminApi.addGenre('breaking')
-
-      const [url, opts] = mockFetch.mock.calls[0]
-      expect(url).toBe('/api/v1/admin/genre')
-      expect(opts.method).toBe('POST')
-      expect(JSON.parse(opts.body).name).toBe('breaking')
-    })
-  })
-
   describe('addJudge', () => {
     it('calls correct endpoint with judge name', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true })
@@ -32,19 +19,6 @@ describe('adminApi.js', () => {
       const [url, opts] = mockFetch.mock.calls[0]
       expect(url).toBe('/api/v1/admin/judge')
       expect(JSON.parse(opts.body).judgeName).toBe('Mike')
-    })
-  })
-
-  describe('deleteGenre', () => {
-    it('sends DELETE with id', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true })
-
-      await adminApi.deleteGenre(5)
-
-      const [url, opts] = mockFetch.mock.calls[0]
-      expect(url).toBe('/api/v1/admin/genre')
-      expect(opts.method).toBe('DELETE')
-      expect(JSON.parse(opts.body).id).toBe(5)
     })
   })
 
@@ -58,20 +32,6 @@ describe('adminApi.js', () => {
       expect(url).toBe('/api/v1/admin/judge')
       expect(opts.method).toBe('DELETE')
       expect(JSON.parse(opts.body).id).toBe(3)
-    })
-  })
-
-  describe('updateGenre', () => {
-    it('sends correct payload', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true })
-
-      await adminApi.updateGenre(1, 'popping')
-
-      const [url, opts] = mockFetch.mock.calls[0]
-      expect(url).toBe('/api/v1/admin/update-genre')
-      const body = JSON.parse(opts.body)
-      expect(body.id).toBe(1)
-      expect(body.newName).toBe('popping')
     })
   })
 

@@ -69,7 +69,7 @@ export const useAuthStore = defineStore('auth',{
             clearVerifiedEvents();
             localStorage.removeItem('selectedEvent');
             localStorage.removeItem('selectedRole');
-            localStorage.removeItem('selectedGenre');
+            localStorage.removeItem('selectedCategory');
             localStorage.removeItem('currentJudge');
         },
         fetchEventBattleEnabled(eventName) {

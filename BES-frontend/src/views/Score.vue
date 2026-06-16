@@ -1,17 +1,17 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getGenresByEvent } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
 
 const authStore = useAuthStore()
 const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem("selectedEvent") || "")
-// Per-event localStorage keys — selectedGenre / selectedTabMethod must not leak
-// across events. Falls back to a sensible default (first genre, By Total).
-const genreKey = (eventName) => `selectedGenre_${eventName || 'global'}`
+// Per-event localStorage keys — selectedCategory / selectedTabMethod must not leak
+// across events. Falls back to a sensible default (first category, By Total).
+const categoryKey = (eventName) => `selectedCategory_${eventName || 'global'}`
 const tabKey   = (eventName) => `selectedTabMethod_${eventName || 'global'}`
-const selectedGenre = ref(localStorage.getItem(genreKey(selectedEvent.value)) || '')
+const selectedCategory = ref(localStorage.getItem(categoryKey(selectedEvent.value)) || '')
 const selectedTabulation = ref(localStorage.getItem(tabKey(selectedEvent.value)) || 'By Total')
 const selectedTopN = ref("All")
 const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
@@ -38,8 +38,8 @@ watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadca
 const resultsReleased = ref(false)
 const refsMap = ref({}) // participantId -> { name, ref }
 
-// Criteria for the selected genre (used for multi-aspect score aggregation)
-const criteriaForGenre = ref([])
+// Criteria for the selected category (used for multi-aspect score aggregation)
+const criteriaForCategory = ref([])
 
 // Score breakdown modal
 const showBreakdown = ref(false)
@@ -56,9 +56,9 @@ const tieBreakerWinners = ref(new Set())
 const tieBreakerConfirmed = ref(false)
 const addedToPool = ref(new Set()) // manually-added pool members for the tie resolver
 
-// localStorage key scoped to event + genre + tabulation + topN
+// localStorage key scoped to event + category + tabulation + topN
 const tbKey = computed(() =>
-  `tb_${selectedEvent.value}_${selectedGenre.value}_${selectedTabulation.value}_${selectedTopN.value}`
+  `tb_${selectedEvent.value}_${selectedCategory.value}_${selectedTabulation.value}_${selectedTopN.value}`
 )
 const saveTieBreaker = () => {
   localStorage.setItem(tbKey.value, JSON.stringify({
@@ -87,18 +87,18 @@ const resetTieBreaker = () => {
   localStorage.removeItem(tbKey.value)
 }
 
-// All genres configured for the event (loaded from /event/genres).
-// Falls back to the genres derived from scored participants so unauthenticated
+// All categories configured for the event (loaded from /event/categories).
+// Falls back to the categories derived from scored participants so unauthenticated
 // or pre-init events still render something.
-const eventGenres = ref([])
-const uniqueGenres = computed(() => {
-  const fromEvent = eventGenres.value.map(g => g.name)
-  const fromScores = participants.value.map(p => p.genreName)
+const eventCategories = ref([])
+const uniqueCategories = computed(() => {
+  const fromEvent = eventCategories.value.map(g => g.name)
+  const fromScores = participants.value.map(p => p.categoryName)
   return [...new Set([...fromEvent, ...fromScores])].sort()
 })
 
 const hasTeamAndSoloMix = computed(() => {
-  const gp = participants.value.filter(p => p.genreName === selectedGenre.value)
+  const gp = participants.value.filter(p => p.categoryName === selectedCategory.value)
   const hasTeam = gp.some(p => p.format && p.format !== '1v1')
   const hasSolo = gp.some(p => !p.format)
   return hasTeam && hasSolo
@@ -144,8 +144,8 @@ const subscribeScoreUpdates = (eventName) => {
   subscribeToChannel(wsClient.value, `/topic/score/${eventName}`, async () => {
     await refetchScores(eventName)
     // Refresh the open feedback panel for the visible participant, if any.
-    if (showFeedbackPanel.value && feedbackParticipant.value && selectedGenre.value) {
-      const fb = await getParticipantFeedback(eventName, selectedGenre.value, feedbackParticipant.value)
+    if (showFeedbackPanel.value && feedbackParticipant.value && selectedCategory.value) {
+      const fb = await getParticipantFeedback(eventName, selectedCategory.value, feedbackParticipant.value)
       feedbackData.value = fb ?? []
     }
   })
@@ -160,13 +160,13 @@ onUnmounted(() => {
 watch(selectedEvent, async (newVal) => {
   if (newVal) {
     localStorage.setItem("selectedEvent", newVal);
-    eventGenres.value = await getGenresByEvent(newVal) ?? []
+    eventCategories.value = await getCategoriesByEvent(newVal) ?? []
     // Re-read per-event preferences (or fall back to defaults) so switching
-    // events does not carry over the previous event's genre selection.
-    const savedGenre = localStorage.getItem(genreKey(newVal))
+    // events does not carry over the previous event's category selection.
+    const savedGenre = localStorage.getItem(categoryKey(newVal))
     const savedTab   = localStorage.getItem(tabKey(newVal))
-    selectedGenre.value = savedGenre
-      || (eventGenres.value[0]?.name ?? '')
+    selectedCategory.value = savedGenre
+      || (eventCategories.value[0]?.name ?? '')
     selectedTabulation.value = savedTab || 'By Total'
     await refetchScores(newVal)
     await loadAdminData(newVal)
@@ -174,15 +174,15 @@ watch(selectedEvent, async (newVal) => {
   }
 }, { immediate: true });
 
-watch(selectedGenre, async (newVal) => {
+watch(selectedCategory, async (newVal) => {
   if (newVal) {
-    localStorage.setItem(genreKey(selectedEvent.value), newVal)
+    localStorage.setItem(categoryKey(selectedEvent.value), newVal)
     selectedTopN.value = 'All'
     selectedEntryType.value = 'Teams'
     if (selectedEvent.value && newVal !== 'All') {
-      criteriaForGenre.value = await getScoringCriteria(selectedEvent.value, newVal)
+      criteriaForCategory.value = await getScoringCriteria(selectedEvent.value, newVal)
     } else {
-      criteriaForGenre.value = []
+      criteriaForCategory.value = []
     }
   }
 }, { immediate: true });
@@ -195,7 +195,7 @@ watch(tbKey, loadTieBreaker, { immediate: true })
 
 const filteredParticipantsForScore = computed({
   get() {
-    return transformForScore(participants.value.filter(p => p.genreName === selectedGenre.value && matchesEntryType(p)))
+    return transformForScore(participants.value.filter(p => p.categoryName === selectedCategory.value && matchesEntryType(p)))
   }
 })
 
@@ -244,7 +244,7 @@ const tiedParticipants = computed(() => {
   return rows.slice(rows.length - topNResult.value.tiedCount)
 })
 
-// Full ranked rows for the current genre+type, used to feed the pool helpers.
+// Full ranked rows for the current category+type, used to feed the pool helpers.
 const allRowsForPool = computed(() => filteredParticipantsForScore.value.rows ?? [])
 
 // Tie base = the auto-detected tied participants (cannot be removed from pool).
@@ -292,7 +292,7 @@ const confirmTieBreaker = async () => {
     // Only confirm locally after the API succeeds — prevents false-positive UI state
     // when the server call fails silently.
     const resolved = finalRows.value.map(r => r.participantName)
-    const res = await setResolvedParticipants(selectedEvent.value, selectedGenre.value, resolved)
+    const res = await setResolvedParticipants(selectedEvent.value, selectedCategory.value, resolved)
     if (res && res.ok) {
       tieBreakerConfirmed.value = true
       saveTieBreaker()
@@ -430,7 +430,7 @@ const toggleRelease = async () => {
 const breakdownRows = computed(() => {
   if (!breakdownParticipant.value) return {}
   const raw = participants.value.filter(
-    p => p.participantName === breakdownParticipant.value && p.genreName === selectedGenre.value
+    p => p.participantName === breakdownParticipant.value && p.categoryName === selectedCategory.value
   )
   const byJudge = {}
   raw.forEach(d => {
@@ -453,7 +453,7 @@ const viewFeedback = async (name) => {
   feedbackData.value = []
   feedbackLoading.value = true
   showFeedbackPanel.value = true
-  const res = await getParticipantFeedback(selectedEvent.value, selectedGenre.value, name)
+  const res = await getParticipantFeedback(selectedEvent.value, selectedCategory.value, name)
   feedbackData.value = res ?? []
   feedbackLoading.value = false
 }
@@ -483,7 +483,7 @@ const groupTags = (tags) => {
 
 // Compute a judge's aggregate score for one participant from multi-aspect data
 function aggregateJudgeScore(aspectMap) {
-  const criteria = criteriaForGenre.value
+  const criteria = criteriaForCategory.value
   if (!criteria || criteria.length === 0) {
     // No criteria defined — sum all aspect values (should be one entry)
     return Object.values(aspectMap).reduce((s, v) => s + (v ?? 0), 0)
@@ -611,7 +611,7 @@ function transformForScore(data) {
       <div v-if="mode === 'control'">
         <p class="type-label text-content-muted mb-1">SCOREBOARD · <span class="type-name-sm">{{ selectedEvent }}</span></p>
         <h1 class="type-page-title">
-          {{ selectedGenre || 'No Genre' }}
+          {{ selectedCategory || 'No Category' }}
           <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
         </h1>
       </div>
@@ -649,16 +649,16 @@ function transformForScore(data) {
     <!-- Secondary filter row (Control mode only) -->
     <div v-if="mode === 'control'" class="card p-3 mb-6">
       <div class="flex flex-wrap items-center gap-3">
-        <!-- Genre -->
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
-          <span class="type-label text-content-muted self-center mr-1">GENRE</span>
+        <!-- Category -->
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category">
+          <span class="type-label text-content-muted self-center mr-1">CATEGORY</span>
           <button
-            v-for="g in uniqueGenres"
+            v-for="g in uniqueCategories"
             :key="g"
-            @click="selectedGenre = g"
-            :aria-pressed="selectedGenre === g"
+            @click="selectedCategory = g"
+            :aria-pressed="selectedCategory === g"
             class="para-chip-sm px-3 py-1.5 type-name-sm transition-all"
-            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+            :class="selectedCategory === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
         <span class="text-surface-600 select-none" aria-hidden="true">|</span>
@@ -955,8 +955,8 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
-        <p class="type-label text-content-muted mt-1">{{ selectedGenre ? 'Judges need to submit scores for this genre' : 'Select an event and genre to view scores' }}</p>
+        <p class="type-body text-content-secondary">{{ selectedCategory ? `No scores for ${selectedCategory}` : 'No scores yet' }}</p>
+        <p class="type-label text-content-muted mt-1">{{ selectedCategory ? 'Judges need to submit scores for this category' : 'Select an event and category to view scores' }}</p>
       </div>
     </template>
 
@@ -989,7 +989,7 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
+        <p class="type-body text-content-secondary">{{ selectedCategory ? `No scores for ${selectedCategory}` : 'No scores yet' }}</p>
       </div>
     </template>
 
@@ -998,24 +998,24 @@ function transformForScore(data) {
       <!-- Header -->
       <div class="mb-4">
         <p class="type-name-sm text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
-        <h1 class="type-page-title">{{ selectedGenre }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
+        <h1 class="type-page-title">{{ selectedCategory }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
         <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
       </div>
 
-      <!-- Compact genre + Top N switchers — practical override of "no chrome" rule so
-           emcees can switch genres / cut threshold without flipping to Control mid-show. -->
+      <!-- Compact category + Top N switchers — practical override of "no chrome" rule so
+           emcees can switch categories / cut threshold without flipping to Control mid-show. -->
       <div class="flex flex-wrap items-center gap-3 mb-6">
-        <div v-if="uniqueGenres.length > 1" class="flex flex-wrap gap-1" role="group" aria-label="Filter by genre">
+        <div v-if="uniqueCategories.length > 1" class="flex flex-wrap gap-1" role="group" aria-label="Filter by category">
           <button
-            v-for="g in uniqueGenres"
+            v-for="g in uniqueCategories"
             :key="g"
-            @click="selectedGenre = g"
-            :aria-pressed="selectedGenre === g"
+            @click="selectedCategory = g"
+            :aria-pressed="selectedCategory === g"
             class="para-chip-sm px-3 py-1.5 type-name-sm transition-all"
-            :class="selectedGenre === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
+            :class="selectedCategory === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
           >{{ g }}</button>
         </div>
-        <span v-if="uniqueGenres.length > 1" class="text-surface-600 select-none" aria-hidden="true">|</span>
+        <span v-if="uniqueCategories.length > 1" class="text-surface-600 select-none" aria-hidden="true">|</span>
         <div class="flex flex-wrap gap-1" role="group" aria-label="Qualify top N">
           <span class="type-label text-content-muted self-center mr-1">TOP</span>
           <button
@@ -1079,7 +1079,7 @@ function transformForScore(data) {
 
       <!-- Empty state -->
       <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-        <p class="type-body text-content-secondary">{{ selectedGenre ? `No scores for ${selectedGenre}` : 'No scores yet' }}</p>
+        <p class="type-body text-content-secondary">{{ selectedCategory ? `No scores for ${selectedCategory}` : 'No scores yet' }}</p>
       </div>
     </template>
 
@@ -1116,7 +1116,7 @@ function transformForScore(data) {
           </div>
           <div class="section-rule"><div class="section-rule-line"></div></div>
           <p class="type-label text-content-muted mt-2">
-            {{ feedbackParticipant }}<span v-if="selectedGenre" class="opacity-60"> · {{ selectedGenre }}</span>
+            {{ feedbackParticipant }}<span v-if="selectedCategory" class="opacity-60"> · {{ selectedCategory }}</span>
           </p>
         </div>
 
@@ -1212,7 +1212,7 @@ function transformForScore(data) {
             </button>
           </div>
           <div class="section-rule"><div class="section-rule-line"></div></div>
-          <p class="type-name text-content-muted mt-2"><span class="text-content-secondary">{{ breakdownParticipant }}</span> <span class="type-label">·</span> {{ selectedGenre }}</p>
+          <p class="type-name text-content-muted mt-2"><span class="text-content-secondary">{{ breakdownParticipant }}</span> <span class="type-label">·</span> {{ selectedCategory }}</p>
         </div>
         <!-- Content -->
         <div class="overflow-y-auto px-5 py-4 flex-1 space-y-5">

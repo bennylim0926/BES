@@ -2,24 +2,6 @@ const domain = ""
 
 export { setOrganiserTier } from '@/utils/api'
 
-export const addGenre = async(genreName)=>{
-    try{
-        return await fetch(`${domain}/api/v1/admin/genre`,{
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name: genreName,
-            })
-        })
-    }catch(_err){
-        // network error — caller handles undefined return
-    }
-}
-
 export const addJudge = async(judgeName)=>{
     try{
         return await fetch(`${domain}/api/v1/admin/judge`,{
@@ -31,24 +13,6 @@ export const addJudge = async(judgeName)=>{
             },
             body: JSON.stringify({
                 judgeName: judgeName,
-            })
-        })
-    }catch(_err){
-        // network error — caller handles undefined return
-    }
-}
-
-export const deleteGenre = async(id)=>{
-    try{
-        return await fetch(`${domain}/api/v1/admin/genre`,{
-            method: 'DELETE',
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                id: id,
             })
         })
     }catch(_err){
@@ -71,26 +35,6 @@ export const deleteJudge = async(id)=>{
         })
     }catch(_err){
         // network error — caller handles undefined return
-    }
-}
-
-export const updateGenre = async(id, newName, aliases)=>{
-    try{
-        await fetch(`${domain}/api/v1/admin/update-genre`,{
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                id: id,
-                newName: newName,
-                aliases: aliases ?? null
-            })
-        })
-    }catch(_err){
-        // network error — silent fail
     }
 }
 

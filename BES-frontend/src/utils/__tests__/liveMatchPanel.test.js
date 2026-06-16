@@ -4,8 +4,8 @@ import LiveMatchPanel from '@/components/LiveMatchPanel.vue'
 
 const defaultProps = {
   selectedEvent: 'Test Event',
-  selectedGenre: 'Hip Hop',
-  uniqueGenres: ['Hip Hop', 'Popping'],
+  selectedCategory: 'Hip Hop',
+  uniqueCategories: ['Hip Hop', 'Popping'],
   battlePhase: 'IDLE',
   battleJudges: [],
   currentBattle: [],
@@ -19,12 +19,12 @@ const defaultProps = {
   saveStatus: 'idle',
   finalTieBlocked: false,
   isReadonly: false,
-  genreChampions: {},
+  categoryChampions: {},
   revealActive: false
 }
 
 describe('LiveMatchPanel', () => {
-  it('renders genre switcher', () => {
+  it('renders category switcher', () => {
     const wrapper = mount(LiveMatchPanel, { props: defaultProps })
     expect(wrapper.text()).toContain('Hip Hop')
     expect(wrapper.text()).toContain('Popping')

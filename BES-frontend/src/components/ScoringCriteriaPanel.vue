@@ -4,7 +4,7 @@ import { getScoringCriteria, addScoringCriteria, deleteScoringCriteria } from '@
 
 const props = defineProps({
   eventName: { type: String, required: true },
-  genreName: { type: String, default: null },  // null = event-level panel
+  categoryName: { type: String, default: null },  // null = event-level panel
 })
 
 const criteria = ref([])
@@ -19,17 +19,17 @@ const showAddForm = ref(false)
 const load = async () => {
   if (!props.eventName) return
   loading.value = true
-  criteria.value = await getScoringCriteria(props.eventName, props.genreName)
+  criteria.value = await getScoringCriteria(props.eventName, props.categoryName)
   loading.value = false
 }
 
-watch(() => [props.eventName, props.genreName], load, { immediate: true })
+watch(() => [props.eventName, props.categoryName], load, { immediate: true })
 
 const add = async () => {
   if (!newName.value.trim()) return
   saving.value = true
   const result = await addScoringCriteria(props.eventName, {
-    genreName: props.genreName || null,
+    categoryName: props.categoryName || null,
     name: newName.value.trim(),
     maxScore: Number(newMaxScore.value) || 10,
     weight: newWeight.value ? Number(newWeight.value) : null,

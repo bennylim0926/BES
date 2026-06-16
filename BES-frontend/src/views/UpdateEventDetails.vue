@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import {
   getRegisteredParticipantsByEvent,
   deleteParticipantFromEvent,
-  removeParticipantGenre,
+  removeParticipantCategory,
   updateParticipant,
   updateParticipantsJudge
 } from '@/utils/api'
@@ -19,22 +19,22 @@ const rawRows     = ref([])
 const participants = computed(() => groupParticipants(rawRows.value))
 
 const search         = ref('')
-const activeGenre    = ref('All')
+const activeCategory    = ref('All')
 
-const genreList = computed(() => {
-  const names = [...new Set(rawRows.value.map(r => r.genreName))].sort()
+const categoryList = computed(() => {
+  const names = [...new Set(rawRows.value.map(r => r.categoryName))].sort()
   return ['All', ...names]
 })
 
-const genreCount = (genre) =>
-  genre === 'All'
+const categoryCount = (category) =>
+  category === 'All'
     ? participants.value.length
-    : participants.value.filter(p => p.genres.some(g => g.genreName === genre)).length
+    : participants.value.filter(p => p.genres.some(g => g.categoryName === category)).length
 
 const filtered = computed(() => {
   let list = participants.value
-  if (activeGenre.value !== 'All')
-    list = list.filter(p => p.genres.some(g => g.genreName === activeGenre.value))
+  if (activeCategory.value !== 'All')
+    list = list.filter(p => p.genres.some(g => g.categoryName === activeCategory.value))
   if (search.value.trim())
     list = list.filter(p => p.name.toLowerCase().includes(search.value.trim().toLowerCase()))
   return list
@@ -117,7 +117,7 @@ const confirmBulkDelete = () => {
   confirmState.value = {
     show: true,
     title: `Delete ${ids.length} Participant${ids.length > 1 ? 's' : ''}`,
-    message: `Permanently remove ${ids.length} participant${ids.length > 1 ? 's' : ''} from ${selectedEvent.value}? All genre entries, audition numbers, scores and feedback will be deleted. This cannot be undone.`,
+    message: `Permanently remove ${ids.length} participant${ids.length > 1 ? 's' : ''} from ${selectedEvent.value}? All category entries, audition numbers, scores and feedback will be deleted. This cannot be undone.`,
     onConfirm: async () => {
       await Promise.all(targets.map(p => deleteParticipantFromEvent(p.participantId, p.eventId)))
       confirmState.value.show = false
@@ -129,7 +129,7 @@ const confirmBulkDelete = () => {
 }
 
 const confirmDeleteParticipant = (p) => {
-  const genreList = p.genres.map(g => g.genreName).join(', ')
+  const categoryList = p.genres.map(g => g.categoryName).join(', ')
   confirmState.value = {
     show: true,
     title: 'Delete Participant',
@@ -143,23 +143,23 @@ const confirmDeleteParticipant = (p) => {
   }
 }
 
-const confirmRemoveGenre = (p, genre) => {
+const confirmRemoveCategory = (p, category) => {
   confirmState.value = {
     show: true,
-    title: 'Remove from Genre',
-    message: `Remove "${p.name}" from ${genre.genreName}? Their audition number will be released.`,
+    title: 'Remove from Category',
+    message: `Remove "${p.name}" from ${category.categoryName}? Their audition number will be released.`,
     onConfirm: async () => {
-      await removeParticipantGenre(p.participantId, p.eventId, genre.eventGenreId)
+      await removeParticipantCategory(p.participantId, p.eventId, category.eventCategoryId)
       confirmState.value.show = false
       await reload()
-      openToast('Genre removed')
+      openToast('Category removed')
     }
   }
 }
 
-const assignJudge = async (p, genre, judgeName) => {
+const assignJudge = async (p, category, judgeName) => {
   await updateParticipantsJudge(p.eventId, [
-    { eventName: selectedEvent.value, participantName: p.name, genreName: genre.genreName, judgeName }
+    { eventName: selectedEvent.value, participantName: p.name, categoryName: category.categoryName, judgeName }
   ])
   await reload()
 }
@@ -200,8 +200,8 @@ function groupParticipants(rows) {
       })
     }
     map.get(row.participantId).genres.push({
-      genreName:    row.genreName,
-      eventGenreId: row.eventGenreId,
+      categoryName:    row.categoryName,
+      eventCategoryId: row.eventCategoryId,
       judgeName:    row.judgeName || '',
       auditionNumber: row.auditionNumber
     })
@@ -260,16 +260,16 @@ onMounted(async () => {
           placeholder="Search name..."
         />
         <!-- aria-pressed exposes the active filter beyond color -->
-        <div class="genre-chips" role="group" aria-label="Filter by genre">
+        <div class="category-chips" role="group" aria-label="Filter by category">
           <button
-            v-for="genre in genreList"
-            :key="genre"
-            :aria-pressed="activeGenre === genre"
-            :class="['genre-chip', activeGenre === genre && 'active']"
-            @click="activeGenre = genre"
+            v-for="cat in categoryList"
+            :key="cat"
+            :aria-pressed="activeCategory === cat"
+            :class="['category-chip', activeCategory === cat && 'active']"
+            @click="activeCategory = cat"
           >
-            {{ genre }}
-            <span class="count-badge">{{ genreCount(genre) }}</span>
+            {{ cat }}
+            <span class="count-badge">{{ categoryCount(cat) }}</span>
           </button>
         </div>
         <div class="flex items-center gap-2 mt-3 pt-3 border-t border-surface-600/30">
@@ -313,7 +313,7 @@ onMounted(async () => {
           <div class="pt-col-expand"></div>
           <div class="pt-col-name">Name</div>
           <div class="pt-col-format">Format</div>
-          <div class="pt-col-genres">Genres</div>
+          <div class="pt-col-genres">Categories</div>
           <div class="pt-col-actions"></div>
         </div>
 
@@ -329,7 +329,7 @@ onMounted(async () => {
             <!-- aria-expanded + label: glyph-only expander gets semantics -->
             <button class="expand-btn" @click="toggle(p.participantId)"
               :aria-expanded="expanded.has(p.participantId)"
-              :aria-label="`Show genres for ${p.name}`">
+              :aria-label="`Show categories for ${p.name}`">
               <i class="pi" :class="expanded.has(p.participantId) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true"></i>
             </button>
             <div class="pt-col-name">
@@ -344,8 +344,8 @@ onMounted(async () => {
               <span
                 v-for="g in p.genres"
                 :key="g.genreName"
-                class="genre-pill"
-              >{{ g.genreName }}</span>
+                class="category-pill"
+              >{{ g.categoryName }}</span>
             </div>
             <div class="pt-col-actions">
               <button class="btn-action" @click="openEdit(p)">
@@ -359,27 +359,27 @@ onMounted(async () => {
 
           <template v-if="expanded.has(p.participantId)">
             <div
-              v-for="genre in p.genres"
-              :key="genre.genreName"
+              v-for="category in p.genres"
+              :key="category.categoryName"
               class="pt-subrow"
             >
               <span class="subrow-indent">↳</span>
-              <span class="genre-pill">{{ genre.genreName }}</span>
+              <span class="category-pill">{{ category.categoryName }}</span>
               <span class="subrow-label">Judge:</span>
               <select
                 class="judge-select"
-                :value="genre.judgeName"
-                :aria-label="`Assign judge for ${p.name} in ${genre.genreName}`"
-                @change="assignJudge(p, genre, $event.target.value)"
+                :value="category.judgeName"
+                :aria-label="`Assign judge for ${p.name} in ${category.categoryName}`"
+                @change="assignJudge(p, category, $event.target.value)"
               >
                 <option value="">—</option>
                 <option v-for="j in allJudges" :key="j" :value="j">{{ j }}</option>
               </select>
-              <span v-if="genre.auditionNumber" class="audition-num">#{{ genre.auditionNumber }}</span>
+              <span v-if="category.auditionNumber" class="audition-num">#{{ category.auditionNumber }}</span>
               <button
-                class="btn-remove-genre"
-                @click="confirmRemoveGenre(p, genre)"
-              >Remove Genre</button>
+                class="btn-remove-category"
+                @click="confirmRemoveCategory(p, category)"
+              >Remove Category</button>
             </div>
           </template>
         </template>
@@ -477,8 +477,8 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 .search-input::placeholder { color: rgba(255,255,255,0.25); }
-.genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.genre-chip {
+.category-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.category-chip {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 12px; font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: 0.02em;
   border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
@@ -486,7 +486,7 @@ onMounted(async () => {
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
   transition: all 0.15s;
 }
-.genre-chip.active {
+.category-chip.active {
   background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.35);
   color: rgba(255,255,255,0.9);
 }
@@ -555,7 +555,7 @@ onMounted(async () => {
   font-size: 15px; letter-spacing: 0.02em;
   color: rgba(255,255,255,0.92);
 }
-/* Format + genre chips reuse para-chip styling so they match the rest of the app */
+/* Format + category chips reuse para-chip styling so they match the rest of the app */
 .format-badge {
   display: inline-flex; align-items: center;
   font-family: 'Oswald', sans-serif;
@@ -568,7 +568,7 @@ onMounted(async () => {
 }
 .format-badge.solo { color: rgba(255,255,255,0.55); }
 .format-badge.team { color: var(--accent-color); border-color: var(--accent-muted); }
-.genre-pill {
+.category-pill {
   display: inline-block;
   font-family: 'Oswald', sans-serif;
   padding: 2px 10px;
@@ -602,13 +602,13 @@ onMounted(async () => {
   color: rgba(255,255,255,0.7); font-size: 11px; padding: 3px 6px;
 }
 .audition-num { font-size: 10px; color: rgba(255,255,255,0.3); letter-spacing: 0.08em; }
-.btn-remove-genre {
+.btn-remove-category {
   margin-left: auto; background: none;
   border: 1px solid rgba(239,68,68,0.2); color: rgba(248,113,113,0.55);
   font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 3px 8px; cursor: pointer;
 }
-.btn-remove-genre:hover { border-color: rgba(239,68,68,0.45); color: #f87171; }
+.btn-remove-category:hover { border-color: rgba(239,68,68,0.45); color: #f87171; }
 
 .empty-state {
   display: flex; flex-direction: column; align-items: center;
@@ -691,8 +691,8 @@ onMounted(async () => {
 
   /* 44px tap targets on touch screens */
   .expand-btn { width: 44px; height: 44px; }
-  .btn-action, .btn-remove-genre { min-height: 44px; padding: 4px 14px; }
+  .btn-action, .btn-remove-category { min-height: 44px; padding: 4px 14px; }
   .judge-select { min-height: 44px; }
-  .genre-chip { min-height: 44px; }
+  .category-chip { min-height: 44px; }
 }
 </style>
