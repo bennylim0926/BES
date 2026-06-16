@@ -2,12 +2,12 @@ package com.example.BES.services;
 
 import com.example.BES.dtos.GetResultsDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategory;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.AuditionFeedbackRepository;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.ScoreRepo;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.*;
 class ResultsServiceTest {
 
     @Mock EventParticipantRepo eventParticipantRepo;
-    @Mock EventGenreParticpantRepo egpRepo;
+    @Mock EventCategoryParticipantRepo egpRepo;
     @Mock ScoreRepo scoreRepo;
     @Mock AuditionFeedbackRepository feedbackRepo;
     @InjectMocks ResultsService service;
@@ -66,17 +66,17 @@ class ResultsServiceTest {
         ep.setParticipant(p);
         ep.setDisplayName("Player1");
 
-        EventGenre eventGenre = new EventGenre();
-        eventGenre.setName("breaking");
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        when(egp.getEventGenre()).thenReturn(eventGenre);
+        EventCategory eventCategory = new EventCategory();
+        eventCategory.setName("breaking");
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
+        when(egp.getEventCategory()).thenReturn(eventCategory);
         when(egp.getFormat()).thenReturn("1v1");
         when(egp.getAuditionNumber()).thenReturn(1);
 
         when(eventParticipantRepo.findByReferenceCode("ABC123")).thenReturn(Optional.of(ep));
         when(egpRepo.findByEventIdAndParticipantId(1L, 10L)).thenReturn(List.of(egp));
-        when(scoreRepo.findByEventGenreParticipant(egp)).thenReturn(List.of());
-        when(feedbackRepo.findByEventGenreParticipant(egp)).thenReturn(List.of());
+        when(scoreRepo.findByEventCategoryParticipant(egp)).thenReturn(List.of());
+        when(feedbackRepo.findByEventCategoryParticipant(egp)).thenReturn(List.of());
 
         GetResultsDto result = service.getResultsByRefCode("ABC123");
 

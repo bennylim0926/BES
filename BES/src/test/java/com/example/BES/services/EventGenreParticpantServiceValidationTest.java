@@ -6,9 +6,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
-class EventGenreParticpantServiceValidationTest {
+class EventCategoryParticipantServiceValidationTest {
 
-    private final EventGenreParticpantService service = new EventGenreParticpantService();
+    private final EventCategoryParticipantService service = new EventCategoryParticipantService();
 
     @Test
     void parseFormatSize_returns_correct_size() {

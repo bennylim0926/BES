@@ -25,14 +25,14 @@ class RegistrationServiceImportTest {
     @Mock ParticipantService participantService;
     @Mock ParticipantRepo participantRepo;
     @Mock EventParticipantRepo eventParticipantRepo;
-    @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
+    @Mock EventCategoryParticipantRepo eventGenreParticipantRepo;
     @Mock EventParticipantTeamMemberRepo teamMemberRepo;
-    @Mock EventGenreRepo eventGenreRepo;
-    @Mock EventGenreParticipantMemberRepo egpMemberRepo;
+    @Mock EventCategoryRepo eventGenreRepo;
+    @Mock EventCategoryParticipantMemberRepo egpMemberRepo;
     @Mock GoogleSheetService sheetService;
 
     private Event mockEvent;
-    private EventGenre mockEventGenre;
+    private EventCategory mockEventGenre;
 
     @BeforeEach
     void setUp() {
@@ -41,7 +41,7 @@ class RegistrationServiceImportTest {
         mockEvent.setEventName("TestEvent");
         mockEvent.setPaymentRequired(false);
 
-        mockEventGenre = new EventGenre();
+        mockEventGenre = new EventCategory();
         mockEventGenre.setFormat("2v2");
         mockEventGenre.setName("popping");
         mockEventGenre.setSoloAllowed(false);
@@ -116,9 +116,9 @@ class RegistrationServiceImportTest {
         ImportResultDto result = service.addParticipantToEvent(dto);
 
         assertThat(result.imported).isEqualTo(1);
-        ArgumentCaptor<EventGenreParticipant> captor = ArgumentCaptor.forClass(EventGenreParticipant.class);
+        ArgumentCaptor<EventCategoryParticipant> captor = ArgumentCaptor.forClass(EventCategoryParticipant.class);
         verify(eventGenreParticipantRepo).save(captor.capture());
-        EventGenreParticipant savedEgp = captor.getValue();
+        EventCategoryParticipant savedEgp = captor.getValue();
         assertThat(savedEgp.getFormat()).isNull();
         assertThat(savedEgp.getTeamName()).isNull();
     }
@@ -146,13 +146,13 @@ class RegistrationServiceImportTest {
         ImportResultDto result = service.addParticipantToEvent(dto);
 
         assertThat(result.imported).isEqualTo(1);
-        ArgumentCaptor<EventGenreParticipant> captor = ArgumentCaptor.forClass(EventGenreParticipant.class);
+        ArgumentCaptor<EventCategoryParticipant> captor = ArgumentCaptor.forClass(EventCategoryParticipant.class);
         verify(eventGenreParticipantRepo).save(captor.capture());
-        EventGenreParticipant savedEgp = captor.getValue();
+        EventCategoryParticipant savedEgp = captor.getValue();
         assertThat(savedEgp.getFormat()).isEqualTo("2v2");
         assertThat(savedEgp.getTeamName()).isEqualTo("Crew D");
         assertThat(savedEgp.getDisplayName()).isEqualTo("Crew D");
-        verify(egpMemberRepo).save(any(EventGenreParticipantMember.class));
+        verify(egpMemberRepo).save(any(EventCategoryParticipantMember.class));
     }
 
     @Test

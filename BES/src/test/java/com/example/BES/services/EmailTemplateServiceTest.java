@@ -5,7 +5,7 @@ import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventEmailTemplate;
 import com.example.BES.respositories.EventEmailTemplateRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 class EmailTemplateServiceTest {
 
     @Mock EventEmailTemplateRepo repo;
-    @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventCategoryRepo eventGenreRepo;
     @Mock EventRepo eventRepo;
     @InjectMocks EmailTemplateService service;
 

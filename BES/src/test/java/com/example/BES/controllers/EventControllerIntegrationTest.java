@@ -26,27 +26,19 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.example.BES.dtos.AddCategoryToEventDto;
 import com.example.BES.dtos.AddEventDto;
-import com.example.BES.dtos.AddGenreToEventDto;
+import com.example.BES.dtos.AddParticipantToEventCategoryDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
-import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetEventDto;
-import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
-import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreParticipant;
-import com.example.BES.models.EventParticipant;
-import com.example.BES.models.Genre;
-import com.example.BES.models.Participant;
 import com.example.BES.services.CheckinPreviewService;
-import com.example.BES.services.EventGenreParticpantService;
-import com.example.BES.services.EventGenreService;
+import com.example.BES.services.EventCategoryParticipantService;
+import com.example.BES.services.EventCategoryService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
-import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
@@ -71,11 +63,9 @@ public class EventControllerIntegrationTest {
     @MockBean
     private EventParticpantService eventParticipantService;
     @MockBean
-    private EventGenreService eventGenreService;
+    private EventCategoryService eventCategoryService;
     @MockBean
-    private EventGenreParticpantService eventGenreParticipantService;
-    @MockBean
-    private GenreService genreService;
+    private EventCategoryParticipantService eventCategoryParticipantService;
     @MockBean
     private RegistrationService registerService;
     @MockBean
@@ -125,16 +115,16 @@ public class EventControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = {"ADMIN"})
-    public void testAssignGenreToEvent() throws Exception {
-        String json = objectMapper.writeValueAsString(Map.of("eventName", "Test Event", "divisions", List.of(Map.of("name", "Hip Hop"))));
+    public void testAssignCategoryToEvent() throws Exception {
+        String json = objectMapper.writeValueAsString(Map.of("eventName", "Test Event", "categories", List.of(Map.of("name", "Hip Hop"))));
 
-        doNothing().when(eventGenreService).addGenreToEventService(any(AddGenreToEventDto.class));
+        doNothing().when(eventCategoryService).addCategoryToEventService(any(AddCategoryToEventDto.class));
 
-        mockMvc.perform(post("/api/v1/event/genre")
+        mockMvc.perform(post("/api/v1/event/category")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value("Created event with genres"));
+                .andExpect(jsonPath("$").value("Created event with categories"));
     }
 
     @Test
@@ -176,7 +166,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser
     public void testRegisterParticipantAllGenres() throws Exception {
-        doNothing().when(eventGenreParticipantService).getAllAuditionNumsViaQR(1L, 2L);
+        doNothing().when(eventCategoryParticipantService).getAllAuditionNumsViaQR(1L, 2L);
 
         mockMvc.perform(get("/api/v1/event/register-participant/1/2"))
                .andExpect(status().isCreated())
@@ -186,7 +176,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser
     public void testRegisterParticipantWithGenre() throws Exception {
-        doNothing().when(eventGenreParticipantService).getAuditionNumViaQR(any(AddParticipantToEventGenreDto.class));
+        doNothing().when(eventCategoryParticipantService).getAuditionNumViaQR(any(AddParticipantToEventCategoryDto.class));
 
         mockMvc.perform(get("/api/v1/event/register-participant/1/2/3"))
                 .andExpect(status().isCreated())
@@ -215,8 +205,8 @@ public class EventControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = {"ADMIN"})
-    public void testGetParticipantsFromEventGenre() throws Exception {
-        when(eventGenreParticipantService.getAllEventGenreParticipantByEventService(any())).thenReturn(Collections.emptyList());
+    public void testGetParticipantsFromEventCategory() throws Exception {
+        when(eventCategoryParticipantService.getAllEventCategoryParticipantByEventService(any())).thenReturn(Collections.emptyList());
         mockMvc.perform(get("/api/v1/event/participants/Summer"))
                 .andExpect(status().isOk());
     }
@@ -244,9 +234,9 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     void testAddDivision() throws Exception {
-        String json = objectMapper.writeValueAsString(Map.of("name", "New Division", "format", "1v1", "genreId", 1));
+        String json = objectMapper.writeValueAsString(Map.of("name", "New Division", "format", "1v1"));
 
-        doNothing().when(eventGenreService).addGenreToEventService(any(AddGenreToEventDto.class));
+        doNothing().when(eventCategoryService).addCategoryToEventService(any(AddCategoryToEventDto.class));
 
         mockMvc.perform(post("/api/v1/event/TestEvent/divisions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -258,7 +248,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     void testRenameDivision() throws Exception {
-        doNothing().when(eventGenreService).renameDivision(anyLong(), anyString());
+        doNothing().when(eventCategoryService).renameDivision(anyLong(), anyString());
 
         mockMvc.perform(patch("/api/v1/event/TestEvent/divisions/1/name")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -270,7 +260,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     void testUpdateAliases() throws Exception {
-        doNothing().when(eventGenreService).updateAliases(anyLong(), anyString());
+        doNothing().when(eventCategoryService).updateAliases(anyLong(), anyString());
 
         mockMvc.perform(patch("/api/v1/event/TestEvent/divisions/1/aliases")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -282,7 +272,7 @@ public class EventControllerIntegrationTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     void testDeleteDivision() throws Exception {
-        doNothing().when(eventGenreService).deleteDivision(anyLong());
+        doNothing().when(eventCategoryService).deleteDivision(anyLong());
 
         mockMvc.perform(delete("/api/v1/event/TestEvent/divisions/1"))
             .andExpect(status().isOk())

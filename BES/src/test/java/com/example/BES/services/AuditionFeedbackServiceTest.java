@@ -3,12 +3,12 @@ package com.example.BES.services;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.admin.GetFeedbackGroupDto;
 import com.example.BES.models.AuditionFeedback;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.FeedbackTag;
 import com.example.BES.models.FeedbackTagGroup;
 import com.example.BES.models.Judge;
 import com.example.BES.respositories.AuditionFeedbackRepository;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.FeedbackTagGroupRepository;
 import com.example.BES.respositories.FeedbackTagRepository;
 import com.example.BES.respositories.JudgeRepo;
@@ -32,7 +32,7 @@ class AuditionFeedbackServiceTest {
     @Mock AuditionFeedbackRepository feedbackRepo;
     @Mock FeedbackTagGroupRepository tagGroupRepo;
     @Mock FeedbackTagRepository tagRepo;
-    @Mock EventGenreParticpantRepo egpRepo;
+    @Mock EventCategoryParticipantRepo egpRepo;
     @Mock JudgeRepo judgeRepo;
     @Mock SimpMessagingTemplate messagingTemplate;
     @InjectMocks AuditionFeedbackService service;
@@ -93,7 +93,7 @@ class AuditionFeedbackServiceTest {
         dto.setGenreName("breaking");
         dto.setAuditionNumber(1);
         dto.setJudgeName("Ghost");
-        when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
+        when(egpRepo.findByEventNameAndCategoryNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.empty());
 
         service.submitFeedback(dto);
@@ -108,8 +108,8 @@ class AuditionFeedbackServiceTest {
         dto.setGenreName("breaking");
         dto.setAuditionNumber(1);
         dto.setJudgeName("Ghost");
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
+        when(egpRepo.findByEventNameAndCategoryNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Ghost")).thenReturn(Optional.empty());
 
@@ -128,12 +128,12 @@ class AuditionFeedbackServiceTest {
         dto.setTagIds(List.of());
         dto.setNote("Great energy");
 
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
         Judge judge = new Judge(); judge.setName("Mike");
-        when(egpRepo.findByEventNameAndGenreNameAndAuditionNumber("Fest", "breaking", 1))
+        when(egpRepo.findByEventNameAndCategoryNameAndAuditionNumber("Fest", "breaking", 1))
             .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Mike")).thenReturn(Optional.of(judge));
-        when(feedbackRepo.findByEventGenreParticipantAndJudge(egp, judge))
+        when(feedbackRepo.findByEventCategoryParticipantAndJudge(egp, judge))
             .thenReturn(Optional.empty());
 
         service.submitFeedback(dto);
@@ -143,7 +143,7 @@ class AuditionFeedbackServiceTest {
 
     @Test
     void getAllFeedbackForParticipant_returnsEmptyWhenEgpNotFound() {
-        when(egpRepo.findByEventGenreParticipant("Fest", "breaking", "Player1"))
+        when(egpRepo.findByEventCategoryParticipant("Fest", "breaking", "Player1"))
             .thenReturn(Optional.empty());
 
         assertThat(service.getAllFeedbackForParticipant("Fest", "breaking", "Player1")).isEmpty();
