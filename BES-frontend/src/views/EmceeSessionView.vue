@@ -10,6 +10,7 @@ const authStore = useAuthStore()
 const eventName = computed(() => authStore.activeEvent?.name || '')
 const sessionReady = ref(false)
 const loading = ref(true)
+const sessionError = ref(false)
 
 const showCategoryPicker = ref(false)
 const categories = ref([])
@@ -51,6 +52,10 @@ function handleNavClick(link) {
 }
 
 function selectCategory(categoryName) {
+  if (!sessionReady.value) {
+    sessionError.value = true
+    return
+  }
   localStorage.setItem('selectedCategory', categoryName)
   localStorage.setItem('selectedRole', 'Emcee')
   router.push({ name: 'Audition List' })
@@ -61,15 +66,8 @@ function selectCategory(categoryName) {
   <div class="session-root">
     <div class="color-bleed"></div>
 
-    <!-- Not authenticated / session lost -->
-    <div v-if="!loading && !sessionReady" class="session-card">
-      <h1 class="session-title">SESSION NOT FOUND</h1>
-      <p class="empty-text">Your session could not be restored. Please use your invitation link again, or contact the event organiser for a new link.</p>
-      <router-link to="/login" class="session-link">Go to login</router-link>
-    </div>
-
-    <!-- Main hub -->
-    <div v-else class="session-card session-card--wide">
+    <!-- Main hub — session is validated when emcee selects a category -->
+    <div class="session-card session-card--wide">
 
       <!-- Title -->
       <h1 class="session-title">EMCEE SESSION</h1>
@@ -95,6 +93,10 @@ function selectCategory(categoryName) {
           <button class="back-btn" @click="showCategoryPicker = false">‹ BACK</button>
           <span class="section-label">SELECT CATEGORY</span>
           <span class="section-rule"></span>
+        </div>
+        <div v-if="sessionError" class="session-error-banner">
+          <span>Session invalid — please use your invitation link again or</span>
+          <router-link to="/login" class="session-link-inline">log in</router-link>
         </div>
         <div class="category-list">
           <button
@@ -302,6 +304,24 @@ function selectCategory(categoryName) {
 }
 .category-btn-name { flex: 1; text-align: left; }
 .category-btn-arrow { font-size: 10px; opacity: 0.4; }
+
+.session-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-left: 3px solid rgba(239,68,68,0.8);
+  background: rgba(239,68,68,0.08);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(239,68,68,0.85);
+}
+.session-link-inline {
+  color: rgba(255,255,255,0.7);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* Navigation grid */
 .nav-grid {
