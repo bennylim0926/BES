@@ -135,6 +135,11 @@ onMounted(async () => {
   await loadCategoriesForOperator()
 })
 
+// Auth may not be ready at mount time — load categories once operator status resolves
+watch(isOperator, (val) => {
+  if (val && eventCategories.value.length === 0) loadCategoriesForOperator()
+})
+
 onUnmounted(() => {
   stopLocalTimer()
   if (currentSubscription) currentSubscription.unsubscribe()
