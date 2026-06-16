@@ -5,16 +5,16 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
-public class AddGenreToEventDto {
+public class AddCategoryToEventDto {
     @NotBlank @Size(max = 255)
     public String eventName;
     @NotEmpty
-    public List<Division> divisions;
+    public List<Category> categories;
 
-    public static class Division {
+    public static class Category {
         @NotBlank @Size(max = 255)
         public String name;
         public String format;
-        public Long genreId;
+        // Note: genreId removed — categories no longer link to global genre
     }
 }
