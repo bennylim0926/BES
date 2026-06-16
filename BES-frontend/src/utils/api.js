@@ -1587,8 +1587,7 @@ export const setResolvedParticipants = async (eventName, categoryName, participa
 
 export const postAuditionDisplayState = async (state) => {
   try {
-    const category = encodeURIComponent(state.categoryName || '')
-    return await fetch(`${domain}/api/v1/event/audition-display?event=${encodeURIComponent(state.eventName)}&category=${category}`, {
+    return await fetch(`${domain}/api/v1/event/audition-display`, {
       method: 'POST',
       credentials: 'include',
       headers: {
