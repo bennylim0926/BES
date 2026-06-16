@@ -1,31 +1,14 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 const props = defineProps({
   buttonName: { type: String, required: true, default: '' },
-  accessCode: { type: String, default: null },
   expanded:   { type: Boolean, default: false },  // controlled by parent
 })
 
-const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'updateCode', 'toggle'])
+const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle'])
 
 const isHovered = ref(false)  // desktop only
-
-const editingCode = ref(false)
-const newCode     = ref('')
-const saving      = ref(false)
-const codeDisplay = ref(props.accessCode)
-const codeVisible = ref(false)
-
-watch(() => props.accessCode, (val) => { codeDisplay.value = val })
-
-const startEdit  = (e) => { e.stopPropagation(); newCode.value = codeDisplay.value || ''; editingCode.value = true }
-const saveCode   = async (e) => {
-  e.stopPropagation(); saving.value = true
-  try { emit('updateCode', newCode.value); codeDisplay.value = newCode.value; editingCode.value = false }
-  finally { saving.value = false }
-}
-const cancelEdit = (e) => { e.stopPropagation(); editingCode.value = false }
 
 const actions = [
   { key: 'onDetails',      icon: 'pi-cog',      label: 'Details'  },
@@ -51,37 +34,6 @@ const actions = [
       <div class="flex items-center gap-3">
         <div class="type-name flex-1 line-clamp-2">
           {{ props.buttonName }}
-        </div>
-
-        <!-- Access code (admin only) -->
-        <div v-if="props.accessCode !== null" class="flex items-center gap-1.5 flex-shrink-0" @click.stop>
-          <template v-if="!editingCode">
-            <span class="font-source text-xs text-content-muted tracking-widest">
-              {{ codeVisible ? codeDisplay : '••••' }}
-            </span>
-            <button
-              @mousedown.stop="codeVisible = true" @mouseup.stop="codeVisible = false"
-              @mouseleave.stop="codeVisible = false" @touchstart.prevent.stop="codeVisible = true"
-              @touchend.stop="codeVisible = false"
-              class="text-content-muted hover:text-accent transition-colors select-none touch-none"
-            ><i class="pi pi-eye text-xs"></i></button>
-            <button @click.stop="startEdit" class="text-content-muted hover:text-accent transition-colors"
-            ><i class="pi pi-pencil text-xs"></i></button>
-          </template>
-          <template v-else>
-            <input v-model="newCode" type="text" inputmode="numeric" maxlength="4" @click.stop
-              class="w-14 px-1.5 py-0.5 border border-[color:var(--accent-muted)] bg-surface-900 font-source text-xs tracking-widest text-center text-content-primary focus:outline-none"
-              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-            />
-            <button @click.stop="saveCode" :disabled="saving"
-              class="text-xs px-1.5 py-0.5 bg-accent text-surface-900 transition-colors"
-              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-            >{{ saving ? '…' : 'Save' }}</button>
-            <button @click.stop="cancelEdit"
-              class="text-xs px-1.5 py-0.5 border border-surface-600 text-content-secondary hover:bg-surface-700 transition-colors"
-              style="clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-            >✕</button>
-          </template>
         </div>
 
         <i class="pi pi-chevron-down text-xs text-surface-500 transition-all duration-200 flex-shrink-0"

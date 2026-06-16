@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchAllFolderEvents, fetchAllEvents, updateEventAccessCode } from '@/utils/api'
+import { fetchAllFolderEvents, fetchAllEvents } from '@/utils/api'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
@@ -26,25 +26,6 @@ const filtered = computed(() => {
     : events.value.filter(e => dbEvents.value.some(db => db.name === e.folderName))
   return base.filter(e => e.folderName.toLowerCase().includes(search.value.toLowerCase()))
 })
-
-function getAccessCode(folderName) {
-  if (!isAdmin.value) return null
-  const match = dbEvents.value.find(e => e.name === folderName)
-  return match?.accessCode ?? null
-}
-
-function getDbEventId(folderName) {
-  const match = dbEvents.value.find(e => e.name === folderName)
-  return match?.id ?? null
-}
-
-async function handleUpdateCode(folderName, newCode) {
-  const id = getDbEventId(folderName)
-  if (!id) return
-  await updateEventAccessCode(id, newCode)
-  const idx = dbEvents.value.findIndex(e => e.name === folderName)
-  if (idx !== -1) dbEvents.value[idx] = { ...dbEvents.value[idx], accessCode: newCode }
-}
 
 async function goToEventDetails(eventName, folderID) {
   await useDelay().wait(200)
@@ -114,7 +95,6 @@ onMounted(async () => {
         v-for="event in filtered"
         :key="event.folderID"
         :buttonName="event.folderName"
-        :accessCode="getAccessCode(event.folderName)"
         :expanded="expandedId === event.folderID"
         @toggle="toggleExpanded(event.folderID)"
         @onDetails="goToEventDetails(event.folderName, event.folderID)"
@@ -122,7 +102,6 @@ onMounted(async () => {
         @onParticipants="activateAndGo(event.folderName, 'Update Event Details')"
         @onScoreboard="activateAndGo(event.folderName, 'Score')"
         @onBattle="activateAndGo(event.folderName, 'Battle Control')"
-        @updateCode="(code) => handleUpdateCode(event.folderName, code)"
       />
     </div>
 
