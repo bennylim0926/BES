@@ -51,7 +51,7 @@ public class ResultsController {
     }
 
     @GetMapping("/qr")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<byte[]> getResultsQr(@RequestParam String ref) {
         try {
             String domain = env.getProperty("DOMAIN", "");
