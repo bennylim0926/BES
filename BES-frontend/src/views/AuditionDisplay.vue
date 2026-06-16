@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getAuditionDisplayState, getCategoriesByEvent, updateCategoryNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
@@ -10,14 +10,19 @@ const authStore = useAuthStore()
 const eventName = ref(route.query.event || '')
 const state = ref(null)
 const client = ref(null)
+let currentSubscription = null
 
-// ── Operator overlay: visible only to logged-in operators, hidden in OBS broadcasts ──
+// ── Category selection — drives which WS topic we listen to ──────────────────
+const selectedCategory = ref(route.query.category || '')
+
+// ── Operator overlay: visible only to logged-in operators ─────────────────────
 const isOperator = computed(() => !!authStore.isAuthenticated && !!authStore.user)
 const showOperatorPanel = ref(false)
 const eventCategories = ref([])
+
 const activeCategoryEntry = computed(() => {
-  if (!state.value?.categoryName) return null
-  return eventCategories.value.find(g => g.name === state.value.categoryName) ?? null
+  if (!selectedCategory.value) return null
+  return eventCategories.value.find(g => g.name === selectedCategory.value) ?? null
 })
 
 async function loadCategoriesForOperator() {
@@ -34,12 +39,7 @@ async function saveOperatorNumberColor(color) {
   if (state.value) state.value = { ...state.value, numberColor: next }
 }
 
-watch(() => state.value?.categoryName, () => {
-  // Refresh the matched category cache when the active category changes
-  if (isOperator.value && eventCategories.value.length === 0) loadCategoriesForOperator()
-})
-
-// ── Local timer ticker (reconstructed from backend timerStartedAt + timerDuration) ──
+// ── Local timer ticker ────────────────────────────────────────────────────────
 const displayTimeLeft = ref(0)
 let timerInterval = null
 
@@ -58,28 +58,7 @@ function stopLocalTimer() {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null }
 }
 
-// ── Computed ──────────────────────────────────────────────────────────────────
-const isStandby  = computed(() => !state.value || state.value.standby)
-const mode       = computed(() => state.value?.mode ?? 'SOLO')
-const categoryName  = computed(() => state.value?.categoryName ?? '')
-const eventLabel = computed(() => state.value?.eventName ?? eventName.value ?? '')
-const roundLabel = computed(() => {
-  if (!state.value || !state.value.totalRounds) return ''
-  return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
-})
-const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
-const numberColor     = computed(() => state.value?.numberColor ?? null)
-const currentSlots = computed(() => state.value?.currentSlots ?? [])
-const nextSlots    = computed(() => state.value?.nextSlots ?? [])
-
-const isNearEnd  = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
-const isFinished = computed(() => displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
-const timerLabel = computed(() => {
-  if (!state.value?.timerDuration) return ''
-  return String(displayTimeLeft.value)
-})
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
+// ── State application ─────────────────────────────────────────────────────────
 function applyState(newState) {
   state.value = newState
   if (newState.timerRunning && newState.timerStartedAt && newState.timerDuration) {
@@ -90,22 +69,77 @@ function applyState(newState) {
   }
 }
 
+// ── Computed display values ───────────────────────────────────────────────────
+const isStandby     = computed(() => !selectedCategory.value || !state.value || state.value.standby)
+const mode          = computed(() => state.value?.mode ?? 'SOLO')
+const categoryName  = computed(() => state.value?.categoryName ?? '')
+const eventLabel    = computed(() => state.value?.eventName ?? eventName.value ?? '')
+const roundLabel    = computed(() => {
+  if (!state.value || !state.value.totalRounds) return ''
+  return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
+})
+const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
+const numberColor   = computed(() => state.value?.numberColor ?? null)
+const currentSlots  = computed(() => state.value?.currentSlots ?? [])
+const nextSlots     = computed(() => state.value?.nextSlots ?? [])
+const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
+const isFinished    = computed(() => displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
+const timerLabel    = computed(() => {
+  if (!state.value?.timerDuration) return ''
+  return String(displayTimeLeft.value)
+})
+
+// ── Category subscription watcher ─────────────────────────────────────────────
+watch(selectedCategory, async (newCat) => {
+  // Tear down previous subscription
+  if (currentSubscription) { currentSubscription.unsubscribe(); currentSubscription = null }
+  stopLocalTimer()
+  state.value = null
+
+  if (!newCat || !eventName.value) return
+
+  // Fetch initial state for the new category
+  const initial = await getAuditionDisplayState(eventName.value, newCat)
+  if (initial) applyState(initial)
+
+  // Subscribe to category-specific topic
+  const encodedCat = encodeURIComponent(newCat)
+  currentSubscription = subscribeToChannel(
+    client.value,
+    `/topic/audition/${eventName.value}/${encodedCat}/display`,
+    applyState
+  )
+
+  // Update URL so operator can copy it into OBS browser source
+  const url = new URL(window.location.href)
+  url.searchParams.set('category', newCat)
+  history.pushState({}, '', url)
+})
+
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   if (!eventName.value) return
 
-  const initial = await getAuditionDisplayState(eventName.value)
-  if (initial) applyState(initial)
-
   client.value = createClient()
-  subscribeToChannel(client.value, `/topic/audition/${eventName.value}/display`, (msg) => {
-    applyState(msg)
-  })
+
+  // If category already in URL (OBS path or returning operator), subscribe immediately
+  if (selectedCategory.value) {
+    const initial = await getAuditionDisplayState(eventName.value, selectedCategory.value)
+    if (initial) applyState(initial)
+    const encodedCat = encodeURIComponent(selectedCategory.value)
+    currentSubscription = subscribeToChannel(
+      client.value,
+      `/topic/audition/${eventName.value}/${encodedCat}/display`,
+      applyState
+    )
+  }
 
   await loadCategoriesForOperator()
 })
 
 onUnmounted(() => {
   stopLocalTimer()
+  if (currentSubscription) currentSubscription.unsubscribe()
   if (client.value) deactivateClient(client.value)
 })
 </script>
@@ -124,7 +158,9 @@ onUnmounted(() => {
       <div class="corner-bar-bl"></div>
       <span class="type-label text-content-muted" style="font-size:14px;letter-spacing:0.22em">{{ eventLabel }}</span>
       <span class="type-stat text-accent" style="font-size: clamp(48px,8vw,80px);margin-top:12px">STANDBY</span>
-      <span class="type-label text-content-muted" style="margin-top:8px">AWAITING AUDITION START</span>
+      <span class="type-label text-content-muted" style="margin-top:8px">
+        {{ selectedCategory ? 'AWAITING AUDITION START' : 'SELECT A CATEGORY TO BEGIN' }}
+      </span>
     </div>
 
     <!-- ACTIVE display -->
@@ -203,8 +239,24 @@ onUnmounted(() => {
         <div v-if="showOperatorPanel" class="op-panel">
           <div class="op-panel-header">
             <span class="op-panel-title">Display Settings</span>
-            <span class="op-panel-category">{{ state?.categoryName || '—' }}</span>
+            <span class="op-panel-category">{{ selectedCategory || '—' }}</span>
           </div>
+
+          <!-- Category selector -->
+          <div class="op-row" style="margin-bottom:12px">
+            <span class="op-row-label">Monitoring Category</span>
+            <select
+              v-model="selectedCategory"
+              class="op-select"
+            >
+              <option value="">— Select —</option>
+              <option v-for="cat in eventCategories" :key="cat.eventCategoryId" :value="cat.name">
+                {{ cat.name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Number color -->
           <div class="op-row">
             <span class="op-row-label">Audition Number Color</span>
             <div class="op-row-controls">
@@ -226,7 +278,7 @@ onUnmounted(() => {
             </div>
           </div>
           <p v-if="!activeCategoryEntry" class="op-warn">
-            Waiting for a category to be active — start a round to enable controls.
+            Select a category above to enable controls.
           </p>
         </div>
       </div>
@@ -259,7 +311,7 @@ onUnmounted(() => {
 .display-root {
   position: fixed;
   inset: 0;
-  background: #060818;
+  background: #111111;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -662,5 +714,20 @@ onUnmounted(() => {
 .corner-bar-bl {
   bottom: 0; left: 0;
   width: 2px; height: 20px;
+}
+.op-select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-width: 120px;
+}
+.op-select option {
+  background: #1a1a1a;
 }
 </style>
