@@ -35,7 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.BES.dtos.battle.ChampionRevealDto;
 import com.example.BES.dtos.battle.DeleteImageDto;
-import com.example.BES.dtos.battle.SetActiveGenreDto;
+import com.example.BES.dtos.battle.SetActiveCategoryDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetBattlePhaseDto;
@@ -424,28 +424,28 @@ public class BattleController {
         return ResponseEntity.ok(battleService.getOverlayConfig(eName));
     }
 
-    @PostMapping("/active-genre")
+    @PostMapping("/active-category")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
-    public ResponseEntity<?> setActiveGenre(Authentication auth, @Valid @RequestBody SetActiveGenreDto dto) {
+    public ResponseEntity<?> setActiveCategory(Authentication auth, @Valid @RequestBody SetActiveCategoryDto dto) {
         checkBattleAccess(auth, dto.getEventName());
-        battleService.switchActiveGenreService(dto);
-        return ResponseEntity.ok(Map.of("message", "Active genre set"));
+        battleService.switchActiveCategoryService(dto);
+        return ResponseEntity.ok(Map.of("message", "Active category set"));
     }
 
-    @GetMapping("/active-genre")
-    public ResponseEntity<?> getActiveGenre() {
+    @GetMapping("/active-category")
+    public ResponseEntity<?> getActiveCategory() {
         return ResponseEntity.ok(Map.of(
             "eventName", battleService.getActiveEventName() != null ? battleService.getActiveEventName() : "",
-            "genreName", battleService.getActiveGenreName() != null ? battleService.getActiveGenreName() : ""
+            "categoryName", battleService.getActiveGenreName() != null ? battleService.getActiveGenreName() : ""
         ));
     }
 
-    @GetMapping("/genre-state")
+    @GetMapping("/category-state")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> getGenreState(
+    public ResponseEntity<?> getCategoryStateFromDb(
             @RequestParam String event,
-            @RequestParam String genre) {
-        Map<String, Object> state = battleService.getGenreStateFromDbService(event, genre);
+            @RequestParam String category) {
+        Map<String, Object> state = battleService.getCategoryStateFromDbService(event, category);
         return ResponseEntity.ok(state);
     }
 

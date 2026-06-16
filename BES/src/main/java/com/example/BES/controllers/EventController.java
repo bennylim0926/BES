@@ -28,10 +28,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.AddCategoryToEventDto;
 import com.example.BES.dtos.AddDivisionDto;
 import com.example.BES.dtos.AddEventDto;
-import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.LinkGenresDto;
 import com.example.BES.dtos.AddScoringCriteriaDto;
 import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
@@ -42,19 +41,19 @@ import com.example.BES.dtos.UpdateAccessCodeDto;
 import com.example.BES.dtos.VerifyAccessCodeDto;
 // import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddJudgeDto;
+import com.example.BES.dtos.AddParticipantToEventCategoryDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
-import com.example.BES.dtos.AddParticipantToEventGenreDto;
 import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetEventDto;
-import com.example.BES.dtos.GetEventGenreParticipantDto;
+import com.example.BES.dtos.GetEventCategoryDto;
+import com.example.BES.dtos.GetEventCategoryParticipantDto;
 import com.example.BES.dtos.GetEventDivisionDto;
-import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
-import com.example.BES.dtos.UpdateParticipantGenreDto;
+import com.example.BES.dtos.UpdateParticipantCategoryDto;
 import com.example.BES.dtos.UpdateParticipantJudgeDto;
 import com.example.BES.dtos.UpdateParticipantDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
@@ -62,7 +61,6 @@ import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.dtos.AddBattleGuestDto;
 import com.example.BES.dtos.GetBattleGuestDto;
 import com.example.BES.dtos.GetCheckinListDto;
-import com.example.BES.models.EventGenreParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
 import com.example.BES.dtos.CreatePickupCrewDto;
@@ -70,13 +68,12 @@ import com.example.BES.dtos.GetPickupCrewDto;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.BattleGuestService;
 import com.example.BES.services.CheckinPreviewService;
-import com.example.BES.services.EventGenreParticpantService;
+import com.example.BES.services.EventCategoryParticipantService;
+import com.example.BES.services.EventCategoryService;
 import com.example.BES.services.PickupCrewService;
 import com.example.BES.services.ScoringCriteriaService;
-import com.example.BES.services.EventGenreService;
 import com.example.BES.services.EventParticpantService;
 import com.example.BES.services.EventService;
-import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ParticipantService;
 import com.example.BES.services.RegistrationService;
@@ -115,13 +112,10 @@ public class EventController {
     EventParticpantService eventParticipantService;
 
     @Autowired
-    EventGenreService eventGenreService;
+    EventCategoryService eventCategoryService;
 
     @Autowired
-    EventGenreParticpantService eventGenreParticipantService;
-
-    @Autowired
-    GenreService genreService;
+    EventCategoryParticipantService eventCategoryParticipantService;
 
     @Autowired
     RegistrationService registerService;
@@ -247,57 +241,51 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Get All Genres", description = "Returns all available genres in the system")
-    @GetMapping("/genre")
-    public ResponseEntity<List<GetGenreDto>> getAllGenres() {
-        return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
+    @Operation(summary = "Get Categories by Event", description = "Returns categories linked to a specific event")
+    @GetMapping("/{eventName}/categories")
+    public ResponseEntity<List<GetEventCategoryDto>> getCategoriesByEvent(@PathVariable String eventName) {
+        return new ResponseEntity<>(eventCategoryService.getCategoriesByEventService(eventName), HttpStatus.OK);
     }
 
-    @Operation(summary = "Get Genres by Event", description = "Returns divisions linked to a specific event")
-    @GetMapping("/{eventName}/genres")
-    public ResponseEntity<List<GetEventDivisionDto>> getGenresByEvent(@PathVariable String eventName) {
-        return new ResponseEntity<>(eventGenreService.getGenresByEventService(eventName), HttpStatus.OK);
-    }
-
-    @Operation(summary = "Update Event Genre Format", description = "Sets the battle format for a genre in a specific event (e.g. '2v2')")
-    @PostMapping("/{eventName}/genres/{eventGenreId}/format")
+    @Operation(summary = "Update Event Category Format", description = "Sets the battle format for a category in a specific event (e.g. '2v2')")
+    @PostMapping("/{eventName}/categories/{categoryId}/format")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> updateEventGenreFormat(
+    public ResponseEntity<?> updateEventCategoryFormat(
             @PathVariable String eventName,
-            @PathVariable Long eventGenreId,
+            @PathVariable Long categoryId,
             @Valid @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateEventGenreFormat(eventGenreId, body.get("format"));
+            eventCategoryService.updateEventCategoryFormat(categoryId, body.get("format"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
-    @Operation(summary = "Update Genre Round Label", description = "Sets an optional round label (e.g. 'Preliminary Round') for the audition display")
-    @PostMapping("/{eventName}/genres/{eventGenreId}/round-label")
+    @Operation(summary = "Update Category Round Label", description = "Sets an optional round label (e.g. 'Preliminary Round') for the audition display")
+    @PostMapping("/{eventName}/categories/{categoryId}/round-label")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> updateGenreRoundLabel(
+    public ResponseEntity<?> updateCategoryRoundLabel(
             @PathVariable String eventName,
-            @PathVariable Long eventGenreId,
+            @PathVariable Long categoryId,
             @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateRoundLabel(eventGenreId, body.get("roundLabel"));
+            eventCategoryService.updateRoundLabel(categoryId, body.get("roundLabel"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
-    @Operation(summary = "Update Genre Number Color", description = "Sets the audition number color for the display screen")
-    @PostMapping("/{eventName}/genres/{eventGenreId}/number-color")
+    @Operation(summary = "Update Category Number Color", description = "Sets the audition number color for the display screen")
+    @PostMapping("/{eventName}/categories/{categoryId}/number-color")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> updateGenreNumberColor(
+    public ResponseEntity<?> updateCategoryNumberColor(
             @PathVariable String eventName,
-            @PathVariable Long eventGenreId,
+            @PathVariable Long categoryId,
             @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateNumberColor(eventGenreId, body.get("numberColor"));
+            eventCategoryService.updateNumberColor(categoryId, body.get("numberColor"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -311,48 +299,14 @@ public class EventController {
         return new ResponseEntity<>(gson.toJson("Table created"), HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Assign Genre to Event", description = "Links a genre to an existing event")
-    @PostMapping("/genre")
-    public ResponseEntity<String> assignGenreToEvent(@Valid @RequestBody AddGenreToEventDto dto) {
+    @Operation(summary = "Add Category to Event", description = "Adds a category to an existing event")
+    @PostMapping("/category")
+    public ResponseEntity<String> addCategoryToEvent(@Valid @RequestBody AddCategoryToEventDto dto) {
         try {
-            eventGenreService.addGenreToEventService(dto);
-            return new ResponseEntity<>(gson.toJson(String.format("Created event with genres")), HttpStatus.CREATED);
+            eventCategoryService.addCategoryToEventService(dto);
+            return new ResponseEntity<>(gson.toJson("Created event with categories"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
-        }
-    }
-
-    @Operation(summary = "Link genres to event", description = "Records which genres an event uses, independent of categories. Idempotent.")
-    @PostMapping("/{eventName}/linked-genres")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<String> linkGenresToEvent(
-            @PathVariable String eventName,
-            @Valid @RequestBody LinkGenresDto dto) {
-        try {
-            eventGenreService.linkGenresToEvent(eventName, dto.genreIds);
-            return new ResponseEntity<>(gson.toJson("Genres linked"), HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
-        }
-    }
-
-    @Operation(summary = "Get linked genres for event", description = "Returns genres this event uses, even if they have zero categories.")
-    @GetMapping("/{eventName}/linked-genres")
-    public ResponseEntity<List<GetGenreDto>> getLinkedGenres(@PathVariable String eventName) {
-        return new ResponseEntity<>(eventGenreService.getLinkedGenresService(eventName), HttpStatus.OK);
-    }
-
-    @Operation(summary = "Unlink genre from event", description = "Removes the event↔genre link. Existing categories under this genre are not deleted automatically.")
-    @DeleteMapping("/{eventName}/linked-genres/{genreId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<String> unlinkGenreFromEvent(
-            @PathVariable String eventName,
-            @PathVariable Long genreId) {
-        try {
-            eventGenreService.unlinkGenreFromEvent(eventName, genreId);
-            return new ResponseEntity<>(gson.toJson("Genre unlinked"), HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -524,14 +478,14 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Get Participants by Event Genre", description = "Retrieves a list of participants for a specific event based on their genre")
+    @Operation(summary = "Get Participants by Event Category", description = "Retrieves a list of participants for a specific event based on their category")
     @GetMapping("/participants/{eventName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE', 'HELPER')")
-    public ResponseEntity<List<GetEventGenreParticipantDto>> getParticipantsFromEventGenre(
+    public ResponseEntity<List<GetEventCategoryParticipantDto>> getParticipantsFromEventCategory(
             @PathVariable String eventName) throws IOException, MessagingException, WriterException {
         try {
-            List<GetEventGenreParticipantDto> results = eventGenreParticipantService
-                    .getAllEventGenreParticipantByEventService(eventName);
+            List<GetEventCategoryParticipantDto> results = eventCategoryParticipantService
+                    .getAllEventCategoryParticipantByEventService(eventName);
             if (results.size() > 0) {
                 return new ResponseEntity<>(results, HttpStatus.OK);
             }
@@ -580,13 +534,13 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Register Participant All Genres", description = "Scans one QR and assigns audition numbers for all genres the participant is enrolled in")
+    @Operation(summary = "Register Participant All Categories", description = "Scans one QR and assigns audition numbers for all categories the participant is enrolled in")
     @GetMapping("/register-participant/{participantId}/{eventId}")
-    public ResponseEntity<String> registerParticipantAllGenres(
+    public ResponseEntity<String> registerParticipantAllCategories(
             @PathVariable Long participantId,
             @PathVariable Long eventId) {
         try {
-            eventGenreParticipantService.getAllAuditionNumsViaQR(participantId, eventId);
+            eventCategoryParticipantService.getAllAuditionNumsViaQR(participantId, eventId);
             String eventName = eventService.getEventNameById(eventId);
             checkinPreviewService.clearPreview(eventName, participantId);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
@@ -606,16 +560,16 @@ public class EventController {
      * based on genre
      * @deprecated Use /register-participant/{participantId}/{eventId} (single QR) instead
      */
-    @Operation(summary = "Register Participant with Genre (Deprecated)", description = "Registers a participant and generates an audition number via QR scan for a specific genre. Deprecated: use the 2-param endpoint instead.")
-    @GetMapping("/register-participant/{participantId}/{eventId}/{eventGenreId}")
-    public ResponseEntity<String> registerParticipantWithGenre(@PathVariable Long participantId,
-            @PathVariable Long eventId, @PathVariable Long eventGenreId) throws IOException {
+    @Operation(summary = "Register Participant with Category (Deprecated)", description = "Registers a participant and generates an audition number via QR scan for a specific category. Deprecated: use the 2-param endpoint instead.")
+    @GetMapping("/register-participant/{participantId}/{eventId}/{eventCategoryId}")
+    public ResponseEntity<String> registerParticipantWithCategory(@PathVariable Long participantId,
+            @PathVariable Long eventId, @PathVariable Long eventCategoryId) throws IOException {
         try {
-            AddParticipantToEventGenreDto dto = new AddParticipantToEventGenreDto();
+            AddParticipantToEventCategoryDto dto = new AddParticipantToEventCategoryDto();
             dto.participantId = participantId;
             dto.eventId = eventId;
-            dto.eventGenreId = eventGenreId;
-            eventGenreParticipantService.getAuditionNumViaQR(dto);
+            dto.eventCategoryId = eventCategoryId;
+            eventCategoryParticipantService.getAuditionNumViaQR(dto);
             return new ResponseEntity<>("registered", HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
@@ -627,8 +581,7 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<String> updateParticipantJudge(@Valid @RequestBody UpdateParticipantJudgeDto dto) {
         try {
-            // eventGenreParticipantService.addParticipantToEventGenreService(dto);
-            eventGenreParticipantService.updateParticipantsJudgeService(dto);
+            eventCategoryParticipantService.updateParticipantsJudgeService(dto);
             return new ResponseEntity<>(gson.toJson("All updated"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson("Failed to update"), HttpStatus.BAD_REQUEST);
@@ -664,10 +617,10 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
     public ResponseEntity<?> resetScoresByJudge(
             @RequestParam String eventName,
-            @RequestParam String genreName,
+            @RequestParam String categoryName,
             @RequestParam String judgeName) {
         try {
-            scoreService.resetScoresByJudge(eventName, genreName, judgeName);
+            scoreService.resetScoresByJudge(eventName, categoryName, judgeName);
             return ResponseEntity.ok(Map.of("message", "Scores reset"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -678,10 +631,10 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'JUDGE')")
     public ResponseEntity<?> resetFeedbackByJudge(
             @RequestParam String eventName,
-            @RequestParam String genreName,
+            @RequestParam String categoryName,
             @RequestParam String judgeName) {
         try {
-            feedbackService.resetFeedbackByJudge(eventName, genreName, judgeName);
+            feedbackService.resetFeedbackByJudge(eventName, categoryName, judgeName);
             return ResponseEntity.ok(Map.of("message", "Feedback reset"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -722,29 +675,29 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Remove Participant Genre", description = "Removes a participant from a specific genre in an event")
-    @DeleteMapping("/participant-genre/{participantId}/{eventId}/{eventGenreId}")
+    @Operation(summary = "Remove Participant Category", description = "Removes a participant from a specific category in an event")
+    @DeleteMapping("/participant-category/{participantId}/{eventId}/{eventCategoryId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<Void> removeParticipantGenre(
+    public ResponseEntity<Void> removeParticipantCategory(
             @PathVariable Long participantId,
             @PathVariable Long eventId,
-            @PathVariable Long eventGenreId) {
+            @PathVariable Long eventCategoryId) {
         try {
-            eventGenreParticipantService.removeParticipantFromGenre(participantId, eventId, eventGenreId);
+            eventCategoryParticipantService.removeParticipantFromCategory(participantId, eventId, eventCategoryId);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
     }
 
-    @Operation(summary = "Delete Participant From Event", description = "Removes a participant from an event entirely — all genres, scores, feedback, team members")
+    @Operation(summary = "Delete Participant From Event", description = "Removes a participant from an event entirely — all categories, scores, feedback, team members")
     @DeleteMapping("/participant/{participantId}/{eventId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> deleteParticipantFromEvent(
             @PathVariable Long participantId,
             @PathVariable Long eventId) {
         try {
-            eventGenreParticipantService.deleteParticipantFromEvent(participantId, eventId);
+            eventCategoryParticipantService.deleteParticipantFromEvent(participantId, eventId);
             return ResponseEntity.ok(gson.toJson("Participant deleted"));
         } catch (Exception e) {
             log.error("Error deleting participant", e);
@@ -760,7 +713,7 @@ public class EventController {
             @PathVariable Long eventId,
             @RequestBody UpdateParticipantDto dto) {
         try {
-            eventGenreParticipantService.updateParticipant(participantId, eventId, dto);
+            eventCategoryParticipantService.updateParticipant(participantId, eventId, dto);
             return ResponseEntity.ok(gson.toJson("Participant updated"));
         } catch (IllegalArgumentException | IllegalStateException e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.UNPROCESSABLE_ENTITY);
@@ -770,13 +723,13 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Add Genre to Existing Participant", description = "Adds a new genre to an already-registered participant and assigns an audition number via WebSocket")
-    @PostMapping("/participant-genre")
+    @Operation(summary = "Add Category to Existing Participant", description = "Adds a new category to an already-registered participant and assigns an audition number via WebSocket")
+    @PostMapping("/participant-category")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<String> addGenreToParticipant(@Valid @RequestBody UpdateParticipantGenreDto dto) {
+    public ResponseEntity<String> addCategoryToParticipant(@Valid @RequestBody UpdateParticipantCategoryDto dto) {
         try {
-            eventGenreParticipantService.addGenreToExistingParticipant(dto.participantId, dto.eventId, dto.genreName, dto.entryMode, dto.teamName, dto.teamMembers);
-            return new ResponseEntity<>(gson.toJson("Genre added"), HttpStatus.CREATED);
+            eventCategoryParticipantService.addCategoryToExistingParticipant(dto.participantId, dto.eventId, dto.categoryName, dto.entryMode, dto.teamName, dto.teamMembers);
+            return new ResponseEntity<>(gson.toJson("Category added"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
         }
@@ -794,10 +747,10 @@ public class EventController {
     @GetMapping("/feedback")
     public ResponseEntity<GetAuditionFeedbackDto> getFeedback(
             @RequestParam String eventName,
-            @RequestParam String genreName,
+            @RequestParam String categoryName,
             @RequestParam String judgeName,
             @RequestParam Integer auditionNumber) {
-        return ResponseEntity.ok(feedbackService.getFeedback(eventName, genreName, judgeName, auditionNumber));
+        return ResponseEntity.ok(feedbackService.getFeedback(eventName, categoryName, judgeName, auditionNumber));
     }
 
     @Operation(summary = "Get Feedback Tag Groups", description = "Returns all feedback tag groups with their tags (used by judges/emcees for audition feedback)")
@@ -806,14 +759,14 @@ public class EventController {
         return ResponseEntity.ok(feedbackService.getAllFeedbackGroups());
     }
 
-    @Operation(summary = "Get All Judge Feedback for Participant", description = "Returns feedback from all judges for a given participant in a specific event genre")
+    @Operation(summary = "Get All Judge Feedback for Participant", description = "Returns feedback from all judges for a given participant in a specific event category")
     @GetMapping("/feedback/participant")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<List<GetParticipantFeedbackDto>> getParticipantFeedback(
             @RequestParam String eventName,
-            @RequestParam String genreName,
+            @RequestParam String categoryName,
             @RequestParam String participantName) {
-        return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, genreName, participantName));
+        return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, categoryName, participantName));
     }
 
     @Operation(summary = "Get Results Release Status", description = "Returns whether results have been released for the event")
@@ -912,13 +865,13 @@ public class EventController {
 
     // ── Pickup Crew endpoints ──────────────────────────────────────────────────
 
-    @Operation(summary = "Get Pickup Crews", description = "Returns all pickup crews for a given event and genre")
-    @GetMapping("/crews/{eventName}/{genreName}")
+    @Operation(summary = "Get Pickup Crews", description = "Returns all pickup crews for a given event and category")
+    @GetMapping("/crews/{eventName}/{categoryName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<List<GetPickupCrewDto>> getPickupCrews(
             @PathVariable String eventName,
-            @PathVariable String genreName) {
-        return ResponseEntity.ok(pickupCrewService.getCrewsForEventGenre(eventName, genreName));
+            @PathVariable String categoryName) {
+        return ResponseEntity.ok(pickupCrewService.getCrewsForEventCategory(eventName, categoryName));
     }
 
     @Operation(summary = "Create Pickup Crew", description = "Forms a new pickup crew from solo participants")
@@ -948,15 +901,14 @@ public class EventController {
     public ResponseEntity<String> addDivision(
             @PathVariable String eventName,
             @Valid @RequestBody AddDivisionDto dto) {
-        AddGenreToEventDto genreDto = new AddGenreToEventDto();
-        genreDto.eventName = eventName;
-        AddGenreToEventDto.Division div = new AddGenreToEventDto.Division();
-        div.name = dto.name;
-        div.format = dto.format;
-        div.genreId = dto.genreId;
-        genreDto.divisions = List.of(div);
+        AddCategoryToEventDto categoryDto = new AddCategoryToEventDto();
+        categoryDto.eventName = eventName;
+        AddCategoryToEventDto.Category cat = new AddCategoryToEventDto.Category();
+        cat.name = dto.name;
+        cat.format = dto.format;
+        categoryDto.categories = List.of(cat);
         try {
-            eventGenreService.addGenreToEventService(genreDto);
+            eventCategoryService.addCategoryToEventService(categoryDto);
             return new ResponseEntity<>(gson.toJson("Division added"), HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(gson.toJson(e.getMessage()), HttpStatus.BAD_REQUEST);
@@ -971,7 +923,7 @@ public class EventController {
             @PathVariable Long id,
             @Valid @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.renameDivision(id, body.get("name"));
+            eventCategoryService.renameDivision(id, body.get("name"));
             return ResponseEntity.ok(gson.toJson("Division renamed"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -986,7 +938,7 @@ public class EventController {
             @PathVariable Long id,
             @Valid @RequestBody Map<String, String> body) {
         try {
-            eventGenreService.updateAliases(id, body.get("aliases"));
+            eventCategoryService.updateAliases(id, body.get("aliases"));
             return ResponseEntity.ok(gson.toJson("Aliases updated"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1002,7 +954,7 @@ public class EventController {
             @Valid @RequestBody Map<String, Object> body) {
         try {
             boolean soloAllowed = Boolean.TRUE.equals(body.get("soloAllowed"));
-            eventGenreService.updateSoloAllowed(id, soloAllowed);
+            eventCategoryService.updateSoloAllowed(id, soloAllowed);
             return ResponseEntity.ok(gson.toJson("Solo allowed updated"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1016,7 +968,7 @@ public class EventController {
             @PathVariable String eventName,
             @PathVariable Long id) {
         try {
-            eventGenreService.deleteDivision(id);
+            eventCategoryService.deleteDivision(id);
             return ResponseEntity.ok(gson.toJson("Division deleted"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1070,9 +1022,9 @@ public class EventController {
         try {
             Long eventId = ((Number) body.get("eventId")).longValue();
             Long participantId = ((Number) body.get("participantId")).longValue();
-            Long eventGenreId = ((Number) body.get("eventGenreId")).longValue();
+            Long eventCategoryId = ((Number) body.get("eventCategoryId")).longValue();
             Integer auditionNumber = ((Number) body.get("auditionNumber")).intValue();
-            eventGenreParticipantService.assignAuditionNumber(eventId, participantId, eventGenreId, auditionNumber);
+            eventCategoryParticipantService.assignAuditionNumber(eventId, participantId, eventCategoryId, auditionNumber);
             return ResponseEntity.ok(Map.of("message", "Audition number assigned"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1086,7 +1038,7 @@ public class EventController {
             Long eventId = ((Number) body.get("eventId")).longValue();
             Long participantId = ((Number) body.get("participantId")).longValue();
             List<Map<String, Object>> assignments = (List<Map<String, Object>>) body.get("assignments");
-            eventGenreParticipantService.assignAuditionNumbersBatch(eventId, participantId, assignments);
+            eventCategoryParticipantService.assignAuditionNumbersBatch(eventId, participantId, assignments);
             return ResponseEntity.ok(Map.of("message", "All audition numbers assigned"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1099,10 +1051,10 @@ public class EventController {
     public ResponseEntity<?> swapAuditionNumbers(@RequestBody Map<String, Object> body) {
         try {
             Long eventId = ((Number) body.get("eventId")).longValue();
-            Long eventGenreId = ((Number) body.get("eventGenreId")).longValue();
+            Long eventCategoryId = ((Number) body.get("eventCategoryId")).longValue();
             Long participantId1 = ((Number) body.get("participantId1")).longValue();
             Long participantId2 = ((Number) body.get("participantId2")).longValue();
-            eventGenreParticipantService.swapAuditionNumbers(eventId, eventGenreId, participantId1, participantId2);
+            eventCategoryParticipantService.swapAuditionNumbers(eventId, eventCategoryId, participantId1, participantId2);
             return ResponseEntity.ok(Map.of("message", "Audition numbers swapped"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -1116,7 +1068,7 @@ public class EventController {
         try {
             Long eventId = ((Number) body.get("eventId")).longValue();
             Long participantId = ((Number) body.get("participantId")).longValue();
-            eventGenreParticipantService.releaseAuditionNumbers(eventId, participantId);
+            eventCategoryParticipantService.releaseAuditionNumbers(eventId, participantId);
             return ResponseEntity.ok(Map.of("message", "Audition numbers released"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
