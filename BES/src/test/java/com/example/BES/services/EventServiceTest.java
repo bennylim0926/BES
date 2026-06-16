@@ -29,7 +29,6 @@ class EventServiceTest {
     private Event event(String name) {
         Event e = new Event();
         e.setEventName(name);
-        e.setAccessCode("1234");
         return e;
     }
 
@@ -37,7 +36,6 @@ class EventServiceTest {
     void createEvent_skipsIfAlreadyExists() {
         AddEventDto dto = new AddEventDto();
         dto.eventName = "BattleFest";
-        dto.accessCode = "1234";
         when(repo.findByEventName("BattleFest")).thenReturn(Optional.of(event("BattleFest")));
 
         service.createEventService(dto);
@@ -49,7 +47,6 @@ class EventServiceTest {
     void createEvent_savesNewEventAndCreatesTemplate() {
         AddEventDto dto = new AddEventDto();
         dto.eventName = "NewEvent";
-        dto.accessCode = "5678";
         when(repo.findByEventName("NewEvent")).thenReturn(Optional.empty());
         Event saved = event("NewEvent");
         when(repo.save(any())).thenReturn(saved);
@@ -58,45 +55,6 @@ class EventServiceTest {
 
         verify(repo).save(any(Event.class));
         verify(emailTemplateService).createDefaultTemplate(saved);
-    }
-
-    @Test
-    void createEvent_generatesRandomCodeWhenInvalidProvided() {
-        AddEventDto dto = new AddEventDto();
-        dto.eventName = "RandEvent";
-        dto.accessCode = "abc";
-        when(repo.findByEventName("RandEvent")).thenReturn(Optional.empty());
-        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        service.createEventService(dto);
-
-        verify(repo).save(argThat(e -> ((Event) e).getAccessCode().matches("\\d{4}")));
-    }
-
-    @Test
-    void verifyAccessCode_trueOnMatch() {
-        Event e = event("Test");
-        e.setAccessCode("9999");
-        when(repo.findById(1L)).thenReturn(Optional.of(e));
-
-        assertThat(service.verifyAccessCode(1L, "9999")).isTrue();
-    }
-
-    @Test
-    void verifyAccessCode_falseOnMismatch() {
-        Event e = event("Test");
-        e.setAccessCode("9999");
-        when(repo.findById(1L)).thenReturn(Optional.of(e));
-
-        assertThat(service.verifyAccessCode(1L, "0000")).isFalse();
-    }
-
-    @Test
-    void verifyAccessCode_throwsWhenNotFound() {
-        when(repo.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.verifyAccessCode(99L, "1234"))
-            .isInstanceOf(ResponseStatusException.class);
     }
 
     @Test
@@ -119,43 +77,16 @@ class EventServiceTest {
     }
 
     @Test
-    void updateAccessCode_throwsOnInvalidCode() {
-        assertThatThrownBy(() -> service.updateAccessCode(1L, "abc"))
-            .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> service.updateAccessCode(1L, null))
-            .isInstanceOf(ResponseStatusException.class);
-    }
-
-    @Test
-    void updateAccessCode_savesValidCode() {
+    void getAllEvents_returnsAllFields() {
         Event e = event("Fest");
-        when(repo.findById(1L)).thenReturn(Optional.of(e));
-
-        service.updateAccessCode(1L, "4321");
-
-        assertThat(e.getAccessCode()).isEqualTo("4321");
-        verify(repo).save(e);
-    }
-
-    @Test
-    void getAllEvents_includesAccessCodeWhenFlagTrue() {
-        Event e = event("Fest");
+        e.setPaymentRequired(true);
         when(repo.findAll()).thenReturn(List.of(e));
 
-        List<GetEventDto> result = service.getAllEvents(true);
+        List<GetEventDto> result = service.getAllEvents();
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getAccessCode()).isEqualTo("1234");
-    }
-
-    @Test
-    void getAllEvents_hidesAccessCodeWhenFlagFalse() {
-        Event e = event("Fest");
-        when(repo.findAll()).thenReturn(List.of(e));
-
-        List<GetEventDto> result = service.getAllEvents(false);
-
-        assertThat(result.get(0).getAccessCode()).isNull();
+        assertThat(result.get(0).getName()).isEqualTo("Fest");
+        assertThat(result.get(0).isPaymentRequired()).isTrue();
     }
 
     @Test

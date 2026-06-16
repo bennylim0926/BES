@@ -23,9 +23,6 @@ public class Event {
     private String eventName;
     private boolean paymentRequired = false;
 
-    @Column(length = 4)
-    private String accessCode = "0000";
-
     @Column(name = "judging_mode", length = 10)
     private String judgingMode = "SOLO";
 

@@ -2,7 +2,6 @@ package com.example.BES.services;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -42,11 +41,6 @@ public class EventService {
         newEvent.setEventName(dto.eventName);
         newEvent.setPaymentRequired(dto.paymentRequired);
         newEvent.setFeedbackEnabled(dto.feedbackEnabled);
-        if (dto.accessCode != null && dto.accessCode.matches("\\d{4}")) {
-            newEvent.setAccessCode(dto.accessCode);
-        } else {
-            newEvent.setAccessCode(String.format("%04d", ThreadLocalRandom.current().nextInt(10000)));
-        }
         Event saved = repo.save(newEvent);
         emailTemplateService.createDefaultTemplate(saved);
     }
@@ -68,7 +62,7 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public List<GetEventDto> getAllEvents(boolean includeAccessCode){
+    public List<GetEventDto> getAllEvents(){
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         List<Event> events;
 
@@ -92,18 +86,9 @@ public class EventService {
             dto.setName(event.getEventName());
             dto.setPaymentRequired(event.isPaymentRequired());
             dto.setFeedbackEnabled(event.isFeedbackEnabled());
-            if (includeAccessCode) {
-                dto.setAccessCode(event.getAccessCode());
-            }
             dtos.add(dto);
         }
         return dtos;
-    }
-
-    public boolean verifyAccessCode(Long eventId, String code){
-        Event event = repo.findById(eventId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        return event.getAccessCode().equals(code);
     }
 
     public GetJudgingModeDto getJudgingMode(String eventName) {
@@ -147,16 +132,6 @@ public class EventService {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         return event.isResultsReleased();
-    }
-
-    public void updateAccessCode(Long eventId, String newCode){
-        if (newCode == null || !newCode.matches("\\d{4}")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Access code must be exactly 4 digits");
-        }
-        Event event = repo.findById(eventId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        event.setAccessCode(newCode);
-        repo.save(event);
     }
 
     /**

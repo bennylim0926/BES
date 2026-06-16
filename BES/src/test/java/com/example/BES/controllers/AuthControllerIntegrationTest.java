@@ -54,7 +54,6 @@ public class AuthControllerIntegrationTest {
     void setUp() {
         testEvent = new Event();
         testEvent.setEventName("Test Event");
-        testEvent.setAccessCode("1234");
         testEvent = eventRepo.save(testEvent);
 
         testJudge = new Judge();
@@ -226,7 +225,6 @@ public class AuthControllerIntegrationTest {
     public void testOrganiserSeesOnlyAssignedEvents() throws Exception {
         Event unassignedEvent = new Event();
         unassignedEvent.setEventName("Unassigned Event");
-        unassignedEvent.setAccessCode("5678");
         eventRepo.save(unassignedEvent);
 
         LoginDto loginDto = new LoginDto();
