@@ -103,10 +103,9 @@ watch(selectedCategory, async (newCat) => {
   if (initial) applyState(initial)
 
   // Subscribe to category-specific topic
-  const encodedCat = encodeURIComponent(newCat)
   currentSubscription = subscribeToChannel(
     client.value,
-    `/topic/audition/${eventName.value}/${encodedCat}/display`,
+    `/topic/audition/${eventName.value}/${newCat}/display`,
     applyState
   )
 
@@ -126,10 +125,9 @@ onMounted(async () => {
   if (selectedCategory.value) {
     const initial = await getAuditionDisplayState(eventName.value, selectedCategory.value)
     if (initial) applyState(initial)
-    const encodedCat = encodeURIComponent(selectedCategory.value)
     currentSubscription = subscribeToChannel(
       client.value,
-      `/topic/audition/${eventName.value}/${encodedCat}/display`,
+      `/topic/audition/${eventName.value}/${selectedCategory.value}/display`,
       applyState
     )
   }

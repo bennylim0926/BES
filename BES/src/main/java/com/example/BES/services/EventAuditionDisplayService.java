@@ -1,7 +1,5 @@
 package com.example.BES.services;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +23,8 @@ public class EventAuditionDisplayService {
     public void updateState(String eventName, AuditionDisplayStateDto dto) {
         String key = stateKey(eventName, dto.categoryName);
         stateStore.put(key, dto);
-        String encodedCategory = URLEncoder.encode(dto.categoryName, StandardCharsets.UTF_8);
         messagingTemplate.convertAndSend(
-            "/topic/audition/" + eventName + "/" + encodedCategory + "/display", dto);
+            "/topic/audition/" + eventName + "/" + dto.categoryName + "/display", dto);
     }
 
     public AuditionDisplayStateDto getState(String eventName, String categoryName) {

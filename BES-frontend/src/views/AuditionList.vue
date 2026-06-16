@@ -274,6 +274,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
 
 watch(selectedCategory, async (newVal) => {
   if (newVal) localStorage.setItem("selectedCategory", newVal)
+  else localStorage.removeItem("selectedCategory")
   selectedEntryType.value = 'Teams'
   if (!newVal || !selectedEvent.value) return
   if (eventDivisions.value.length === 0) {
