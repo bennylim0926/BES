@@ -21,7 +21,7 @@ const modalErrors = ref([])
 const modalWarnings = ref([])
 const modalInfo = ref([])
 const importCounts = ref(null) // { imported, existing, skipped } — set only during sheet import
-const categoryOptions = ref(null)
+
 const eventCategories = ref([])
 const tableExist = ref(true)
 const loading = ref(false)
@@ -576,18 +576,6 @@ const loadCriteriaForAllCategories = async (categories) => {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-// ── Divisions (post-init) ────────────────────────────────────────────────────
-const divisionsByCategory = computed(() => {
-  const groups = {}
-  for (const div of eventCategories.value) {
-    const key = 'all'
-    if (!groups[key]) {
-      groups[key] = { divisions: [] }
-    }
-    groups[key].divisions.push(div)
-  }
-  return Object.values(groups)
-})
 
 const matchCounts = computed(() => {
   const counts = {}

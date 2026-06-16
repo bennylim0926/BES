@@ -288,7 +288,7 @@ export const insertEventInTable = async (eventName, paymentRequired = false) =>{
   }
 }
 
-export const addCategoryToEvent = async(eventName, divisions) =>{
+export const addCategoryToEvent = async(eventName, _divisions) =>{
   try{
     return await fetch(`${domain}/api/v1/event/category`, {
       method: 'POST',
