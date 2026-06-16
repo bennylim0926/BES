@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import { whoami, getCategoriesByEvent } from '@/utils/api'
 
 const router = useRouter()
@@ -22,7 +22,12 @@ onMounted(async () => {
   if (!authStore.user) {
     try {
       const user = await whoami()
-      if (user?.authenticated) authStore.login(user)
+      if (user?.authenticated) {
+        authStore.login(user)
+        if (user.eventId && user.eventName) {
+          setActiveEvent(user.eventId, user.eventName)
+        }
+      }
     } catch { /* not authenticated */ }
   }
   loading.value = false
