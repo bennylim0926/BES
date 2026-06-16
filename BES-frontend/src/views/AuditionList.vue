@@ -118,12 +118,6 @@ const switchCategory = (g) => {
     modalVariant.value = 'warning'
     showModal.value = true
     dynamicCallBack.value = () => { showModal.value = false; selectedCategory.value = g }
-  } else if (isEmcee.value) {
-    modalTitle.value = `Switch to ${g}?`
-    modalMessage.value = `This will update the audition display and reset the timer.`
-    modalVariant.value = 'warning'
-    showModal.value = true
-    dynamicCallBack.value = () => { showModal.value = false; selectedCategory.value = g }
   } else {
     selectedCategory.value = g
   }
@@ -718,6 +712,13 @@ onMounted(async () => {
         </template>
         <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span v-if="!isJudgeSession" class="type-label">{{ selectedRole }}</span>
+        <template v-if="isEmcee && selectedCategory">
+          <span class="text-content-muted opacity-30">·</span>
+          <button
+            class="type-label text-content-muted hover:text-content-primary transition-colors"
+            @click="selectedCategory = ''"
+          >‹ CHANGE CATEGORY</button>
+        </template>
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">
@@ -804,7 +805,7 @@ onMounted(async () => {
           <span v-if="!isJudgeSession && (isAdmin || isOrganiser)" class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Category toggle (hidden for session judges — locked to assigned category) -->
-          <div v-if="isAdmin || isOrganiser || isEmcee" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <div v-if="isAdmin || isOrganiser || (isEmcee && !selectedCategory)" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Category</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
