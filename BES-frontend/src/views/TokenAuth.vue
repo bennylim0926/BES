@@ -24,6 +24,9 @@ onMounted(async () => {
   const existing = authStore.user || await whoami().catch(() => null)
   if (existing?.authenticated) {
     authStore.login(existing)
+    if (existing.eventId && existing.eventName) {
+      setActiveEvent(existing.eventId, existing.eventName)
+    }
     redirectByRole(existing)
     return
   }

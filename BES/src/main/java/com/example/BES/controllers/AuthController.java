@@ -97,9 +97,11 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         if (session != null) {
             Long eventId = (Long) session.getAttribute("eventId");
+            String eventName = (String) session.getAttribute("eventName");
             Long judgeId = (Long) session.getAttribute("judgeId");
             String judgeName = (String) session.getAttribute("judgeName");
             if (eventId != null) response.put("eventId", eventId);
+            if (eventName != null) response.put("eventName", eventName);
             if (judgeId != null) response.put("judgeId", judgeId);
             if (judgeName != null) response.put("judgeName", judgeName);
         }
@@ -208,6 +210,7 @@ public class AuthController {
             Long eventId = token.getEvent().getEventId();
             String eventName = token.getEvent().getEventName();
             session.setAttribute("eventId", eventId);
+            session.setAttribute("eventName", eventName);
 
             Map<String, Object> response = new HashMap<>();
             response.put("authenticated", true);
