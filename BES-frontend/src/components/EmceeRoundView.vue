@@ -110,7 +110,7 @@ watch(currentRound, () => {
 
 onMounted(async () => {
   if (!props.eventName) return
-  const state = await getAuditionDisplayState(props.eventName)
+  const state = await getAuditionDisplayState(props.eventName, props.categoryName)
   // Timer recovery: only resume if the saved state is for this same category
   if (state && !state.standby && state.categoryName === props.categoryName &&
       state.timerRunning && state.timerStartedAt && state.timerDuration) {
@@ -181,7 +181,7 @@ const swipeHint = computed(() => {
 </script>
 
 <template>
-  <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #060818; overflow: hidden;">
+  <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #111111; overflow: hidden;">
 
     <!-- ── Queue ──────────────────────────────────────────────────────────────
          flex-col-reverse: stack from bottom (near NOW) upward.
