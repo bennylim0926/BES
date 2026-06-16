@@ -11,9 +11,9 @@ import com.example.BES.dtos.AddScoringCriteriaDto;
 import com.example.BES.dtos.GetScoringCriteriaDto;
 import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.ScoringCriteria;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.ScoringCriteriaRepo;
 
@@ -27,7 +27,7 @@ public class ScoringCriteriaService {
     EventRepo eventRepo;
 
     @Autowired
-    EventGenreRepo eventGenreRepo;
+    EventCategoryRepo eventCategoryRepo;
 
     public List<GetScoringCriteriaDto> getCriteria(String eventName, String genreName) {
         List<ScoringCriteria> criteria;
@@ -58,9 +58,9 @@ public class ScoringCriteriaService {
         ScoringCriteria sc = new ScoringCriteria();
         sc.setEvent(event);
         if (dto.genreName != null && !dto.genreName.isBlank()) {
-            EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, dto.genreName)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event genre not found"));
-            sc.setEventGenre(eventGenre);
+            EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, dto.genreName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event category not found"));
+            sc.setEventCategory(eventCategory);
         }
         sc.setName(dto.name);
         sc.setWeight(dto.weight);
@@ -96,7 +96,7 @@ public class ScoringCriteriaService {
         dto.name = sc.getName();
         dto.weight = sc.getWeight();
         dto.displayOrder = sc.getDisplayOrder();
-        dto.genreName = sc.getEventGenre() != null ? sc.getEventGenre().getName() : null;
+        dto.genreName = sc.getEventCategory() != null ? sc.getEventCategory().getName() : null;
         return dto;
     }
 }

@@ -456,7 +456,7 @@ public class BattleService {
             persistActiveState(eventName);
             messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/champion-reveal", Map.of(
                 "dismiss",      false,
-                "categoryName", dto.getGenreName()    != null ? dto.getGenreName()    : "",
+                "categoryName", dto.getCategoryName()    != null ? dto.getCategoryName()    : "",
                 "championName", s.champion
             ));
         }

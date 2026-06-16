@@ -1,7 +1,7 @@
 package com.example.BES.dtos;
 
 public class GetEventCategoryDto {
-    public Long id;
+    public Long eventCategoryId;
     public String name;
     public String format;
     public String roundLabel;

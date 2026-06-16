@@ -569,7 +569,7 @@ public class EventCategoryParticipantService {
 
     public void updateParticipantsJudgeService(UpdateParticipantJudgeDto dto) {
         for (ParticipantJudgeDto d : dto.updatedList) {
-            EventCategoryParticipant ecp = repo.findByEventCategoryParticipant(d.eventName, d.genreName, d.participantName).orElse(null);
+            EventCategoryParticipant ecp = repo.findByEventCategoryParticipant(d.eventName, d.categoryName, d.participantName).orElse(null);
             if (ecp != null) {
                 Judge j = judgeRepo.findFirstByName(d.judgeName).orElse(null);
                 ecp.setJudge(j);
@@ -577,7 +577,7 @@ public class EventCategoryParticipantService {
                 messagingTemplate.convertAndSend("/topic/judge-update/",
                     Map.of(
                         "name", d.participantName,
-                        "category", d.genreName,
+                        "category", d.categoryName,
                         "judge", j != null ? j.getName() : "",
                         "eventName", d.eventName));
             }

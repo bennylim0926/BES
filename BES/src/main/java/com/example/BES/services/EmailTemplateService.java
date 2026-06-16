@@ -9,9 +9,9 @@ import com.example.BES.dtos.GetEmailTemplateDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.EventEmailTemplate;
-import com.example.BES.models.EventGenre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.respositories.EventEmailTemplateRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 
 @Service
@@ -21,7 +21,7 @@ public class EmailTemplateService {
     private EventEmailTemplateRepo repo;
 
     @Autowired
-    private EventGenreRepo eventGenreRepo;
+    private EventCategoryRepo eventCategoryRepo;
 
     @Autowired
     private EventRepo eventRepo;
@@ -106,7 +106,7 @@ public class EmailTemplateService {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return null;
 
-        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
+        List<EventCategory> genres = eventCategoryRepo.findByEvent(event);
         if (genres.isEmpty()) return null;
 
         boolean hasSolo = genres.stream().anyMatch(eg -> !isTeamFormat(eg.getFormat()));

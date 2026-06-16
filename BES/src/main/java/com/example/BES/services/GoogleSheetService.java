@@ -21,12 +21,10 @@ import com.example.BES.dtos.AddParticipantDto;
 import com.example.BES.dtos.AddParticipantToEventDto;
 import com.example.BES.enums.SheetHeader;
 import com.example.BES.mapper.RegistrationDtoMapper;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.Genre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.parsers.GoogleSheetParser;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
 
@@ -47,16 +45,10 @@ public class GoogleSheetService {
     GoogleSheetConfig config;
 
     @Autowired
-    private GenreRepo genreRepo;
-
-    @Autowired
-    private GenreService genreService;
-
-    @Autowired
     private EventRepo eventRepo;
 
     @Autowired
-    private EventGenreRepo eventGenreRepo;
+    private EventCategoryRepo eventCategoryRepo;
 
     public Map<String, Integer> getParticipantsBreakDown(String fileId) throws IOException {
         List<Integer> matchingCategoriesIndixes = getCategoriesColumns(fileId);
@@ -296,7 +288,7 @@ public class GoogleSheetService {
         List<String> all = new ArrayList<>();
         var event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event != null) {
-            for (EventGenre eg : eventGenreRepo.findByEvent(event)) {
+            for (EventCategory eg : eventCategoryRepo.findByEvent(event)) {
                 all.add(eg.getName().toLowerCase());
                 if (eg.getSheetAliases() != null) {
                     for (String alias : eg.getSheetAliases().split(",")) {
@@ -311,12 +303,10 @@ public class GoogleSheetService {
 
     private Map<String, Integer> buildGenreCounts(List<String> data) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (Genre g : genreRepo.findAll()) {
-            List<String> matchStrings = genreService.getMatchStrings(g);
-            long count = data.stream()
-                .filter(s -> matchStrings.stream().anyMatch(s.toLowerCase()::contains))
-                .count();
-            if (count > 0) counts.put(g.getGenreName(), (int) count);
+        for (String value : data) {
+            if (value == null || value.isBlank()) continue;
+            String key = value.trim();
+            counts.merge(key, 1, Integer::sum);
         }
         return counts;
     }

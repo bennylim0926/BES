@@ -47,7 +47,6 @@ import com.example.BES.dtos.AddWalkInDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetEventCategoryDto;
 import com.example.BES.dtos.GetEventCategoryParticipantDto;
-import com.example.BES.dtos.GetEventDivisionDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.GetParticipantByEventDto;

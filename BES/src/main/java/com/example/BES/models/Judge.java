@@ -23,5 +23,5 @@ public class Judge {
     private String name;
 
     @ManyToMany(mappedBy = "judges")
-    private List<EventGenre> eventGenres;
+    private List<EventCategory> eventCategories;
 }

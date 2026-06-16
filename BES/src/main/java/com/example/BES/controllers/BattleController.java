@@ -436,7 +436,7 @@ public class BattleController {
     public ResponseEntity<?> getActiveCategory() {
         return ResponseEntity.ok(Map.of(
             "eventName", battleService.getActiveEventName() != null ? battleService.getActiveEventName() : "",
-            "categoryName", battleService.getActiveGenreName() != null ? battleService.getActiveGenreName() : ""
+            "categoryName", battleService.getActiveCategoryName() != null ? battleService.getActiveCategoryName() : ""
         ));
     }
 

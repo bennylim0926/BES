@@ -32,7 +32,7 @@ public class EventCategoryService {
         List<GetEventCategoryDto> dtos = new ArrayList<>();
         for (EventCategory ec : eventCategoryRepo.findByEvent(e)) {
             GetEventCategoryDto dto = new GetEventCategoryDto();
-            dto.id = ec.getId();
+            dto.eventCategoryId = ec.getId();
             dto.name = ec.getName();
             dto.format = ec.getFormat();
             dto.roundLabel = ec.getRoundLabel();

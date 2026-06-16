@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
 
@@ -17,31 +17,31 @@ import jakarta.transaction.Transactional;
 
 @Repository
 public interface ScoreRepo extends JpaRepository<Score, Long>{
-    Optional<Score> findByEventGenreParticipantAndJudge(EventGenreParticipant eventGenreParticipant, Judge j);
+    Optional<Score> findByEventCategoryParticipantAndJudge(EventCategoryParticipant eventGenreParticipant, Judge j);
 
     @Modifying
     @Transactional
-    void deleteByEventGenreParticipantAndJudge(EventGenreParticipant eventGenreParticipant, Judge j);
-    Optional<Score> findByEventGenreParticipantAndJudgeAndAspect(EventGenreParticipant eventGenreParticipant, Judge j, String aspect);
-    List<Score> findByEventGenreParticipant(EventGenreParticipant eventGenreParticipant);
+    void deleteByEventCategoryParticipantAndJudge(EventCategoryParticipant eventGenreParticipant, Judge j);
+    Optional<Score> findByEventCategoryParticipantAndJudgeAndAspect(EventCategoryParticipant eventGenreParticipant, Judge j, String aspect);
+    List<Score> findByEventCategoryParticipant(EventCategoryParticipant eventGenreParticipant);
     
     @Query(value =
     """
     SELECT s
     FROM Score s
-    WHERE s.eventGenreParticipant.event.eventName = :eventName
+    WHERE s.eventCategoryParticipant.event.eventName = :eventName
     """)
     List<Score> findbyEvent(@Param("eventName") String eventName);
 
     @Modifying
     @Transactional
-    @Query(value = 
+    @Query(value =
     """
     DELETE
     FROM Score s
-    WHERE s.eventGenreParticipant.eventGenre.id = :eventGenreId
+    WHERE s.eventCategoryParticipant.eventCategory.id = :eventCategoryId
     AND
-    s.eventGenreParticipant.event.id = :eventId
+    s.eventCategoryParticipant.event.id = :eventId
     """)
     int deleteByEventIdAndGenreId(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
 
@@ -52,7 +52,7 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     DELETE
     FROM Score s
     WHERE
-    s.eventGenreParticipant.event.id = :eventId
+    s.eventCategoryParticipant.event.id = :eventId
     """)
     int deleteByEventId(@Param("eventId") Long eventId);
 
@@ -60,8 +60,8 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     @Transactional
     @Query("""
         DELETE FROM Score s
-        WHERE s.eventGenreParticipant.event.eventName = :eventName
-        AND s.eventGenreParticipant.eventGenre.name = :genreName
+        WHERE s.eventCategoryParticipant.event.eventName = :eventName
+        AND s.eventCategoryParticipant.eventCategory.name = :genreName
         AND s.judge.name = :judgeName
     """)
     int deleteByEventNameAndGenreNameAndJudgeName(

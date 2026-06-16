@@ -14,10 +14,10 @@ import com.example.BES.dtos.GetParticipatnScoreDto;
 import com.example.BES.dtos.ParticipantScoreDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.admin.DeleteScoreByEventDto;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ScoreRepo;
 
@@ -27,7 +27,7 @@ public class ScoreService {
     ScoreRepo repo;
 
     @Autowired
-    EventGenreParticpantRepo eventGenreParticpantRepo;
+    EventCategoryParticipantRepo eventCategoryParticipantRepo;
 
     @Autowired
     JudgeRepo judgeRepo;
@@ -50,17 +50,17 @@ public class ScoreService {
         List<Score> scoreList = repo.findbyEvent(eventName);
         List<GetParticipatnScoreDto> scoreListDto = new ArrayList<>();
         for (Score s : scoreList) {
-            if (s.getJudge() == null || s.getEventGenreParticipant() == null) continue;
+            if (s.getJudge() == null || s.getEventCategoryParticipant() == null) continue;
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
-            dto.participantId = s.getEventGenreParticipant().getId().getParticipantId();
-            dto.eventName = s.getEventGenreParticipant().getEvent().getEventName();
-            dto.genreName = s.getEventGenreParticipant().getEventGenre().getName();
+            dto.participantId = s.getEventCategoryParticipant().getId().getParticipantId();
+            dto.eventName = s.getEventCategoryParticipant().getEvent().getEventName();
+            dto.genreName = s.getEventCategoryParticipant().getEventCategory().getName();
             dto.judgeName = s.getJudge().getName();
-            dto.participantName = s.getEventGenreParticipant().getDisplayName();
+            dto.participantName = s.getEventCategoryParticipant().getDisplayName();
             dto.score = s.getValue();
             dto.aspect = s.getAspect() != null ? s.getAspect() : "";
-            dto.format = s.getEventGenreParticipant().getFormat();
-            dto.auditionNumber = s.getEventGenreParticipant().getAuditionNumber();
+            dto.format = s.getEventCategoryParticipant().getFormat();
+            dto.auditionNumber = s.getEventCategoryParticipant().getAuditionNumber();
             scoreListDto.add(dto);
         }
         return scoreListDto;
@@ -69,12 +69,12 @@ public class ScoreService {
     @Transactional
     public void updateParticipantScoreService(UpdateParticipantsScoreDto dto) {
         for (ParticipantScoreDto d : dto.participantScore) {
-            EventGenreParticipant record = (d.auditionNumber != null)
-                    ? eventGenreParticpantRepo
-                            .findByEventNameAndGenreNameAndAuditionNumber(dto.eventName, dto.genreName, d.auditionNumber)
+            EventCategoryParticipant record = (d.auditionNumber != null)
+                    ? eventCategoryParticipantRepo
+                            .findByEventNameAndCategoryNameAndAuditionNumber(dto.eventName, dto.genreName, d.auditionNumber)
                             .orElse(null)
-                    : eventGenreParticpantRepo
-                            .findByEventGenreParticipant(dto.eventName, dto.genreName, d.participantName)
+                    : eventCategoryParticipantRepo
+                            .findByEventCategoryParticipant(dto.eventName, dto.genreName, d.participantName)
                             .orElse(null);
             Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
@@ -82,12 +82,12 @@ public class ScoreService {
             if (d.aspects != null && !d.aspects.isEmpty()) {
                 // Multi-criteria mode: one Score row per aspect
                 for (AspectScoreDto aspectScore : d.aspects) {
-                    Score score = repo.findByEventGenreParticipantAndJudgeAndAspect(record, judge, aspectScore.aspect)
+                    Score score = repo.findByEventCategoryParticipantAndJudgeAndAspect(record, judge, aspectScore.aspect)
                             .orElse(null);
                     if (score == null) {
                         Score newScore = new Score();
                         newScore.setJudge(judge);
-                        newScore.setEventGenreParticipant(record);
+                        newScore.setEventCategoryParticipant(record);
                         newScore.setAspect(aspectScore.aspect);
                         newScore.setValue(aspectScore.score);
                         repo.save(newScore);
@@ -98,10 +98,10 @@ public class ScoreService {
                 }
             } else {
                 // Legacy single-score mode: delete any existing rows (could be aspect-based) then save one row
-                repo.deleteByEventGenreParticipantAndJudge(record, judge);
+                repo.deleteByEventCategoryParticipantAndJudge(record, judge);
                 Score newScore = new Score();
                 newScore.setJudge(judge);
-                newScore.setEventGenreParticipant(record);
+                newScore.setEventCategoryParticipant(record);
                 newScore.setAspect("");
                 newScore.setValue(d.score);
                 repo.save(newScore);

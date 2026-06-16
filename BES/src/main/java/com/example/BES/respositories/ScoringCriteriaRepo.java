@@ -12,9 +12,9 @@ import com.example.BES.models.ScoringCriteria;
 @Repository
 public interface ScoringCriteriaRepo extends JpaRepository<ScoringCriteria, Long> {
 
-    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventGenre IS NULL ORDER BY sc.displayOrder ASC")
+    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventCategory IS NULL ORDER BY sc.displayOrder ASC")
     List<ScoringCriteria> findEventLevelByEventName(@Param("eventName") String eventName);
 
-    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventGenre.name = :genreName ORDER BY sc.displayOrder ASC")
+    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventCategory.name = :genreName ORDER BY sc.displayOrder ASC")
     List<ScoringCriteria> findByEventNameAndGenreName(@Param("eventName") String eventName, @Param("genreName") String genreName);
 }

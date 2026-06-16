@@ -6,12 +6,12 @@ import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.admin.GetFeedbackGroupDto;
 import com.example.BES.dtos.admin.GetFeedbackTagDto;
 import com.example.BES.models.AuditionFeedback;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.FeedbackTag;
 import com.example.BES.models.FeedbackTagGroup;
 import com.example.BES.models.Judge;
 import com.example.BES.respositories.AuditionFeedbackRepository;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.FeedbackTagGroupRepository;
 import com.example.BES.respositories.FeedbackTagRepository;
 import com.example.BES.respositories.JudgeRepo;
@@ -39,7 +39,7 @@ public class AuditionFeedbackService {
     FeedbackTagRepository tagRepo;
 
     @Autowired
-    EventGenreParticpantRepo egpRepo;
+    EventCategoryParticipantRepo egpRepo;
 
     @Autowired
     JudgeRepo judgeRepo;
@@ -96,7 +96,7 @@ public class AuditionFeedbackService {
     }
 
     public void submitFeedback(SubmitAuditionFeedbackDto dto) {
-        EventGenreParticipant egp = egpRepo.findByEventNameAndGenreNameAndAuditionNumber(
+        EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
             dto.getEventName(), dto.getGenreName(), dto.getAuditionNumber()
         ).orElse(null);
         Judge judge = judgeRepo.findFirstByName(dto.getJudgeName()).orElse(null);
@@ -104,7 +104,7 @@ public class AuditionFeedbackService {
         if (egp == null || judge == null) return;
 
         AuditionFeedback feedback = feedbackRepo
-            .findByEventGenreParticipantAndJudge(egp, judge)
+            .findByEventCategoryParticipantAndJudge(egp, judge)
             .orElse(new AuditionFeedback());
 
         Set<FeedbackTag> selectedTags = new HashSet<>();
@@ -114,7 +114,7 @@ public class AuditionFeedbackService {
             }
         }
 
-        feedback.setEventGenreParticipant(egp);
+        feedback.setEventCategoryParticipant(egp);
         feedback.setJudge(judge);
         feedback.setTags(selectedTags);
         feedback.setNote(dto.getNote());
@@ -124,10 +124,10 @@ public class AuditionFeedbackService {
 
     public List<GetParticipantFeedbackDto> getAllFeedbackForParticipant(
             String eventName, String genreName, String participantName) {
-        EventGenreParticipant egp = egpRepo.findByEventGenreParticipant(eventName, genreName, participantName).orElse(null);
+        EventCategoryParticipant egp = egpRepo.findByEventCategoryParticipant(eventName, genreName, participantName).orElse(null);
         if (egp == null) return new ArrayList<>();
 
-        List<AuditionFeedback> feedbacks = feedbackRepo.findByEventGenreParticipant(egp);
+        List<AuditionFeedback> feedbacks = feedbackRepo.findByEventCategoryParticipant(egp);
         List<GetParticipantFeedbackDto> result = new ArrayList<>();
         for (AuditionFeedback f : feedbacks) {
             List<GetParticipantFeedbackDto.TagEntry> tagEntries = new ArrayList<>();
@@ -146,14 +146,14 @@ public class AuditionFeedbackService {
 
     public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,
                                                String judgeName, Integer auditionNumber) {
-        EventGenreParticipant egp = egpRepo.findByEventNameAndGenreNameAndAuditionNumber(
+        EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
             eventName, genreName, auditionNumber
         ).orElse(null);
         Judge judge = judgeRepo.findFirstByName(judgeName).orElse(null);
 
         if (egp == null || judge == null) return new GetAuditionFeedbackDto(List.of(), null);
 
-        Optional<AuditionFeedback> feedback = feedbackRepo.findByEventGenreParticipantAndJudge(egp, judge);
+        Optional<AuditionFeedback> feedback = feedbackRepo.findByEventCategoryParticipantAndJudge(egp, judge);
         if (feedback.isEmpty()) return new GetAuditionFeedbackDto(List.of(), null);
 
         AuditionFeedback f = feedback.get();

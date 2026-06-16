@@ -80,7 +80,7 @@ public class PickupCrewService {
 
                 // Aggregate score: sum all score rows for this participant+event+genre
                 if (egp != null) {
-                    List<Score> scores = scoreRepo.findByEventGenreParticipant(egp);
+                    List<Score> scores = scoreRepo.findByEventCategoryParticipant(egp);
                     if (!scores.isEmpty()) {
                         double participantTotal = scores.stream()
                             .mapToDouble(s -> s.getValue() != null ? s.getValue() : 0)
