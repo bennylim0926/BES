@@ -16,6 +16,7 @@ const revealingRef = ref({})        // { [slotId | historyKey]: boolean }
 // Per-slot rolling animation state — keyed by "${slotId}-${categoryName}"
 const fakeNums = ref({})
 const rollingIntervals = {}         // { "${slotId}-${categoryName}": intervalId }
+const rollingCounters = {}          // { "${slotId}-${categoryName}": currentIndex } — sequential rotation
 
 const modalTitle = ref('')
 const modalMessage = ref('')
@@ -34,6 +35,7 @@ function stopRolling(slotId, categoryName) {
   const key = `${slotId}-${categoryName}`
   clearInterval(rollingIntervals[key])
   delete rollingIntervals[key]
+  delete rollingCounters[key]
   const next = { ...fakeNums.value }
   delete next[key]
   fakeNums.value = next
@@ -47,6 +49,7 @@ function stopAllSlotRolling(slotId) {
   allCategoryKeys.forEach(k => {
     clearInterval(rollingIntervals[k])
     delete rollingIntervals[k]
+    delete rollingCounters[k]
   })
   const next = { ...fakeNums.value }
   allCategoryKeys.forEach(k => delete next[k])
@@ -86,8 +89,10 @@ function animateSlot(slotId, msg) {
   cat.rolling = true
   const intervalKey = `${slotId}-${msg.category}`
   clearInterval(rollingIntervals[intervalKey])
+  rollingCounters[intervalKey] = 0
   rollingIntervals[intervalKey] = setInterval(() => {
-    fakeNums.value = { ...fakeNums.value, [intervalKey]: Math.floor(Math.random() * poolSize) + 1 }
+    rollingCounters[intervalKey] = (rollingCounters[intervalKey] + 1) % poolSize
+    fakeNums.value = { ...fakeNums.value, [intervalKey]: rollingCounters[intervalKey] + 1 }
   }, 80)
 
   setTimeout(() => {

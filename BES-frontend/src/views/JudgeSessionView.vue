@@ -44,6 +44,7 @@ onMounted(async () => {
     return
   }
   sessionReady.value = true
+  authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
   await loadDivisions()
 })
 
@@ -133,7 +134,7 @@ function navigateToBattle() {
               class="action-btn action-btn--audition"
             >AUDITION</button>
             <button
-              v-if="d.isBattle"
+              v-if="d.isBattle && authStore.activeEventBattleEnabled"
               @click="navigateToBattle()"
               class="action-btn action-btn--battle"
             >BATTLE</button>
