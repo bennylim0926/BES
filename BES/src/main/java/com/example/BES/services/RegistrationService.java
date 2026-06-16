@@ -20,19 +20,18 @@ import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.dtos.ImportResultDto;
 import com.example.BES.dtos.VerifyParticipantDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreParticipant;
-import com.example.BES.models.EventGenreParticipantId;
-import com.example.BES.models.EventGenreParticipantMember;
+import com.example.BES.models.EventCategory;
+import com.example.BES.models.EventCategoryParticipant;
+import com.example.BES.models.EventCategoryParticipantId;
+import com.example.BES.models.EventCategoryParticipantMember;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
 import com.example.BES.utils.ReferenceCodeUtil;
-import com.example.BES.respositories.EventGenreParticpantRepo;
-import com.example.BES.respositories.EventGenreParticipantMemberRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
+import com.example.BES.respositories.EventCategoryParticipantMemberRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ParticipantRepo;
 
 @Service
@@ -55,29 +54,26 @@ public class RegistrationService {
     EventParticipantRepo eventParticipantRepo;
 
     @Autowired
-    EventGenreParticpantRepo eventGenreParticipantRepo;
+    EventCategoryParticipantRepo eventGenreParticipantRepo;
 
     @Autowired
-    EventGenreParticipantMemberRepo egpMemberRepo;
+    EventCategoryParticipantMemberRepo egpMemberRepo;
 
     @Autowired
-    GenreRepo genreRepo;
-
-    @Autowired
-    EventGenreRepo eventGenreRepo;
+    EventCategoryRepo eventGenreRepo;
 
     @Autowired
     EventParticpantService eventParticipantService;
 
     @Autowired
-    EventGenreParticpantService eventGenreParticipantService;
+    EventCategoryParticipantService eventGenreParticipantService;
 
     @Transactional
     public Map<String, String> addWalkIn(AddWalkInDto dto) {
         Participant p = participantService.addWalkInService(dto);
         EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
         if (ep == null) throw new RuntimeException("Event not found: " + dto.eventName);
-        return eventGenreParticipantService.addWalkInToEventGenreParticipant(
+        return eventGenreParticipantService.addWalkInToEventCategoryParticipant(
             p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
     }
 
@@ -86,11 +82,11 @@ public class RegistrationService {
         if (event == null) throw new NullPointerException("event is null");
 
         List<AddParticipantDto> importable = sheetService.getAllImportableParticipants(dto);
-        List<EventGenre> allDivisions = eventGenreRepo.findByEvent(event);
+        List<EventCategory> allDivisions = eventGenreRepo.findByEvent(event);
 
         List<String> divisionsWithoutFormat = allDivisions.stream()
             .filter(eg -> eg.getFormat() == null || eg.getFormat().isBlank())
-            .map(EventGenre::getName)
+            .map(EventCategory::getName)
             .collect(Collectors.toList());
         if (!divisionsWithoutFormat.isEmpty()) {
             ImportResultDto blocked = new ImportResultDto();
@@ -146,24 +142,24 @@ public class RegistrationService {
                 if (participant.getGenres() != null && !participant.getGenres().isEmpty()) {
                     boolean anyGenreMatched = false;
                     for (String genreName : participant.getGenres()) {
-                        EventGenre eg = findMatchingDivision(allDivisions, genreName);
+                        EventCategory eg = findMatchingDivision(allDivisions, genreName);
                         if (eg == null) {
                             result.addWarning(rowNumber, participantName,
                                 "'" + genreName + "' not found — skipped");
                             continue;
                         }
                         anyGenreMatched = true;
-                        EventGenreParticipantId id = new EventGenreParticipantId(
+                        EventCategoryParticipantId id = new EventCategoryParticipantId(
                             event.getEventId(), eg.getId(), toAddParticipant.getParticipantId());
                         if (eventGenreParticipantRepo.existsById(id)) {
                             result.addWarning(rowNumber, participantName,
                                 "Already in " + eg.getName() + " — skipped");
                             continue;
                         }
-                        EventGenreParticipant egp = new EventGenreParticipant();
+                        EventCategoryParticipant egp = new EventCategoryParticipant();
                         egp.setId(id);
                         egp.setEvent(event);
-                        egp.setEventGenre(eg);
+                        egp.setEventCategory(eg);
                         egp.setParticipant(toAddParticipant);
 
                         String effectiveFormat = eg.getFormat();
@@ -188,13 +184,13 @@ public class RegistrationService {
                             egp.setDisplayName(orElse(participant.getStageName(), participant.getParticipantName()));
                         }
 
-                        EventGenreParticipant savedEgp = eventGenreParticipantRepo.save(egp);
+                        EventCategoryParticipant savedEgp = eventGenreParticipantRepo.save(egp);
 
                         if (isTeamEntry && participant.getMemberNames() != null) {
                             for (String memberName : participant.getMemberNames()) {
                                 if (memberName != null && !memberName.isBlank()
-                                        && !egpMemberRepo.existsByEventGenreParticipantAndMemberName(savedEgp, memberName)) {
-                                    egpMemberRepo.save(new EventGenreParticipantMember(savedEgp, memberName));
+                                        && !egpMemberRepo.existsByEventCategoryParticipantAndMemberName(savedEgp, memberName)) {
+                                    egpMemberRepo.save(new EventCategoryParticipantMember(savedEgp, memberName));
                                 }
                             }
                         }
@@ -246,10 +242,10 @@ public class RegistrationService {
             dto.participantId = ep.getParticipant().getParticipantId();
             dto.eventId = ep.getEvent().getEventId();
             dto.name = ep.getDisplayName();
-            List<EventGenreParticipant> egps = eventGenreParticipantRepo
+            List<EventCategoryParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
             dto.genres = egps.stream()
-                .map(egp -> egp.getEventGenre().getName())
+                .map(egp -> egp.getEventCategory().getName())
                 .collect(Collectors.toList());
             dto.screenshotUrl = ep.getScreenshotUrl();
             result.add(dto);
@@ -271,11 +267,11 @@ public class RegistrationService {
             String stage = ep.getStageName();
             String display = ep.getDisplayName();
             String name = ep.getParticipant().getParticipantName();
-            List<EventGenreParticipant> egps = eventGenreParticipantRepo
+            List<EventCategoryParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
             // Use EGP team name as label for team entries; fall back to EP stage/display/participant name
             String egpTeamName = egps.stream()
-                .map(EventGenreParticipant::getTeamName)
+                .map(EventCategoryParticipant::getTeamName)
                 .filter(t -> t != null && !t.isBlank())
                 .findFirst().orElse(null);
             dto.label = (egpTeamName != null) ? egpTeamName
@@ -284,10 +280,10 @@ public class RegistrationService {
                       : name;
             // Collect unique member names from EGP members (primary) or EventParticipantTeamMember (fallback)
             java.util.LinkedHashSet<String> memberSet = new java.util.LinkedHashSet<>();
-            for (EventGenreParticipant egp : egps) {
+            for (EventCategoryParticipant egp : egps) {
                 if (egp.getMembers() != null) {
                     egp.getMembers().stream()
-                        .map(com.example.BES.models.EventGenreParticipantMember::getMemberName)
+                        .map(com.example.BES.models.EventCategoryParticipantMember::getMemberName)
                         .filter(n -> n != null && !n.isBlank())
                         .forEach(memberSet::add);
                 }
@@ -311,8 +307,8 @@ public class RegistrationService {
             }
             dto.genres = egps.stream().map(egp -> {
                 GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
-                gs.genreName = egp.getEventGenre().getName();
-                gs.eventGenreId = egp.getEventGenre().getId();
+                gs.categoryName = egp.getEventCategory().getName();
+                gs.eventGenreId = egp.getEventCategory().getId();
                 gs.auditionNumber = egp.getAuditionNumber();
                 return gs;
             }).collect(Collectors.toList());
@@ -339,39 +335,39 @@ public class RegistrationService {
         return dto.getParticipantName();
     }
 
-    private boolean isSoloBlockedForAnyGenre(List<String> genres, List<EventGenre> divisions) {
+    private boolean isSoloBlockedForAnyGenre(List<String> genres, List<EventCategory> divisions) {
         if (genres == null) return false;
         for (String genreName : genres) {
-            EventGenre eg = findMatchingDivision(divisions, genreName);
+            EventCategory eg = findMatchingDivision(divisions, genreName);
             if (eg != null && isTeamFormat(eg.getFormat()) && !eg.isSoloAllowed()) return true;
         }
         return false;
     }
 
-    private boolean hasTeamFormatGenre(List<String> genres, List<EventGenre> divisions) {
+    private boolean hasTeamFormatGenre(List<String> genres, List<EventCategory> divisions) {
         if (genres == null) return false;
         for (String genreName : genres) {
-            EventGenre eg = findMatchingDivision(divisions, genreName);
+            EventCategory eg = findMatchingDivision(divisions, genreName);
             if (eg != null && isTeamFormat(eg.getFormat())) return true;
         }
         return false;
     }
 
-    private String getTeamFormat(List<String> genres, List<EventGenre> divisions) {
+    private String getTeamFormat(List<String> genres, List<EventCategory> divisions) {
         if (genres == null) return null;
         for (String genreName : genres) {
-            EventGenre eg = findMatchingDivision(divisions, genreName);
+            EventCategory eg = findMatchingDivision(divisions, genreName);
             if (eg != null && isTeamFormat(eg.getFormat())) return eg.getFormat();
         }
         return null;
     }
 
-    private EventGenre findMatchingDivision(List<EventGenre> divisions, String sheetCategory) {
+    private EventCategory findMatchingDivision(List<EventCategory> divisions, String sheetCategory) {
         if (sheetCategory == null) return null;
         String categoryLower = sheetCategory.toLowerCase().trim();
-        EventGenre bestMatch = null;
+        EventCategory bestMatch = null;
         int bestMatchLength = -1;
-        for (EventGenre eg : divisions) {
+        for (EventCategory eg : divisions) {
             List<String> names = new ArrayList<>();
             names.add(eg.getName().toLowerCase().trim());
             if (eg.getSheetAliases() != null && !eg.getSheetAliases().isBlank()) {

@@ -10,7 +10,7 @@ public class GetCheckinListDto {
     public List<GenreStatus> genres;
 
     public static class GenreStatus {
-        public String genreName;
+        public String categoryName;
         public Long eventGenreId;
         public Integer auditionNumber;
     }

@@ -176,7 +176,7 @@ class RegistrationServiceTest {
         List<GetCheckinListDto> result = service.getCheckinList("Fest");
 
         assertThat(result.get(0).genres).hasSize(1);
-        assertThat(result.get(0).genres.get(0).genreName).isEqualTo("popping");
+        assertThat(result.get(0).genres.get(0).categoryName).isEqualTo("popping");
         assertThat(result.get(0).genres.get(0).auditionNumber).isEqualTo(5);
     }
 }
