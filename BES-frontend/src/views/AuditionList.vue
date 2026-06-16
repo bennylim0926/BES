@@ -733,7 +733,7 @@ onMounted(async () => {
           ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
-          v-if="isAdmin || isOrganiser || isEmcee"
+          v-if="isAdmin || isOrganiser"
           @click="showFilters = !showFilters"
           :aria-expanded="showFilters"
           aria-label="Toggle filters"
