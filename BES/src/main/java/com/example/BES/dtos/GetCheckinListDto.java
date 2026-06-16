@@ -7,11 +7,11 @@ public class GetCheckinListDto {
     public Long eventId;
     public String label;
     public List<String> memberNames;
-    public List<GenreStatus> genres;
+    public List<CategoryStatus> categories;
 
-    public static class GenreStatus {
+    public static class CategoryStatus {
         public String categoryName;
-        public Long eventGenreId;
+        public Long eventCategoryId;
         public Integer auditionNumber;
     }
 }

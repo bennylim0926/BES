@@ -133,7 +133,7 @@ public class EventControllerIntegrationTest {
         String json = objectMapper.writeValueAsString(Map.of(
                 "name", "Mike",
                 "eventName", "Event1",
-                "genre", "Pop",
+                "category", "Pop",
                 "judgeName", "Judge A"));
 
         Map<String, String> walkinResult = new java.util.HashMap<>();

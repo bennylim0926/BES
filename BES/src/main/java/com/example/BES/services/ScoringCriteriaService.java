@@ -29,10 +29,10 @@ public class ScoringCriteriaService {
     @Autowired
     EventCategoryRepo eventCategoryRepo;
 
-    public List<GetScoringCriteriaDto> getCriteria(String eventName, String genreName) {
+    public List<GetScoringCriteriaDto> getCriteria(String eventName, String categoryName) {
         List<ScoringCriteria> criteria;
-        if (genreName != null && !genreName.isBlank()) {
-            criteria = repo.findByEventNameAndGenreName(eventName, genreName);
+        if (categoryName != null && !categoryName.isBlank()) {
+            criteria = repo.findByEventNameAndCategoryName(eventName, categoryName);
             if (criteria.isEmpty()) {
                 criteria = repo.findEventLevelByEventName(eventName);
             }
@@ -42,10 +42,10 @@ public class ScoringCriteriaService {
         return criteria.stream().map(this::toDto).toList();
     }
 
-    public List<GetScoringCriteriaDto> getStrictCriteria(String eventName, String genreName) {
+    public List<GetScoringCriteriaDto> getStrictCriteria(String eventName, String categoryName) {
         List<ScoringCriteria> criteria;
-        if (genreName != null && !genreName.isBlank()) {
-            criteria = repo.findByEventNameAndGenreName(eventName, genreName);
+        if (categoryName != null && !categoryName.isBlank()) {
+            criteria = repo.findByEventNameAndCategoryName(eventName, categoryName);
         } else {
             criteria = repo.findEventLevelByEventName(eventName);
         }
@@ -57,8 +57,8 @@ public class ScoringCriteriaService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         ScoringCriteria sc = new ScoringCriteria();
         sc.setEvent(event);
-        if (dto.genreName != null && !dto.genreName.isBlank()) {
-            EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, dto.genreName)
+        if (dto.categoryName != null && !dto.categoryName.isBlank()) {
+            EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, dto.categoryName)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event category not found"));
             sc.setEventCategory(eventCategory);
         }
@@ -80,10 +80,10 @@ public class ScoringCriteriaService {
         repo.deleteById(id);
     }
 
-    public void deleteAllCriteria(String eventName, String genreName) {
+    public void deleteAllCriteria(String eventName, String categoryName) {
         List<ScoringCriteria> criteria;
-        if (genreName != null && !genreName.isBlank()) {
-            criteria = repo.findByEventNameAndGenreName(eventName, genreName);
+        if (categoryName != null && !categoryName.isBlank()) {
+            criteria = repo.findByEventNameAndCategoryName(eventName, categoryName);
         } else {
             criteria = repo.findEventLevelByEventName(eventName);
         }
@@ -96,7 +96,7 @@ public class ScoringCriteriaService {
         dto.name = sc.getName();
         dto.weight = sc.getWeight();
         dto.displayOrder = sc.getDisplayOrder();
-        dto.genreName = sc.getEventCategory() != null ? sc.getEventCategory().getName() : null;
+        dto.categoryName = sc.getEventCategory() != null ? sc.getEventCategory().getName() : null;
         return dto;
     }
 }

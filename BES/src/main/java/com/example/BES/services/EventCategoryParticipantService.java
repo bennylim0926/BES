@@ -329,12 +329,12 @@ public class EventCategoryParticipantService {
         Participant participant = participantRepo.findById(participantId).orElse(null);
         if (event != null && participant != null) {
             EventParticipant ep = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(null);
-            if (ep != null && ep.getGenre() != null) {
-                String updated = Arrays.stream(ep.getGenre().split(","))
+            if (ep != null && ep.getCategory() != null) {
+                String updated = Arrays.stream(ep.getCategory().split(","))
                     .map(String::trim)
                     .filter(g -> !g.equalsIgnoreCase(removedCategoryName))
                     .collect(Collectors.joining(", "));
-                ep.setGenre(updated);
+                ep.setCategory(updated);
                 eventParticipantRepo.save(ep);
             }
         }
@@ -399,11 +399,11 @@ public class EventCategoryParticipantService {
         }
 
         if (ep != null) {
-            String current = ep.getGenre();
+            String current = ep.getCategory();
             if (current == null || current.isBlank()) {
-                ep.setGenre(categoryName);
+                ep.setCategory(categoryName);
             } else if (Arrays.stream(current.split(",")).map(String::trim).noneMatch(g -> g.equalsIgnoreCase(categoryName))) {
-                ep.setGenre(current + ", " + categoryName);
+                ep.setCategory(current + ", " + categoryName);
             }
             eventParticipantRepo.save(ep);
         }

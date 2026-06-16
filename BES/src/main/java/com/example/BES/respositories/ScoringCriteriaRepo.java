@@ -15,6 +15,6 @@ public interface ScoringCriteriaRepo extends JpaRepository<ScoringCriteria, Long
     @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventCategory IS NULL ORDER BY sc.displayOrder ASC")
     List<ScoringCriteria> findEventLevelByEventName(@Param("eventName") String eventName);
 
-    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventCategory.name = :genreName ORDER BY sc.displayOrder ASC")
-    List<ScoringCriteria> findByEventNameAndGenreName(@Param("eventName") String eventName, @Param("genreName") String genreName);
+    @Query("SELECT sc FROM ScoringCriteria sc WHERE sc.event.eventName = :eventName AND sc.eventCategory.name = :categoryName ORDER BY sc.displayOrder ASC")
+    List<ScoringCriteria> findByEventNameAndCategoryName(@Param("eventName") String eventName, @Param("categoryName") String categoryName);
 }

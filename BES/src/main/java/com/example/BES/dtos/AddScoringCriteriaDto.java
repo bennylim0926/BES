@@ -9,7 +9,7 @@ public class AddScoringCriteriaDto {
     @Size(max = 255)
     public String eventName;   // set from @PathVariable after @Valid — do not add @NotBlank here
     @Size(max = 255)
-    public String genreName;   // null or blank = event-level
+    public String categoryName;   // null or blank = event-level
     @NotBlank @Size(max = 255)
     public String name;
     @DecimalMin("0.0")

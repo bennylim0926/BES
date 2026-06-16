@@ -55,7 +55,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Alice");
         participant.setStageName("Alice");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType(null);
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));
@@ -78,7 +78,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Bob");
         participant.setStageName("Bob");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("");
         participant.setMemberNames(List.of("C"));
@@ -100,7 +100,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Charlie");
         participant.setStageName("Charlie");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("solo");
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));
@@ -128,7 +128,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Diana");
         participant.setStageName("Diana");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("Crew D");
         participant.setMemberNames(List.of("Member1"));
@@ -160,7 +160,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Eve");
         participant.setStageName("Eve");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("Team E");
         participant.setMemberNames(List.of());
@@ -182,7 +182,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Frank");
         participant.setStageName("Frank");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("solo");
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));

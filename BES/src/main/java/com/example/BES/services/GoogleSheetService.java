@@ -90,7 +90,7 @@ public class GoogleSheetService {
             combined.add(value);
         }
 
-        return buildGenreCounts(combined);
+        return buildCategoryCounts(combined);
     }
 
     public void insertPaymentColumn(String fileId) throws IOException {
@@ -111,7 +111,7 @@ public class GoogleSheetService {
         List<Integer> categoriesColumn = getCategoriesColumns(dto.fileId);
         List<Integer> memberCols = getMemberNameColumns(originalHeaders);
 
-        List<String> genreMatchStrings = loadGenreMatchStrings(dto.eventName);
+        List<String> genreMatchStrings = loadCategoryMatchStrings(dto.eventName);
         for (List<String> res : resultString) {
             AddParticipantDto participant = mapper.mapRow(res, colIndexMap, categoriesColumn, genreMatchStrings, memberCols);
             String name = participant.getParticipantName();
@@ -284,7 +284,7 @@ public class GoogleSheetService {
                 .collect(Collectors.toList());
     }
 
-    private List<String> loadGenreMatchStrings(String eventName) {
+    private List<String> loadCategoryMatchStrings(String eventName) {
         List<String> all = new ArrayList<>();
         var event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event != null) {
@@ -301,7 +301,7 @@ public class GoogleSheetService {
         return all;
     }
 
-    private Map<String, Integer> buildGenreCounts(List<String> data) {
+    private Map<String, Integer> buildCategoryCounts(List<String> data) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (String value : data) {
             if (value == null || value.isBlank()) continue;

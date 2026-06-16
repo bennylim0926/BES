@@ -7,12 +7,12 @@ public class CheckinPreviewDto {
     public String name;
     public String refCode;
     public List<String> memberNames;
-    public List<GenreEntry> genres;
+    public List<CategoryEntry> categories;
     public Boolean cancelled;
     public String eventName;
 
-    public static class GenreEntry {
-        public String genreName;
+    public static class CategoryEntry {
+        public String categoryName;
         public Integer auditionNumber;
     }
 }

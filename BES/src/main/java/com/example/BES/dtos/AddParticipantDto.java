@@ -16,13 +16,13 @@ public class AddParticipantDto {
     public String eventName;
     public String participantName;
     public String residency;
-    public List<String> genres;
+    public List<String> categories;
     public Boolean paymentStatus;
     public String screenshotUrl;
     public String stageName;
     public String teamName;
     public List<String> memberNames;
-    public Map<String, String> genreFormats;
+    public Map<String, String> categoryFormats;
     // "team" | "solo" — from sheet ENTRY_TYPE column
     public String entryType;
 }

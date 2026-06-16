@@ -77,7 +77,7 @@ class ScoreServiceTest {
         GetParticipatnScoreDto dto = result.get(0);
         assertThat(dto.participantId).isEqualTo(3L);
         assertThat(dto.eventName).isEqualTo("Spring Battle");
-        assertThat(dto.genreName).isEqualTo("Breaking");
+        assertThat(dto.categoryName).isEqualTo("Breaking");
         assertThat(dto.judgeName).isEqualTo("Jay");
         assertThat(dto.participantName).isEqualTo("B-Boy Spark");
         assertThat(dto.score).isEqualTo(8.5);
@@ -137,7 +137,7 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Fest";
-        dto.genreName = "Popping";
+        dto.categoryName = "Popping";
         dto.judgeName = "Ray";
         dto.participantScore = List.of(pScore);
 
@@ -187,7 +187,7 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Jam";
-        dto.genreName = "Breaking";
+        dto.categoryName = "Breaking";
         dto.judgeName = "Maya";
         dto.participantScore = List.of(pScore);
 
@@ -234,7 +234,7 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Jam";
-        dto.genreName = "Waacking";
+        dto.categoryName = "Waacking";
         dto.judgeName = "Nina";
         dto.participantScore = List.of(pScore);
 
@@ -263,7 +263,7 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "X";
-        dto.genreName = "Y";
+        dto.categoryName = "Y";
         dto.judgeName = "Tom";
         dto.participantScore = List.of(pScore);
 
@@ -287,7 +287,7 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "X";
-        dto.genreName = "Y";
+        dto.categoryName = "Y";
         dto.judgeName = "Ghost";
         dto.participantScore = List.of(pScore);
 

@@ -25,12 +25,12 @@ public interface AuditionFeedbackRepository extends JpaRepository<AuditionFeedba
         WHERE f.eventCategoryParticipant IN (
             SELECT e FROM EventCategoryParticipant e
             WHERE LOWER(e.event.eventName) = LOWER(:eventName)
-              AND LOWER(e.eventCategory.name) = LOWER(:genreName)
+              AND LOWER(e.eventCategory.name) = LOWER(:categoryName)
         )
         AND LOWER(f.judge.name) = LOWER(:judgeName)
         """)
-    void deleteByEventNameAndGenreNameAndJudgeName(
+    void deleteByEventNameAndCategoryNameAndJudgeName(
         @Param("eventName") String eventName,
-        @Param("genreName") String genreName,
+        @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName);
 }

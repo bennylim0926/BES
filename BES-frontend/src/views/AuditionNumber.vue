@@ -174,8 +174,8 @@ const onReceiveAuditionNumber = (msg) => {
   } else {
     const historyEntry = history.value.find(h => slotKey(h.participantId, h.name) === id)
     if (historyEntry) {
-      const hGenre = historyEntry.categories.find(g => g.categoryName === msg.category)
-      if (hGenre) hGenre.auditionNumber = msg.auditionNumber
+      const hCategory = historyEntry.categories.find(g => g.categoryName === msg.category)
+      if (hCategory) hCategory.auditionNumber = msg.auditionNumber
     }
   }
 }

@@ -43,9 +43,9 @@ public class EventParticpantService {
         newParticipant.setParticipant(participant);
         newParticipant.setEvent(event);
         newParticipant.setResidency(dto.getResidency());
-        newParticipant.setGenre(String.join(", ", dto.getGenres()));
+        newParticipant.setCategory(String.join(", ", dto.getCategories()));
         List<EventCategoryParticipantId> ids = new ArrayList<>();
-        for(String g: dto.getGenres()){
+        for(String g: dto.getCategories()){
             EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, g).orElse(null);
             if (eventCategory == null) continue;
             EventCategoryParticipantId id = new EventCategoryParticipantId(event.getEventId(), eventCategory.getId(), participant.getParticipantId());

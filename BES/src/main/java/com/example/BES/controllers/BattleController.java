@@ -490,7 +490,7 @@ public class BattleController {
     public ResponseEntity<?> setResolvedParticipants(Authentication auth, @Valid @RequestBody SetResolvedParticipantsDto dto) {
         checkBattleAccess(auth, dto.getEventName());
         battleService.setResolvedParticipants(
-            dto.getEventName(), dto.getGenreName(), dto.getParticipants());
+            dto.getEventName(), dto.getCategoryName(), dto.getParticipants());
         return ResponseEntity.ok(Map.of("message", "Resolved participants saved"));
     }
 }

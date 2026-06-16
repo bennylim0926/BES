@@ -523,7 +523,7 @@ public class BattleService {
         Map<String, Object> state = new HashMap<>();
         state.put("eventName",      eventName);
         state.put("categoryName",   s.activeCategoryName);
-        state.put("genreFormat",    s.genreFormat);
+        state.put("categoryFormat",  s.categoryFormat);
         state.put("bracket",        s.bracketState);
         state.put("currentRoundIndex", s.currentRoundIndex);
         Map<String, Object> pair = new HashMap<>();
@@ -580,16 +580,16 @@ public class BattleService {
         if (stateOpt.isEmpty()) return new HashMap<>();
         BattleCategoryState db = stateOpt.get();
 
-        String genreFormat = null;
+        String categoryFormat = null;
         Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (ev != null) {
-            genreFormat = eventCategoryRepo.findByEventAndName(ev, categoryName)
+            categoryFormat = eventCategoryRepo.findByEventAndName(ev, categoryName)
                 .map(ec -> ec.getFormat()).orElse(null);
         }
 
         Map<String, Object> result = new HashMap<>();
-        result.put("categoryName", categoryName);
-        result.put("genreFormat",  genreFormat);
+        result.put("categoryName",   categoryName);
+        result.put("categoryFormat", categoryFormat);
         result.put("battlePhase", db.getBattlePhase() != null ? db.getBattlePhase() : "IDLE");
         result.put("champion",    db.getChampion());
         result.put("currentRoundIndex", db.getCurrentRoundIndex() != null ? db.getCurrentRoundIndex() : 0);
@@ -714,12 +714,12 @@ public class BattleService {
     private void loadCategoryStateIntoMemory(String eventName, String categoryName) {
         EventBattleState s = stateFor(eventName);
         s.activeCategoryName = categoryName;
-        s.genreFormat = null;
+        s.categoryFormat = null;
         if (eventName != null && categoryName != null) {
             Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
             if (ev != null) {
                 eventCategoryRepo.findByEventAndName(ev, categoryName)
-                    .ifPresent(eg -> s.genreFormat = eg.getFormat());
+                    .ifPresent(eg -> s.categoryFormat = eg.getFormat());
             }
         }
         Optional<BattleCategoryState> stateOpt =
@@ -809,7 +809,7 @@ public class BattleService {
         BattlePair currentPair;
         final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
         String activeCategoryName;
-        String genreFormat;
+        String categoryFormat;
         String champion = null;
         Map<String, Object> lastTimerPayload = null;
         long timerLastUpdated = 0;

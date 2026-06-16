@@ -74,7 +74,7 @@ public class RegistrationService {
         EventParticipant ep = eventParticipantService.addNewWalkInInEventService(p, dto.eventName);
         if (ep == null) throw new RuntimeException("Event not found: " + dto.eventName);
         return eventGenreParticipantService.addWalkInToEventCategoryParticipant(
-            p, dto.genre, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
+            p, dto.category, ep, dto.judgeName, dto.entryMode, dto.teamName, dto.teamMembers);
     }
 
     public ImportResultDto addParticipantToEvent(AddParticipantToEventDto dto) throws IOException {
@@ -101,11 +101,11 @@ public class RegistrationService {
         for (AddParticipantDto participant : importable) {
             String participantName = participant.getParticipantName();
             try {
-                boolean hasTeamFormatGenre = hasTeamFormatGenre(participant.getGenres(), allDivisions);
+                boolean hasTeamFormatGenre = hasTeamFormatGenre(participant.getCategories(), allDivisions);
 
                 if (hasTeamFormatGenre) {
                     String entryType = participant.getEntryType();
-                    boolean soloBlocked = isSoloBlockedForAnyGenre(participant.getGenres(), allDivisions);
+                    boolean soloBlocked = isSoloBlockedForAnyGenre(participant.getCategories(), allDivisions);
                     if ((entryType == null || entryType.isBlank()) && soloBlocked) {
                         result.addError(rowNumber, participantName,
                             "Solo not allowed — entry type required");
@@ -114,7 +114,7 @@ public class RegistrationService {
                         continue;
                     }
                     if ("team".equals(entryType)) {
-                        String format = getTeamFormat(participant.getGenres(), allDivisions);
+                        String format = getTeamFormat(participant.getCategories(), allDivisions);
                         validateTeamEntry(format, participant.getTeamName(), participant.getMemberNames());
                     }
                 }
@@ -132,20 +132,20 @@ public class RegistrationService {
                     ep.setStageName(participant.getStageName());
                     ep.setDisplayName(resolveDisplayName(participant));
                     ep.setResidency(participant.getResidency());
-                    ep.setGenre(participant.getGenres() != null ? String.join(", ", participant.getGenres()) : "");
+                    ep.setCategory(participant.getCategories() != null ? String.join(", ", participant.getCategories()) : "");
                     ep.setPaymentVerified(!event.isPaymentRequired());
                     ep.setScreenshotUrl(participant.getScreenshotUrl());
                     ep.setReferenceCode(ReferenceCodeUtil.generate());
                     eventParticipantRepo.save(ep);
                 }
 
-                if (participant.getGenres() != null && !participant.getGenres().isEmpty()) {
+                if (participant.getCategories() != null && !participant.getCategories().isEmpty()) {
                     boolean anyGenreMatched = false;
-                    for (String genreName : participant.getGenres()) {
-                        EventCategory eg = findMatchingDivision(allDivisions, genreName);
+                    for (String categoryName : participant.getCategories()) {
+                        EventCategory eg = findMatchingDivision(allDivisions, categoryName);
                         if (eg == null) {
                             result.addWarning(rowNumber, participantName,
-                                "'" + genreName + "' not found — skipped");
+                                "'" + categoryName + "' not found — skipped");
                             continue;
                         }
                         anyGenreMatched = true;
@@ -244,7 +244,7 @@ public class RegistrationService {
             dto.name = ep.getDisplayName();
             List<EventCategoryParticipant> egps = eventGenreParticipantRepo
                 .findByEventIdAndParticipantId(ep.getEvent().getEventId(), ep.getParticipant().getParticipantId());
-            dto.genres = egps.stream()
+            dto.categories = egps.stream()
                 .map(egp -> egp.getEventCategory().getName())
                 .collect(Collectors.toList());
             dto.screenshotUrl = ep.getScreenshotUrl();
@@ -305,10 +305,10 @@ public class RegistrationService {
             } else {
                 dto.memberNames = new ArrayList<>(memberSet);
             }
-            dto.genres = egps.stream().map(egp -> {
-                GetCheckinListDto.GenreStatus gs = new GetCheckinListDto.GenreStatus();
+            dto.categories = egps.stream().map(egp -> {
+                GetCheckinListDto.CategoryStatus gs = new GetCheckinListDto.CategoryStatus();
                 gs.categoryName = egp.getEventCategory().getName();
-                gs.eventGenreId = egp.getEventCategory().getId();
+                gs.eventCategoryId = egp.getEventCategory().getId();
                 gs.auditionNumber = egp.getAuditionNumber();
                 return gs;
             }).collect(Collectors.toList());
@@ -335,28 +335,28 @@ public class RegistrationService {
         return dto.getParticipantName();
     }
 
-    private boolean isSoloBlockedForAnyGenre(List<String> genres, List<EventCategory> divisions) {
-        if (genres == null) return false;
-        for (String genreName : genres) {
-            EventCategory eg = findMatchingDivision(divisions, genreName);
+    private boolean isSoloBlockedForAnyGenre(List<String> categories, List<EventCategory> divisions) {
+        if (categories == null) return false;
+        for (String categoryName : categories) {
+            EventCategory eg = findMatchingDivision(divisions, categoryName);
             if (eg != null && isTeamFormat(eg.getFormat()) && !eg.isSoloAllowed()) return true;
         }
         return false;
     }
 
-    private boolean hasTeamFormatGenre(List<String> genres, List<EventCategory> divisions) {
-        if (genres == null) return false;
-        for (String genreName : genres) {
-            EventCategory eg = findMatchingDivision(divisions, genreName);
+    private boolean hasTeamFormatGenre(List<String> categories, List<EventCategory> divisions) {
+        if (categories == null) return false;
+        for (String categoryName : categories) {
+            EventCategory eg = findMatchingDivision(divisions, categoryName);
             if (eg != null && isTeamFormat(eg.getFormat())) return true;
         }
         return false;
     }
 
-    private String getTeamFormat(List<String> genres, List<EventCategory> divisions) {
-        if (genres == null) return null;
-        for (String genreName : genres) {
-            EventCategory eg = findMatchingDivision(divisions, genreName);
+    private String getTeamFormat(List<String> categories, List<EventCategory> divisions) {
+        if (categories == null) return null;
+        for (String categoryName : categories) {
+            EventCategory eg = findMatchingDivision(divisions, categoryName);
             if (eg != null && isTeamFormat(eg.getFormat())) return eg.getFormat();
         }
         return null;

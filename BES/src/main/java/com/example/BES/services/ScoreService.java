@@ -54,7 +54,7 @@ public class ScoreService {
             GetParticipatnScoreDto dto = new GetParticipatnScoreDto();
             dto.participantId = s.getEventCategoryParticipant().getId().getParticipantId();
             dto.eventName = s.getEventCategoryParticipant().getEvent().getEventName();
-            dto.genreName = s.getEventCategoryParticipant().getEventCategory().getName();
+            dto.categoryName = s.getEventCategoryParticipant().getEventCategory().getName();
             dto.judgeName = s.getJudge().getName();
             dto.participantName = s.getEventCategoryParticipant().getDisplayName();
             dto.score = s.getValue();
@@ -71,10 +71,10 @@ public class ScoreService {
         for (ParticipantScoreDto d : dto.participantScore) {
             EventCategoryParticipant record = (d.auditionNumber != null)
                     ? eventCategoryParticipantRepo
-                            .findByEventNameAndCategoryNameAndAuditionNumber(dto.eventName, dto.genreName, d.auditionNumber)
+                            .findByEventNameAndCategoryNameAndAuditionNumber(dto.eventName, dto.categoryName, d.auditionNumber)
                             .orElse(null)
                     : eventCategoryParticipantRepo
-                            .findByEventCategoryParticipant(dto.eventName, dto.genreName, d.participantName)
+                            .findByEventCategoryParticipant(dto.eventName, dto.categoryName, d.participantName)
                             .orElse(null);
             Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
@@ -115,8 +115,8 @@ public class ScoreService {
     }
 
     @Transactional
-    public void resetScoresByJudge(String eventName, String genreName, String judgeName) {
-        repo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+    public void resetScoresByJudge(String eventName, String categoryName, String judgeName) {
+        repo.deleteByEventNameAndCategoryNameAndJudgeName(eventName, categoryName, judgeName);
         broadcastScoreChange(eventName, "score-reset");
     }
 }

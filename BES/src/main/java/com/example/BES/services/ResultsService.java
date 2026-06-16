@@ -44,7 +44,7 @@ public class ResultsService {
             ep.getParticipant().getParticipantId()
         );
 
-        List<GetResultsDto.GenreResult> genreResults = new ArrayList<>();
+        List<GetResultsDto.CategoryResult> categoryResults = new ArrayList<>();
         for (EventCategoryParticipant egp : egps) {
             List<Score> scores = scoreRepo.findByEventCategoryParticipant(egp);
             List<AuditionFeedback> feedbacks = feedbackRepo.findByEventCategoryParticipant(egp);
@@ -67,7 +67,7 @@ public class ResultsService {
                     f.getJudge().getName(), tagEntries, f.getNote()));
             }
 
-            genreResults.add(new GetResultsDto.GenreResult(
+            categoryResults.add(new GetResultsDto.CategoryResult(
                 egp.getEventCategory().getName(),
                 egp.getFormat(),
                 egp.getAuditionNumber(),
@@ -79,7 +79,7 @@ public class ResultsService {
         return new GetResultsDto(
             ep.getDisplayName(),
             ep.getEvent().getEventName(),
-            genreResults
+            categoryResults
         );
     }
 

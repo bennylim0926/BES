@@ -5,7 +5,7 @@ import java.util.List;
 public class AuditionDisplayStateDto {
 
     public String eventName;
-    public String genreName;
+    public String categoryName;
     public String mode;          // "SOLO" or "PAIR"
     public int currentRound;
     public int totalRounds;

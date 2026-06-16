@@ -83,6 +83,6 @@ class ResultsServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getParticipantName()).isEqualTo("Player1");
         assertThat(result.getEventName()).isEqualTo("Fest");
-        assertThat(result.getGenres()).hasSize(1);
+        assertThat(result.getCategories()).hasSize(1);
     }
 }

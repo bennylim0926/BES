@@ -90,7 +90,7 @@ class AuditionFeedbackServiceTest {
     void submitFeedback_doesNothingWhenEgpOrJudgeNull() {
         SubmitAuditionFeedbackDto dto = new SubmitAuditionFeedbackDto();
         dto.setEventName("Fest");
-        dto.setGenreName("breaking");
+        dto.setCategoryName("breaking");
         dto.setAuditionNumber(1);
         dto.setJudgeName("Ghost");
         when(egpRepo.findByEventNameAndCategoryNameAndAuditionNumber("Fest", "breaking", 1))
@@ -105,7 +105,7 @@ class AuditionFeedbackServiceTest {
     void submitFeedback_doesNothingWhenJudgeNull() {
         SubmitAuditionFeedbackDto dto = new SubmitAuditionFeedbackDto();
         dto.setEventName("Fest");
-        dto.setGenreName("breaking");
+        dto.setCategoryName("breaking");
         dto.setAuditionNumber(1);
         dto.setJudgeName("Ghost");
         EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
@@ -122,7 +122,7 @@ class AuditionFeedbackServiceTest {
     void submitFeedback_savesWhenEgpAndJudgeFound() {
         SubmitAuditionFeedbackDto dto = new SubmitAuditionFeedbackDto();
         dto.setEventName("Fest");
-        dto.setGenreName("breaking");
+        dto.setCategoryName("breaking");
         dto.setAuditionNumber(1);
         dto.setJudgeName("Mike");
         dto.setTagIds(List.of());

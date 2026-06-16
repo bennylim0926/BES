@@ -4,7 +4,7 @@ public class GetParticipatnScoreDto {
     public Long participantId;
     public String participantName;
     public String eventName;
-    public String genreName;
+    public String categoryName;
     public String judgeName;
     public Double score;
     public String aspect;  // empty string for legacy single scores; criterion name for multi-criteria

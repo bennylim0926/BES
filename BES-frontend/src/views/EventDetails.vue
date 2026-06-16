@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs, insertEventInTable } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -120,7 +120,7 @@ const revealingRef = ref(null) // name of participant whose ref code is being he
 const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? 'event-day' : 'setup') // 'setup' | 'event-day'
 // Setup tab is split into three sub-tabs to keep each screen scannable.
 // Persisted per event so switching events does not leak prior state.
-const setupSubTab = ref('genres') // 'genres' | 'judges' | 'links'
+const setupSubTab = ref('categories') // 'categories' | 'judges' | 'links'
 // The single currently-expanded division inside the categories accordion (by eventCategoryId).
 const expandedDivisionId = ref(null)
 const toggleDivision = (id) => {
@@ -249,7 +249,7 @@ const totalNotShownUp = computed(() => {
 const divisionAuditionStats = computed(() => {
   const map = {}
   for (const p of checkinList.value) {
-    for (const g of p.genres) {
+    for (const g of p.categories) {
       if (!map[g.categoryName]) map[g.categoryName] = { total: 0, drawn: [] }
       map[g.categoryName].total++
       if (g.auditionNumber !== null) map[g.categoryName].drawn.push(g.auditionNumber)
@@ -287,9 +287,9 @@ const registeredSearch = ref('')
 const registeredCategoryFilter = ref('')
 
 const registeredCategoryOptions = computed(() => {
-  const genres = new Set()
-  registeredList.value.forEach(p => p.entries.forEach(e => genres.add(e.category)))
-  return [...genres].sort()
+  const categories = new Set()
+  registeredList.value.forEach(p => p.entries.forEach(e => categories.add(e.category)))
+  return [...categories].sort()
 })
 
 const filteredRegisteredList = computed(() => {
@@ -318,7 +318,7 @@ const filteredRegisteredList = computed(() => {
 // a person with both solo and team entries only appears once.
 const eligibleParticipants = computed(() =>
   checkinList.value
-    .filter(p => p.genres.length > 0 && p.genres.some(g => g.auditionNumber === null))
+    .filter(p => p.categories.length > 0 && p.categories.some(g => g.auditionNumber === null))
     .map(p => ({ label: p.label, participantId: p.participantId, eventId: p.eventId }))
     .sort((a, b) => a.label.localeCompare(b.label))
 )
@@ -382,6 +382,25 @@ const completeBreakdown = computed(() => {
     return { category: category, total, registered: stats.registered, unregistered: stats.unregistered };
   });
 })
+
+const onSubmit = async () => {
+  if (loading.value) return
+  loading.value = true
+  const ok = await insertEventInTable(props.eventName, paymentRequired.value)
+  loading.value = false
+  if (ok) {
+    if (!dbEventId.value) {
+      const dbEvents = await fetchAllEvents() ?? []
+      const dbEvent = dbEvents.find(e => e.name === props.eventName)
+      if (dbEvent) dbEventId.value = dbEvent.id
+    }
+    if (dbEventId.value) setActiveEvent(dbEventId.value, props.eventName, activeFolderID.value)
+    reloadOnClose.value = true
+    openModal('Event Initialised', 'Event created. Add categories below to get started.', 'success')
+  } else {
+    openModal('Error', 'Failed to initialise event.', 'error')
+  }
+}
 
 const refreshParticipant = async () => {
   importError.value = ''
@@ -929,7 +948,7 @@ const handleBatchVerifyPayment = async () => {
   batchVerifying.value = false
 }
 
-const isCheckedIn = (p) => p.genres.length > 0 && p.genres.every(g => g.auditionNumber !== null)
+const isCheckedIn = (p) => p.categories.length > 0 && p.categories.every(g => g.auditionNumber !== null)
 
 const sortedCheckinList = computed(() =>
   [...checkinList.value].sort((a, b) => {
@@ -992,7 +1011,7 @@ function processNextDialogNumber() {
     return
   }
   const { category, auditionNumber } = dialogNumberQueue.shift()
-  const g = checkinConfirm.value.participant?.genres.find(x => x.categoryName === category)
+  const g = checkinConfirm.value.participant?.categories.find(x => x.categoryName === category)
   if (!g) { processNextDialogNumber(); return }
 
   const poolSize = categoryPoolSizes.value[category] ?? 99
@@ -1026,7 +1045,7 @@ function processNextDialogNumber() {
 const askCheckIn = (p) => {
   checkinConfirm.value = {
     show: true,
-    participant: { ...p, genres: p.genres.map(g => ({ ...g, rolling: false })) },
+    participant: { ...p, categories: p.categories.map(g => ({ ...g, rolling: false })) },
     phase: 'confirm',
     refCode: null
   }
@@ -1035,7 +1054,7 @@ const askCheckIn = (p) => {
     participantId: p.participantId,
     name: p.label,
     memberNames: p.memberNames ?? [],
-    genres: p.genres.map(g => ({ categoryName: g.categoryName, auditionNumber: g.auditionNumber ?? null }))
+    categories: p.categories.map(g => ({ categoryName: g.categoryName, auditionNumber: g.auditionNumber ?? null }))
   })
 }
 
@@ -1052,7 +1071,7 @@ const closeCheckinDialog = () => {
   }
   // Clear pool sizes from completed check-in
   if (checkinConfirm.value.participant) {
-    checkinConfirm.value.participant.genres.forEach(g => {
+    checkinConfirm.value.participant.categories.forEach(g => {
       const key = g.categoryName
       if (key in categoryPoolSizes.value) {
         const next = { ...categoryPoolSizes.value }
@@ -1070,7 +1089,7 @@ const confirmCheckIn = async () => {
   confirming.value = true
 
   // Reset category display state
-  p.genres.forEach(g => { g.auditionNumber = null; g.rolling = false })
+  p.categories.forEach(g => { g.auditionNumber = null; g.rolling = false })
 
   // Reset animation queue
   dialogNumberQueue.length = 0
@@ -1111,7 +1130,7 @@ const confirmCheckIn = async () => {
   // Queue animations from the now-fresh checkinList data (no WS dependency)
   const freshParticipant = checkinList.value.find(ep => ep.participantId === p.participantId)
   if (freshParticipant) {
-    for (const ug of freshParticipant.genres) {
+    for (const ug of freshParticipant.categories) {
       if (ug.auditionNumber != null) {
         dialogNumberQueue.push({ category: ug.categoryName, auditionNumber: ug.auditionNumber })
       }
@@ -1166,7 +1185,7 @@ onMounted(async () => {
       await Promise.all(eventCategories.value.map(loadJudgesForDivision))
       // Restore per-event setup sub-tab + auto-expand the first division.
       const savedSub = localStorage.getItem(`setupSubTab_${props.eventName}`)
-      if (savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links') {
+      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links') {
         setupSubTab.value = savedSub
       }
       expandedDivisionId.value = eventCategories.value[0].eventCategoryId
@@ -1200,7 +1219,7 @@ onMounted(async () => {
       }
       const participant = checkinList.value.find(p => p.participantId === msg.participantId)
       if (participant) {
-        const cat = participant.genres.find(g => g.categoryName === msg.category)
+        const cat = participant.categories.find(g => g.categoryName === msg.category)
         if (cat) cat.auditionNumber = msg.auditionNumber
       }
       // Participant is now checked in — no longer in preview
@@ -1452,7 +1471,7 @@ onUnmounted(() => {
                   <span class="type-name text-content-secondary block">{{ p.name }}</span>
                   <div class="flex flex-wrap gap-1 mt-1">
                     <span
-                      v-for="g in p.genres"
+                      v-for="g in p.categories"
                       :key="g"
                       class="badge-neutral text-xs"
                     >{{ g }}</span>
@@ -1483,6 +1502,49 @@ onUnmounted(() => {
         </div>
       </div>
 
+
+    <!-- Setup section (when no event record exists yet) -->
+    <div v-if="!tableExist" class="card-hover p-6 relative mt-6">
+      <div class="corner-bar-tl"></div>
+      <div class="flex items-center gap-3 mb-6">
+        <i class="pi pi-exclamation-triangle text-amber-300 text-sm"></i>
+        <div>
+          <div class="type-body text-content-secondary">Event Setup Required</div>
+          <p class="type-prose">No record found for this event. Configure settings and initialise.</p>
+        </div>
+      </div>
+
+      <div class="section-rule mb-4">
+        <span class="section-rule-label">Settings</span>
+        <div class="section-rule-line"></div>
+      </div>
+
+      <div class="mb-6">
+        <label
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit"
+          :class="paymentRequired ? 'border-accent' : ''"
+        >
+          <input type="checkbox" v-model="paymentRequired" class="w-4 h-4" />
+          <div>
+            <span class="type-body">Payment Required</span>
+            <p class="type-label mt-0.5" :class="paymentRequired ? 'text-amber-400' : 'text-content-muted'">
+              {{ paymentRequired ? 'Participants will be placed in an unverified queue until you manually verify payment in-app.' : 'All participants will be auto-verified on import.' }}
+            </p>
+          </div>
+        </label>
+      </div>
+
+      <div class="flex justify-end">
+        <button
+          @click="onSubmit"
+          :disabled="loading"
+          class="bg-accent para-chip type-label disabled:opacity-50 px-5 py-2 flex items-center gap-2"
+        >
+          <i class="pi text-xs" :class="loading ? 'pi-spinner pi-spin' : 'pi-database'"></i>
+          {{ loading ? 'Setting up…' : 'Initialise Event' }}
+        </button>
+      </div>
+    </div>
 
     <!-- Event Settings (existing event) -->
     <div v-if="tableExist" class="card-hover p-4 relative mt-6">
@@ -1529,7 +1591,7 @@ onUnmounted(() => {
   <div v-if="tableExist && eventCategories.length > 0" class="tab-bar mt-6" role="tablist" aria-label="Setup sub-sections">
     <button
       v-for="sub in [
-        { key: 'genres', label: 'Categories' },
+        { key: 'categories', label: 'Categories' },
         { key: 'judges', label: 'Judges' },
         { key: 'links',  label: 'Share Links' },
       ]"
@@ -1542,8 +1604,57 @@ onUnmounted(() => {
     >{{ sub.label }}</button>
   </div>
 
+  <!-- Empty categories state — shown after init before any category is added -->
+  <div v-if="tableExist && eventCategories.length === 0" class="card-hover p-4 relative mt-6">
+    <div class="corner-bar-tl"></div>
+    <div class="section-rule mb-3">
+      <span class="section-rule-label">Categories</span>
+      <div class="section-rule-line"></div>
+    </div>
+
+    <!-- Sheet suggestions when a sheet is connected -->
+    <div v-if="allSheetSuggestions.length > 0" class="mb-4 p-3 border border-white/7">
+      <div class="section-rule mb-1">
+        <span class="section-rule-label">From your sheet</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <p class="type-prose mb-3">Click any pill below to add it as a category.</p>
+      <div class="flex flex-wrap gap-2">
+        <span
+          v-for="cat in allSheetSuggestions"
+          :key="cat"
+          class="relative"
+        >
+          <button
+            @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
+            class="para-chip-sm px-3 py-1.5 type-name-sm text-content-secondary hover:text-accent transition-colors"
+            style="border-style:dashed;"
+          >+ {{ cat }}</button>
+          <div
+            v-if="pendingSuggestionCat === cat"
+            class="absolute top-full left-0 mt-1 z-50 min-w-[160px]"
+            style="background:var(--color-surface-800,#1a1a1a);border:1px solid rgba(255,255,255,0.12);"
+          >
+            <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO CATEGORY:</p>
+            <button
+              @click="addSuggestionToCategory('all', 'Category')"
+              class="block w-full text-left px-3 py-2 type-name-sm text-content-secondary hover:text-accent transition-colors"
+            >Add new category</button>
+          </div>
+        </span>
+      </div>
+    </div>
+
+    <p v-else class="type-prose mb-4">No categories yet. Add a category to define the competition formats for this event.</p>
+
+    <button
+      @click="addDivisionToGroup('all', 'Category')"
+      class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-accent transition-all"
+    >+ Add category</button>
+  </div>
+
   <!-- ── Sub-tab: Categories -->
-  <template v-if="setupSubTab === 'genres'">
+  <template v-if="setupSubTab === 'categories'">
 
   <div v-if="tableExist && eventCategories.length > 0" class="card-hover p-4 relative mt-6">
     <div class="corner-bar-tl"></div>
@@ -1653,26 +1764,23 @@ onUnmounted(() => {
             title="Rename category"
           ><i class="pi pi-pencil text-xs"></i></button>
 
-          <template v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name))">
-            <span class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
-              {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).registered }} reg
-            </span>
-            <span
-              v-if="completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered > 0"
-              class="inline-flex items-center gap-1.5 type-label text-amber-400 shrink-0"
-            >
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
-              ⚠ {{ completeBreakdown.find(b => b.category === normalizeCategoryName(div.name)).unregistered }}
-            </span>
-          </template>
+          <!-- Green = imported to DB, amber = in sheet but not yet imported -->
           <span
-            v-else-if="div.participantCount > 0"
+            v-if="div.participantCount > 0"
             class="ml-auto inline-flex items-center gap-1.5 type-label text-emerald-400 shrink-0"
-            :title="`${div.participantCount} participant${div.participantCount === 1 ? '' : 's'}`"
+            :title="`${div.participantCount} imported`"
           >
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px rgba(52,211,153,0.5)"></span>
             {{ div.participantCount }}
+          </span>
+          <span
+            v-if="(matchCounts[div.eventCategoryId] || 0) - div.participantCount > 0"
+            :class="div.participantCount > 0 ? '' : 'ml-auto'"
+            class="inline-flex items-center gap-1.5 type-label text-amber-400 shrink-0"
+            :title="`${(matchCounts[div.eventCategoryId] || 0) - div.participantCount} in sheet, not yet imported`"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400" style="box-shadow:0 0 5px rgba(245,158,11,0.5)"></span>
+            {{ (matchCounts[div.eventCategoryId] || 0) - div.participantCount }}
           </span>
         </div>
 
@@ -2170,12 +2278,12 @@ onUnmounted(() => {
                 </div>
                 <div class="flex flex-wrap gap-1 mt-1">
                   <!-- No divisions assigned -->
-                  <span v-if="p.genres.length === 0" class="inline-flex items-center gap-1 badge-neutral">
+                  <span v-if="p.categories.length === 0" class="inline-flex items-center gap-1 badge-neutral">
                     <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.7)"></span>
                     <span class="type-label text-amber-400/80">No division assigned</span>
                   </span>
                   <!-- Per-division status: green = linked to division -->
-                  <span v-for="g in p.genres" :key="g.categoryName"
+                  <span v-for="g in p.categories" :key="g.categoryName"
                     class="inline-flex items-center gap-1 badge-neutral"
                     style="text-transform:none;letter-spacing:0.02em;"
                   >
@@ -2632,7 +2740,7 @@ onUnmounted(() => {
   <ScoringCriteriaModal
     v-model="showCriteriaModal"
     :eventName="props.eventName"
-    :genres="eventCategories.map(g => g.name)"
+    :categories="eventCategories.map(g => g.name)"
     @update:modelValue="(v) => { if (!v) loadCriteriaForAllCategories(eventCategories) }"
   />
 
@@ -2680,10 +2788,10 @@ onUnmounted(() => {
             <div class="section-rule-line"></div>
           </div>
           <div class="space-y-2 mb-5">
-            <div v-if="!checkinConfirm.participant?.genres?.length" class="type-label text-amber-400/80">
+            <div v-if="!checkinConfirm.participant?.categories?.length" class="type-label text-amber-400/80">
               No divisions assigned
             </div>
-            <div v-for="g in checkinConfirm.participant?.genres" :key="g.categoryName"
+            <div v-for="g in checkinConfirm.participant?.categories" :key="g.categoryName"
               class="flex items-center gap-3 para-chip-sm px-3 py-2"
               :style="g.auditionNumber !== null
                 ? { borderColor: 'var(--accent-muted)', background: 'var(--accent-subtle)' } : {}"

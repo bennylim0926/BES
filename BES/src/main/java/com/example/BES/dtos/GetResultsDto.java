@@ -5,35 +5,35 @@ import java.util.List;
 public class GetResultsDto {
     private String participantName;
     private String eventName;
-    private List<GenreResult> genres;
+    private List<CategoryResult> categories;
 
-    public GetResultsDto(String participantName, String eventName, List<GenreResult> genres) {
+    public GetResultsDto(String participantName, String eventName, List<CategoryResult> categories) {
         this.participantName = participantName;
         this.eventName = eventName;
-        this.genres = genres;
+        this.categories = categories;
     }
 
     public String getParticipantName() { return participantName; }
     public String getEventName() { return eventName; }
-    public List<GenreResult> getGenres() { return genres; }
+    public List<CategoryResult> getCategories() { return categories; }
 
-    public static class GenreResult {
-        private String genreName;
+    public static class CategoryResult {
+        private String categoryName;
         private String format;
         private Integer auditionNumber;
         private List<ScoreEntry> scores;
         private List<FeedbackEntry> feedback;
 
-        public GenreResult(String genreName, String format, Integer auditionNumber,
+        public CategoryResult(String categoryName, String format, Integer auditionNumber,
                            List<ScoreEntry> scores, List<FeedbackEntry> feedback) {
-            this.genreName = genreName;
+            this.categoryName = categoryName;
             this.format = format;
             this.auditionNumber = auditionNumber;
             this.scores = scores;
             this.feedback = feedback;
         }
 
-        public String getGenreName() { return genreName; }
+        public String getCategoryName() { return categoryName; }
         public String getFormat() { return format; }
         public Integer getAuditionNumber() { return auditionNumber; }
         public List<ScoreEntry> getScores() { return scores; }

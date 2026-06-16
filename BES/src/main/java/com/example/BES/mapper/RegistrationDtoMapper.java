@@ -83,16 +83,15 @@ public class RegistrationDtoMapper {
             }
         }
 
-        // Genre formats: parse raw category cell into genre → format map
-        Map<String, String> genreFormats = new java.util.HashMap<>();
+        Map<String, String> categoryFormats = new java.util.HashMap<>();
         for (Integer i : categoriesCols) {
             if (row.size() > i && !row.get(i).isBlank()) {
-                genreFormats = GoogleSheetParser.parseGenreFormats(row.get(i), genres);
-                if (!genreFormats.isEmpty()) break;
+                categoryFormats = GoogleSheetParser.parseCategoryFormats(row.get(i), genres);
+                if (!categoryFormats.isEmpty()) break;
             }
         }
-        dto.setGenreFormats(genreFormats);
-        dto.setGenres(new ArrayList<>(genreFormats.keySet()));
+        dto.setCategoryFormats(categoryFormats);
+        dto.setCategories(new ArrayList<>(categoryFormats.keySet()));
 
         return dto;
     }

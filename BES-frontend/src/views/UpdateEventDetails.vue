@@ -29,12 +29,12 @@ const categoryList = computed(() => {
 const categoryCount = (category) =>
   category === 'All'
     ? participants.value.length
-    : participants.value.filter(p => p.genres.some(g => g.categoryName === category)).length
+    : participants.value.filter(p => p.categories.some(g => g.categoryName === category)).length
 
 const filtered = computed(() => {
   let list = participants.value
   if (activeCategory.value !== 'All')
-    list = list.filter(p => p.genres.some(g => g.categoryName === activeCategory.value))
+    list = list.filter(p => p.categories.some(g => g.categoryName === activeCategory.value))
   if (search.value.trim())
     list = list.filter(p => p.name.toLowerCase().includes(search.value.trim().toLowerCase()))
   return list
@@ -129,11 +129,11 @@ const confirmBulkDelete = () => {
 }
 
 const confirmDeleteParticipant = (p) => {
-  const categoryList = p.genres.map(g => g.categoryName).join(', ')
+  const categoryList = p.categories.map(g => g.categoryName).join(', ')
   confirmState.value = {
     show: true,
     title: 'Delete Participant',
-    message: `Remove "${p.name}" from ${selectedEvent.value}? This will remove them from all genres (${genreList}) and release all audition numbers. This cannot be undone.`,
+    message: `Remove "${p.name}" from ${selectedEvent.value}? This will remove them from all categories (${categoryList}) and release all audition numbers. This cannot be undone.`,
     onConfirm: async () => {
       await deleteParticipantFromEvent(p.participantId, p.eventId)
       confirmState.value.show = false
@@ -196,10 +196,10 @@ function groupParticipants(rows) {
         name:          row.participantName,
         format:        row.format,
         memberNames:   row.memberNames || [],
-        genres: []
+        categories: []
       })
     }
-    map.get(row.participantId).genres.push({
+    map.get(row.participantId).categories.push({
       categoryName:    row.categoryName,
       eventCategoryId: row.eventCategoryId,
       judgeName:    row.judgeName || '',
@@ -342,8 +342,8 @@ onMounted(async () => {
             </div>
             <div class="pt-col-genres">
               <span
-                v-for="g in p.genres"
-                :key="g.genreName"
+                v-for="g in p.categories"
+                :key="g.categoryName"
                 class="category-pill"
               >{{ g.categoryName }}</span>
             </div>
@@ -359,7 +359,7 @@ onMounted(async () => {
 
           <template v-if="expanded.has(p.participantId)">
             <div
-              v-for="category in p.genres"
+              v-for="category in p.categories"
               :key="category.categoryName"
               class="pt-subrow"
             >

@@ -27,9 +27,9 @@ public class BattleGuestService {
     @Autowired
     EventCategoryBattleGuestRepo battleGuestRepo;
 
-    public List<GetBattleGuestDto> getBattleGuests(String eventName, String genreName) {
+    public List<GetBattleGuestDto> getBattleGuests(String eventName, String categoryName) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
-        EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, genreName).orElse(null);
+        EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, categoryName).orElse(null);
         if (event == null || eventCategory == null) return List.of();
 
         return battleGuestRepo.findByEventAndEventCategory(event, eventCategory).stream()
@@ -38,7 +38,7 @@ public class BattleGuestService {
                 dto.id = g.getId();
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
-                dto.genreName = g.getEventCategory().getName();
+                dto.categoryName = g.getEventCategory().getName();
                 dto.memberNames = g.getMemberNames();
                 return dto;
             }).collect(Collectors.toList());
@@ -54,15 +54,15 @@ public class BattleGuestService {
                 dto.id = g.getId();
                 dto.guestName = g.getGuestName();
                 dto.entryRound = g.getEntryRound();
-                dto.genreName = g.getEventCategory().getName();
+                dto.categoryName = g.getEventCategory().getName();
                 dto.memberNames = g.getMemberNames();
                 return dto;
             }).collect(Collectors.toList());
     }
 
-    public GetBattleGuestDto addBattleGuest(String eventName, String genreName, AddBattleGuestDto dto) {
+    public GetBattleGuestDto addBattleGuest(String eventName, String categoryName, AddBattleGuestDto dto) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
-        EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, genreName).orElse(null);
+        EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, categoryName).orElse(null);
         if (event == null || eventCategory == null) throw new RuntimeException("Event or category not found");
 
         EventCategoryBattleGuest guest = new EventCategoryBattleGuest();
@@ -77,7 +77,7 @@ public class BattleGuestService {
         result.id = guest.getId();
         result.guestName = guest.getGuestName();
         result.entryRound = guest.getEntryRound();
-        result.genreName = eventCategory.getName();
+        result.categoryName = eventCategory.getName();
         result.memberNames = guest.getMemberNames();
         return result;
     }

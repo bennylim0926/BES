@@ -45,7 +45,7 @@ class ScoringCriteriaServiceTest {
 
     @Test
     void getCriteria_withGenre_fallsBackToEventLevel() {
-        when(repo.findByEventNameAndGenreName("Fest", "breaking")).thenReturn(List.of());
+        when(repo.findByEventNameAndCategoryName("Fest", "breaking")).thenReturn(List.of());
         when(repo.findEventLevelByEventName("Fest")).thenReturn(List.of(criteria(1L, "Technique", 1.0)));
 
         List<GetScoringCriteriaDto> result = service.getCriteria("Fest", "breaking");
@@ -56,7 +56,7 @@ class ScoringCriteriaServiceTest {
 
     @Test
     void getCriteria_withGenre_returnsGenreSpecificWhenPresent() {
-        when(repo.findByEventNameAndGenreName("Fest", "breaking"))
+        when(repo.findByEventNameAndCategoryName("Fest", "breaking"))
             .thenReturn(List.of(criteria(2L, "Musicality", 0.5)));
 
         List<GetScoringCriteriaDto> result = service.getCriteria("Fest", "breaking");
@@ -83,7 +83,7 @@ class ScoringCriteriaServiceTest {
         List<GetScoringCriteriaDto> result = service.getCriteria("Fest", "");
 
         assertThat(result).hasSize(1);
-        verify(repo, never()).findByEventNameAndGenreName(anyString(), anyString());
+        verify(repo, never()).findByEventNameAndCategoryName(anyString(), anyString());
     }
 
     @Test
@@ -102,7 +102,7 @@ class ScoringCriteriaServiceTest {
     void addCriteria_throwsWhenGenreNotFound() {
         AddScoringCriteriaDto dto = new AddScoringCriteriaDto();
         dto.eventName = "Fest";
-        dto.genreName = "breaking";
+        dto.categoryName = "breaking";
         dto.name = "Technique";
         dto.weight = 1.0;
         Event e = new Event();
@@ -120,7 +120,7 @@ class ScoringCriteriaServiceTest {
         dto.eventName = "Fest";
         dto.name = "Technique";
         dto.weight = 1.0;
-        dto.genreName = null;
+        dto.categoryName = null;
         Event e = new Event();
         e.setEventName("Fest");
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
@@ -138,7 +138,7 @@ class ScoringCriteriaServiceTest {
     void addCriteria_savesWithGenre() {
         AddScoringCriteriaDto dto = new AddScoringCriteriaDto();
         dto.eventName = "Fest";
-        dto.genreName = "breaking";
+        dto.categoryName = "breaking";
         dto.name = "Musicality";
         dto.weight = 0.5;
         Event e = new Event();
@@ -193,7 +193,7 @@ class ScoringCriteriaServiceTest {
     @Test
     void deleteAllCriteria_withGenre_deletesGenreSpecific() {
         List<ScoringCriteria> list = List.of(criteria(1L, "T", 1.0));
-        when(repo.findByEventNameAndGenreName("Fest", "breaking")).thenReturn(list);
+        when(repo.findByEventNameAndCategoryName("Fest", "breaking")).thenReturn(list);
 
         service.deleteAllCriteria("Fest", "breaking");
 

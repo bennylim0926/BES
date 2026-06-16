@@ -35,7 +35,7 @@ public class EventParticipant {
     private Participant participant;
 
     private String residency;
-    private String genre;
+    private String category;
     private boolean paymentVerified = false;
     private String screenshotUrl;
 

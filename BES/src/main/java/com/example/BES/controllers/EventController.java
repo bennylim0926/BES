@@ -403,7 +403,7 @@ public class EventController {
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new java.util.HashMap<>();
             error.put("status", "error");
-            error.put("genre", dto.genre);
+            error.put("category", dto.category);
             error.put("message", e.getMessage());
             return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
@@ -802,16 +802,16 @@ public class EventController {
         return ResponseEntity.ok(eventParticipantService.getParticipantRefs(eventName));
     }
 
-    @Operation(summary = "Get Scoring Criteria", description = "Returns scoring criteria for an event and optional genre. Without strict=true, genre-specific criteria take priority and fall back to event-level.")
+    @Operation(summary = "Get Scoring Criteria", description = "Returns scoring criteria for an event and optional category. Without strict=true, category-specific criteria take priority and fall back to event-level.")
     @GetMapping("/{eventName}/criteria")
     public ResponseEntity<List<GetScoringCriteriaDto>> getScoringCriteria(
             @PathVariable String eventName,
-            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false, defaultValue = "false") boolean strict) {
         if (strict) {
-            return ResponseEntity.ok(scoringCriteriaService.getStrictCriteria(eventName, genre));
+            return ResponseEntity.ok(scoringCriteriaService.getStrictCriteria(eventName, category));
         }
-        return ResponseEntity.ok(scoringCriteriaService.getCriteria(eventName, genre));
+        return ResponseEntity.ok(scoringCriteriaService.getCriteria(eventName, category));
     }
 
     @Operation(summary = "Add Scoring Criterion", description = "Adds a scoring criterion to an event (admin/organiser only)")
@@ -852,13 +852,13 @@ public class EventController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Delete All Criteria for Genre", description = "Removes all criteria for a specific genre (or event-level if no genre) (admin/organiser only)")
+    @Operation(summary = "Delete All Criteria for Category", description = "Removes all criteria for a specific category (or event-level if no category) (admin/organiser only)")
     @DeleteMapping("/{eventName}/criteria")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> deleteAllCriteriaForGenre(
+    public ResponseEntity<?> deleteAllCriteriaForCategory(
             @PathVariable String eventName,
-            @RequestParam(required = false) String genre) {
-        scoringCriteriaService.deleteAllCriteria(eventName, genre);
+            @RequestParam(required = false) String category) {
+        scoringCriteriaService.deleteAllCriteria(eventName, category);
         return ResponseEntity.noContent().build();
     }
 
@@ -976,31 +976,31 @@ public class EventController {
 
     // ── Battle Guest endpoints ─────────────────────────────────────────────────
 
-    @Operation(summary = "Get Battle Guests", description = "Returns all battle guests for a given event and genre")
-    @GetMapping("/battle-guests/{eventName}/{genreName}")
+    @Operation(summary = "Get Battle Guests", description = "Returns all battle guests for a given event and category")
+    @GetMapping("/battle-guests/{eventName}/{categoryName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<List<GetBattleGuestDto>> getBattleGuests(
             @PathVariable String eventName,
-            @PathVariable String genreName) {
-        return ResponseEntity.ok(battleGuestService.getBattleGuests(eventName, genreName));
+            @PathVariable String categoryName) {
+        return ResponseEntity.ok(battleGuestService.getBattleGuests(eventName, categoryName));
     }
 
-    @Operation(summary = "Get All Battle Guests For Event", description = "Returns all battle guests across all genres for an event")
+    @Operation(summary = "Get All Battle Guests For Event", description = "Returns all battle guests across all categories for an event")
     @GetMapping("/battle-guests/{eventName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<List<GetBattleGuestDto>> getAllBattleGuests(@PathVariable String eventName) {
         return ResponseEntity.ok(battleGuestService.getAllBattleGuestsForEvent(eventName));
     }
 
-    @Operation(summary = "Add Battle Guest", description = "Adds a battle guest to a genre in an event")
-    @PostMapping("/battle-guests/{eventName}/{genreName}")
+    @Operation(summary = "Add Battle Guest", description = "Adds a battle guest to a category in an event")
+    @PostMapping("/battle-guests/{eventName}/{categoryName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> addBattleGuest(
             @PathVariable String eventName,
-            @PathVariable String genreName,
+            @PathVariable String categoryName,
             @RequestBody AddBattleGuestDto dto) {
         try {
-            return ResponseEntity.ok(battleGuestService.addBattleGuest(eventName, genreName, dto));
+            return ResponseEntity.ok(battleGuestService.addBattleGuest(eventName, categoryName, dto));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

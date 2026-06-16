@@ -43,7 +43,7 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     AND
     s.eventCategoryParticipant.event.id = :eventId
     """)
-    int deleteByEventIdAndGenreId(@Param("eventId") Long eventId, @Param("genreId") Long genreId);
+    int deleteByEventIdAndCategoryId(@Param("eventId") Long eventId, @Param("eventCategoryId") Long eventCategoryId);
 
     @Modifying
     @Transactional
@@ -61,12 +61,12 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
     @Query("""
         DELETE FROM Score s
         WHERE s.eventCategoryParticipant.event.eventName = :eventName
-        AND s.eventCategoryParticipant.eventCategory.name = :genreName
+        AND s.eventCategoryParticipant.eventCategory.name = :categoryName
         AND s.judge.name = :judgeName
     """)
-    int deleteByEventNameAndGenreNameAndJudgeName(
+    int deleteByEventNameAndCategoryNameAndJudgeName(
         @Param("eventName") String eventName,
-        @Param("genreName") String genreName,
+        @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName
     );
 }

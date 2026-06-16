@@ -11,9 +11,9 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 public class GoogleSheetParser {
     private static final Pattern FORMAT_PATTERN = Pattern.compile("\\d+v\\d+");
 
-    public static List<String> normalizeGenre(String event, List<String> genres) {
+    public static List<String> normalizeCategory(String event, List<String> categories) {
         String eventLower = event.toLowerCase();
-        return genres.stream()
+        return categories.stream()
                      .filter(eventLower::contains)
                      .toList();
     }
@@ -31,13 +31,13 @@ public class GoogleSheetParser {
 
     /**
      * Parses a raw category cell (e.g. "Popping 1v1, Open Styles 3v3") into a map of
-     * genre match-string → format string (e.g. "1v1", "3v3"). Format is null if not present.
+     * category match-string → format string (e.g. "1v1", "3v3"). Format is null if not present.
      *
      * @param rawCellValue the raw comma-separated category string from the sheet
-     * @param genres       all known genre match strings (labels + aliases)
-     * @return map of genre label → format
+     * @param categories   all known category match strings (labels + aliases)
+     * @return map of category label → format
      */
-    public static Map<String, String> parseGenreFormats(String rawCellValue, List<String> genres) {
+    public static Map<String, String> parseCategoryFormats(String rawCellValue, List<String> categories) {
         Map<String, String> result = new HashMap<>();
         if (rawCellValue == null || rawCellValue.isBlank()) return result;
 
@@ -50,10 +50,10 @@ public class GoogleSheetParser {
             Matcher m = FORMAT_PATTERN.matcher(seg);
             String format = m.find() ? m.group() : null;
 
-            // Match against all known genre strings
-            for (String genre : genres) {
-                if (seg.contains(genre) || genre.contains(seg)) {
-                    result.putIfAbsent(genre, format);
+            // Match against all known category strings
+            for (String category : categories) {
+                if (seg.contains(category) || category.contains(seg)) {
+                    result.putIfAbsent(category, format);
                 }
             }
         }

@@ -97,7 +97,7 @@ public class AuditionFeedbackService {
 
     public void submitFeedback(SubmitAuditionFeedbackDto dto) {
         EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
-            dto.getEventName(), dto.getGenreName(), dto.getAuditionNumber()
+            dto.getEventName(), dto.getCategoryName(), dto.getAuditionNumber()
         ).orElse(null);
         Judge judge = judgeRepo.findFirstByName(dto.getJudgeName()).orElse(null);
 
@@ -123,8 +123,8 @@ public class AuditionFeedbackService {
     }
 
     public List<GetParticipantFeedbackDto> getAllFeedbackForParticipant(
-            String eventName, String genreName, String participantName) {
-        EventCategoryParticipant egp = egpRepo.findByEventCategoryParticipant(eventName, genreName, participantName).orElse(null);
+            String eventName, String categoryName, String participantName) {
+        EventCategoryParticipant egp = egpRepo.findByEventCategoryParticipant(eventName, categoryName, participantName).orElse(null);
         if (egp == null) return new ArrayList<>();
 
         List<AuditionFeedback> feedbacks = feedbackRepo.findByEventCategoryParticipant(egp);
@@ -139,15 +139,15 @@ public class AuditionFeedbackService {
         return result;
     }
 
-    public void resetFeedbackByJudge(String eventName, String genreName, String judgeName) {
-        feedbackRepo.deleteByEventNameAndGenreNameAndJudgeName(eventName, genreName, judgeName);
+    public void resetFeedbackByJudge(String eventName, String categoryName, String judgeName) {
+        feedbackRepo.deleteByEventNameAndCategoryNameAndJudgeName(eventName, categoryName, judgeName);
         broadcastScoreChange(eventName, "feedback-reset");
     }
 
-    public GetAuditionFeedbackDto getFeedback(String eventName, String genreName,
+    public GetAuditionFeedbackDto getFeedback(String eventName, String categoryName,
                                                String judgeName, Integer auditionNumber) {
         EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
-            eventName, genreName, auditionNumber
+            eventName, categoryName, auditionNumber
         ).orElse(null);
         Judge judge = judgeRepo.findFirstByName(judgeName).orElse(null);
 

@@ -163,9 +163,9 @@ watch(selectedEvent, async (newVal) => {
     eventCategories.value = await getCategoriesByEvent(newVal) ?? []
     // Re-read per-event preferences (or fall back to defaults) so switching
     // events does not carry over the previous event's category selection.
-    const savedGenre = localStorage.getItem(categoryKey(newVal))
-    const savedTab   = localStorage.getItem(tabKey(newVal))
-    selectedCategory.value = savedGenre
+    const savedCategory = localStorage.getItem(categoryKey(newVal))
+    const savedTab      = localStorage.getItem(tabKey(newVal))
+    selectedCategory.value = savedCategory
       || (eventCategories.value[0]?.name ?? '')
     selectedTabulation.value = savedTab || 'By Total'
     await refetchScores(newVal)
