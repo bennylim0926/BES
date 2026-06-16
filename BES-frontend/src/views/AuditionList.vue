@@ -713,13 +713,6 @@ onMounted(async () => {
         </template>
         <span v-if="!isJudgeSession" class="text-content-muted opacity-30">·</span>
         <span v-if="!isJudgeSession" class="type-label">{{ selectedRole }}</span>
-        <template v-if="isEmcee && selectedCategory">
-          <span class="text-content-muted opacity-30">·</span>
-          <button
-            class="type-label text-content-muted hover:text-content-primary transition-colors"
-            @click="selectedCategory = ''"
-          >‹ CHANGE CATEGORY</button>
-        </template>
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">

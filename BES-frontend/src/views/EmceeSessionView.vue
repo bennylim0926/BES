@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
-import { whoami } from '@/utils/api'
+import { whoami, getCategoriesByEvent } from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -11,7 +11,13 @@ const eventName = computed(() => authStore.activeEvent?.name || '')
 const sessionReady = ref(false)
 const loading = ref(true)
 
+const showCategoryPicker = ref(false)
+const categories = ref([])
+
 onMounted(async () => {
+  // Clear any previously selected category so emcee always picks fresh
+  localStorage.removeItem('selectedCategory')
+
   if (!authStore.user) {
     try {
       const user = await whoami()
@@ -22,6 +28,7 @@ onMounted(async () => {
   sessionReady.value = !!authStore.user && !!authStore.activeEvent
   if (authStore.activeEvent?.name) {
     authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
+    categories.value = await getCategoriesByEvent(authStore.activeEvent.name) ?? []
   }
 })
 
@@ -35,8 +42,18 @@ const LINKS = computed(() =>
   ALL_LINKS.filter(l => l.key !== 'battle' || authStore.activeEventBattleEnabled)
 )
 
-function navigate(routeName) {
-  router.push({ name: routeName })
+function handleNavClick(link) {
+  if (link.key === 'audition') {
+    showCategoryPicker.value = true
+  } else {
+    router.push({ name: link.route })
+  }
+}
+
+function selectCategory(categoryName) {
+  localStorage.setItem('selectedCategory', categoryName)
+  localStorage.setItem('selectedRole', 'Emcee')
+  router.push({ name: 'Audition List' })
 }
 </script>
 
@@ -48,7 +65,6 @@ function navigate(routeName) {
     <div v-if="!loading && !sessionReady" class="session-card">
       <h1 class="session-title">SESSION NOT FOUND</h1>
       <p class="empty-text">Your session could not be restored. Please use your invitation link again, or contact the event organiser for a new link.</p>
-      <!-- Escape route: dead-end error state must offer a way forward -->
       <router-link to="/login" class="session-link">Go to login</router-link>
     </div>
 
@@ -70,32 +86,48 @@ function navigate(routeName) {
         </div>
       </div>
 
-      <!-- Role guidance -->
-      <div class="px-4 py-3 type-label" style="font-size:10px;letter-spacing:0.12em;border-left:3px solid var(--accent-muted);background:var(--accent-subtle)">
-        You are logged in as Emcee. Control the audition flow, view scores, and manage the live battle.
-      </div>
-
-      <!-- Section header -->
-      <div class="section-header">
-        <span class="section-label">NAVIGATION</span>
-        <span class="section-rule"></span>
-      </div>
-
-      <!-- Loading — role=status announces the async state change -->
+      <!-- Loading -->
       <div v-if="loading" class="loading-text" role="status">LOADING…</div>
 
+      <!-- Category picker (shown after clicking Audition List) -->
+      <template v-else-if="showCategoryPicker">
+        <div class="section-header">
+          <button class="back-btn" @click="showCategoryPicker = false">‹ BACK</button>
+          <span class="section-label">SELECT CATEGORY</span>
+          <span class="section-rule"></span>
+        </div>
+        <div class="category-list">
+          <button
+            v-for="cat in categories"
+            :key="cat.eventCategoryId"
+            @click="selectCategory(cat.name)"
+            class="category-btn"
+          >
+            <span class="category-btn-name">{{ cat.name }}</span>
+            <i class="pi pi-chevron-right category-btn-arrow" aria-hidden="true"></i>
+          </button>
+          <div v-if="categories.length === 0" class="empty-text">No categories found for this event.</div>
+        </div>
+      </template>
+
       <!-- Navigation grid -->
-      <div v-else class="nav-grid">
-        <button
-          v-for="link in LINKS"
-          :key="link.key"
-          @click="navigate(link.route)"
-          class="nav-btn"
-        >
-          <i class="pi nav-btn-icon" :class="link.icon" aria-hidden="true"></i>
-          <span class="nav-btn-label">{{ link.label }}</span>
-        </button>
-      </div>
+      <template v-else>
+        <div class="section-header">
+          <span class="section-label">NAVIGATION</span>
+          <span class="section-rule"></span>
+        </div>
+        <div class="nav-grid">
+          <button
+            v-for="link in LINKS"
+            :key="link.key"
+            @click="handleNavClick(link)"
+            class="nav-btn"
+          >
+            <i class="pi nav-btn-icon" :class="link.icon" aria-hidden="true"></i>
+            <span class="nav-btn-label">{{ link.label }}</span>
+          </button>
+        </div>
+      </template>
 
     </div>
   </div>
@@ -194,6 +226,21 @@ function navigate(routeName) {
   background: rgba(255,255,255,0.07);
 }
 
+.back-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+.back-btn:hover { color: rgba(255,255,255,0.85); }
+
 .loading-text,
 .empty-text {
   font-size: 13px;
@@ -208,7 +255,7 @@ function navigate(routeName) {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
   padding: 12px 24px;
-  min-height: 44px; /* mobile tap target */
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   font-size: 12px;
@@ -222,6 +269,41 @@ function navigate(routeName) {
   border-color: rgba(255,255,255,0.25);
 }
 
+/* Category picker */
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.category-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.7);
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: all 0.15s ease;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+.category-btn:hover,
+.category-btn:active {
+  color: var(--accent-color, #fff);
+  border-color: var(--accent-muted, rgba(255,255,255,0.25));
+  background: var(--accent-subtle, rgba(255,255,255,0.04));
+}
+.category-btn-name { flex: 1; text-align: left; }
+.category-btn-arrow { font-size: 10px; opacity: 0.4; }
+
+/* Navigation grid */
 .nav-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -291,7 +373,6 @@ function navigate(routeName) {
     font-size: 15px;
   }
 
-  /* 2-column grid on mobile — 3 buttons fit better as 2+1 than a long single column */
   .nav-grid {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
