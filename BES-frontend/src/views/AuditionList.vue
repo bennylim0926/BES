@@ -915,6 +915,32 @@ onMounted(async () => {
       />
     </template>
 
+    <!-- Emcee: no category selected yet — show picker -->
+    <div
+      v-else-if="selectedRole === 'Emcee' && !selectedCategory"
+      class="flex flex-col items-center justify-center h-full gap-6 px-4"
+      style="max-width:480px;margin:0 auto;width:100%"
+    >
+      <div class="text-center">
+        <p class="type-page-title text-content-primary mb-1" style="font-size:1.4rem">SELECT CATEGORY</p>
+        <p class="type-prose text-content-muted">Choose which category you are running</p>
+      </div>
+      <div class="flex flex-col gap-2 w-full">
+        <button
+          v-for="div in eventDivisions"
+          :key="div.eventCategoryId"
+          @click="selectedCategory = div.name"
+          class="w-full para-chip px-4 py-3.5 flex items-center justify-between type-name text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150"
+        >
+          <span>{{ div.name }}</span>
+          <i class="pi pi-chevron-right text-xs text-content-muted" aria-hidden="true"></i>
+        </button>
+        <div v-if="eventDivisions.length === 0" class="type-prose text-content-muted text-center py-4">
+          No categories found for this event.
+        </div>
+      </div>
+    </div>
+
     <!-- Emcee: no participants in this category -->
     <div
       v-else-if="selectedRole === 'Emcee' && selectedCategory"
