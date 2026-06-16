@@ -6,9 +6,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -42,16 +39,8 @@ public class Event {
     private String animTheme = "impact";
 
     @OneToMany(mappedBy = "event")
-    private List<EventGenre> eventGenres;
+    private List<EventCategory> eventCategories;
 
     @OneToMany(mappedBy = "event")
     private List<EventParticipant> eventParticipants;
-
-    @ManyToMany
-    @JoinTable(
-        name = "event_genre_link",
-        joinColumns = @JoinColumn(name = "event_id"),
-        inverseJoinColumns = @JoinColumn(name = "genre_id")
-    )
-    private List<Genre> linkedGenres;
 }

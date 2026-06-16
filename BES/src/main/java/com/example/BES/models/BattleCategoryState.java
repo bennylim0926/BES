@@ -7,13 +7,13 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "battle_genre_state", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"event_name", "genre_name"})
+@Table(name = "battle_category_state", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"event_name", "category_name"})
 })
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class BattleGenreState {
+public class BattleCategoryState {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,8 +22,8 @@ public class BattleGenreState {
     @Column(name = "event_name")
     private String eventName;
 
-    @Column(name = "genre_name")
-    private String genreName;
+    @Column(name = "category_name")
+    private String categoryName;
 
     @Column(name = "bracket_json", columnDefinition = "TEXT")
     private String bracketJson;

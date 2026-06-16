@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -18,12 +19,13 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 @Entity
+@Table(name = "event_category_participant")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class EventGenreParticipant {
+public class EventCategoryParticipant {
     @EmbeddedId
-    private EventGenreParticipantId id;
+    private EventCategoryParticipantId id;
 
     @ManyToOne
     @MapsId("eventId")
@@ -31,9 +33,9 @@ public class EventGenreParticipant {
     private Event event;
 
     @ManyToOne
-    @MapsId("eventGenreId")
-    @JoinColumn(name = "event_genre_id")
-    private EventGenre eventGenre;
+    @MapsId("eventCategoryId")
+    @JoinColumn(name = "event_category_id")
+    private EventCategory eventCategory;
 
     @ManyToOne
     @MapsId("participantId")
@@ -54,7 +56,7 @@ public class EventGenreParticipant {
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
-    @OneToMany(mappedBy = "eventGenreParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "eventCategoryParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Score> scores;
 
     @Column(name = "team_name")
@@ -62,6 +64,6 @@ public class EventGenreParticipant {
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
-    @OneToMany(mappedBy = "eventGenreParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<EventGenreParticipantMember> members = new ArrayList<>();
+    @OneToMany(mappedBy = "eventCategoryParticipant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EventCategoryParticipantMember> members = new ArrayList<>();
 }

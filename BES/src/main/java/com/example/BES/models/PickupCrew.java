@@ -31,8 +31,8 @@ public class PickupCrew {
     private Event event;
 
     @ManyToOne
-    @JoinColumn(name = "genre_id", nullable = false)
-    private Genre genre;
+    @JoinColumn(name = "event_category_id", nullable = false)
+    private EventCategory eventCategory;
 
     @Column(name = "crew_name", nullable = false)
     private String crewName;
