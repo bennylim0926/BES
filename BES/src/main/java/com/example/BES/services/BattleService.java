@@ -94,7 +94,7 @@ public class BattleService {
             battleActiveCategoryRepository.findById(1).ifPresent(active -> {
                 if (active.getEventName() != null && active.getCategoryName() != null) {
                     activeEventName = active.getEventName();
-                    loadGenreStateIntoMemory(activeEventName, active.getCategoryName());
+                    loadCategoryStateIntoMemory(activeEventName, active.getCategoryName());
                 }
             });
         } catch (Exception e) {
@@ -503,7 +503,7 @@ public class BattleService {
         active.setCategoryName(dto.getCategoryName());
         battleActiveCategoryRepository.save(active);
         activeEventName = dto.getEventName();
-        loadGenreStateIntoMemory(activeEventName, dto.getCategoryName());
+        loadCategoryStateIntoMemory(activeEventName, dto.getCategoryName());
         broadcastStateSnapshot(activeEventName);
 
         EventBattleState s = stateFor(activeEventName);
@@ -711,7 +711,7 @@ public class BattleService {
         }
     }
 
-    private void loadGenreStateIntoMemory(String eventName, String categoryName) {
+    private void loadCategoryStateIntoMemory(String eventName, String categoryName) {
         EventBattleState s = stateFor(eventName);
         s.activeCategoryName = categoryName;
         s.genreFormat = null;
