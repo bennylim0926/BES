@@ -224,63 +224,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Operator overlay — only visible to logged-in operators (OBS broadcasts have no session) -->
-      <div v-if="isOperator" class="operator-overlay">
-        <button
-          class="op-toggle"
-          :class="{ 'op-toggle-active': showOperatorPanel }"
-          @click="showOperatorPanel = !showOperatorPanel"
-          title="Display settings"
-        >
-          <i class="pi" :class="showOperatorPanel ? 'pi-times' : 'pi-cog'"></i>
-        </button>
-        <div v-if="showOperatorPanel" class="op-panel">
-          <div class="op-panel-header">
-            <span class="op-panel-title">Display Settings</span>
-            <span class="op-panel-category">{{ selectedCategory || '—' }}</span>
-          </div>
-
-          <!-- Category selector -->
-          <div class="op-row" style="margin-bottom:12px">
-            <span class="op-row-label">Monitoring Category</span>
-            <select
-              v-model="selectedCategory"
-              class="op-select"
-            >
-              <option value="">— Select —</option>
-              <option v-for="cat in eventCategories" :key="cat.eventCategoryId" :value="cat.name">
-                {{ cat.name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Number color -->
-          <div class="op-row">
-            <span class="op-row-label">Audition Number Color</span>
-            <div class="op-row-controls">
-              <input
-                type="color"
-                :disabled="!activeCategoryEntry"
-                :value="state?.numberColor || '#ffffff'"
-                @change="saveOperatorNumberColor($event.target.value)"
-                class="op-color-input"
-                title="Pick a color for this category's audition number"
-              />
-              <span class="op-row-value">{{ state?.numberColor || 'Default' }}</span>
-              <button
-                v-if="state?.numberColor"
-                class="op-reset"
-                @click="saveOperatorNumberColor(null)"
-                title="Reset to default"
-              ><i class="pi pi-times"></i></button>
-            </div>
-          </div>
-          <p v-if="!activeCategoryEntry" class="op-warn">
-            Select a category above to enable controls.
-          </p>
-        </div>
-      </div>
-
       <!-- UP NEXT (secondary area) -->
       <div v-if="nextSlots.length > 0" class="up-next-area">
         <div class="section-rule mb-2">
@@ -299,6 +242,63 @@ onUnmounted(() => {
             <span v-if="mode === 'PAIR' && sIdx === 0 && nextSlots.length > 1" style="opacity:0.2;margin:0 8px">&amp;</span>
           </template>
         </div>
+      </div>
+    </div>
+
+    <!-- Operator overlay — always visible to logged-in operators, even in standby -->
+    <div v-if="isOperator" class="operator-overlay">
+      <button
+        class="op-toggle"
+        :class="{ 'op-toggle-active': showOperatorPanel }"
+        @click="showOperatorPanel = !showOperatorPanel"
+        title="Display settings"
+      >
+        <i class="pi" :class="showOperatorPanel ? 'pi-times' : 'pi-cog'"></i>
+      </button>
+      <div v-if="showOperatorPanel" class="op-panel">
+        <div class="op-panel-header">
+          <span class="op-panel-title">Display Settings</span>
+          <span class="op-panel-category">{{ selectedCategory || '—' }}</span>
+        </div>
+
+        <!-- Category selector -->
+        <div class="op-row" style="margin-bottom:12px">
+          <span class="op-row-label">Monitoring Category</span>
+          <select
+            v-model="selectedCategory"
+            class="op-select"
+          >
+            <option value="">— Select —</option>
+            <option v-for="cat in eventCategories" :key="cat.eventCategoryId" :value="cat.name">
+              {{ cat.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Number color -->
+        <div class="op-row">
+          <span class="op-row-label">Audition Number Color</span>
+          <div class="op-row-controls">
+            <input
+              type="color"
+              :disabled="!activeCategoryEntry"
+              :value="state?.numberColor || '#ffffff'"
+              @change="saveOperatorNumberColor($event.target.value)"
+              class="op-color-input"
+              title="Pick a color for this category's audition number"
+            />
+            <span class="op-row-value">{{ state?.numberColor || 'Default' }}</span>
+            <button
+              v-if="state?.numberColor"
+              class="op-reset"
+              @click="saveOperatorNumberColor(null)"
+              title="Reset to default"
+            ><i class="pi pi-times"></i></button>
+          </div>
+        </div>
+        <p v-if="!activeCategoryEntry" class="op-warn">
+          Select a category above to enable controls.
+        </p>
       </div>
     </div>
   </div>
