@@ -48,6 +48,7 @@ public class EventCategoryParticipant {
     @Column(name = "format")
     private String format;
 
+    @Column(name = "audition_number")
     private Integer auditionNumber;
 
     @ManyToOne

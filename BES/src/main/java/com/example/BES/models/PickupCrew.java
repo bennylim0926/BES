@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Table(name = "pickup_crew")
@@ -37,6 +38,7 @@ public class PickupCrew {
     @Column(name = "crew_name", nullable = false)
     private String crewName;
 
+    @ToString.Exclude
     @OneToMany(mappedBy = "crew", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PickupCrewMember> members;
 }
