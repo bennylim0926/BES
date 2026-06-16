@@ -6,13 +6,12 @@ import com.example.BES.dtos.ParticipantScoreDto;
 import com.example.BES.dtos.UpdateParticipantsScoreDto;
 import com.example.BES.dtos.admin.DeleteScoreByEventDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenreParticipant;
-import com.example.BES.models.EventGenreParticipantId;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.Genre;
+import com.example.BES.models.EventCategoryParticipant;
+import com.example.BES.models.EventCategoryParticipantId;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.Judge;
 import com.example.BES.models.Score;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.respositories.ScoreRepo;
 import org.junit.jupiter.api.Test;
@@ -34,7 +33,7 @@ import static org.mockito.Mockito.*;
 class ScoreServiceTest {
 
     @Mock ScoreRepo repo;
-    @Mock EventGenreParticpantRepo eventGenreParticpantRepo;
+    @Mock EventCategoryParticipantRepo eventCategoryParticipantRepo;
     @Mock JudgeRepo judgeRepo;
     @Mock SimpMessagingTemplate messagingTemplate;
     @InjectMocks ScoreService service;
@@ -47,20 +46,20 @@ class ScoreServiceTest {
     void getAllScore_skipsRowsWithNullJudgeOrEgp() {
         // Score 1: valid — has both judge and EGP
         Score validScore = mock(Score.class);
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        EventGenreParticipantId egpId = new EventGenreParticipantId(1L, 2L, 3L);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
+        EventCategoryParticipantId egpId = new EventCategoryParticipantId(1L, 2L, 3L);
         Event event = new Event();
         event.setEventName("Spring Battle");
-        EventGenre eventGenre = new EventGenre();
+        EventCategory eventGenre = new EventCategory();
         eventGenre.setName("Breaking");
         Judge judge = new Judge();
         judge.setName("Jay");
 
         when(validScore.getJudge()).thenReturn(judge);
-        when(validScore.getEventGenreParticipant()).thenReturn(egp);
+        when(validScore.getEventCategoryParticipant()).thenReturn(egp);
         when(egp.getId()).thenReturn(egpId);
         when(egp.getEvent()).thenReturn(event);
-        when(egp.getEventGenre()).thenReturn(eventGenre);
+        when(egp.getEventCategory()).thenReturn(eventGenre);
         when(egp.getDisplayName()).thenReturn("B-Boy Spark");
         when(egp.getFormat()).thenReturn("solo");
         when(validScore.getValue()).thenReturn(8.5);
@@ -78,7 +77,7 @@ class ScoreServiceTest {
         GetParticipatnScoreDto dto = result.get(0);
         assertThat(dto.participantId).isEqualTo(3L);
         assertThat(dto.eventName).isEqualTo("Spring Battle");
-        assertThat(dto.genreName).isEqualTo("Breaking");
+        assertThat(dto.categoryName).isEqualTo("Breaking");
         assertThat(dto.judgeName).isEqualTo("Jay");
         assertThat(dto.participantName).isEqualTo("B-Boy Spark");
         assertThat(dto.score).isEqualTo(8.5);
@@ -89,20 +88,20 @@ class ScoreServiceTest {
     @Test
     void getAllScore_nullAspectBecomesEmptyString() {
         Score s = mock(Score.class);
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        EventGenreParticipantId egpId = new EventGenreParticipantId(1L, 2L, 4L);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
+        EventCategoryParticipantId egpId = new EventCategoryParticipantId(1L, 2L, 4L);
         Event event = new Event();
         event.setEventName("Fest");
-        EventGenre eventGenre = new EventGenre();
+        EventCategory eventGenre = new EventCategory();
         eventGenre.setName("Locking");
         Judge judge = new Judge();
         judge.setName("Sam");
 
         when(s.getJudge()).thenReturn(judge);
-        when(s.getEventGenreParticipant()).thenReturn(egp);
+        when(s.getEventCategoryParticipant()).thenReturn(egp);
         when(egp.getId()).thenReturn(egpId);
         when(egp.getEvent()).thenReturn(event);
-        when(egp.getEventGenre()).thenReturn(eventGenre);
+        when(egp.getEventCategory()).thenReturn(eventGenre);
         when(egp.getDisplayName()).thenReturn("Locker A");
         when(egp.getFormat()).thenReturn("duo");
         when(s.getValue()).thenReturn(7.0);
@@ -122,11 +121,11 @@ class ScoreServiceTest {
 
     @Test
     void updateScore_singleScoreMode_deletesOldAndSavesNew() {
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
         Judge judge = new Judge();
         judge.setName("Ray");
 
-        when(eventGenreParticpantRepo.findByEventGenreParticipant("Fest", "Popping", "Alice"))
+        when(eventCategoryParticipantRepo.findByEventCategoryParticipant("Fest", "Popping", "Alice"))
                 .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Ray")).thenReturn(Optional.of(judge));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -138,19 +137,19 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Fest";
-        dto.genreName = "Popping";
+        dto.categoryName = "Popping";
         dto.judgeName = "Ray";
         dto.participantScore = List.of(pScore);
 
         service.updateParticipantScoreService(dto);
 
-        verify(repo).deleteByEventGenreParticipantAndJudge(egp, judge);
+        verify(repo).deleteByEventCategoryParticipantAndJudge(egp, judge);
         ArgumentCaptor<Score> saved = ArgumentCaptor.forClass(Score.class);
         verify(repo).save(saved.capture());
         assertThat(saved.getValue().getValue()).isEqualTo(9.0);
         assertThat(saved.getValue().getAspect()).isEmpty();
         assertThat(saved.getValue().getJudge()).isSameAs(judge);
-        assertThat(saved.getValue().getEventGenreParticipant()).isSameAs(egp);
+        assertThat(saved.getValue().getEventCategoryParticipant()).isSameAs(egp);
     }
 
     // -----------------------------------------------------------------------
@@ -159,18 +158,18 @@ class ScoreServiceTest {
 
     @Test
     void updateScore_aspectMode_savesPerAspect_noDeleteCalled() {
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
         Judge judge = new Judge();
         judge.setName("Maya");
 
-        when(eventGenreParticpantRepo.findByEventGenreParticipant("Jam", "Breaking", "Bob"))
+        when(eventCategoryParticipantRepo.findByEventCategoryParticipant("Jam", "Breaking", "Bob"))
                 .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Maya")).thenReturn(Optional.of(judge));
 
         // Both aspects have no existing score row → create new
-        when(repo.findByEventGenreParticipantAndJudgeAndAspect(egp, judge, "Musicality"))
+        when(repo.findByEventCategoryParticipantAndJudgeAndAspect(egp, judge, "Musicality"))
                 .thenReturn(Optional.empty());
-        when(repo.findByEventGenreParticipantAndJudgeAndAspect(egp, judge, "Creativity"))
+        when(repo.findByEventCategoryParticipantAndJudgeAndAspect(egp, judge, "Creativity"))
                 .thenReturn(Optional.empty());
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -188,14 +187,14 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Jam";
-        dto.genreName = "Breaking";
+        dto.categoryName = "Breaking";
         dto.judgeName = "Maya";
         dto.participantScore = List.of(pScore);
 
         service.updateParticipantScoreService(dto);
 
         // delete should never be called in aspect mode
-        verify(repo, never()).deleteByEventGenreParticipantAndJudge(any(), any());
+        verify(repo, never()).deleteByEventCategoryParticipantAndJudge(any(), any());
 
         // Two saves — one per aspect
         ArgumentCaptor<Score> saved = ArgumentCaptor.forClass(Score.class);
@@ -209,11 +208,11 @@ class ScoreServiceTest {
 
     @Test
     void updateScore_aspectMode_updatesExistingAspectRow() {
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
         Judge judge = new Judge();
         judge.setName("Nina");
 
-        when(eventGenreParticpantRepo.findByEventGenreParticipant("Jam", "Waacking", "Carol"))
+        when(eventCategoryParticipantRepo.findByEventCategoryParticipant("Jam", "Waacking", "Carol"))
                 .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Nina")).thenReturn(Optional.of(judge));
 
@@ -221,7 +220,7 @@ class ScoreServiceTest {
         existing.setAspect("Style");
         existing.setValue(6.0);
 
-        when(repo.findByEventGenreParticipantAndJudgeAndAspect(egp, judge, "Style"))
+        when(repo.findByEventCategoryParticipantAndJudgeAndAspect(egp, judge, "Style"))
                 .thenReturn(Optional.of(existing));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -235,13 +234,13 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "Jam";
-        dto.genreName = "Waacking";
+        dto.categoryName = "Waacking";
         dto.judgeName = "Nina";
         dto.participantScore = List.of(pScore);
 
         service.updateParticipantScoreService(dto);
 
-        verify(repo, never()).deleteByEventGenreParticipantAndJudge(any(), any());
+        verify(repo, never()).deleteByEventCategoryParticipantAndJudge(any(), any());
         ArgumentCaptor<Score> saved = ArgumentCaptor.forClass(Score.class);
         verify(repo).save(saved.capture());
         assertThat(saved.getValue().getValue()).isEqualTo(9.5);
@@ -253,7 +252,7 @@ class ScoreServiceTest {
 
     @Test
     void updateScore_skipsWhenEgpNotFound() {
-        when(eventGenreParticpantRepo.findByEventGenreParticipant("X", "Y", "Dave"))
+        when(eventCategoryParticipantRepo.findByEventCategoryParticipant("X", "Y", "Dave"))
                 .thenReturn(Optional.empty());
         when(judgeRepo.findFirstByName("Tom")).thenReturn(Optional.of(new Judge()));
 
@@ -264,20 +263,20 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "X";
-        dto.genreName = "Y";
+        dto.categoryName = "Y";
         dto.judgeName = "Tom";
         dto.participantScore = List.of(pScore);
 
         service.updateParticipantScoreService(dto);
 
         verify(repo, never()).save(any());
-        verify(repo, never()).deleteByEventGenreParticipantAndJudge(any(), any());
+        verify(repo, never()).deleteByEventCategoryParticipantAndJudge(any(), any());
     }
 
     @Test
     void updateScore_skipsWhenJudgeNotFound() {
-        EventGenreParticipant egp = mock(EventGenreParticipant.class);
-        when(eventGenreParticpantRepo.findByEventGenreParticipant("X", "Y", "Eve"))
+        EventCategoryParticipant egp = mock(EventCategoryParticipant.class);
+        when(eventCategoryParticipantRepo.findByEventCategoryParticipant("X", "Y", "Eve"))
                 .thenReturn(Optional.of(egp));
         when(judgeRepo.findFirstByName("Ghost")).thenReturn(Optional.empty());
 
@@ -288,14 +287,14 @@ class ScoreServiceTest {
 
         UpdateParticipantsScoreDto dto = new UpdateParticipantsScoreDto();
         dto.eventName = "X";
-        dto.genreName = "Y";
+        dto.categoryName = "Y";
         dto.judgeName = "Ghost";
         dto.participantScore = List.of(pScore);
 
         service.updateParticipantScoreService(dto);
 
         verify(repo, never()).save(any());
-        verify(repo, never()).deleteByEventGenreParticipantAndJudge(any(), any());
+        verify(repo, never()).deleteByEventCategoryParticipantAndJudge(any(), any());
     }
 
     // -----------------------------------------------------------------------

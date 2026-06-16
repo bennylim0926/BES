@@ -25,14 +25,14 @@ class RegistrationServiceImportTest {
     @Mock ParticipantService participantService;
     @Mock ParticipantRepo participantRepo;
     @Mock EventParticipantRepo eventParticipantRepo;
-    @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
+    @Mock EventCategoryParticipantRepo eventGenreParticipantRepo;
     @Mock EventParticipantTeamMemberRepo teamMemberRepo;
-    @Mock EventGenreRepo eventGenreRepo;
-    @Mock EventGenreParticipantMemberRepo egpMemberRepo;
+    @Mock EventCategoryRepo eventGenreRepo;
+    @Mock EventCategoryParticipantMemberRepo egpMemberRepo;
     @Mock GoogleSheetService sheetService;
 
     private Event mockEvent;
-    private EventGenre mockEventGenre;
+    private EventCategory mockEventGenre;
 
     @BeforeEach
     void setUp() {
@@ -41,7 +41,7 @@ class RegistrationServiceImportTest {
         mockEvent.setEventName("TestEvent");
         mockEvent.setPaymentRequired(false);
 
-        mockEventGenre = new EventGenre();
+        mockEventGenre = new EventCategory();
         mockEventGenre.setFormat("2v2");
         mockEventGenre.setName("popping");
         mockEventGenre.setSoloAllowed(false);
@@ -55,7 +55,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Alice");
         participant.setStageName("Alice");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType(null);
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));
@@ -78,7 +78,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Bob");
         participant.setStageName("Bob");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("");
         participant.setMemberNames(List.of("C"));
@@ -100,7 +100,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Charlie");
         participant.setStageName("Charlie");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("solo");
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));
@@ -116,9 +116,9 @@ class RegistrationServiceImportTest {
         ImportResultDto result = service.addParticipantToEvent(dto);
 
         assertThat(result.imported).isEqualTo(1);
-        ArgumentCaptor<EventGenreParticipant> captor = ArgumentCaptor.forClass(EventGenreParticipant.class);
+        ArgumentCaptor<EventCategoryParticipant> captor = ArgumentCaptor.forClass(EventCategoryParticipant.class);
         verify(eventGenreParticipantRepo).save(captor.capture());
-        EventGenreParticipant savedEgp = captor.getValue();
+        EventCategoryParticipant savedEgp = captor.getValue();
         assertThat(savedEgp.getFormat()).isNull();
         assertThat(savedEgp.getTeamName()).isNull();
     }
@@ -128,7 +128,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Diana");
         participant.setStageName("Diana");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("Crew D");
         participant.setMemberNames(List.of("Member1"));
@@ -146,13 +146,13 @@ class RegistrationServiceImportTest {
         ImportResultDto result = service.addParticipantToEvent(dto);
 
         assertThat(result.imported).isEqualTo(1);
-        ArgumentCaptor<EventGenreParticipant> captor = ArgumentCaptor.forClass(EventGenreParticipant.class);
+        ArgumentCaptor<EventCategoryParticipant> captor = ArgumentCaptor.forClass(EventCategoryParticipant.class);
         verify(eventGenreParticipantRepo).save(captor.capture());
-        EventGenreParticipant savedEgp = captor.getValue();
+        EventCategoryParticipant savedEgp = captor.getValue();
         assertThat(savedEgp.getFormat()).isEqualTo("2v2");
         assertThat(savedEgp.getTeamName()).isEqualTo("Crew D");
         assertThat(savedEgp.getDisplayName()).isEqualTo("Crew D");
-        verify(egpMemberRepo).save(any(EventGenreParticipantMember.class));
+        verify(egpMemberRepo).save(any(EventCategoryParticipantMember.class));
     }
 
     @Test
@@ -160,7 +160,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Eve");
         participant.setStageName("Eve");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("team");
         participant.setTeamName("Team E");
         participant.setMemberNames(List.of());
@@ -182,7 +182,7 @@ class RegistrationServiceImportTest {
         AddParticipantDto participant = new AddParticipantDto();
         participant.setParticipantName("Frank");
         participant.setStageName("Frank");
-        participant.setGenres(List.of("popping"));
+        participant.setCategories(List.of("popping"));
         participant.setEntryType("solo");
 
         when(sheetService.getAllImportableParticipants(any())).thenReturn(List.of(participant));

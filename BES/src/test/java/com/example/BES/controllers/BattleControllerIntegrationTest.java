@@ -381,18 +381,18 @@ public class BattleControllerIntegrationTest {
     @WithMockUser(roles = {"ADMIN"})
     public void testSetAndGetActiveGenre() throws Exception {
         String json = objectMapper.writeValueAsString(
-            Map.of("eventName", "TestEvent", "genreName", "Breaking Top 16")
+            Map.of("eventName", "TestEvent", "categoryName", "Breaking Top 16")
         );
-        mockMvc.perform(post("/api/v1/battle/active-genre")
+        mockMvc.perform(post("/api/v1/battle/active-category")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Active genre set"));
+                .andExpect(jsonPath("$.message").value("Active category set"));
 
-        mockMvc.perform(get("/api/v1/battle/active-genre"))
+        mockMvc.perform(get("/api/v1/battle/active-category"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventName").value("TestEvent"))
-                .andExpect(jsonPath("$.genreName").value("Breaking Top 16"));
+                .andExpect(jsonPath("$.categoryName").value("Breaking Top 16"));
     }
 
     @Test
@@ -406,9 +406,9 @@ public class BattleControllerIntegrationTest {
     @WithMockUser(roles = {"ADMIN"})
     public void testGetBattleStateAfterSettingActiveGenre() throws Exception {
         String json = objectMapper.writeValueAsString(
-            Map.of("eventName", "EventA", "genreName", "Popping")
+            Map.of("eventName", "EventA", "categoryName", "Popping")
         );
-        mockMvc.perform(post("/api/v1/battle/active-genre")
+        mockMvc.perform(post("/api/v1/battle/active-category")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isOk());
@@ -416,7 +416,7 @@ public class BattleControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/battle/state"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventName").value("EventA"))
-                .andExpect(jsonPath("$.genreName").value("Popping"))
+                .andExpect(jsonPath("$.categoryName").value("Popping"))
                 .andExpect(jsonPath("$.battlePhase").exists());
     }
 
@@ -463,8 +463,8 @@ public class BattleControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = "EMCEE")
-    public void emcee_canGetActiveGenre() throws Exception {
-        mockMvc.perform(get("/api/v1/battle/active-genre"))
+    public void emcee_canGetActiveCategory() throws Exception {
+        mockMvc.perform(get("/api/v1/battle/active-category"))
             .andExpect(status().isOk());
     }
 

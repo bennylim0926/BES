@@ -24,7 +24,7 @@ const leftName         = ref('')
 const rightName        = ref('')
 const revealedWinner   = ref(-2)
 const battleJudges     = ref({ judges: [] })
-const activeGenreName  = ref('')  // current genre in progress — shown in "not assigned" message
+const activeCategoryName  = ref('')  // current category in progress — shown in "not assigned" message
 
 // ── Judge identity ──────────────────────────────────────────────────────────
 const judgeId         = ref(null)   // number | null
@@ -71,8 +71,8 @@ const hydrateJudgeFromState = (state) => {
     }
   }
 
-  // Genre name — track for "not assigned" message
-  if (state.genreName) activeGenreName.value = state.genreName
+  // Category name — track for "not assigned" message
+  if (state.categoryName) activeCategoryName.value = state.categoryName
 
   // Judges — check if current judge was re-added after block
   if (state.judges?.length) {
@@ -265,7 +265,7 @@ onMounted(async () => {
         notAssigned.value = false
       } else {
         // Judge not in list — check by name first (organiser may have re-created
-        // the judge with a new ID during genre sync). If not found, clear immediately.
+        // the judge with a new ID during category sync). If not found, clear immediately.
         const byName = authStore.judgeName
           ? judges.find(j => j.name === authStore.judgeName)
           : null
@@ -485,7 +485,7 @@ onUnmounted(() => {
           aria-live="polite"
         >
           <span class="blocker-text">
-            {{ activeGenreName ? `${activeGenreName} IS IN PROGRESS` : 'BATTLE IN PROGRESS' }}
+            {{ activeCategoryName ? `${activeCategoryName} IS IN PROGRESS` : 'BATTLE IN PROGRESS' }}
           </span>
           <span class="blocker-sub">Please come back later.</span>
         </div>

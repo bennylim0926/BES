@@ -1,14 +1,12 @@
 package com.example.BES.services;
 
-import com.example.BES.dtos.AddGenreToEventDto;
-import com.example.BES.dtos.GetEventDivisionDto;
+import com.example.BES.dtos.AddCategoryToEventDto;
+import com.example.BES.dtos.GetEventCategoryDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.Genre;
-import com.example.BES.respositories.EventGenreParticpantRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.models.EventCategory;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,11 +23,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class EventGenreServiceTest {
 
-    @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventCategoryRepo eventCategoryRepo;
     @Mock EventRepo eventRepo;
-    @Mock GenreRepo genreRepo;
-    @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
-    @InjectMocks EventGenreService service;
+    @Mock EventCategoryParticipantRepo eventCategoryParticipantRepo;
+    @InjectMocks EventCategoryService service;
 
     private Event event(String name) {
         Event e = new Event();
@@ -37,155 +34,146 @@ class EventGenreServiceTest {
         return e;
     }
 
-    private Genre genre(Long id, String name) {
-        Genre g = new Genre();
-        g.setGenreId(id);
-        g.setGenreName(name);
-        return g;
-    }
-
     @Test
-    void getGenresByEvent_returnsEmptyWhenEventNotFound() {
+    void getCategoriesByEvent_returnsEmptyWhenEventNotFound() {
         when(eventRepo.findByEventNameIgnoreCase("Missing")).thenReturn(Optional.empty());
 
-        assertThat(service.getGenresByEventService("Missing")).isEmpty();
+        assertThat(service.getCategoriesByEventService("Missing")).isEmpty();
     }
 
     @Test
-    void getGenresByEvent_mapsToDto() {
+    void getCategoriesByEvent_mapsToDto() {
         Event e = event("Fest");
-        Genre g = genre(1L, "breaking");
-        EventGenre eg = new EventGenre();
-        eg.setGenre(g);
-        eg.setName("breaking");
-        eg.setFormat("1v1");
+        EventCategory ec = new EventCategory();
+        ec.setId(1L);
+        ec.setName("breaking");
+        ec.setFormat("1v1");
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
-        when(eventGenreRepo.findByEvent(e)).thenReturn(List.of(eg));
+        when(eventCategoryRepo.findByEvent(e)).thenReturn(List.of(ec));
 
-        List<GetEventDivisionDto> result = service.getGenresByEventService("Fest");
+        List<GetEventCategoryDto> result = service.getCategoriesByEventService("Fest");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name).isEqualTo("breaking");
         assertThat(result.get(0).format).isEqualTo("1v1");
     }
 
-    private AddGenreToEventDto.Division division(String name, Long genreId) {
-        AddGenreToEventDto.Division d = new AddGenreToEventDto.Division();
-        d.name = name;
-        d.genreId = genreId;
-        return d;
+    private AddCategoryToEventDto.Category category(String name) {
+        AddCategoryToEventDto.Category cat = new AddCategoryToEventDto.Category();
+        cat.name = name;
+        return cat;
     }
 
     @Test
-    void addGenreToEvent_savesCustomDivisionWithoutGlobalGenre() {
+    void addCategoryToEvent_savesNewCategory() {
         Event e = event("Fest");
-        AddGenreToEventDto dto = new AddGenreToEventDto();
+        AddCategoryToEventDto dto = new AddCategoryToEventDto();
         dto.eventName = "Fest";
-        dto.divisions = List.of(division("Junior Breaking", null));
+        dto.categories = List.of(category("Junior Breaking"));
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
-        when(eventGenreRepo.findByEventAndName(e, "Junior Breaking")).thenReturn(Optional.empty());
+        when(eventCategoryRepo.findByEventAndName(e, "Junior Breaking")).thenReturn(Optional.empty());
 
-        service.addGenreToEventService(dto);
+        service.addCategoryToEventService(dto);
 
-        verify(eventGenreRepo).save(argThat(eg -> "Junior Breaking".equals(eg.getName()) && eg.getGenre() == null));
+        verify(eventCategoryRepo).save(argThat(ec -> "Junior Breaking".equals(ec.getName())));
     }
 
     @Test
-    void addGenreToEvent_throwsOnDuplicate() {
+    void addCategoryToEvent_throwsOnDuplicate() {
         Event e = event("Fest");
-        AddGenreToEventDto dto = new AddGenreToEventDto();
+        AddCategoryToEventDto dto = new AddCategoryToEventDto();
         dto.eventName = "Fest";
-        dto.divisions = List.of(division("breaking", 1L));
-        EventGenre existing = new EventGenre();
+        dto.categories = List.of(category("breaking"));
+        EventCategory existing = new EventCategory();
         existing.setEvent(e);
         when(eventRepo.findByEventName("Fest")).thenReturn(Optional.of(e));
-        when(eventGenreRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.of(existing));
+        when(eventCategoryRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> service.addGenreToEventService(dto))
+        assertThatThrownBy(() -> service.addCategoryToEventService(dto))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void updateFormat_throwsWhenEventGenreNotFound() {
-        when(eventGenreRepo.findById(999L)).thenReturn(Optional.empty());
+    void updateFormat_throwsWhenCategoryNotFound() {
+        when(eventCategoryRepo.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateEventGenreFormat(999L, "1v1"))
+        assertThatThrownBy(() -> service.updateEventCategoryFormat(999L, "1v1"))
             .isInstanceOf(RuntimeException.class);
     }
 
     @Test
     void updateFormat_savesFormat() {
-        EventGenre eg = new EventGenre();
-        eg.setFormat("1v1");
-        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
+        EventCategory ec = new EventCategory();
+        ec.setFormat("1v1");
+        when(eventCategoryRepo.findById(1L)).thenReturn(Optional.of(ec));
 
-        service.updateEventGenreFormat(1L, "2v2");
+        service.updateEventCategoryFormat(1L, "2v2");
 
-        assertThat(eg.getFormat()).isEqualTo("2v2");
-        verify(eventGenreRepo).save(eg);
+        assertThat(ec.getFormat()).isEqualTo("2v2");
+        verify(eventCategoryRepo).save(ec);
     }
 
     @Test
     void renameDivision_saves() {
-        EventGenre eg = new EventGenre();
-        eg.setName("Old Name");
-        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
+        EventCategory ec = new EventCategory();
+        ec.setName("Old Name");
+        when(eventCategoryRepo.findById(1L)).thenReturn(Optional.of(ec));
 
         service.renameDivision(1L, "New Name");
 
-        assertThat(eg.getName()).isEqualTo("New Name");
-        verify(eventGenreRepo).save(eg);
+        assertThat(ec.getName()).isEqualTo("New Name");
+        verify(eventCategoryRepo).save(ec);
     }
 
     @Test
     void renameDivision_throwsNotFound() {
-        when(eventGenreRepo.findById(999L)).thenReturn(Optional.empty());
+        when(eventCategoryRepo.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.renameDivision(999L, "Any"))
             .isInstanceOf(RuntimeException.class)
-            .hasMessageContaining("Division not found");
+            .hasMessageContaining("Category not found");
     }
 
     @Test
     void updateAliases_saves() {
-        EventGenre eg = new EventGenre();
-        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
+        EventCategory ec = new EventCategory();
+        when(eventCategoryRepo.findById(1L)).thenReturn(Optional.of(ec));
 
         service.updateAliases(1L, "hip-hop,breaking");
 
-        assertThat(eg.getSheetAliases()).isEqualTo("hip-hop,breaking");
-        verify(eventGenreRepo).save(eg);
+        assertThat(ec.getSheetAliases()).isEqualTo("hip-hop,breaking");
+        verify(eventCategoryRepo).save(ec);
     }
 
     @Test
     void updateAliases_clearsOnBlank() {
-        EventGenre eg = new EventGenre();
-        eg.setSheetAliases("old-alias");
-        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
+        EventCategory ec = new EventCategory();
+        ec.setSheetAliases("old-alias");
+        when(eventCategoryRepo.findById(1L)).thenReturn(Optional.of(ec));
 
         service.updateAliases(1L, "  ");
 
-        assertThat(eg.getSheetAliases()).isNull();
-        verify(eventGenreRepo).save(eg);
+        assertThat(ec.getSheetAliases()).isNull();
+        verify(eventCategoryRepo).save(ec);
     }
 
     @Test
     void deleteDivision_throwsNotFound() {
-        when(eventGenreRepo.findById(999L)).thenReturn(Optional.empty());
+        when(eventCategoryRepo.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deleteDivision(999L))
             .isInstanceOf(RuntimeException.class)
-            .hasMessageContaining("Division not found");
+            .hasMessageContaining("Category not found");
     }
 
     @Test
     void deleteDivision_callsDeleteById() {
-        EventGenre eg = new EventGenre();
-        eg.setId(1L);
-        when(eventGenreRepo.findById(1L)).thenReturn(Optional.of(eg));
+        EventCategory ec = new EventCategory();
+        ec.setId(1L);
+        when(eventCategoryRepo.findById(1L)).thenReturn(Optional.of(ec));
 
         service.deleteDivision(1L);
 
-        verify(eventGenreRepo).deleteById(1L);
+        verify(eventCategoryRepo).deleteById(1L);
     }
 }

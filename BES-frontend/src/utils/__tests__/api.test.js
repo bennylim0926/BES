@@ -96,7 +96,7 @@ describe('api.js', () => {
       const body = JSON.parse(call[1].body)
 
       expect(body.eventName).toBe('Event1')
-      expect(body.genreName).toBe('Breaking')
+      expect(body.categoryName).toBe('Breaking')
       expect(body.judgeName).toBe('Judge1')
       expect(body.participantScore).toEqual(participants)
     })
@@ -117,24 +117,6 @@ describe('api.js', () => {
     })
   })
 
-  describe('fetchAllGenres', () => {
-    it('returns genres on success', async () => {
-      const genres = [{ id: 1, genreName: 'breaking' }]
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(genres) })
-
-      const result = await api.fetchAllGenres()
-
-      expect(result).toEqual(genres)
-    })
-
-    it('returns empty array on failure', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
-
-      const result = await api.fetchAllGenres()
-
-      expect(result).toEqual([])
-    })
-  })
 
   describe('getAllJudges', () => {
     it('returns judges on success', async () => {

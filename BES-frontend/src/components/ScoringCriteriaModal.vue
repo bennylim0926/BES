@@ -1,19 +1,19 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { getScoringCriteriaStrict, addScoringCriteria, updateScoringCriteria, deleteScoringCriteria, deleteAllCriteriaForGenre } from '@/utils/api'
+import { getScoringCriteriaStrict, addScoringCriteria, updateScoringCriteria, deleteScoringCriteria, deleteAllCriteriaForCategory } from '@/utils/api'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   eventName:  { type: String, required: true },
-  genres:     { type: Array, default: () => [] },   // array of genre name strings
+  categories: { type: Array, default: () => [] },   // array of category name strings
 })
 const emit = defineEmits(['update:modelValue'])
 
 const close = () => emit('update:modelValue', false)
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-// 'event-level' is the fallback default; one tab per genre
-const allTabs = computed(() => ['event-level', ...props.genres])
+// 'event-level' is the fallback default; one tab per category
+const allTabs = computed(() => ['event-level', ...props.categories])
 const activeTab = ref('event-level')
 
 // criteriaMap[tab] = array of { id, name, weight, displayOrder }
@@ -22,12 +22,12 @@ const loading = ref(false)
 
 const activeCriteria = computed(() => criteriaMap.value[activeTab.value] ?? [])
 
-const genreNameForTab = (tab) => tab === 'event-level' ? null : tab
+const categoryNameForTab = (tab) => tab === 'event-level' ? null : tab
 
 const loadTab = async (tab) => {
   loading.value = true
-  const genre = genreNameForTab(tab)
-  criteriaMap.value[tab] = await getScoringCriteriaStrict(props.eventName, genre)
+  const category = categoryNameForTab(tab)
+  criteriaMap.value[tab] = await getScoringCriteriaStrict(props.eventName, category)
   loading.value = false
 }
 
@@ -38,7 +38,7 @@ const loadAll = async () => {
 watch(() => props.modelValue, (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
   if (open) {
-    activeTab.value = props.genres[0] ?? 'event-level'
+    activeTab.value = props.categories[0] ?? 'event-level'
     loadAll()
   }
 }, { immediate: false })
@@ -55,7 +55,7 @@ const add = async () => {
   if (!newName.value.trim()) return
   saving.value = true
   const result = await addScoringCriteria(props.eventName, {
-    genreName:    genreNameForTab(activeTab.value),
+    categoryName: categoryNameForTab(activeTab.value),
     name:         newName.value.trim(),
     weight:       newWeight.value !== '' ? Number(newWeight.value) : null,
     displayOrder: activeCriteria.value.length,
@@ -112,23 +112,23 @@ const remove = async (id) => {
   if (ok) criteriaMap.value[activeTab.value] = activeCriteria.value.filter(c => c.id !== id)
 }
 
-// ── Apply to all genres ───────────────────────────────────────────────────────
+// ── Apply to all categories ────────────────────────────────────────────────
 const applyingAll = ref(false)
 const appliedAll = ref(false)
 
-const applyToAllGenres = async () => {
+const applyToAllCategories = async () => {
   if (!activeCriteria.value.length) return
   applyingAll.value = true
   const source = [...activeCriteria.value]
   const targets = allTabs.value.filter(t => t !== activeTab.value)
 
   await Promise.all(targets.map(async (tab) => {
-    const genre = genreNameForTab(tab)
-    await deleteAllCriteriaForGenre(props.eventName, genre)
+    const category = categoryNameForTab(tab)
+    await deleteAllCriteriaForCategory(props.eventName, category)
     const added = []
     for (let i = 0; i < source.length; i++) {
       const r = await addScoringCriteria(props.eventName, {
-        genreName:    genre,
+        categoryName: category,
         name:         source[i].name,
         weight:       source[i].weight,
         displayOrder: i,
@@ -168,7 +168,7 @@ const applyToAllGenres = async () => {
             </div>
           </div>
 
-          <!-- Genre tabs -->
+          <!-- Category tabs -->
           <div class="flex gap-1 px-4 pt-3 pb-0 overflow-x-auto flex-shrink-0" style="scrollbar-width: none;">
             <button
               v-for="tab in allTabs"
@@ -191,7 +191,7 @@ const applyToAllGenres = async () => {
           <!-- Tab description -->
           <div class="px-4 pt-2 pb-0 flex-shrink-0">
             <p v-if="activeTab === 'event-level'" class="type-prose-sm">
-              Applies to any genre without its own criteria.
+              Applies to any category without its own criteria.
             </p>
             <p v-else class="type-prose-sm">
               Criteria for <span class="text-accent" style="font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.18em;">{{ activeTab }}</span> — overrides event default.
@@ -333,17 +333,17 @@ const applyToAllGenres = async () => {
             <div class="flex-1" />
 
             <button
-              v-if="activeTab !== 'event-level' && genres.length > 1"
-              @click="applyToAllGenres"
+              v-if="activeTab !== 'event-level' && categories.length > 1"
+              @click="applyToAllCategories"
               :disabled="applyingAll || activeCriteria.length === 0"
               class="flex items-center gap-1.5 px-3 py-1.5 para-chip-sm type-label disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
               :class="appliedAll ? 'text-emerald-400' : 'text-content-muted hover:text-accent'"
-              title="Replaces criteria in all other genres with these"
+              title="Replaces criteria in all other categories with these"
             >
               <i v-if="applyingAll" class="pi pi-spin pi-spinner text-xs" />
               <i v-else-if="appliedAll" class="pi pi-check text-xs" />
               <i v-else class="pi pi-copy text-xs" />
-              {{ appliedAll ? 'Copied!' : 'Copy to all genres' }}
+              {{ appliedAll ? 'Copied!' : 'Copy to all categories' }}
             </button>
           </div>
           <p class="type-prose-sm text-center py-1.5 shrink-0 opacity-60">Tap outside to close</p>

@@ -8,8 +8,8 @@ import ActionDoneModal from '@/views/ActionDoneModal.vue'
 
 const authStore = useAuthStore()
 const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || '')
-const selectedGenre = ref('')
-const participants = ref([])   // raw score entries for the genre
+const selectedCategory = ref('')
+const participants = ref([])   // raw score entries for the category
 const crews = ref([])
 const topN = ref(null)  // null = no filter; 4/8/16/32 = show only top N as leaders
 
@@ -28,19 +28,19 @@ const showToast = (message, variant = 'success') => {
 
 // ── Derived data ───────────────────────────────────────────────────────────────
 
-// Unique genres that have at least one solo pickup entry (format = null or empty)
-const uniqueGenres = computed(() => {
-  const genres = participants.value.map(p => p.genreName)
-  return [...new Set(genres)].sort()
+// Unique categories that have at least one solo pickup entry (format = null or empty)
+const uniqueCategories = computed(() => {
+  const categories = participants.value.map(p => p.categoryName)
+  return [...new Set(categories)].sort()
 })
 
-// All solo pickup entries for the selected genre (format null/empty)
+// All solo pickup entries for the selected category (format null/empty)
 const soloEntries = computed(() => {
-  if (!selectedGenre.value) return []
+  if (!selectedCategory.value) return []
   // Dedupe by participantName — score rows can be one per judge
   const seen = new Map()
   for (const p of participants.value) {
-    if (p.genreName !== selectedGenre.value) continue
+    if (p.categoryName !== selectedCategory.value) continue
     if (p.format && p.format !== '') continue  // skip pre-formed team entries
     if (!seen.has(p.participantName)) {
       seen.set(p.participantName, {
@@ -85,7 +85,7 @@ const rankedSolos = computed(() =>
   })
 )
 
-// Crew size from genre format (e.g. "2v2" → 2)
+// Crew size from category format
 const crewSize = computed(() => {
   // Try to infer from existing crews
   if (crews.value.length > 0 && crews.value[0].members.length > 0) {
@@ -158,7 +158,7 @@ const submitCrew = async () => {
     return
   }
   const ids = pendingMembers.value.map(m => m.participantId)
-  const result = await createPickupCrew(selectedEvent.value, selectedGenre.value, pendingCrewName.value.trim(), ids)
+  const result = await createPickupCrew(selectedEvent.value, selectedCategory.value, pendingCrewName.value.trim(), ids)
   if (result?.error) {
     modalError.value = result.error
     return
@@ -179,8 +179,8 @@ const removeCrew = async (crewId) => {
 // ── Data loading ───────────────────────────────────────────────────────────────
 
 const loadCrews = async () => {
-  if (!selectedEvent.value || !selectedGenre.value) { crews.value = []; return }
-  crews.value = await getPickupCrews(selectedEvent.value, selectedGenre.value)
+  if (!selectedEvent.value || !selectedCategory.value) { crews.value = []; return }
+  crews.value = await getPickupCrews(selectedEvent.value, selectedCategory.value)
 }
 
 watch(topN, () => {
@@ -188,7 +188,7 @@ watch(topN, () => {
   selectedPartners.value = []
 })
 
-watch(selectedGenre, async (val) => {
+watch(selectedCategory, async (val) => {
   draftLeader.value = null
   selectedPartners.value = []
   crews.value = []
@@ -199,7 +199,7 @@ watch(selectedGenre, async (val) => {
 
 watch(selectedEvent, async (val) => {
   if (!val) return
-  selectedGenre.value = ''
+  selectedCategory.value = ''
   const res = await getParticipantScore(val)
   participants.value = res.map((r, i) => ({ ...r, id: i + 1 }))
 }, { immediate: true })
@@ -221,8 +221,8 @@ watch(selectedEvent, async (val) => {
           <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Event</span>
           <span class="badge-neutral text-sm px-3 py-1.5 self-start">{{ selectedEvent }}</span>
         </div>
-        <ReusableDropdown v-model="selectedGenre" labelId="Genre" :options="uniqueGenres" />
-        <div v-if="selectedGenre" class="flex flex-col gap-1">
+        <ReusableDropdown v-model="selectedCategory" labelId="Category" :options="uniqueCategories" />
+        <div v-if="selectedCategory" class="flex flex-col gap-1">
           <span class="text-xs font-semibold text-content-muted uppercase tracking-wide">Draft Mode</span>
           <div class="flex gap-1 flex-wrap">
             <!-- aria-pressed + accent (not primary red — red is reserved for errors per design system) -->
@@ -249,23 +249,23 @@ watch(selectedEvent, async (val) => {
       </div>
     </div>
 
-    <!-- No genre selected -->
-    <div v-if="!selectedGenre" class="flex flex-col items-center justify-center py-24 text-center">
+    <!-- No category selected -->
+    <div v-if="!selectedCategory" class="flex flex-col items-center justify-center py-24 text-center">
       <div class="w-14 h-14 rounded-2xl bg-surface-700 flex items-center justify-center mb-4">
         <i class="pi pi-users text-content-muted text-xl"></i>
       </div>
-      <p class="font-heading font-semibold text-content-secondary">Select a genre to begin</p>
-      <p class="text-muted text-sm mt-1">Only genres with solo pickup entries will be listed</p>
+      <p class="font-heading font-semibold text-content-secondary">Select a category to begin</p>
+      <p class="text-muted text-sm mt-1">Only categories with solo pickup entries will be listed</p>
     </div>
 
-    <!-- Empty state: no solo entrants in this genre -->
+    <!-- Empty state: no solo entrants in this category -->
     <div
       v-else-if="soloEntries.length === 0"
       class="card p-8 text-center"
     >
       <div class="type-page-title text-content-muted mb-3">NO INDIVIDUAL PARTICIPANTS</div>
-      <p class="type-body text-content-muted mb-4">All participants in {{ selectedGenre }} are part of pre-formed teams or have no scores yet. Individual (solo) entrants are needed to form pickup crews.</p>
-      <button @click="selectedGenre = ''" class="para-chip-sm px-5 py-3 type-label text-content-muted hover:text-content-primary transition-colors">SELECT ANOTHER GENRE</button>
+      <p class="type-body text-content-muted mb-4">All participants in {{ selectedCategory }} are part of pre-formed teams or have no scores yet. Individual (solo) entrants are needed to form pickup crews.</p>
+      <button @click="selectedCategory = ''" class="para-chip-sm px-5 py-3 type-label text-content-muted hover:text-content-primary transition-colors">SELECT ANOTHER CATEGORY</button>
     </div>
 
     <template v-else>

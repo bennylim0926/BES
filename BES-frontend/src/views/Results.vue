@@ -205,49 +205,49 @@ const groupTags = (tags) => {
               </button>
             </div>
 
-            <!-- Genre results -->
+            <!-- Category results -->
             <div
-              :class="results.genres.length === 1
+              :class="results.categories.length === 1
                 ? 'flex justify-center'
                 : 'grid grid-cols-1 sm:grid-cols-2 gap-4'"
             >
               <div
-                v-for="genre in results.genres"
-                :key="genre.genreName"
+                v-for="category in results.categories"
+                :key="category.categoryName"
                 class="card-hover p-4 relative"
-                :class="results.genres.length === 1 ? 'w-full max-w-xl' : ''"
+                :class="results.categories.length === 1 ? 'w-full max-w-xl' : ''"
               >
                 <div class="corner-bar-tl"></div>
 
-                <!-- Genre header -->
+                <!-- Category header -->
                 <div class="flex items-center justify-between mb-4">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <span class="badge-neutral">{{ genre.genreName }}</span>
+                    <span class="badge-neutral">{{ category.categoryName }}</span>
                     <span
-                      v-if="genre.format"
+                      v-if="category.format"
                       class="badge-neutral"
-                    >{{ genre.format }}</span>
-                    <span v-if="genre.auditionNumber" class="type-label text-content-muted">
-                      #{{ genre.auditionNumber }}
+                    >{{ category.format }}</span>
+                    <span v-if="category.auditionNumber" class="type-label text-content-muted">
+                      #{{ category.auditionNumber }}
                     </span>
                   </div>
-                  <div v-if="genre.scores && genre.scores.length > 0" class="text-right ml-2 flex-shrink-0">
+                  <div v-if="category.scores && category.scores.length > 0" class="text-right ml-2 flex-shrink-0">
                     <div class="type-label text-content-muted">Total</div>
-                    <div class="type-stat text-[28px]">{{ totalScore(genre.scores) }}</div>
+                    <div class="type-stat text-[28px]">{{ totalScore(category.scores) }}</div>
                   </div>
                 </div>
 
                 <!-- Scores -->
-                <div v-if="genre.scores && genre.scores.length > 0" class="mb-4">
+                <div v-if="category.scores && category.scores.length > 0" class="mb-4">
                   <div class="section-rule mb-3">
                     <span class="section-rule-label">Scores</span>
                     <div class="section-rule-line"></div>
                   </div>
 
-                  <template v-if="isMultiCriteria(genre.scores)">
+                  <template v-if="isMultiCriteria(category.scores)">
                     <div class="space-y-3">
                       <div
-                        v-for="(aspects, judge) in groupScoresByJudge(genre.scores)"
+                        v-for="(aspects, judge) in groupScoresByJudge(category.scores)"
                         :key="judge"
                         class="para-chip px-3 py-2.5"
                       >
@@ -269,7 +269,7 @@ const groupTags = (tags) => {
                   <template v-else>
                     <div class="grid grid-cols-2 gap-2">
                       <div
-                        v-for="score in genre.scores"
+                        v-for="score in category.scores"
                         :key="score.judgeName"
                         class="para-chip px-3 py-2.5"
                       >
@@ -284,7 +284,7 @@ const groupTags = (tags) => {
                 </div>
 
                 <!-- Feedback -->
-                <template v-if="genre.feedback && genre.feedback.length > 0">
+                <template v-if="category.feedback && category.feedback.length > 0">
                   <div class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
                     <div class="section-rule mb-3">
                       <span class="section-rule-label">Judge Feedback</span>
@@ -292,7 +292,7 @@ const groupTags = (tags) => {
                     </div>
                     <div class="space-y-4">
                       <div
-                        v-for="entry in genre.feedback"
+                        v-for="entry in category.feedback"
                         :key="entry.judgeName"
                         class="para-chip px-3 py-3"
                       >
@@ -328,7 +328,7 @@ const groupTags = (tags) => {
                   </div>
                 </template>
                 <div v-else class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
-                  <p class="type-label text-content-muted">No judge feedback for this genre</p>
+                  <p class="type-label text-content-muted">No judge feedback for this category</p>
                 </div>
               </div>
             </div>

@@ -3,18 +3,16 @@ package com.example.BES.services;
 import com.example.BES.dtos.GetCheckinListDto;
 import com.example.BES.dtos.GetUnverifiedParticipantDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategory;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.EventParticipant;
-import com.example.BES.models.Genre;
 import com.example.BES.models.Participant;
-import com.example.BES.respositories.EventGenreParticpantRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventParticipantRepo;
-import com.example.BES.respositories.EventGenreParticipantMemberRepo;
+import com.example.BES.respositories.EventCategoryParticipantMemberRepo;
 import com.example.BES.respositories.EventParticipantTeamMemberRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ParticipantRepo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,11 +34,10 @@ class RegistrationServiceTest {
     @Mock ParticipantService participantService;
     @Mock ParticipantRepo participantRepo;
     @Mock EventParticipantRepo eventParticipantRepo;
-    @Mock EventGenreParticpantRepo eventGenreParticipantRepo;
-    @Mock EventGenreParticipantMemberRepo egpMemberRepo;
+    @Mock EventCategoryParticipantRepo eventGenreParticipantRepo;
+    @Mock EventCategoryParticipantMemberRepo egpMemberRepo;
     @Mock EventParticipantTeamMemberRepo teamMemberRepo;
-    @Mock GenreRepo genreRepo;
-    @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventCategoryRepo eventGenreRepo;
     @InjectMocks RegistrationService service;
 
     // ── getUnverifiedParticipantsFromDb ──────────────────────────────────────
@@ -169,17 +166,17 @@ class RegistrationServiceTest {
         Participant p = new Participant(); p.setParticipantId(10L); p.setParticipantName("Player1");
         EventParticipant ep = new EventParticipant();
         ep.setEvent(e); ep.setParticipant(p); ep.setDisplayName("Player1");
-        EventGenre eventGenre = new EventGenre(); eventGenre.setName("popping");
-        EventGenreParticipant egp = new EventGenreParticipant();
-        egp.setEventGenre(eventGenre); egp.setAuditionNumber(5);
+        EventCategory eventGenre = new EventCategory(); eventGenre.setName("popping");
+        EventCategoryParticipant egp = new EventCategoryParticipant();
+        egp.setEventCategory(eventGenre); egp.setAuditionNumber(5);
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
         when(eventParticipantRepo.findByEvent(e)).thenReturn(List.of(ep));
         when(eventGenreParticipantRepo.findByEventIdAndParticipantId(1L, 10L)).thenReturn(List.of(egp));
 
         List<GetCheckinListDto> result = service.getCheckinList("Fest");
 
-        assertThat(result.get(0).genres).hasSize(1);
-        assertThat(result.get(0).genres.get(0).genreName).isEqualTo("popping");
-        assertThat(result.get(0).genres.get(0).auditionNumber).isEqualTo(5);
+        assertThat(result.get(0).categories).hasSize(1);
+        assertThat(result.get(0).categories.get(0).categoryName).isEqualTo("popping");
+        assertThat(result.get(0).categories.get(0).auditionNumber).isEqualTo(5);
     }
 }

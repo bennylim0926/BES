@@ -8,7 +8,7 @@ const props = defineProps({
   show:  { type: Boolean, default: false },
   title: { type: String, default: 'Update Score' },
   event: { type: String, default: '' },
-  genre: { type: String, default: '' },
+  category: { type: String, default: '' },
   name:  { type: String, default: '' },
   score: { type: Number, default: 0 }
 })
@@ -36,7 +36,7 @@ const updateScore = async () => {
     showError.value = true
     return
   }
-  await submitParticipantScore(props.event, props.genre, selectedJudge.value, [{ participantName: props.name, score: scoreInput.value }])
+  await submitParticipantScore(props.event, props.category, selectedJudge.value, [{ participantName: props.name, score: scoreInput.value }])
   emit("updateScore")
 }
 

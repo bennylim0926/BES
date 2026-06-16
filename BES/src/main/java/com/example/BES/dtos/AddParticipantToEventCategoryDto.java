@@ -1,7 +1,7 @@
 package com.example.BES.dtos;
 
-public class AddParticipantToEventGenreDto {
+public class AddParticipantToEventCategoryDto {
     public Long participantId;
     public Long eventId;
-    public Long eventGenreId;
+    public Long eventCategoryId;
 }

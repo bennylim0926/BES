@@ -18,10 +18,10 @@ let wsClient = null
 
 // Assign mode
 const assignPart   = ref(null)
-const assignBuffer = ref({}) // { [eventGenreId]: number | null } — only for unassigned genres
+const assignBuffer = ref({}) // { [eventCategoryId]: number | null } — only for unassigned categories
 
 // Swap mode
-const swapGenre      = ref(null)
+const swapCategory      = ref(null)
 const swapPart1      = ref(null)
 const swapPart2      = ref(null)
 
@@ -43,10 +43,10 @@ const closeResult = () => { result.value.show = false }
 const divisionStats = computed(() => {
   const map = {}
   for (const p of checkinList.value) {
-    for (const g of p.genres) {
-      if (!map[g.eventGenreId]) map[g.eventGenreId] = { name: g.genreName, eventGenreId: g.eventGenreId, total: 0, taken: [] }
-      map[g.eventGenreId].total++
-      if (g.auditionNumber !== null) map[g.eventGenreId].taken.push(g.auditionNumber)
+    for (const g of p.categories) {
+      if (!map[g.eventCategoryId]) map[g.eventCategoryId] = { name: g.categoryName, eventCategoryId: g.eventCategoryId, total: 0, taken: [] }
+      map[g.eventCategoryId].total++
+      if (g.auditionNumber !== null) map[g.eventCategoryId].taken.push(g.auditionNumber)
     }
   }
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name))
@@ -54,12 +54,12 @@ const divisionStats = computed(() => {
 
 const divisionStatsMap = computed(() => {
   const m = {}
-  for (const d of divisionStats.value) m[d.eventGenreId] = d
+  for (const d of divisionStats.value) m[d.eventCategoryId] = d
   return m
 })
 
-const getAvailableNumbers = (eventGenreId) => {
-  const d = divisionStatsMap.value[eventGenreId]
+const getAvailableNumbers = (eventCategoryId) => {
+  const d = divisionStatsMap.value[eventCategoryId]
   if (!d) return []
   const takenSet = new Set(d.taken)
   return Array.from({ length: d.total }, (_, i) => i + 1).filter(n => !takenSet.has(n))
@@ -68,28 +68,28 @@ const getAvailableNumbers = (eventGenreId) => {
 const selectAssignPart = (p) => {
   assignPart.value = p
   const buf = {}
-  for (const g of p.genres) {
-    if (g.auditionNumber === null) buf[g.eventGenreId] = null
+  for (const g of p.categories) {
+    if (g.auditionNumber === null) buf[g.eventCategoryId] = null
   }
   assignBuffer.value = buf
 }
 
-const pickNumber = (egid, n) => { assignBuffer.value[egid] = n }
+const pickNumber = (ecid, n) => { assignBuffer.value[ecid] = n }
 
 const unassignedParticipants = computed(() =>
   checkinList.value
-    .filter(p => p.genres.some(g => g.auditionNumber === null))
+    .filter(p => p.categories.some(g => g.auditionNumber === null))
     .sort((a, b) => a.label.localeCompare(b.label))
 )
 
-const pendingGenres = computed(() => {
+const pendingCategories = computed(() => {
   if (!assignPart.value) return []
-  return assignPart.value.genres.filter(g => g.auditionNumber === null)
+  return assignPart.value.categories.filter(g => g.auditionNumber === null)
 })
 
-const alreadyAssignedGenres = computed(() => {
+const alreadyAssignedCategories = computed(() => {
   if (!assignPart.value) return []
-  return assignPart.value.genres.filter(g => g.auditionNumber !== null)
+  return assignPart.value.categories.filter(g => g.auditionNumber !== null)
 })
 
 const allAssignBufferFilled = computed(() => {
@@ -101,21 +101,21 @@ const missingCount = computed(() =>
   Object.values(assignBuffer.value).filter(v => v === null).length
 )
 
-const assignedInSwapGenre = computed(() => {
-  if (!swapGenre.value) return []
+const assignedInSwapCategory = computed(() => {
+  if (!swapCategory.value) return []
   return checkinList.value
-    .filter(p => p.genres.some(g => g.eventGenreId === swapGenre.value.eventGenreId && g.auditionNumber !== null))
+    .filter(p => p.categories.some(g => g.eventCategoryId === swapCategory.value.eventCategoryId && g.auditionNumber !== null))
     .sort((a, b) => a.label.localeCompare(b.label))
 })
 
 const swapNum = (p) => {
-  if (!swapGenre.value || !p) return null
-  return p.genres.find(g => g.eventGenreId === swapGenre.value.eventGenreId)?.auditionNumber ?? null
+  if (!swapCategory.value || !p) return null
+  return p.categories.find(g => g.eventCategoryId === swapCategory.value.eventCategoryId)?.auditionNumber ?? null
 }
 
 const assignedParticipants = computed(() =>
   checkinList.value
-    .filter(p => p.genres.some(g => g.auditionNumber !== null))
+    .filter(p => p.categories.some(g => g.auditionNumber !== null))
     .sort((a, b) => a.label.localeCompare(b.label))
 )
 
@@ -133,7 +133,7 @@ const load = async () => {
 const reload = () => {
   assignPart.value   = null
   assignBuffer.value = {}
-  swapGenre.value    = null
+  swapCategory.value    = null
   swapPart1.value    = null
   swapPart2.value    = null
   releasePart.value  = null
@@ -145,27 +145,27 @@ const applyAuditionMsg = (msg) => {
   if (msg.eventId !== eventId) return
   const participant = checkinList.value.find(p => p.participantId === msg.participantId)
   if (!participant) return
-  const genre = participant.genres.find(g => g.eventGenreId === msg.genreId)
-  if (genre) genre.auditionNumber = msg.auditionNumber
+  const category = participant.categories.find(g => g.eventCategoryId === msg.categoryId)
+  if (category) category.auditionNumber = msg.auditionNumber
 }
 
 // ── Operations ─────────────────────────────────────────────────────────────
 const doAssign = () => {
   if (!assignPart.value || !allAssignBufferFilled.value) return
   const assignments = Object.entries(assignBuffer.value).map(([egid, num]) => ({
-    genre: assignPart.value.genres.find(g => g.eventGenreId === Number(egid)),
-    eventGenreId: Number(egid),
+    category: assignPart.value.categories.find(g => g.eventCategoryId === Number(egid)),
+    eventCategoryId: Number(egid),
     auditionNumber: num
   }))
-  const lines = assignments.map(a => `${a.genre.genreName} → #${a.auditionNumber}`).join('\n')
+  const lines = assignments.map(a => `${a.category.categoryName} → #${a.auditionNumber}`).join('\n')
   askConfirm(
     'Assign Audition Numbers',
     `${assignPart.value.label}:\n${lines}`,
     async () => {
-      const payload = assignments.map(a => ({ eventGenreId: a.eventGenreId, auditionNumber: a.auditionNumber }))
+      const payload = assignments.map(a => ({ eventCategoryId: a.eventCategoryId, auditionNumber: a.auditionNumber }))
       const res = await assignAuditionNumbersBatch(eventId, assignPart.value.participantId, payload)
       if (res?.ok) {
-        showResult('Assigned', assignments.map(a => `${a.genre.genreName} → #${a.auditionNumber}`).join(', '))
+        showResult('Assigned', assignments.map(a => `${a.category.categoryName} → #${a.auditionNumber}`).join(', '))
         reload()
       } else {
         const body = res ? await res.json().catch(() => ({})) : {}
@@ -177,14 +177,14 @@ const doAssign = () => {
 }
 
 const doSwap = () => {
-  if (!swapPart1.value || !swapPart2.value || !swapGenre.value) return
+  if (!swapPart1.value || !swapPart2.value || !swapCategory.value) return
   const n1 = swapNum(swapPart1.value)
   const n2 = swapNum(swapPart2.value)
   askConfirm(
     'Swap Audition Numbers',
-    `${swapPart1.value.label} #${n1} ↔ ${swapPart2.value.label} #${n2} in ${swapGenre.value.name}?`,
+    `${swapPart1.value.label} #${n1} ↔ ${swapPart2.value.label} #${n2} in ${swapCategory.value.name}?`,
     async () => {
-      const res = await swapAuditionNumbers(eventId, swapGenre.value.eventGenreId, swapPart1.value.participantId, swapPart2.value.participantId)
+      const res = await swapAuditionNumbers(eventId, swapCategory.value.eventCategoryId, swapPart1.value.participantId, swapPart2.value.participantId)
       if (res?.ok) {
         showResult('Swapped', `${swapPart1.value.label} now #${n2}, ${swapPart2.value.label} now #${n1}`)
         reload()
@@ -198,7 +198,7 @@ const doSwap = () => {
 
 const doRelease = () => {
   if (!releasePart.value) return
-  const assigned = releasePart.value.genres.filter(g => g.auditionNumber !== null)
+  const assigned = releasePart.value.categories.filter(g => g.auditionNumber !== null)
   askConfirm(
     'Release Audition Numbers',
     `Clear ALL ${assigned.length} audition number${assigned.length > 1 ? 's' : ''} for ${releasePart.value.label}? This cannot be undone.`,
@@ -228,8 +228,8 @@ const selectSwap = (p) => {
   }
 }
 
-const resetSwapOnGenreChange = (g) => {
-  swapGenre.value = g
+const resetSwapOnCategoryChange = (g) => {
+  swapCategory.value = g
   swapPart1.value = null
   swapPart2.value = null
 }
@@ -318,7 +318,7 @@ onUnmounted(() => {
               >
                 <span>{{ p.label }}</span>
                 <span class="tabular-nums flex-shrink-0 ml-2 text-amber-400/60" style="font-size:0.68rem;letter-spacing:0.12em">
-                  {{ p.genres.filter(g => g.auditionNumber === null).length }} unassigned
+                  {{ p.categories.filter(g => g.auditionNumber === null).length }} unassigned
                 </span>
               </button>
             </div>
@@ -333,50 +333,50 @@ onUnmounted(() => {
             </div>
             <p v-if="!assignPart" class="type-label text-content-muted py-4 text-center">Select a participant first</p>
             <template v-else>
-              <!-- Edge case: all genres got assigned via WS while panel was open -->
-              <div v-if="pendingGenres.length === 0" class="type-label text-content-muted py-4 text-center">
+              <!-- Edge case: all categories got assigned via WS while panel was open -->
+              <div v-if="pendingCategories.length === 0" class="type-label text-content-muted py-4 text-center">
                 All divisions already assigned for {{ assignPart.label }}
               </div>
               <template v-else>
                 <div class="flex-1 overflow-y-auto min-h-0 space-y-4" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
 
-                  <!-- For each unassigned genre, show a number grid -->
-                  <div v-for="g in pendingGenres" :key="g.eventGenreId">
+                  <!-- For each unassigned category, show a number grid -->
+                  <div v-for="g in pendingCategories" :key="g.eventCategoryId">
                     <div class="section-rule mb-2">
-                      <span class="section-rule-label" :class="assignBuffer[g.eventGenreId] ? 'text-accent' : 'text-amber-400/80'">
-                        {{ g.genreName }}
+                      <span class="section-rule-label" :class="assignBuffer[g.eventCategoryId] ? 'text-accent' : 'text-amber-400/80'">
+                        {{ g.categoryName }}
                       </span>
                       <div class="section-rule-line"></div>
-                      <span class="type-label ml-2 flex-shrink-0 tabular-nums" :class="assignBuffer[g.eventGenreId] ? 'text-accent' : 'text-content-muted/30'">
-                        {{ assignBuffer[g.eventGenreId] ? `#${assignBuffer[g.eventGenreId]}` : '—' }}
+                      <span class="type-label ml-2 flex-shrink-0 tabular-nums" :class="assignBuffer[g.eventCategoryId] ? 'text-accent' : 'text-content-muted/30'">
+                        {{ assignBuffer[g.eventCategoryId] ? `#${assignBuffer[g.eventCategoryId]}` : '—' }}
                       </span>
                     </div>
                     <div class="flex flex-wrap gap-1.5 pb-1">
-                      <p v-if="getAvailableNumbers(g.eventGenreId).length === 0" class="type-label text-content-muted">No available numbers</p>
+                      <p v-if="getAvailableNumbers(g.eventCategoryId).length === 0" class="type-label text-content-muted">No available numbers</p>
                       <button
-                        v-for="n in getAvailableNumbers(g.eventGenreId)"
+                        v-for="n in getAvailableNumbers(g.eventCategoryId)"
                         :key="n"
-                        @click="pickNumber(g.eventGenreId, n)"
-                        :aria-pressed="assignBuffer[g.eventGenreId] === n"
+                        @click="pickNumber(g.eventCategoryId, n)"
+                        :aria-pressed="assignBuffer[g.eventCategoryId] === n"
                         class="inline-flex items-center justify-center type-label tabular-nums transition-all duration-150"
                         style="width:2.75rem;height:2.75rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                        :style="assignBuffer[g.eventGenreId] === n
+                        :style="assignBuffer[g.eventCategoryId] === n
                           ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
                           : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'"
                       >{{ n }}</button>
                     </div>
                   </div>
 
-                  <!-- Already assigned genres (locked, shown for reference) -->
-                  <div v-if="alreadyAssignedGenres.length > 0">
+                  <!-- Already assigned categories (locked, shown for reference) -->
+                  <div v-if="alreadyAssignedCategories.length > 0">
                     <div class="section-rule mb-2">
                       <span class="section-rule-label text-content-muted/40">Already Assigned</span>
                       <div class="section-rule-line"></div>
                     </div>
                     <div class="space-y-1.5">
-                      <div v-for="g in alreadyAssignedGenres" :key="g.genreName"
+                      <div v-for="g in alreadyAssignedCategories" :key="g.categoryName"
                         class="flex items-center justify-between para-chip-sm px-3 py-2 opacity-40">
-                        <span class="type-name-sm text-content-secondary">{{ g.genreName }}</span>
+                        <span class="type-name-sm text-content-secondary">{{ g.categoryName }}</span>
                         <span class="type-label text-content-muted tabular-nums">#{{ g.auditionNumber }}</span>
                       </div>
                     </div>
@@ -423,10 +423,10 @@ onUnmounted(() => {
             <div class="flex-1 overflow-y-auto space-y-1.5 min-h-0" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
               <button
                 v-for="d in divisionStats"
-                :key="d.eventGenreId"
-                @click="resetSwapOnGenreChange(d)"
+                :key="d.eventCategoryId"
+                @click="resetSwapOnCategoryChange(d)"
                 class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
-                :class="swapGenre?.eventGenreId === d.eventGenreId
+                :class="swapCategory?.eventCategoryId === d.eventCategoryId
                   ? 'text-accent border-[color:var(--accent-muted)]'
                   : 'text-content-muted hover:text-content-primary'"
               >
@@ -444,12 +444,12 @@ onUnmounted(() => {
               <span class="section-rule-label">2 · Select Two</span>
               <div class="section-rule-line"></div>
             </div>
-            <p v-if="!swapGenre" class="type-label text-content-muted py-4 text-center">Select a division first</p>
-            <p v-else-if="assignedInSwapGenre.length < 2" class="type-label text-content-muted py-4 text-center">Fewer than 2 participants have numbers in this division</p>
+            <p v-if="!swapCategory" class="type-label text-content-muted py-4 text-center">Select a division first</p>
+            <p v-else-if="assignedInSwapCategory.length < 2" class="type-label text-content-muted py-4 text-center">Fewer than 2 participants have numbers in this division</p>
             <template v-else>
               <div class="flex-1 overflow-y-auto space-y-1.5 min-h-0" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
                 <button
-                  v-for="p in assignedInSwapGenre"
+                  v-for="p in assignedInSwapCategory"
                   :key="p.participantId"
                   @click="selectSwap(p)"
                   class="w-full para-chip-sm px-3 py-2 type-name-sm text-left transition-all duration-150 flex items-center justify-between"
@@ -507,7 +507,7 @@ onUnmounted(() => {
                   : 'text-content-muted hover:text-content-primary'"
               >
                 <span>{{ p.label }}</span>
-                <span class="tabular-nums text-content-muted/60 flex-shrink-0 ml-2">{{ p.genres.filter(g => g.auditionNumber !== null).length }} div</span>
+                <span class="tabular-nums text-content-muted/60 flex-shrink-0 ml-2">{{ p.categories.filter(g => g.auditionNumber !== null).length }} div</span>
               </button>
             </div>
           </div>
@@ -525,11 +525,11 @@ onUnmounted(() => {
                 <p class="type-name text-content-primary mb-3" style="font-size:16px;">{{ releasePart.label }}</p>
                 <div class="space-y-1.5 mb-4">
                   <div
-                    v-for="g in releasePart.genres.filter(g => g.auditionNumber !== null)"
-                    :key="g.genreName"
+                    v-for="g in releasePart.categories.filter(g => g.auditionNumber !== null)"
+                    :key="g.categoryName"
                     class="flex items-center justify-between para-chip-sm px-3 py-2"
                   >
-                    <span class="type-name-sm text-content-secondary">{{ g.genreName }}</span>
+                    <span class="type-name-sm text-content-secondary">{{ g.categoryName }}</span>
                     <span class="type-stat text-accent" style="font-size:1.1rem">#{{ g.auditionNumber }}</span>
                   </div>
                 </div>
@@ -537,7 +537,7 @@ onUnmounted(() => {
                   style="border-left:3px solid rgba(245,158,11,0.8);background:rgba(245,158,11,0.06)">
                   <span class="inline-block w-2 h-2 rounded-full mt-1 flex-shrink-0" style="background:rgba(245,158,11,0.8);box-shadow:0 0 6px rgba(245,158,11,0.5)"></span>
                   <p class="type-label text-amber-400/80">
-                    All {{ releasePart.genres.filter(g => g.auditionNumber !== null).length }} number{{ releasePart.genres.filter(g => g.auditionNumber !== null).length > 1 ? 's' : '' }} will be cleared. The participant must check in again to receive new numbers.
+                    All {{ releasePart.categories.filter(g => g.auditionNumber !== null).length }} number{{ releasePart.categories.filter(g => g.auditionNumber !== null).length > 1 ? 's' : '' }} will be cleared. The participant must check in again to receive new numbers.
                   </p>
                 </div>
               </div>

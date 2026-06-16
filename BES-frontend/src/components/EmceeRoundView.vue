@@ -7,7 +7,7 @@ const props = defineProps({
   participants: { type: Array, required: true },
   mode:         { type: String, default: 'SOLO' },
   eventName:    { type: String, default: '' },
-  genreName:    { type: String, default: '' },
+  categoryName: { type: String, default: '' },
   roundLabel:   { type: String, default: null },
   numberColor:  { type: String, default: null },
 });
@@ -65,7 +65,7 @@ function buildStatePayload(timerState = {}) {
 
   return {
     eventName: props.eventName,
-    genreName: props.genreName,
+    categoryName: props.categoryName,
     mode: props.mode,
     currentRound: currentRound.value,
     totalRounds: totalRounds.value,
@@ -111,8 +111,8 @@ watch(currentRound, () => {
 onMounted(async () => {
   if (!props.eventName) return
   const state = await getAuditionDisplayState(props.eventName)
-  // Timer recovery: only resume if the saved state is for this same genre
-  if (state && !state.standby && state.genreName === props.genreName &&
+  // Timer recovery: only resume if the saved state is for this same category
+  if (state && !state.standby && state.categoryName === props.categoryName &&
       state.timerRunning && state.timerStartedAt && state.timerDuration) {
     const elapsed = Math.floor((Date.now() - state.timerStartedAt) / 1000)
     const remaining = Math.max(0, state.timerDuration - elapsed)
@@ -122,7 +122,7 @@ onMounted(async () => {
       lastTimerState.value = { startedAt: state.timerStartedAt, duration: state.timerDuration, running: true }
     }
   }
-  // Always publish on mount so switching genre updates the display immediately
+  // Always publish on mount so switching category updates the display immediately
   publishState(lastTimerState.value)
 })
 

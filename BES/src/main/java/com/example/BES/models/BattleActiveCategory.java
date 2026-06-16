@@ -6,11 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "battle_active_genre")
+@Table(name = "battle_active_category")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class BattleActiveGenre {
+public class BattleActiveCategory {
 
     @Id
     private Integer id;
@@ -18,6 +18,6 @@ public class BattleActiveGenre {
     @Column(name = "event_name")
     private String eventName;
 
-    @Column(name = "genre_name")
-    private String genreName;
+    @Column(name = "category_name")
+    private String categoryName;
 }

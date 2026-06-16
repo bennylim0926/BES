@@ -1,0 +1,84 @@
+-- V41: Rename genre → category throughout the schema
+-- Execution order matters: rename tables first, then columns, then FK surgery, then drop orphaned tables.
+
+-- ============================================================
+-- 1. Rename event_genre → event_category
+-- ============================================================
+ALTER TABLE event_genre RENAME TO event_category;
+
+-- ============================================================
+-- 2. Rename child tables
+-- ============================================================
+ALTER TABLE event_genre_participant        RENAME TO event_category_participant;
+ALTER TABLE event_genre_participant_member RENAME TO event_category_participant_member;
+ALTER TABLE event_genre_battle_guest       RENAME TO event_category_battle_guest;
+ALTER TABLE event_genre_judge              RENAME TO event_category_judge;
+
+-- ============================================================
+-- 3. Rename event_genre_id → event_category_id in child tables
+--    and in tables that reference event_category(id) directly
+-- ============================================================
+ALTER TABLE event_category_participant        RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE event_category_participant_member RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE event_category_battle_guest       RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE event_category_judge              RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE scoring_criteria                  RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE score                             RENAME COLUMN event_genre_id TO event_category_id;
+ALTER TABLE audition_feedback                 RENAME COLUMN event_genre_id TO event_category_id;
+
+-- ============================================================
+-- 4. Migrate pickup_crew.genre_id → event_category_id
+--    Currently: genre_id is a FK to genre(genre_id) (global table)
+--    Target:    event_category_id is a FK to event_category(id)
+--
+--    4a. Backfill: map old genre_id (→ global genre) through
+--        event_category.genre_id to get the event_category.id
+--        We use the genre_id column still present on event_category.
+-- ============================================================
+UPDATE pickup_crew pc
+SET    genre_id = ec.id
+FROM   event_category ec
+WHERE  ec.genre_id = pc.genre_id;
+
+-- 4b. Rename the column
+ALTER TABLE pickup_crew RENAME COLUMN genre_id TO event_category_id;
+
+-- 4c. Drop the old FK constraint (was pointing to genre.genre_id)
+ALTER TABLE pickup_crew DROP CONSTRAINT pickup_crew_genre_id_fkey;
+
+-- 4d. Add new FK → event_category(id)
+ALTER TABLE pickup_crew
+    ADD CONSTRAINT pickup_crew_event_category_id_fkey
+    FOREIGN KEY (event_category_id) REFERENCES event_category(id);
+
+-- ============================================================
+-- 5. Drop genre_id column from event_category
+--    First drop the outgoing FK constraint to genre(genre_id)
+-- ============================================================
+ALTER TABLE event_category DROP CONSTRAINT fk5nearhompurfhv6qrt792v4pj;
+ALTER TABLE event_category DROP COLUMN genre_id;
+
+-- ============================================================
+-- 6. Drop event_genre_link table
+-- ============================================================
+DROP TABLE event_genre_link;
+
+-- ============================================================
+-- 7. Drop global genre table
+--    (all FKs pointing to it have been removed in steps 4c & 5)
+-- ============================================================
+DROP TABLE genre;
+
+-- ============================================================
+-- 8. Rename battle_genre_state → battle_category_state
+--    and its genre_name column → category_name
+-- ============================================================
+ALTER TABLE battle_genre_state RENAME TO battle_category_state;
+ALTER TABLE battle_category_state RENAME COLUMN genre_name TO category_name;
+
+-- ============================================================
+-- 9. Rename battle_active_genre → battle_active_category
+--    and its genre_name column → category_name
+-- ============================================================
+ALTER TABLE battle_active_genre RENAME TO battle_active_category;
+ALTER TABLE battle_active_category RENAME COLUMN genre_name TO category_name;

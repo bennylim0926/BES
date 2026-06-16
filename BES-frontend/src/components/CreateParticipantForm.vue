@@ -1,23 +1,23 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
 import { onMounted, ref, reactive, watch, computed } from 'vue';
-import { addWalkinToSystem, fetchAllGenres, getAllJudges } from '@/utils/api';
+import { addWalkinToSystem, getAllJudges } from '@/utils/api';
 
 const props = defineProps({
   show:  { type: Boolean, default: false },
   title: { type: String, default: 'New Participant' },
   event: { type: String, default: '' },
-  eventGenres: { type: Array, default: null }
+  eventCategories: { type: Array, default: null }
 })
 
 const emit = defineEmits(['createNewEntry', 'close'])
 
 const name = ref("")
 const selectedJudge = ref("")
-const genreOptions = ref([])
+const categoryOptions = ref([])
 const allJudges = ref([])
-const adminGenreMap = ref({})
-const createTable = reactive({ genres: [] })
+const adminCategoryMap = ref({})
+const createTable = reactive({ categories: [] })
 const showError = ref(false)
 const showNoDivisionError = ref(false)
 const showSuccess = ref(false)
@@ -29,51 +29,51 @@ const entryModes = reactive({})
 const teamNames = reactive({})
 const teamMemberNames = reactive({})
 
-function selectedFormat(genreName) {
-  const option = genreOptions.value.find(o => o.genreName === genreName)
+function selectedFormat(categoryName) {
+  const option = categoryOptions.value.find(o => o.categoryName === categoryName)
   return option ? option.format : null
 }
 
-function isTeamFormat(genreName) {
-  const fmt = selectedFormat(genreName)
+function isTeamFormat(categoryName) {
+  const fmt = selectedFormat(categoryName)
   if (!fmt) return false
   return /^\d+v\d+$/i.test(fmt) && fmt.toLowerCase() !== '1v1'
 }
 
-function isSoloAllowed(genreName) {
-  const option = genreOptions.value.find(o => o.genreName === genreName)
+function isSoloAllowed(categoryName) {
+  const option = categoryOptions.value.find(o => o.categoryName === categoryName)
   return option ? option.soloAllowed !== false : true
 }
 
-function additionalMembersCountForGenre(genreName) {
-  const fmt = selectedFormat(genreName)
-  if (!fmt || entryModes[genreName] === 'solo') return 0
+function additionalMembersCountForCategory(categoryName) {
+  const fmt = selectedFormat(categoryName)
+  if (!fmt || entryModes[categoryName] === 'solo') return 0
   const match = fmt.match(/^(\d+)v\d+$/i)
   return match ? parseInt(match[1]) - 1 : 0
 }
 
-function updateMemberName(genre, index, value) {
-  const arr = teamMemberNames[genre] || []
+function updateMemberName(category, index, value) {
+  const arr = teamMemberNames[category] || []
   arr[index] = value
-  teamMemberNames[genre] = [...arr]
+  teamMemberNames[category] = [...arr]
 }
 
-function toggleGenre(genreName) {
-  const idx = createTable.genres.indexOf(genreName)
+function toggleCategory(categoryName) {
+  const idx = createTable.categories.indexOf(categoryName)
   if (idx >= 0) {
-    createTable.genres.splice(idx, 1)
+    createTable.categories.splice(idx, 1)
   } else {
-    createTable.genres.push(genreName)
+    createTable.categories.push(categoryName)
   }
 }
 
-watch(() => createTable.genres.slice(), (selected) => {
-  for (const genreName of selected) {
-    if (isTeamFormat(genreName)) {
-      if (!(genreName in entryModes)) entryModes[genreName] = 'team'
-      else if (!isSoloAllowed(genreName) && entryModes[genreName] === 'solo') entryModes[genreName] = 'team'
-      if (!(genreName in teamNames)) teamNames[genreName] = ''
-      if (!(genreName in teamMemberNames)) teamMemberNames[genreName] = []
+watch(() => createTable.categories.slice(), (selected) => {
+  for (const categoryName of selected) {
+    if (isTeamFormat(categoryName)) {
+      if (!(categoryName in entryModes)) entryModes[categoryName] = 'team'
+      else if (!isSoloAllowed(categoryName) && entryModes[categoryName] === 'solo') entryModes[categoryName] = 'team'
+      if (!(categoryName in teamNames)) teamNames[categoryName] = ''
+      if (!(categoryName in teamMemberNames)) teamMemberNames[categoryName] = []
     }
   }
   for (const key of Object.keys(entryModes)) {
@@ -87,10 +87,10 @@ watch(() => createTable.genres.slice(), (selected) => {
 
 const groupedDivisions = computed(() => {
   const groups = {}
-  for (const opt of genreOptions.value) {
-    const key = opt.genreId ?? 'custom'
+  for (const opt of categoryOptions.value) {
+    const key = opt.categoryId ?? 'custom'
     if (!groups[key]) {
-      groups[key] = { genreId: key, label: opt.groupLabel || 'Custom', divisions: [] }
+      groups[key] = { categoryId: key, label: opt.groupLabel || 'Custom', divisions: [] }
     }
     groups[key].divisions.push(opt)
   }
@@ -101,14 +101,14 @@ const formTouched = ref(false)
 
 const canSubmit = computed(() => {
   if (name.value.trim() === '') return false
-  if (createTable.genres.length === 0) return false
-  for (const g of createTable.genres) {
-    if (isTeamFormat(g) && entryModes[g] !== 'solo') {
-      const tName = (teamNames[g] || '').trim()
+  if (createTable.categories.length === 0) return false
+  for (const c of createTable.categories) {
+    if (isTeamFormat(c) && entryModes[c] !== 'solo') {
+      const tName = (teamNames[c] || '').trim()
       if (tName === '') return false
-      const count = additionalMembersCountForGenre(g)
+      const count = additionalMembersCountForCategory(c)
       for (let i = 0; i < count; i++) {
-        if (!(teamMemberNames[g] || [])[i]?.trim()) return false
+        if (!(teamMemberNames[c] || [])[i]?.trim()) return false
       }
     }
   }
@@ -120,25 +120,25 @@ const submitNewEntry = async () => {
   if (!canSubmit.value) return
 
   const results = { created: [], existing: [], failed: [] }
-  for (const g of createTable.genres) {
-    const mode = entryModes[g] || 'team'
-    const members = mode === 'solo' ? [] : (teamMemberNames[g] || []).filter(m => m.trim() !== "")
-    const tName = mode === 'solo' ? '' : (teamNames[g] || '')
+  for (const c of createTable.categories) {
+    const mode = entryModes[c] || 'team'
+    const members = mode === 'solo' ? [] : (teamMemberNames[c] || []).filter(m => m.trim() !== "")
+    const tName = mode === 'solo' ? '' : (teamNames[c] || '')
     try {
-      const res = await addWalkinToSystem(name.value, props.event, g, selectedJudge.value, members, tName, mode)
+      const res = await addWalkinToSystem(name.value, props.event, c, selectedJudge.value, members, tName, mode)
       if (!res || !res.ok) {
-        results.failed.push(g)
+        results.failed.push(c)
       } else {
         const body = await res.json().catch(() => null)
-        if (body?.status === 'created') results.created.push(g)
-        else results.existing.push(g)
+        if (body?.status === 'created') results.created.push(c)
+        else results.existing.push(c)
       }
     } catch {
-      results.failed.push(g)
+      results.failed.push(c)
     }
   }
   name.value = ""
-  createTable.genres = []
+  createTable.categories = []
   Object.keys(entryModes).forEach(k => { delete entryModes[k]; delete teamNames[k]; delete teamMemberNames[k] })
   selectedJudge.value = ""
   formTouched.value = false
@@ -153,23 +153,21 @@ const submitNewEntry = async () => {
   }
 }
 
-watch(() => props.eventGenres, (newGenres) => {
-  if (newGenres && newGenres.length > 0) {
-    genreOptions.value = newGenres.map(g => ({
-      genreName: g.name,
-      format: g.format || null,
-      genreId: g.genreId ?? null,
-      groupLabel: g.genreId ? (adminGenreMap.value[g.genreId] ?? 'Other') : 'Custom',
-      soloAllowed: g.soloAllowed !== false,
+watch(() => props.eventCategories, (newCategories) => {
+  if (newCategories && newCategories.length > 0) {
+    categoryOptions.value = newCategories.map(c => ({
+      categoryName: c.name,
+      format: c.format || null,
+      categoryId: c.categoryId ?? null,
+      groupLabel: c.categoryId ? (adminCategoryMap.value[c.categoryId] ?? 'Other') : 'Custom',
+      soloAllowed: c.soloAllowed !== false,
     }))
   }
 }, { immediate: true })
 
 onMounted(async () => {
-  const genres = await fetchAllGenres()
-  adminGenreMap.value = Object.fromEntries((genres || []).map(g => [g.id, g.genreName]))
-  if (!props.eventGenres || props.eventGenres.length === 0) {
-    genreOptions.value = genres.map(g => ({ genreName: g.genreName, format: g.format || null, genreId: g.id, groupLabel: g.genreName }))
+  if (!props.eventCategories || props.eventCategories.length === 0) {
+    categoryOptions.value = []
   }
   const res = await getAllJudges()
   allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)]
@@ -229,41 +227,41 @@ onMounted(async () => {
                 <span class="type-label text-content-muted">tap to select</span>
               </div>
               <div class="flex flex-wrap gap-1.5">
-                <template v-for="group in groupedDivisions" :key="group.genreId">
+                <template v-for="group in groupedDivisions" :key="group.categoryId">
                   <button
-                    v-for="g in group.divisions"
-                    :key="g.genreName"
+                    v-for="c in group.divisions"
+                    :key="c.categoryName"
                     type="button"
-                    @click="toggleGenre(g.genreName)"
+                    @click="toggleCategory(c.categoryName)"
                     class="para-chip-sm px-3 py-1.5 type-name-sm transition-all flex items-center gap-1.5"
-                    :class="createTable.genres.includes(g.genreName)
+                    :class="createTable.categories.includes(c.categoryName)
                       ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
                       : 'text-content-secondary hover:text-accent'"
                   >
                     <span
                       class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      :style="createTable.genres.includes(g.genreName)
+                      :style="createTable.categories.includes(c.categoryName)
                         ? 'background:var(--accent-color);box-shadow:0 0 5px var(--accent-muted)'
                         : 'background:rgba(255,255,255,0.2)'"
                     ></span>
-                    {{ g.genreName }}
-                    <span v-if="g.format" class="opacity-50" style="font-size:11px;">· {{ g.format }}</span>
+                    {{ c.categoryName }}
+                    <span v-if="c.format" class="opacity-50" style="font-size:11px;">· {{ c.format }}</span>
                   </button>
                 </template>
               </div>
             </div>
 
-            <!-- Per-genre team details (inline expansion) -->
-            <template v-for="g in createTable.genres" :key="g">
-              <template v-if="isTeamFormat(g)">
+            <!-- Per-category team details (inline expansion) -->
+            <template v-for="c in createTable.categories" :key="c">
+              <template v-if="isTeamFormat(c)">
                 <div class="section-rule">
-                  <span class="type-name text-content-secondary" style="font-size:14px;">{{ g }} <span class="type-label text-content-muted">· {{ selectedFormat(g) }}</span></span>
+                  <span class="type-name text-content-secondary" style="font-size:14px;">{{ c }} <span class="type-label text-content-muted">· {{ selectedFormat(c) }}</span></span>
                   <div class="section-rule-line"></div>
                 </div>
 
                 <!-- Solo not allowed warning -->
                 <div
-                  v-if="!isSoloAllowed(g)"
+                  v-if="!isSoloAllowed(c)"
                   class="flex items-center gap-2 px-3 py-2 para-chip"
                   style="border-left: 3px solid rgb(251 191 36); background: rgba(251,191,36,0.07);"
                 >
@@ -272,14 +270,14 @@ onMounted(async () => {
                 </div>
 
                 <!-- Team / Solo toggle -->
-                <div v-if="isSoloAllowed(g)">
+                <div v-if="isSoloAllowed(c)">
                   <label class="type-label text-content-muted mb-2 block">Entry Type</label>
                   <div class="flex border border-surface-600/60 overflow-hidden">
                     <button
                       type="button"
-                      @click="entryModes[g] = 'team'"
+                      @click="entryModes[c] = 'team'"
                       class="flex-1 px-4 py-2 type-label transition-all"
-                      :class="entryModes[g] === 'team'
+                      :class="entryModes[c] === 'team'
                         ? 'bg-[var(--accent-subtle)] text-accent'
                         : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
                     >
@@ -287,48 +285,48 @@ onMounted(async () => {
                     </button>
                     <button
                       type="button"
-                      @click="entryModes[g] = 'solo'"
+                      @click="entryModes[c] = 'solo'"
                       class="flex-1 px-4 py-2 type-label transition-all border-l border-surface-600/60"
-                      :class="entryModes[g] === 'solo'
+                      :class="entryModes[c] === 'solo'
                         ? 'bg-[var(--accent-subtle)] text-accent'
                         : 'bg-surface-800 text-content-secondary hover:bg-surface-700'"
                     >
                       Solo
                     </button>
                   </div>
-                  <p v-if="entryModes[g] === 'solo'" class="type-prose mt-1.5">
+                  <p v-if="entryModes[c] === 'solo'" class="type-prose mt-1.5">
                     Auditions individually. Can be grouped into a crew after auditions.
                   </p>
                 </div>
 
                 <!-- Team name + members -->
-                <template v-if="entryModes[g] !== 'solo' && additionalMembersCountForGenre(g) > 0">
+                <template v-if="entryModes[c] !== 'solo' && additionalMembersCountForCategory(c) > 0">
                   <div>
                     <label class="type-label text-content-muted mb-1.5 block">Team Name</label>
                     <input
-                      v-model="teamNames[g]"
+                      v-model="teamNames[c]"
                       type="text"
                       placeholder="Enter team name…"
                       class="input-base"
-                      :class="formTouched && !(teamNames[g] || '').trim() ? '!border-red-400/60' : ''"
+                      :class="formTouched && !(teamNames[c] || '').trim() ? '!border-red-400/60' : ''"
                       @input="formTouched = true"
                     />
                   </div>
                   <div>
                     <label class="type-label text-content-muted mb-1.5 block">Team Members</label>
                     <p class="type-prose mb-2">
-                      {{ name || 'Stage name' }} is Member 1. Enter the other {{ additionalMembersCountForGenre(g) }}.
+                      {{ name || 'Stage name' }} is Member 1. Enter the other {{ additionalMembersCountForCategory(c) }}.
                     </p>
                     <div class="space-y-2">
                       <input
-                        v-for="i in additionalMembersCountForGenre(g)"
+                        v-for="i in additionalMembersCountForCategory(c)"
                         :key="i"
-                        :value="(teamMemberNames[g] || [])[i - 1] || ''"
-                        @input="updateMemberName(g, i - 1, $event.target.value); formTouched = true"
+                        :value="(teamMemberNames[c] || [])[i - 1] || ''"
+                        @input="updateMemberName(c, i - 1, $event.target.value); formTouched = true"
                         type="text"
                         :placeholder="`Member ${i + 1} stage name…`"
                         class="input-base"
-                        :class="formTouched && !((teamMemberNames[g] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
+                        :class="formTouched && !((teamMemberNames[c] || [])[i - 1] || '').trim() ? '!border-red-400/60' : ''"
                       />
                     </div>
                   </div>

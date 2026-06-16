@@ -48,7 +48,7 @@ onMounted(async () => {
 })
 
 function navigateToAudition(divisionName) {
-  localStorage.setItem('selectedGenre', divisionName)
+  localStorage.setItem('selectedCategory', divisionName)
   if (authStore.judgeName) {
     localStorage.setItem('currentJudge', authStore.judgeName)
     localStorage.setItem('selectedRole', 'Judge')

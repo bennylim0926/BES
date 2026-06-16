@@ -9,7 +9,7 @@ public class CreatePickupCrewDto {
     @NotBlank @Size(max = 255)
     public String eventName;
     @NotBlank @Size(max = 255)
-    public String genreName;
+    public String categoryName;
     @NotBlank @Size(max = 255)
     public String crewName;
     @NotEmpty

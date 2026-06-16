@@ -1,7 +1,7 @@
 package com.example.BES.respositories;
 
 import com.example.BES.models.AuditionFeedback;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.Judge;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -15,22 +15,22 @@ import java.util.Optional;
 
 @Repository
 public interface AuditionFeedbackRepository extends JpaRepository<AuditionFeedback, Long> {
-    Optional<AuditionFeedback> findByEventGenreParticipantAndJudge(EventGenreParticipant egp, Judge judge);
-    List<AuditionFeedback> findByEventGenreParticipant(EventGenreParticipant egp);
+    Optional<AuditionFeedback> findByEventCategoryParticipantAndJudge(EventCategoryParticipant egp, Judge judge);
+    List<AuditionFeedback> findByEventCategoryParticipant(EventCategoryParticipant egp);
 
     @Modifying
     @Transactional
     @Query("""
         DELETE FROM AuditionFeedback f
-        WHERE f.eventGenreParticipant IN (
-            SELECT e FROM EventGenreParticipant e
+        WHERE f.eventCategoryParticipant IN (
+            SELECT e FROM EventCategoryParticipant e
             WHERE LOWER(e.event.eventName) = LOWER(:eventName)
-              AND LOWER(e.eventGenre.name) = LOWER(:genreName)
+              AND LOWER(e.eventCategory.name) = LOWER(:categoryName)
         )
         AND LOWER(f.judge.name) = LOWER(:judgeName)
         """)
-    void deleteByEventNameAndGenreNameAndJudgeName(
+    void deleteByEventNameAndCategoryNameAndJudgeName(
         @Param("eventName") String eventName,
-        @Param("genreName") String genreName,
+        @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName);
 }

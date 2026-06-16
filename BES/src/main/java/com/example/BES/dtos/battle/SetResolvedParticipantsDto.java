@@ -9,14 +9,14 @@ public class SetResolvedParticipantsDto {
     private String eventName;
 
     @NotBlank
-    private String genreName;
+    private String categoryName;
 
     private List<String> participants;
 
     public String getEventName() { return eventName; }
     public void setEventName(String eventName) { this.eventName = eventName; }
-    public String getGenreName() { return genreName; }
-    public void setGenreName(String genreName) { this.genreName = genreName; }
+    public String getCategoryName() { return categoryName; }
+    public void setCategoryName(String categoryName) { this.categoryName = categoryName; }
     public List<String> getParticipants() { return participants; }
     public void setParticipants(List<String> participants) { this.participants = participants; }
 }

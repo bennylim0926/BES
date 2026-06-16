@@ -17,8 +17,8 @@ const smokeFormatTimerRef = ref(null)
 
 const props = defineProps({
   selectedEvent:             { type: String,  required: true },
-  selectedGenre:             { type: String,  required: true },
-  uniqueGenres:              { type: Array,   default: () => [] },
+  selectedCategory:          { type: String,  required: true },
+  uniqueCategories:          { type: Array,   default: () => [] },
   battlePhase:               { type: String,  required: true },
   battleJudges:              { type: Array,   default: () => [] },
   currentBattle:             { type: Array,   default: () => [] },
@@ -34,20 +34,20 @@ const props = defineProps({
   finalTieBlocked:           { type: Boolean, default: false },
   isReadonly:                { type: Boolean, default: false },
   isViewingNonActive:        { type: Boolean, default: false },
-  liveGenreName:             { type: String,  default: '' },
+  liveCategoryName:          { type: String,  default: '' },
   livePhase:                 { type: String,  default: 'IDLE' },
-  genreChampions:            { type: Object,  default: () => ({}) },
+  categoryChampions:         { type: Object,  default: () => ({}) },
   stompClient:               { type: Object,  default: null },
   overlayConfig:             { type: Object,  default: () => ({ leftColor: '#dc2626', rightColor: '#2563eb' }) },
   revealActive:              { type: Boolean, default: false },
   activeRoundIdx:            { type: Number,  default: 0 },
   recoveryTimer:             { type: Object,  default: null },
   recoveryFormatTimer:       { type: Object,  default: null },
-  guestsForCurrentGenre:     { type: Array,   default: () => [] },
+  guestsForCurrentCategory:  { type: Array,   default: () => [] },
 })
 
 const emit = defineEmits([
-  'request-genre-change',
+  'request-category-change',
   'open-voting',
   'get-score',
   'submit-revote',
@@ -118,17 +118,17 @@ const formatTimerSelectedMinutes = computed(() => smokeFormatTimerRef.value?.sel
 
 defineExpose({ triggerFormatTimerStart, formatTimerSelectedMinutes, isFormatTimerExpired, checkFormatWinnerIfExpired })
 
-// ── Genre status dot ─────────────────────────────────────────────
+// ── Category status dot ──────────────────────────────────────────
 // Returns 'champion' | 'active' | 'idle'
-function genreStatusDot(g) {
-  if (props.genreChampions[g]) return 'champion'
-  // In view-only mode selectedGenre is the viewed genre, not the live one.
-  // Use liveGenreName + livePhase to correctly mark the live genre's dot.
-  if (props.isViewingNonActive && props.liveGenreName) {
-    if (g === props.liveGenreName && ['LOCKED', 'VOTING', 'REVEALED'].includes(props.livePhase)) return 'active'
+function categoryStatusDot(c) {
+  if (props.categoryChampions[c]) return 'champion'
+  // In view-only mode selectedCategory is the viewed category, not the live one.
+  // Use liveCategoryName + livePhase to correctly mark the live category's dot.
+  if (props.isViewingNonActive && props.liveCategoryName) {
+    if (c === props.liveCategoryName && ['LOCKED', 'VOTING', 'REVEALED'].includes(props.livePhase)) return 'active'
     return 'idle'
   }
-  const phase = g === props.selectedGenre ? props.battlePhase : 'IDLE'
+  const phase = c === props.selectedCategory ? props.battlePhase : 'IDLE'
   if (['LOCKED', 'VOTING', 'REVEALED'].includes(phase)) return 'active'
   return 'idle'
 }
@@ -283,7 +283,7 @@ const showFinalReveal = computed(() =>
   tentativeWinner.value !== -1
 )
 
-const currentGenreChampion = computed(() => {
+const currentCategoryChampion = computed(() => {
   if (props.isSmoke) return null
   const r = props.rounds
   if (r && typeof r === 'object' && !Array.isArray(r)) {
@@ -312,9 +312,9 @@ const viewedPairList = computed(() => {
       <span class="type-body flex-1">You control the battle flow. Start the timer when battlers are on stage.</span>
     </div>
 
-    <!-- Genre switcher -->
+    <!-- Category switcher -->
     <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
-      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">GENRE</span>
+      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">CATEGORY</span>
       <span
         v-if="isViewingNonActive"
         class="type-label px-2 py-0.5"
@@ -322,26 +322,26 @@ const viewedPairList = computed(() => {
       >VIEW ONLY</span>
       <div class="flex flex-wrap gap-2">
         <button
-          v-for="g in uniqueGenres"
-          :key="g"
-          @click="$emit('request-genre-change', g)"
+          v-for="c in uniqueCategories"
+          :key="c"
+          @click="$emit('request-category-change', c)"
           class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-name-sm transition-all duration-150 inline-flex items-center gap-1.5"
           :class="[
-            selectedGenre === g
+            selectedCategory === c
               ? 'text-accent border-[color:var(--accent-muted)]'
               : 'text-content-muted hover:text-content-primary'
           ]"
         >
-          <template v-if="genreStatusDot(g) === 'champion'">
+          <template v-if="categoryStatusDot(c) === 'champion'">
             <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
           </template>
-          <template v-else-if="genreStatusDot(g) === 'active'">
+          <template v-else-if="categoryStatusDot(c) === 'active'">
             <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
           </template>
           <template v-else>
             <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
           </template>
-          {{ g }}
+          {{ c }}
         </button>
       </div>
     </div>
@@ -443,7 +443,7 @@ const viewedPairList = computed(() => {
       >
         <span class="type-label text-emerald-400" style="font-size:9px;letter-spacing:0.22em">⭐ CHAMPION LOCKED</span>
         <span class="type-body text-emerald-400 block mt-1" style="font-size:18px;font-weight:bold;text-shadow:0 0 12px rgba(52,211,153,0.4)">
-          {{ genreChampions[selectedGenre] ?? currentGenreChampion ?? '—' }}
+          {{ categoryChampions[selectedCategory] ?? currentCategoryChampion ?? '—' }}
         </span>
         <span
           v-if="!revealActive"
@@ -801,14 +801,14 @@ const viewedPairList = computed(() => {
       </div>
 
       <!-- Battle guests — read-only list for all roles -->
-      <div v-if="guestsForCurrentGenre.length > 0" class="mb-4">
+      <div v-if="guestsForCurrentCategory.length > 0" class="mb-4">
         <div class="section-rule mb-2">
           <span class="section-rule-label">BATTLE GUESTS</span>
           <div class="section-rule-line"></div>
         </div>
         <div class="flex flex-wrap gap-1.5">
           <span
-            v-for="g in guestsForCurrentGenre"
+            v-for="g in guestsForCurrentCategory"
             :key="g.id"
             class="inline-flex items-center gap-1.5 px-2.5 py-1"
             style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04)"
@@ -902,7 +902,7 @@ const viewedPairList = computed(() => {
 
         <!-- Champion re-reveal (not in DECIDED, has a champion but not yet revealed). Smoke auto-reveals; no manual button. -->
         <button
-          v-if="!isSmoke && battlePhase !== 'DECIDED' && (currentGenreChampion || genreChampions[selectedGenre]) && !revealActive"
+          v-if="!isSmoke && battlePhase !== 'DECIDED' && (currentCategoryChampion || categoryChampions[selectedCategory]) && !revealActive"
           @click="$emit('reveal-champion')"
           class="para-chip-sm px-4 py-2 type-label inline-flex items-center gap-1.5 border-accent transition-all"
         >

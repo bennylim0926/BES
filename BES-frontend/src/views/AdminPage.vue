@@ -1,24 +1,14 @@
 <script setup>
-import { addGenre, deleteGenre, deleteImage, deleteScore, getAllImages, updateGenre, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
+import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, fetchAllGenres, getAppConfig, postAppConfig } from '@/utils/api';
-import UpdateFieldForm from '@/components/UpdateFieldForm.vue';
-
-const addGenreInput = ref('');
+import { fetchAllEvents, getAppConfig, postAppConfig } from '@/utils/api';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("warning")
 const showModal = ref(false)
-
-const updateModalTitle = ref("Update")
-const updateModalMessage = ref("")
-const showUpdateModal = ref(false)
-const updateType = ref("text")
-const updateField = ref("")
-const selectedId = ref(0)
 
 const openModal = (title, message, variant = 'info') => {
   modalTitle.value = title
@@ -28,23 +18,6 @@ const openModal = (title, message, variant = 'info') => {
   dynamicHandler.value = () => { showModal.value = false }
 }
 
-const selectId = (id, field) => {
-  selectedId.value = id
-  showUpdateModal.value = true
-  updateField.value = field
-}
-
-const submitUpdate = (value) => {
-  if (updateField.value === "genre") {
-    submitUpdateGenre(selectedId.value, value)
-    genres.value = genres.value.map(x =>
-      x.id === selectedId.value ? { ...x, genreName: value } : x
-    )
-  }
-  showUpdateModal.value = false
-}
-
-const genres = ref([])
 const events = ref([])
 const images = ref([])
 const feedbackGroups = ref([])
@@ -123,8 +96,8 @@ const isEventAssigned = (organiser, eventId) => {
 }
 
 const accentInput = ref('#ffffff')
-const activeTab = ref('genres')
-const tabs = ref(['genres', 'scores', 'feedback', 'images', 'theme', 'organisers'])
+const activeTab = ref('scores')
+const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -146,34 +119,6 @@ const confirmRemoveImage = (name, title, message) => {
     await submitDeleteImage(name)
     showModal.value = false
   }
-}
-
-const confirmRemoveGenre = (id, title, message) => {
-  modalTitle.value = title
-  modalMessage.value = message
-  modalVariant.value = 'warning'
-  showModal.value = true
-  dynamicHandler.value = async () => {
-    await submitDeleteGenre(id)
-    showModal.value = false
-  }
-}
-
-const submitAddGenre = async () => {
-  if (checkInputNull(addGenreInput.value)) {
-    openModal("Validation Error", "Genre name cannot be empty.", "error")
-  } else {
-    const res = await addGenre(addGenreInput.value)
-    genres.value = await res.json()
-    addGenreInput.value = ''
-  }
-}
-
-const submitUpdateGenre = async (id, value) => { await updateGenre(id, value) }
-
-const submitDeleteGenre = async (id) => {
-  const res = await deleteGenre(id)
-  if (res.ok) genres.value = genres.value.filter(g => g.id !== id)
 }
 
 const submitDeleteImage = async (name) => {
@@ -219,7 +164,6 @@ const saveAccent = async () => {
 }
 
 onMounted(async () => {
-  genres.value = await fetchAllGenres() ?? []
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
@@ -252,64 +196,6 @@ onMounted(async () => {
         >{{ tab }}</button>
       </div>
 
-      <!-- ── Genres ──────────────────────────────────────────── -->
-      <div v-if="activeTab === 'genres'">
-        <div class="section-rule mb-4">
-          <span class="section-rule-label">Genres</span>
-          <span class="badge-neutral type-label px-2 py-0.5">{{ genres.length }}</span>
-          <div class="section-rule-line"></div>
-        </div>
-
-        <p class="type-prose mb-4">Genres — used to group divisions when setting up events.</p>
-
-        <div class="flex gap-3 mb-5">
-          <!-- aria-label: input needs an accessible name beyond placeholder -->
-          <input
-            v-model="addGenreInput"
-            type="text"
-            placeholder="Genre name…"
-            aria-label="New genre name"
-            class="input-base flex-1 max-w-xs"
-            @keyup.enter="submitAddGenre"
-          />
-          <button @click="submitAddGenre" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
-            <i class="pi pi-plus text-sm"></i>
-            Add Genre
-          </button>
-        </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          <div
-            v-for="g in genres"
-            :key="g.id"
-            class="card-hover p-3 relative flex flex-col gap-1.5"
-          >
-            <div class="corner-bar-tl"></div>
-            <!-- Name row -->
-            <div class="flex items-center justify-between">
-              <button
-                @click="selectId(g.id, 'genre')"
-                class="type-name text-content-secondary hover:text-accent text-left truncate flex-1 transition-colors"
-              >
-                {{ g.genreName }}
-              </button>
-              <div class="flex gap-0.5 ml-1 flex-shrink-0">
-                <!-- aria-label + larger hit area for icon-only destructive action -->
-                <button
-                  @click="confirmRemoveGenre(g.id, 'Remove Genre?', `Are you sure you want to remove ${g.genreName}?`)"
-                  :aria-label="`Remove genre ${g.genreName}`"
-                  class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
-                >
-                  <i class="pi pi-times text-xs" aria-hidden="true"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div v-if="genres.length === 0" class="col-span-full type-label text-content-muted py-4">
-            No genres added yet
-          </div>
-        </div>
-      </div>
 
       <!-- ── Reset Scores ───────────────────────────────────── -->
       <div v-if="activeTab === 'scores'">
@@ -584,15 +470,5 @@ onMounted(async () => {
     >
       <p class="type-body text-content-secondary">{{ modalMessage }}</p>
     </ActionDoneModal>
-
-    <UpdateFieldForm
-      :show="showUpdateModal"
-      :title="updateModalTitle"
-      :type="updateType"
-      @close="showUpdateModal = false"
-      @submitUpdate="submitUpdate"
-    >
-      {{ updateModalMessage }}
-    </UpdateFieldForm>
   </div>
 </template>

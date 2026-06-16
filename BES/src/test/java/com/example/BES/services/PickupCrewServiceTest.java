@@ -1,11 +1,10 @@
 package com.example.BES.services;
 
 import com.example.BES.models.Event;
-import com.example.BES.models.Genre;
-import com.example.BES.respositories.EventGenreParticpantRepo;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.models.EventCategory;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
 import com.example.BES.respositories.ParticipantRepo;
 import com.example.BES.respositories.PickupCrewRepo;
 import com.example.BES.respositories.ScoreRepo;
@@ -26,30 +25,28 @@ class PickupCrewServiceTest {
 
     @Mock PickupCrewRepo crewRepo;
     @Mock EventRepo eventRepo;
-    @Mock GenreRepo genreRepo;
+    @Mock EventCategoryRepo eventCategoryRepo;
     @Mock ParticipantRepo participantRepo;
-    @Mock EventGenreParticpantRepo egpRepo;
-    @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventCategoryParticipantRepo egpRepo;
     @Mock ScoreRepo scoreRepo;
     @InjectMocks PickupCrewService service;
 
     @Test
-    void getCrewsForEventGenre_returnsEmptyWhenEventOrGenreNotFound() {
+    void getCrewsForEventCategory_returnsEmptyWhenEventNotFound() {
         when(eventRepo.findByEventNameIgnoreCase("Missing")).thenReturn(Optional.empty());
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.empty());
 
-        assertThat(service.getCrewsForEventGenre("Missing", "breaking")).isEmpty();
+        assertThat(service.getCrewsForEventCategory("Missing", "breaking")).isEmpty();
     }
 
     @Test
-    void getCrewsForEventGenre_returnsEmptyWhenNoCrews() {
+    void getCrewsForEventCategory_returnsEmptyWhenNoCrews() {
         Event e = new Event(); e.setEventName("Fest");
-        Genre g = new Genre(); g.setGenreName("breaking");
+        EventCategory cat = new EventCategory(); cat.setName("breaking");
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
-        when(genreRepo.findByGenreName("breaking")).thenReturn(Optional.of(g));
-        when(crewRepo.findByEventAndGenre(e, g)).thenReturn(List.of());
+        when(eventCategoryRepo.findByEventAndName(e, "breaking")).thenReturn(Optional.of(cat));
+        when(crewRepo.findByEventAndEventCategory(e, cat)).thenReturn(List.of());
 
-        assertThat(service.getCrewsForEventGenre("Fest", "breaking")).isEmpty();
+        assertThat(service.getCrewsForEventCategory("Fest", "breaking")).isEmpty();
     }
 
     @Test

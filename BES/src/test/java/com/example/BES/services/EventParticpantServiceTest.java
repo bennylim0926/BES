@@ -5,7 +5,7 @@ import com.example.BES.models.EventParticipant;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.GenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.mapper.EventParticipantDtoMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +25,7 @@ class EventParticpantServiceTest {
 
     @Mock EventParticipantRepo eventParticipantRepo;
     @Mock EventRepo eventRepo;
-    @Mock GenreRepo genreRepo;
+    @Mock EventCategoryRepo eventCategoryRepo;
     @Mock EventParticipantDtoMapper eventParticipantDtoMapper;
     @InjectMocks EventParticpantService service;
 

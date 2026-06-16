@@ -309,7 +309,7 @@ class BattleServiceTest {
     @Test
     void broadcastChampionReveal_sendsToCorrectTopic() {
         ChampionRevealDto dto = mock(ChampionRevealDto.class);
-        when(dto.getGenreName()).thenReturn("B-Boy/B-Girl");
+        when(dto.getCategoryName()).thenReturn("B-Boy/B-Girl");
         when(dto.getChampionName()).thenReturn("PULSE");
         when(dto.isDismiss()).thenReturn(false);
 

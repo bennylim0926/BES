@@ -5,9 +5,9 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.Judge;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ class JudgeServiceTest {
 
     @Mock JudgeRepo judgeRepo;
     @Mock EventRepo eventRepo;
-    @Mock EventGenreRepo eventGenreRepo;
+    @Mock EventCategoryRepo eventCategoryRepo;
     @InjectMocks JudgeService service;
 
     private Judge judge(Long id, String name) {
@@ -117,7 +117,7 @@ class JudgeServiceTest {
         service.removeJudgeFromEvent("Missing", 1L);
 
         verify(eventRepo).findByEventNameIgnoreCase("Missing");
-        verifyNoMoreInteractions(eventGenreRepo);
+        verifyNoMoreInteractions(eventCategoryRepo);
     }
 
     @Test
@@ -125,22 +125,22 @@ class JudgeServiceTest {
         Judge j = judge(1L, "Mike");
         Event e = new Event();
         e.setEventName("Fest");
-        EventGenre eg = new EventGenre();
+        EventCategory eg = new EventCategory();
         eg.setId(10L);
         eg.setEvent(e);
         eg.setJudges(new ArrayList<>(List.of(j)));
         when(eventRepo.findByEventNameIgnoreCase("Fest")).thenReturn(Optional.of(e));
-        when(eventGenreRepo.findByEvent(e)).thenReturn(List.of(eg));
+        when(eventCategoryRepo.findByEvent(e)).thenReturn(List.of(eg));
 
         service.removeJudgeFromEvent("Fest", 1L);
 
         assertThat(eg.getJudges()).isEmpty();
-        verify(eventGenreRepo).saveAll(List.of(eg));
+        verify(eventCategoryRepo).saveAll(List.of(eg));
     }
 
     @Test
     void getJudgesByDivision_returnsEmptyWhenDivisionNotFound() {
-        when(eventGenreRepo.findById(99L)).thenReturn(Optional.empty());
+        when(eventCategoryRepo.findById(99L)).thenReturn(Optional.empty());
 
         List<GetJudgeDto> result = service.getJudgesByDivision(99L);
 
@@ -152,13 +152,13 @@ class JudgeServiceTest {
         Judge j = judge(1L, "Mike");
         Event e = new Event();
         e.setEventId(1L);
-        EventGenre eg = new EventGenre();
+        EventCategory eg = new EventCategory();
         eg.setId(10L);
         eg.setEvent(e);
         eg.setJudges(new ArrayList<>());
-        when(eventGenreRepo.findById(10L)).thenReturn(Optional.of(eg));
+        when(eventCategoryRepo.findById(10L)).thenReturn(Optional.of(eg));
         when(judgeRepo.save(any())).thenReturn(j);
-        when(eventGenreRepo.save(eg)).thenReturn(eg);
+        when(eventCategoryRepo.save(eg)).thenReturn(eg);
 
         List<GetJudgeDto> result = service.addJudgeToDivision(10L, "Mike");
 
@@ -169,11 +169,11 @@ class JudgeServiceTest {
     @Test
     void removeJudgeFromDivision_removesJudge() {
         Judge j = judge(1L, "Mike");
-        EventGenre eg = new EventGenre();
+        EventCategory eg = new EventCategory();
         eg.setId(10L);
         eg.setJudges(new ArrayList<>(List.of(j)));
-        when(eventGenreRepo.findById(10L)).thenReturn(Optional.of(eg));
-        when(eventGenreRepo.save(eg)).thenReturn(eg);
+        when(eventCategoryRepo.findById(10L)).thenReturn(Optional.of(eg));
+        when(eventCategoryRepo.save(eg)).thenReturn(eg);
 
         List<GetJudgeDto> result = service.removeJudgeFromDivision(10L, 1L);
 

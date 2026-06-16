@@ -24,7 +24,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 import com.example.BES.dtos.battle.ChampionRevealDto;
-import com.example.BES.dtos.battle.SetActiveGenreDto;
+import com.example.BES.dtos.battle.SetActiveCategoryDto;
 import com.example.BES.dtos.battle.SetBattleModeDto;
 import com.example.BES.dtos.battle.SetBattlerPairDto;
 import com.example.BES.dtos.battle.SetBracketStateDto;
@@ -33,13 +33,13 @@ import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
-import com.example.BES.models.BattleActiveGenre;
-import com.example.BES.models.BattleGenreState;
+import com.example.BES.models.BattleActiveCategory;
+import com.example.BES.models.BattleCategoryState;
 import com.example.BES.models.Event;
 import com.example.BES.models.Judge;
-import com.example.BES.respositories.BattleActiveGenreRepository;
-import com.example.BES.respositories.BattleGenreStateRepository;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.BattleActiveCategoryRepository;
+import com.example.BES.respositories.BattleCategoryStateRepository;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,13 +56,13 @@ public class BattleService {
     SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    BattleGenreStateRepository battleGenreStateRepository;
+    BattleCategoryStateRepository battleCategoryStateRepository;
 
     @Autowired
-    BattleActiveGenreRepository battleActiveGenreRepository;
+    BattleActiveCategoryRepository battleActiveCategoryRepository;
 
     @Autowired
-    EventGenreRepo eventGenreRepo;
+    EventCategoryRepo eventCategoryRepo;
 
     @Autowired
     EventRepo eventRepo;
@@ -91,10 +91,10 @@ public class BattleService {
     @PostConstruct
     public void loadStateFromDb() {
         try {
-            battleActiveGenreRepository.findById(1).ifPresent(active -> {
-                if (active.getEventName() != null && active.getGenreName() != null) {
+            battleActiveCategoryRepository.findById(1).ifPresent(active -> {
+                if (active.getEventName() != null && active.getCategoryName() != null) {
                     activeEventName = active.getEventName();
-                    loadGenreStateIntoMemory(activeEventName, active.getGenreName());
+                    loadCategoryStateIntoMemory(activeEventName, active.getCategoryName());
                 }
             });
         } catch (Exception e) {
@@ -119,7 +119,7 @@ public class BattleService {
                 s.champion = battler.getName();
                 messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
                     "phase",    s.battlePhase,
-                    "genre",    s.activeGenreName != null ? s.activeGenreName : "",
+                    "category", s.activeCategoryName != null ? s.activeCategoryName : "",
                     "champion", s.champion
                 ));
                 break;
@@ -149,7 +149,7 @@ public class BattleService {
         s.battlePhase = "LOCKED";
         messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
             "phase", s.battlePhase,
-            "genre", s.activeGenreName != null ? s.activeGenreName : ""
+            "category", s.activeCategoryName != null ? s.activeCategoryName : ""
         ));
         persistActiveState(eventName);
     }
@@ -206,7 +206,7 @@ public class BattleService {
             s.battlePhase = "REVEALED";
             messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
                 "phase", s.battlePhase,
-                "genre", s.activeGenreName != null ? s.activeGenreName : ""
+                "category", s.activeCategoryName != null ? s.activeCategoryName : ""
             ));
             persistActiveState(eventName);
         }
@@ -364,7 +364,7 @@ public class BattleService {
         if (championName != null) s.champion = championName;
         messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/phase", Map.of(
             "phase",    s.battlePhase,
-            "genre",    s.activeGenreName != null ? s.activeGenreName : "",
+            "category", s.activeCategoryName != null ? s.activeCategoryName : "",
             "champion", s.champion != null ? s.champion : ""
         ));
         persistActiveState(eventName);
@@ -456,7 +456,7 @@ public class BattleService {
             persistActiveState(eventName);
             messagingTemplate.convertAndSend("/topic/battle/" + eventName + "/champion-reveal", Map.of(
                 "dismiss",      false,
-                "genreName",    dto.getGenreName()    != null ? dto.getGenreName()    : "",
+                "categoryName", dto.getCategoryName()    != null ? dto.getCategoryName()    : "",
                 "championName", s.champion
             ));
         }
@@ -464,28 +464,28 @@ public class BattleService {
 
     public Map<String, String> getChampionsForEvent(String eventName) {
         Map<String, String> result = new HashMap<>();
-        battleGenreStateRepository.findByEventName(eventName).forEach(s -> {
+        battleCategoryStateRepository.findByEventName(eventName).forEach(s -> {
             if (s.getChampion() != null && !s.getChampion().isBlank()) {
-                result.put(s.getGenreName(), s.getChampion());
+                result.put(s.getCategoryName(), s.getChampion());
             }
         });
         return result;
     }
 
     @Transactional
-    public void setResolvedParticipants(String eventName, String genreName, List<String> participants) {
+    public void setResolvedParticipants(String eventName, String categoryName, List<String> participants) {
         try {
-            BattleGenreState st = battleGenreStateRepository
-                .findByEventNameAndGenreName(eventName, genreName)
-                .orElse(new BattleGenreState());
+            BattleCategoryState st = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, categoryName)
+                .orElse(new BattleCategoryState());
             st.setEventName(eventName);
-            st.setGenreName(genreName);
+            st.setCategoryName(categoryName);
             st.setResolvedParticipantsJson(
                 participants != null ? objectMapper.writeValueAsString(participants) : null);
             st.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(st);
+            battleCategoryStateRepository.save(st);
             EventBattleState s = stateFor(eventName);
-            if (genreName != null && genreName.equals(s.activeGenreName)) {
+            if (categoryName != null && categoryName.equals(s.activeCategoryName)) {
                 broadcastStateSnapshot(eventName);
             }
         } catch (Exception e) {
@@ -494,16 +494,16 @@ public class BattleService {
     }
 
     @Transactional
-    public void switchActiveGenreService(SetActiveGenreDto dto) {
+    public void switchActiveCategoryService(SetActiveCategoryDto dto) {
         if (activeEventName != null) persistActiveState(activeEventName);
 
-        BattleActiveGenre active = battleActiveGenreRepository.findById(1)
-            .orElse(new BattleActiveGenre(1, null, null));
+        BattleActiveCategory active = battleActiveCategoryRepository.findById(1)
+            .orElse(new BattleActiveCategory(1, null, null));
         active.setEventName(dto.getEventName());
-        active.setGenreName(dto.getGenreName());
-        battleActiveGenreRepository.save(active);
+        active.setCategoryName(dto.getCategoryName());
+        battleActiveCategoryRepository.save(active);
         activeEventName = dto.getEventName();
-        loadGenreStateIntoMemory(activeEventName, dto.getGenreName());
+        loadCategoryStateIntoMemory(activeEventName, dto.getCategoryName());
         broadcastStateSnapshot(activeEventName);
 
         EventBattleState s = stateFor(activeEventName);
@@ -513,17 +513,17 @@ public class BattleService {
         }
         messagingTemplate.convertAndSend("/topic/battle/" + activeEventName + "/phase", Map.of(
             "phase", s.battlePhase,
-            "genre", s.activeGenreName != null ? s.activeGenreName : ""
+            "category", s.activeCategoryName != null ? s.activeCategoryName : ""
         ));
     }
 
     public Map<String, Object> getBattleStateService(String eventName) {
         EventBattleState s = stateFor(eventName);
-        if (s.activeGenreName == null) return new HashMap<>();
+        if (s.activeCategoryName == null) return new HashMap<>();
         Map<String, Object> state = new HashMap<>();
         state.put("eventName",      eventName);
-        state.put("genreName",      s.activeGenreName);
-        state.put("genreFormat",    s.genreFormat);
+        state.put("categoryName",   s.activeCategoryName);
+        state.put("categoryFormat",  s.categoryFormat);
         state.put("bracket",        s.bracketState);
         state.put("currentRoundIndex", s.currentRoundIndex);
         Map<String, Object> pair = new HashMap<>();
@@ -536,9 +536,9 @@ public class BattleService {
         state.put("battlePhase", s.battlePhase);
         state.put("champion",    s.champion);
         String resolvedJson = null;
-        if (s.activeGenreName != null) {
-            var st = battleGenreStateRepository
-                .findByEventNameAndGenreName(eventName, s.activeGenreName).orElse(null);
+        if (s.activeCategoryName != null) {
+            var st = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, s.activeCategoryName).orElse(null);
             if (st != null) resolvedJson = st.getResolvedParticipantsJson();
         }
         state.put("resolvedParticipants", resolvedJson != null ? resolvedJson : "");
@@ -570,26 +570,26 @@ public class BattleService {
     }
 
     public String getActiveEventName() { return activeEventName; }
-    public String getActiveGenreName() {
-        return stateFor(resolveEvent(null)).activeGenreName;
+    public String getActiveCategoryName() {
+        return stateFor(resolveEvent(null)).activeCategoryName;
     }
 
-    public Map<String, Object> getGenreStateFromDbService(String eventName, String genreName) {
-        Optional<BattleGenreState> stateOpt =
-            battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
+    public Map<String, Object> getCategoryStateFromDbService(String eventName, String categoryName) {
+        Optional<BattleCategoryState> stateOpt =
+            battleCategoryStateRepository.findByEventNameAndCategoryName(eventName, categoryName);
         if (stateOpt.isEmpty()) return new HashMap<>();
-        BattleGenreState db = stateOpt.get();
+        BattleCategoryState db = stateOpt.get();
 
-        String genreFormat = null;
+        String categoryFormat = null;
         Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (ev != null) {
-            genreFormat = eventGenreRepo.findByEventAndName(ev, genreName)
-                .map(eg -> eg.getFormat()).orElse(null);
+            categoryFormat = eventCategoryRepo.findByEventAndName(ev, categoryName)
+                .map(ec -> ec.getFormat()).orElse(null);
         }
 
         Map<String, Object> result = new HashMap<>();
-        result.put("genreName",   genreName);
-        result.put("genreFormat", genreFormat);
+        result.put("categoryName",   categoryName);
+        result.put("categoryFormat", categoryFormat);
         result.put("battlePhase", db.getBattlePhase() != null ? db.getBattlePhase() : "IDLE");
         result.put("champion",    db.getChampion());
         result.put("currentRoundIndex", db.getCurrentRoundIndex() != null ? db.getCurrentRoundIndex() : 0);
@@ -656,14 +656,14 @@ public class BattleService {
 
     private void persistFormatTimer(String eventName) {
         EventBattleState s = stateFor(eventName);
-        if (activeEventName == null || s.activeGenreName == null || s.lastFormatTimerPayload == null) return;
+        if (activeEventName == null || s.activeCategoryName == null || s.lastFormatTimerPayload == null) return;
         try {
-            BattleGenreState st = battleGenreStateRepository
-                .findByEventNameAndGenreName(eventName, s.activeGenreName).orElse(null);
+            BattleCategoryState st = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, s.activeCategoryName).orElse(null);
             if (st == null) return;
             st.setFormatTimerJson(objectMapper.writeValueAsString(s.lastFormatTimerPayload));
             st.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(st);
+            battleCategoryStateRepository.save(st);
         } catch (Exception e) {
             System.err.println("Failed to persist format timer: " + e.getMessage());
         }
@@ -671,13 +671,13 @@ public class BattleService {
 
     private void persistActiveState(String eventName) {
         EventBattleState s = stateFor(eventName);
-        if (s.activeGenreName == null) return;
+        if (s.activeCategoryName == null) return;
         try {
-            BattleGenreState st = battleGenreStateRepository
-                .findByEventNameAndGenreName(eventName, s.activeGenreName)
-                .orElse(new BattleGenreState());
+            BattleCategoryState st = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, s.activeCategoryName)
+                .orElse(new BattleCategoryState());
             st.setEventName(eventName);
-            st.setGenreName(s.activeGenreName);
+            st.setCategoryName(s.activeCategoryName);
             st.setBracketJson(s.bracketState != null ? objectMapper.writeValueAsString(s.bracketState) : null);
             if (s.bracketState instanceof Map) {
                 Object ts = ((Map<?, ?>) s.bracketState).get("topSize");
@@ -705,27 +705,27 @@ public class BattleService {
             }
             st.setLogoUrl(s.logoUrl);
             st.setUpdatedAt(LocalDateTime.now());
-            battleGenreStateRepository.save(st);
+            battleCategoryStateRepository.save(st);
         } catch (Exception e) {
             System.err.println("Failed to persist battle state: " + e.getMessage());
         }
     }
 
-    private void loadGenreStateIntoMemory(String eventName, String genreName) {
+    private void loadCategoryStateIntoMemory(String eventName, String categoryName) {
         EventBattleState s = stateFor(eventName);
-        s.activeGenreName = genreName;
-        s.genreFormat = null;
-        if (eventName != null && genreName != null) {
+        s.activeCategoryName = categoryName;
+        s.categoryFormat = null;
+        if (eventName != null && categoryName != null) {
             Event ev = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
             if (ev != null) {
-                eventGenreRepo.findByEventAndName(ev, genreName)
-                    .ifPresent(eg -> s.genreFormat = eg.getFormat());
+                eventCategoryRepo.findByEventAndName(ev, categoryName)
+                    .ifPresent(eg -> s.categoryFormat = eg.getFormat());
             }
         }
-        Optional<BattleGenreState> stateOpt =
-            battleGenreStateRepository.findByEventNameAndGenreName(eventName, genreName);
+        Optional<BattleCategoryState> stateOpt =
+            battleCategoryStateRepository.findByEventNameAndCategoryName(eventName, categoryName);
         if (stateOpt.isEmpty()) { resetToDefaults(eventName); return; }
-        BattleGenreState dbState = stateOpt.get();
+        BattleCategoryState dbState = stateOpt.get();
         try {
             s.bracketState = dbState.getBracketJson() != null
                 ? objectMapper.readValue(dbState.getBracketJson(), Map.class) : null;
@@ -808,8 +808,8 @@ public class BattleService {
         boolean currentIsFinal = false;
         BattlePair currentPair;
         final List<BattleJudge> judges = Collections.synchronizedList(new ArrayList<>());
-        String activeGenreName;
-        String genreFormat;
+        String activeCategoryName;
+        String categoryFormat;
         String champion = null;
         Map<String, Object> lastTimerPayload = null;
         long timerLastUpdated = 0;

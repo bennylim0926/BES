@@ -9,12 +9,12 @@ import org.springframework.stereotype.Service;
 
 import com.example.BES.dtos.GetResultsDto;
 import com.example.BES.models.AuditionFeedback;
-import com.example.BES.models.EventGenreParticipant;
+import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.EventParticipant;
 import com.example.BES.models.FeedbackTag;
 import com.example.BES.models.Score;
 import com.example.BES.respositories.AuditionFeedbackRepository;
-import com.example.BES.respositories.EventGenreParticpantRepo;
+import com.example.BES.respositories.EventCategoryParticipantRepo;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.ScoreRepo;
 
@@ -25,7 +25,7 @@ public class ResultsService {
     EventParticipantRepo eventParticipantRepo;
 
     @Autowired
-    EventGenreParticpantRepo egpRepo;
+    EventCategoryParticipantRepo egpRepo;
 
     @Autowired
     ScoreRepo scoreRepo;
@@ -39,15 +39,15 @@ public class ResultsService {
 
         if (!ep.getEvent().isResultsReleased()) return null;
 
-        List<EventGenreParticipant> egps = egpRepo.findByEventIdAndParticipantId(
+        List<EventCategoryParticipant> egps = egpRepo.findByEventIdAndParticipantId(
             ep.getEvent().getEventId(),
             ep.getParticipant().getParticipantId()
         );
 
-        List<GetResultsDto.GenreResult> genreResults = new ArrayList<>();
-        for (EventGenreParticipant egp : egps) {
-            List<Score> scores = scoreRepo.findByEventGenreParticipant(egp);
-            List<AuditionFeedback> feedbacks = feedbackRepo.findByEventGenreParticipant(egp);
+        List<GetResultsDto.CategoryResult> categoryResults = new ArrayList<>();
+        for (EventCategoryParticipant egp : egps) {
+            List<Score> scores = scoreRepo.findByEventCategoryParticipant(egp);
+            List<AuditionFeedback> feedbacks = feedbackRepo.findByEventCategoryParticipant(egp);
 
             List<GetResultsDto.ScoreEntry> scoreEntries = scores.stream()
                 .filter(s -> s.getJudge() != null)
@@ -67,8 +67,8 @@ public class ResultsService {
                     f.getJudge().getName(), tagEntries, f.getNote()));
             }
 
-            genreResults.add(new GetResultsDto.GenreResult(
-                egp.getEventGenre().getName(),
+            categoryResults.add(new GetResultsDto.CategoryResult(
+                egp.getEventCategory().getName(),
                 egp.getFormat(),
                 egp.getAuditionNumber(),
                 scoreEntries,
@@ -79,7 +79,7 @@ public class ResultsService {
         return new GetResultsDto(
             ep.getDisplayName(),
             ep.getEvent().getEventName(),
-            genreResults
+            categoryResults
         );
     }
 

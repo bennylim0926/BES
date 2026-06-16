@@ -30,10 +30,10 @@ public class Score {
     @ManyToOne
     @JoinColumns({
         @JoinColumn(name = "event_id", referencedColumnName = "event_id"),
-        @JoinColumn(name = "event_genre_id", referencedColumnName = "event_genre_id"),
+        @JoinColumn(name = "event_category_id", referencedColumnName = "event_category_id"),
         @JoinColumn(name = "participant_id", referencedColumnName = "participant_id")
     })
-    private EventGenreParticipant eventGenreParticipant;
+    private EventCategoryParticipant eventCategoryParticipant;
 
     @ManyToOne
     @JoinColumn(name = "judge_id")

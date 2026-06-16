@@ -10,7 +10,7 @@ public class UpdateParticipantScoreDto {
     @NotBlank @Size(max = 255)
     public String eventName;
     @NotBlank @Size(max = 255)
-    public String genreName;
+    public String categoryName;
     @NotBlank @Size(max = 255)
     public String judgeName;
     @NotBlank @Size(max = 255)

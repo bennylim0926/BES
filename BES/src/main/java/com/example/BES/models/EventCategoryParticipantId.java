@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class EventGenreParticipantId implements Serializable {
+public class EventCategoryParticipantId implements Serializable {
     private Long eventId;
-    private Long eventGenreId;
+    private Long eventCategoryId;
     private Long participantId;
 }

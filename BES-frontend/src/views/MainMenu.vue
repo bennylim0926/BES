@@ -72,7 +72,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Event Details</div>
-          <p class="type-prose">Overview, genres, Google Drive setup.</p>
+          <p class="type-prose">Overview, categories, Google Drive setup.</p>
         </router-link>
 
         <!-- Audition List -->
@@ -132,7 +132,7 @@ const roleDisplay = computed(() => {
           <div class="corner-bar-tl"></div>
           <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Admin</div>
-          <p class="type-prose">Genres, judges, theme config.</p>
+          <p class="type-prose">Categories, judges, theme config.</p>
         </router-link>
 
       </div>

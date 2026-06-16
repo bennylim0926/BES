@@ -13,12 +13,12 @@ import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.JudgeDivisionDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
-import com.example.BES.models.BattleGenreState;
+import com.example.BES.models.BattleCategoryState;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.Judge;
-import com.example.BES.respositories.BattleGenreStateRepository;
-import com.example.BES.respositories.EventGenreRepo;
+import com.example.BES.respositories.BattleCategoryStateRepository;
+import com.example.BES.respositories.EventCategoryRepo;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -33,10 +33,10 @@ public class JudgeService {
     EventRepo eventRepo;
 
     @Autowired
-    EventGenreRepo eventGenreRepo;
+    EventCategoryRepo eventCategoryRepo;
 
     @Autowired
-    BattleGenreStateRepository battleGenreStateRepository;
+    BattleCategoryStateRepository battleCategoryStateRepository;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -119,20 +119,20 @@ public class JudgeService {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return;
         // Remove from all divisions
-        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
-        for (EventGenre eg : genres) {
+        List<EventCategory> genres = eventCategoryRepo.findByEvent(event);
+        for (EventCategory eg : genres) {
             if (eg.getJudges() != null) {
                 eg.getJudges().removeIf(j -> j.getJudgeId().equals(judgeId));
             }
         }
-        eventGenreRepo.saveAll(genres);
+        eventCategoryRepo.saveAll(genres);
         // Remove from event pool
         judgeRepo.deleteEventJudge(event.getEventId(), judgeId);
     }
 
     @Transactional
     public List<GetJudgeDto> getJudgesByDivision(Long divisionId) {
-        EventGenre eg = eventGenreRepo.findById(divisionId).orElse(null);
+        EventCategory eg = eventCategoryRepo.findById(divisionId).orElse(null);
         if (eg == null || eg.getJudges() == null) return new ArrayList<>();
         return eg.getJudges().stream().map(j -> {
             GetJudgeDto dto = new GetJudgeDto();
@@ -144,7 +144,7 @@ public class JudgeService {
 
     @Transactional
     public List<GetJudgeDto> addJudgeToDivision(Long divisionId, String judgeName) {
-        EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
+        EventCategory eg = eventCategoryRepo.findById(divisionId).orElseThrow();
         String trimmed = judgeName != null ? judgeName.trim() : "";
         if (trimmed.isEmpty()) return getJudgesByDivision(divisionId);
 
@@ -164,7 +164,7 @@ public class JudgeService {
             .anyMatch(existing -> existing.getJudgeId().equals(j.getJudgeId()));
         if (!alreadyInDivision) {
             eg.getJudges().add(j);
-            eventGenreRepo.save(eg);
+            eventCategoryRepo.save(eg);
         }
 
         return getJudgesByDivision(divisionId);
@@ -172,7 +172,7 @@ public class JudgeService {
 
     @Transactional
     public List<GetJudgeDto> assignJudgeToDivision(Long divisionId, Long judgeId) {
-        EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
+        EventCategory eg = eventCategoryRepo.findById(divisionId).orElseThrow();
         Judge j = judgeRepo.findById(judgeId).orElse(null);
         if (j == null) return getJudgesByDivision(divisionId);
 
@@ -184,25 +184,25 @@ public class JudgeService {
             .anyMatch(existing -> existing.getJudgeId().equals(judgeId));
         if (!alreadyInDivision) {
             eg.getJudges().add(j);
-            eventGenreRepo.save(eg);
+            eventCategoryRepo.save(eg);
         }
         return getJudgesByDivision(divisionId);
     }
 
     @Transactional
     public List<GetJudgeDto> removeJudgeFromDivision(Long divisionId, Long judgeId) {
-        EventGenre eg = eventGenreRepo.findById(divisionId).orElseThrow();
+        EventCategory eg = eventCategoryRepo.findById(divisionId).orElseThrow();
         if (eg.getJudges() != null) eg.getJudges().removeIf(j -> j.getJudgeId().equals(judgeId));
-        eventGenreRepo.save(eg);
+        eventCategoryRepo.save(eg);
         return getJudgesByDivision(divisionId);
     }
 
     public List<JudgeDivisionDto> getDivisionsByJudge(String eventName, Long judgeId) {
         Event event = eventRepo.findByEventNameIgnoreCase(eventName).orElse(null);
         if (event == null) return new ArrayList<>();
-        List<EventGenre> genres = eventGenreRepo.findByEvent(event);
+        List<EventCategory> genres = eventCategoryRepo.findByEvent(event);
         List<JudgeDivisionDto> result = new ArrayList<>();
-        for (EventGenre eg : genres) {
+        for (EventCategory eg : genres) {
             boolean isAudition = false;
             boolean isBattle = false;
 
@@ -213,8 +213,8 @@ public class JudgeService {
             }
 
             // Battle-session assignment (BattleControl) → battle judging
-            var battleState = battleGenreStateRepository
-                .findByEventNameAndGenreName(eventName, eg.getName()).orElse(null);
+            var battleState = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, eg.getName()).orElse(null);
             if (battleState != null && battleState.getJudgesJson() != null) {
                 try {
                     List<Map<String, Object>> battleJudges = objectMapper.readValue(

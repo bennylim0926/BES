@@ -25,5 +25,5 @@ public class Participant {
     private List<EventParticipant> eventParticipants;
 
     @OneToMany(mappedBy = "participant")
-    private List<EventGenreParticipant> eventGenreParticipants;
+    private List<EventCategoryParticipant> eventCategoryParticipants;
 }

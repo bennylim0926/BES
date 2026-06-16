@@ -13,15 +13,13 @@ import com.example.BES.dtos.GetParticipantByEventDto;
 import com.example.BES.mapper.EventParticipantDtoMapper;
 import com.example.BES.utils.ReferenceCodeUtil;
 import com.example.BES.models.Event;
-import com.example.BES.models.EventGenreParticipantId;
+import com.example.BES.models.EventCategoryParticipantId;
 import com.example.BES.models.EventParticipant;
-import com.example.BES.models.Genre;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.Participant;
 import com.example.BES.respositories.EventParticipantRepo;
 import com.example.BES.respositories.EventRepo;
-import com.example.BES.respositories.EventGenreRepo;
-import com.example.BES.respositories.GenreRepo;
-import com.example.BES.models.EventGenre;
+import com.example.BES.respositories.EventCategoryRepo;
 
 @Service
 public class EventParticpantService {
@@ -32,15 +30,12 @@ public class EventParticpantService {
     EventRepo eventRepo;
 
     @Autowired
-    GenreRepo genreRepo;
-
-    @Autowired
-    EventGenreRepo eventGenreRepo;
+    EventCategoryRepo eventCategoryRepo;
 
     @Autowired
     EventParticipantDtoMapper eventParticipantDtoMapper;
 
-    public Map<EventParticipant,List<EventGenreParticipantId>>  getAlleventGenreParticipantIds(AddParticipantDto dto,Event event, Participant participant){
+    public Map<EventParticipant,List<EventCategoryParticipantId>>  getAlleventGenreParticipantIds(AddParticipantDto dto,Event event, Participant participant){
         EventParticipant newParticipant = eventParticipantRepo.findByEventAndParticipant(event, participant).orElse(new EventParticipant());
         if(newParticipant.getEvent() != null){
             return null;
@@ -48,17 +43,15 @@ public class EventParticpantService {
         newParticipant.setParticipant(participant);
         newParticipant.setEvent(event);
         newParticipant.setResidency(dto.getResidency());
-        newParticipant.setGenre(String.join(", ", dto.getGenres()));
-        List<EventGenreParticipantId> ids = new ArrayList<>();
-        for(String g: dto.getGenres()){
-            Genre genre = genreRepo.findByGenreName(g.toLowerCase()).orElse(null);
-            if (genre == null) continue;
-            EventGenre eventGenre = eventGenreRepo.findByEventAndName(event, g).orElse(null);
-            if (eventGenre == null) continue;
-            EventGenreParticipantId id = new EventGenreParticipantId(event.getEventId(), eventGenre.getId(), participant.getParticipantId());
+        newParticipant.setCategory(String.join(", ", dto.getCategories()));
+        List<EventCategoryParticipantId> ids = new ArrayList<>();
+        for(String g: dto.getCategories()){
+            EventCategory eventCategory = eventCategoryRepo.findByEventAndName(event, g).orElse(null);
+            if (eventCategory == null) continue;
+            EventCategoryParticipantId id = new EventCategoryParticipantId(event.getEventId(), eventCategory.getId(), participant.getParticipantId());
             ids.add(id);
         }
-        Map<EventParticipant,List<EventGenreParticipantId>> res = new HashMap<>();
+        Map<EventParticipant,List<EventCategoryParticipantId>> res = new HashMap<>();
         res.put(newParticipant, ids);
         return res;
     }

@@ -5,5 +5,5 @@ public class GetScoringCriteriaDto {
     public String name;
     public Double weight;
     public Integer displayOrder;
-    public String genreName;  // null if event-level
+    public String categoryName;  // null if event-level
 }

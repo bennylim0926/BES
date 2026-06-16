@@ -17,7 +17,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.BES.dtos.AddJudgeDto;
-import com.example.BES.dtos.GetGenreDto;
 import com.example.BES.dtos.GetJudgeDto;
 import com.example.BES.dtos.admin.AddFeedbackGroupDto;
 import com.example.BES.dtos.admin.AddFeedbackTagDto;
@@ -26,20 +25,15 @@ import com.example.BES.dtos.admin.CreateOrganiserDto;
 import com.example.BES.dtos.admin.DeleteFeedbackGroupDto;
 import com.example.BES.dtos.admin.DeleteFeedbackTagDto;
 import com.example.BES.dtos.admin.GetFeedbackGroupDto;
-import com.example.BES.dtos.admin.AddGenreDto;
-import com.example.BES.dtos.admin.DeleteGenreDto;
 import com.example.BES.dtos.admin.DeleteJudgeDto;
 import com.example.BES.dtos.admin.DeleteScoreByEventDto;
 import com.example.BES.dtos.admin.GetOrganiserDto;
-import com.example.BES.dtos.admin.UpdateGenreDto;
 import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.dtos.admin.UpdateOrganiserTierDto;
 import com.example.BES.models.Account;
-import com.example.BES.models.Genre;
 import com.example.BES.models.Judge;
 import com.example.BES.services.AccountService;
 import com.example.BES.services.AuditionFeedbackService;
-import com.example.BES.services.GenreService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
 
@@ -48,9 +42,6 @@ import com.example.BES.services.ScoreService;
 @RequestMapping("/api/v1/admin")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
-
-    @Autowired
-    GenreService genreService;
 
     @Autowired
     JudgeService judgeService;
@@ -91,44 +82,6 @@ public class AdminController {
     public ResponseEntity<?> deleteFeedbackTag(@Valid @RequestBody DeleteFeedbackTagDto dto) {
         feedbackService.deleteFeedbackTag(dto.getId());
         return ResponseEntity.ok(Map.of("message", "deleted"));
-    }
-
-    // Create Genre
-    @PostMapping("/genre")
-    public ResponseEntity<List<GetGenreDto>> createGenre(@Valid @RequestBody AddGenreDto dto){
-        genreService.addGenreService(dto);
-        return new ResponseEntity<>(genreService.getAllGenres(), HttpStatus.OK);
-    }
-    
-    // Update Genre
-    @PostMapping("/update-genre")
-    public ResponseEntity<?> updateGenre(@Valid @RequestBody UpdateGenreDto dto){
-        Genre genre = genreService.updateGenreService(dto);
-        if(genre == null){
-            return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(Map.of("message", "Genre NotFound "));
-        }
-        return ResponseEntity.ok(Map.of(
-            "message", "Genre updated successfully",
-            "id", genre.getGenreId(),
-            "genre", genre.getGenreName()
-        ));
-    }
-    // Delete Genre
-        // It might link to some event and unable to delete
-    @DeleteMapping("/genre")
-    public ResponseEntity<?> deleteGenre(@Valid @RequestBody DeleteGenreDto dto){
-        String deletedGenre = genreService.deleteGenreService(dto);
-        if(deletedGenre.isEmpty()){
-            return ResponseEntity.ok(Map.of(
-                "message", "Nothing was deleted"
-            ));
-        }
-        return ResponseEntity.ok(Map.of(
-            "message", "deleted",
-            "genre", deletedGenre
-        ));
     }
 
     @PostMapping("/judge")
