@@ -2112,8 +2112,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Results QR Section (only if feedback enabled) -->
-    <template v-if="feedbackEnabled">
+    <!-- Results QR Section (participant-facing only — hidden for Admin/Organiser/Helper) -->
+    <template v-if="feedbackEnabled && !isAdminOrOrganiser && !isHelper">
       <div class="card-hover p-6 relative mb-6">
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>

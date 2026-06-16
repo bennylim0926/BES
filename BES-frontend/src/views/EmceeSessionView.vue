@@ -20,13 +20,20 @@ onMounted(async () => {
   }
   loading.value = false
   sessionReady.value = !!authStore.user && !!authStore.activeEvent
+  if (authStore.activeEvent?.name) {
+    authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
+  }
 })
 
-const LINKS = [
+const ALL_LINKS = [
   { key: 'audition', label: 'Audition List', route: 'Audition List', icon: 'pi-list' },
   { key: 'score',    label: 'Score',         route: 'Score',         icon: 'pi-chart-bar' },
   { key: 'battle',   label: 'Battle Control', route: 'Battle Control', icon: 'pi-bolt' },
 ]
+
+const LINKS = computed(() =>
+  ALL_LINKS.filter(l => l.key !== 'battle' || authStore.activeEventBattleEnabled)
+)
 
 function navigate(routeName) {
   router.push({ name: routeName })
