@@ -58,7 +58,9 @@ public class AuditionFeedbackService {
     }
 
     public List<GetFeedbackGroupDto> getAllFeedbackGroups() {
-        List<FeedbackTagGroup> groups = tagGroupRepo.findAll();
+        // Admin sees only global (event_id IS NULL) groups. Event-scoped groups are
+        // managed on EventDetails via EventFeedbackTagService.
+        List<FeedbackTagGroup> groups = tagGroupRepo.findByEventIsNull();
         List<GetFeedbackGroupDto> result = new ArrayList<>();
         for (FeedbackTagGroup g : groups) {
             List<GetFeedbackTagDto> tagDtos = new ArrayList<>();

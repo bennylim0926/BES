@@ -108,6 +108,13 @@ function onNoteInput() {
               >
                 <i v-if="selectedTagIds.has(tag.id)" class="pi pi-check" style="font-size: 10px;" />
                 {{ tag.label }}
+                <span
+                  v-if="tag.scope === 'EVENT'"
+                  class="type-label opacity-60 ml-1"
+                  style="font-size: 8px; letter-spacing: 0.18em;"
+                >
+                  EVENT
+                </span>
               </button>
             </div>
           </div>

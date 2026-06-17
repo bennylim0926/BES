@@ -1,7 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, claimEmceeCategory, getActiveEmceeCategories } from '@/utils/api';
-import { getFeedbackGroups } from '@/utils/adminApi';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, claimEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -638,7 +637,10 @@ onMounted(async () => {
     const active = await getActiveEmceeCategories(selectedEvent.value)
     activeEmceeCategories.value = new Set(active)
   }
-  const [groupRes, divRes] = await Promise.all([getFeedbackGroups(), getCategoriesByEvent(selectedEvent.value)])
+  const [groupRes, divRes] = await Promise.all([
+    selectedEvent.value ? getEventFeedbackTags(selectedEvent.value) : Promise.resolve([]),
+    getCategoriesByEvent(selectedEvent.value)
+  ])
   tagGroups.value = groupRes ?? []
   eventDivisions.value = divRes ?? []
   // Judge list will be populated by the selectedCategory watch (already runs with { immediate: true })

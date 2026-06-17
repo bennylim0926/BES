@@ -32,8 +32,10 @@ import com.example.BES.dtos.admin.UpdateJudgeDto;
 import com.example.BES.dtos.admin.UpdateOrganiserTierDto;
 import com.example.BES.models.Account;
 import com.example.BES.models.Judge;
+import com.example.BES.dtos.admin.FeedbackTagOverrideDto;
 import com.example.BES.services.AccountService;
 import com.example.BES.services.AuditionFeedbackService;
+import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
 
@@ -51,6 +53,9 @@ public class AdminController {
 
     @Autowired
     AuditionFeedbackService feedbackService;
+
+    @Autowired
+    EventFeedbackTagService eventFeedbackTagService;
 
     @Autowired
     AccountService accountService;
@@ -82,6 +87,11 @@ public class AdminController {
     public ResponseEntity<?> deleteFeedbackTag(@Valid @RequestBody DeleteFeedbackTagDto dto) {
         feedbackService.deleteFeedbackTag(dto.getId());
         return ResponseEntity.ok(Map.of("message", "deleted"));
+    }
+
+    @GetMapping("/feedback-tags/overrides")
+    public ResponseEntity<List<FeedbackTagOverrideDto>> getFeedbackTagOverrides() {
+        return ResponseEntity.ok(eventFeedbackTagService.getOverrides());
     }
 
     @PostMapping("/judge")

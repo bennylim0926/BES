@@ -47,7 +47,7 @@ class AuditionFeedbackServiceTest {
         tag.setLabel("High");
         tag.setGroup(group);
         group.setTags(List.of(tag));
-        when(tagGroupRepo.findAll()).thenReturn(List.of(group));
+        when(tagGroupRepo.findByEventIsNull()).thenReturn(List.of(group));
 
         List<GetFeedbackGroupDto> result = service.getAllFeedbackGroups();
 
@@ -62,7 +62,7 @@ class AuditionFeedbackServiceTest {
         group.setId(1L);
         group.setName("Energy");
         group.setTags(new ArrayList<>());
-        when(tagGroupRepo.findAll()).thenReturn(List.of(group));
+        when(tagGroupRepo.findByEventIsNull()).thenReturn(List.of(group));
 
         service.addFeedbackGroup("Energy");
 
@@ -78,7 +78,7 @@ class AuditionFeedbackServiceTest {
     @Test
     void addFeedbackTag_returnsAllGroupsWhenGroupNotFound() {
         when(tagGroupRepo.findById(99L)).thenReturn(Optional.empty());
-        when(tagGroupRepo.findAll()).thenReturn(List.of());
+        when(tagGroupRepo.findByEventIsNull()).thenReturn(List.of());
 
         List<GetFeedbackGroupDto> result = service.addFeedbackTag(99L, "label");
 

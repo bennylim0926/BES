@@ -1649,3 +1649,81 @@ export const getActiveEmceeCategories = async (eventName) => {
     return Array.from(data.categories ?? [])
   } catch (e) { console.error(e); return [] }
 }
+
+// Event-scoped feedback taxonomy (#157). Returns merged groups: global +
+// event-scoped, with event-scoped overriding global by group name. Each group
+// and tag carries a `scope` field of "GLOBAL" or "EVENT".
+export const getEventFeedbackTags = async (eventName) => {
+  if (!eventName) return []
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/feedback-tags`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return []
+    return await res.json()
+  } catch (e) { console.error(e); return [] }
+}
+
+const feedbackTagsBase = (eventName) =>
+  `${domain}/api/v1/event/${encodeURIComponent(eventName)}/feedback-tags`
+
+export const createEventFeedbackGroup = async (eventName, name) => {
+  try {
+    const res = await fetch(`${feedbackTagsBase(eventName)}/groups`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) { console.error(e); return null }
+}
+
+export const createEventFeedbackTag = async (eventName, groupId, label) => {
+  try {
+    const res = await fetch(`${feedbackTagsBase(eventName)}/tags`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId, label })
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) { console.error(e); return null }
+}
+
+export const updateEventFeedbackTag = async (eventName, tagId, label) => {
+  try {
+    const res = await fetch(`${feedbackTagsBase(eventName)}/tags/${tagId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label })
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) { console.error(e); return null }
+}
+
+export const deleteEventFeedbackTag = async (eventName, tagId) => {
+  try {
+    const res = await fetch(`${feedbackTagsBase(eventName)}/tags/${tagId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) { console.error(e); return null }
+}
+
+export const deleteEventFeedbackGroup = async (eventName, groupId) => {
+  try {
+    const res = await fetch(`${feedbackTagsBase(eventName)}/groups/${groupId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) { console.error(e); return null }
+}
