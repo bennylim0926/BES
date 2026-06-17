@@ -73,6 +73,23 @@ export const fetchAllEvents = async () =>{
     }
 }
 
+export const deleteEvent = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Delete failed (${res.status})`)
+    }
+    return await res.json()
+  } catch (err) {
+    console.error(err)
+    throw err
+  }
+}
+
 export const checkTableExist = async (eventName, tableExist) =>{
   try{
     const res = await fetch(`${domain}/api/v1/event/${eventName.value}`,{
