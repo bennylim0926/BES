@@ -133,6 +133,7 @@ onMounted(async () => {
         :key="event.folderID"
         :buttonName="event.folderName"
         :expanded="expandedId === event.folderID"
+        :isAdmin="isAdmin"
         @toggle="toggleExpanded(event.folderID)"
         @onDetails="goToEventDetails(event.folderName, event.folderID)"
         @onAudition="activateAndGo(event.folderName, 'Audition List')"
