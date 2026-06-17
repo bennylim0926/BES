@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, provide } from 'vue'
 import { logout, whoami, getAppConfig, sendHeartbeat } from './utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from './utils/websocket'
 import { useAuthStore } from './utils/auth'
@@ -18,6 +18,7 @@ const showModal    = ref(false)
 
 const accentServer = ref('#ffffff')
 const wsAccentClient = ref(null)
+const demoEnabled = ref(false)
 
 const authStore = useAuthStore()
 const { battleEnabled } = useTierAccess()
@@ -154,6 +155,8 @@ watch(route, () => {
   panelOpen.value = false
 })
 
+provide('demoEnabled', demoEnabled)
+
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 let heartbeatTimer = null
 
@@ -183,6 +186,7 @@ onMounted(async () => {
   try {
     const cfg = await getAppConfig()
     if (cfg?.accentColor) applyAccent(cfg.accentColor)
+    if (cfg?.demoEnabled !== undefined) demoEnabled.value = cfg.demoEnabled
   } catch {
     // server not ready — keep default
   }
@@ -190,6 +194,7 @@ onMounted(async () => {
   wsAccentClient.value = c
   subscribeToChannel(c, '/topic/app-config', (msg) => {
     if (msg?.accentColor) applyAccent(msg.accentColor)
+    if (msg?.demoEnabled !== undefined) demoEnabled.value = msg.demoEnabled
   })
   document.addEventListener('keydown', handleKeydown)
 })
