@@ -3,7 +3,7 @@ import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackG
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, getAppConfig, postAppConfig } from '@/utils/api';
+import { fetchAllEvents, getAppConfig, postAppConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -102,7 +102,7 @@ const isEventAssigned = (organiser, eventId) => {
 
 const accentInput = ref('#ffffff')
 const activeTab = ref('scores')
-const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers'])
+const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers', 'demo'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -168,6 +168,59 @@ const saveAccent = async () => {
   await postAppConfig(accentInput.value)
 }
 
+// ── Demo Settings ──────────────────────────────────────────
+const demoConfig = ref({ demoEnabled: false, passcode: '', activeSandboxes: 0 })
+const showPasscode = ref(false)
+
+async function loadDemoConfig() {
+  try {
+    const cfg = await getDemoConfig()
+    demoConfig.value = cfg
+  } catch (e) {
+    console.error('Failed to load demo config', e)
+  }
+}
+
+async function toggleDemoEnabled() {
+  const newState = !demoConfig.value.demoEnabled
+  await updateDemoConfig({ demoEnabled: newState })
+  demoConfig.value.demoEnabled = newState
+}
+
+async function regeneratePasscode() {
+  await updateDemoConfig({ demoEnabled: demoConfig.value.demoEnabled, regeneratePasscode: true })
+  await loadDemoConfig()
+}
+
+// ── Demo Sandbox Management ─────────────────────────────────
+const sandboxes = ref([])
+
+async function loadSandboxes() {
+  try {
+    const res = await fetch('/api/v1/admin/demo/sandboxes', { credentials: 'include' })
+    sandboxes.value = res.ok ? await res.json() : []
+  } catch { sandboxes.value = [] }
+}
+
+async function purgeSandbox(eventId) {
+  await fetch(`/api/v1/admin/demo/sandboxes/${eventId}`, { method: 'DELETE', credentials: 'include' })
+  await loadSandboxes()
+  await loadDemoConfig()
+}
+
+async function purgeAllSandboxes() {
+  if (!confirm('Delete all demo sandboxes?')) return
+  await fetch('/api/v1/admin/demo/sandboxes', { method: 'DELETE', credentials: 'include' })
+  await loadSandboxes()
+  await loadDemoConfig()
+}
+
+async function resetTemplateData() {
+  if (!confirm('Reset demo template event? This deletes and re-seeds the template with fresh data. Existing sandboxes are unaffected.')) return
+  await fetch('/api/v1/admin/demo/reset-template', { method: 'POST', credentials: 'include' })
+  await loadDemoConfig()
+}
+
 onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
@@ -176,6 +229,8 @@ onMounted(async () => {
   organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
+  loadDemoConfig()
+  loadSandboxes()
 })
 </script>
 
@@ -471,6 +526,74 @@ onMounted(async () => {
               <i class="pi pi-check text-sm"></i>
               Apply Accent Color
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Demo Settings ──────────────────────────────────── -->
+      <div v-if="activeTab === 'demo'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Demo Settings</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="card-hover p-4 relative">
+          <div class="corner-bar-tl"></div>
+
+          <div class="setting-row mb-4">
+            <span class="type-prose">Enable demo system</span>
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                :checked="demoConfig.demoEnabled"
+                @change="toggleDemoEnabled"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row mb-4">
+            <span class="type-prose">Passcode</span>
+            <div class="passcode-controls flex items-center gap-2">
+              <input
+                :type="showPasscode ? 'text' : 'password'"
+                :value="showPasscode ? demoConfig.passcode : '••••••••'"
+                class="input-base flex-1 max-w-[180px] type-body"
+                readonly
+              />
+              <button @click="showPasscode = !showPasscode" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px]">
+                {{ showPasscode ? 'Hide' : 'Show' }}
+              </button>
+              <button @click="regeneratePasscode" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px]">
+                Regenerate
+              </button>
+              <button @click="resetTemplateData" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px] text-amber-400 border-amber-400/30">
+                Reset Template
+              </button>
+            </div>
+          </div>
+
+          <p class="type-prose-sm text-content-muted mb-3">
+            Active sandboxes: {{ demoConfig.activeSandboxes }}
+          </p>
+
+          <!-- Sandbox list -->
+          <div v-if="sandboxes.length" class="border-t border-surface-600 pt-3 mt-3">
+            <div class="flex items-center justify-between mb-3">
+              <span class="type-label text-content-muted">Sandboxes</span>
+              <button @click="purgeAllSandboxes" class="para-chip-sm px-3 py-1 min-h-[36px] text-red-400 border-red-400/30">
+                Purge All
+              </button>
+            </div>
+            <div v-for="s in sandboxes" :key="s.eventId" class="flex items-center justify-between py-2 border-b border-surface-600/50 last:border-b-0">
+              <div>
+                <span class="type-body block">{{ s.eventName }}</span>
+                <span class="type-prose-sm text-content-muted">{{ s.activeTokens }} active token(s)</span>
+              </div>
+              <button @click="purgeSandbox(s.eventId)" class="para-chip-sm px-3 py-1 min-h-[36px] text-red-400 border-red-400/30">
+                Purge
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -9,12 +9,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.example.BES.models.Event;
+import com.example.BES.models.EventCategory;
 import com.example.BES.models.EventCategoryParticipant;
 import com.example.BES.models.EventCategoryParticipantId;
 
 @Repository
 public interface EventCategoryParticipantRepo extends JpaRepository<EventCategoryParticipant, EventCategoryParticipantId> {
     List<EventCategoryParticipant> findByEvent(Event event);
+    List<EventCategoryParticipant> findByEventCategory(EventCategory eventCategory);
 
     @Query("SELECT DISTINCT e FROM EventCategoryParticipant e LEFT JOIN FETCH e.judge WHERE e.event = :event")
     List<EventCategoryParticipant> findByEventWithJudge(@Param("event") Event event);

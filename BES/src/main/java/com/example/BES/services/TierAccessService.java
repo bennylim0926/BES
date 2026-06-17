@@ -73,6 +73,9 @@ public class TierAccessService {
         // Emcee / Judge / Helper — resolved from the event's assigned organisers
         // (Max if any assigned organiser is Max).
         //
+        // Demo sandboxes are PRO-tier only — never grant battle access.
+        if (eventName != null && eventName.startsWith("Kyrove Demo-")) return false;
+
         // When no event context is specified (null/blank) there is no event to
         // tier-gate — @PreAuthorize on the endpoint already restricts roles.
         // Likewise, when the existing tests set active-genre in a preceding test

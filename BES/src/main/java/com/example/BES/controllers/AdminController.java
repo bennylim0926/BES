@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,8 +34,12 @@ import com.example.BES.dtos.admin.UpdateOrganiserTierDto;
 import com.example.BES.models.Account;
 import com.example.BES.models.Judge;
 import com.example.BES.dtos.admin.FeedbackTagOverrideDto;
+import com.example.BES.dtos.DemoConfigDto;
 import com.example.BES.services.AccountService;
+import com.example.BES.services.AppConfigService;
 import com.example.BES.services.AuditionFeedbackService;
+import com.example.BES.services.DemoService;
+import com.example.BES.services.DemoDataSeeder;
 import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
@@ -59,6 +64,18 @@ public class AdminController {
 
     @Autowired
     AccountService accountService;
+
+    @Autowired
+    AppConfigService appConfigService;
+
+    @Autowired
+    private SimpMessagingTemplate messaging;
+
+    @Autowired
+    private DemoService demoService;
+
+    @Autowired
+    private DemoDataSeeder demoDataSeeder;
 
     // ── Feedback Tag Groups ──────────────────────────────────────────────────
 
@@ -183,5 +200,66 @@ public class AdminController {
             "message", "score deleted",
             "deleted", deletedRows.toString()
         ));
+    }
+
+    // ── Demo Config ────────────────────────────────────────────────────────────
+
+    @GetMapping("/demo/config")
+    public ResponseEntity<DemoConfigDto> getDemoConfig() {
+        return ResponseEntity.ok(new DemoConfigDto(
+                appConfigService.isDemoEnabled(),
+                appConfigService.getDemoPasscode(),
+                null,
+                demoService.countActiveSandboxes()
+        ));
+    }
+
+    @PostMapping("/demo/config")
+    public ResponseEntity<DemoConfigDto> updateDemoConfig(@RequestBody DemoConfigDto dto) {
+        if (dto.getRegeneratePasscode() != null && dto.getRegeneratePasscode()) {
+            String newPasscode = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            appConfigService.setDemoPasscode(newPasscode);
+        }
+        appConfigService.setDemoEnabled(dto.isDemoEnabled());
+
+        DemoConfigDto result = new DemoConfigDto(
+                appConfigService.isDemoEnabled(),
+                appConfigService.getDemoPasscode(),
+                null,
+                demoService.countActiveSandboxes()
+        );
+
+        messaging.convertAndSend("/topic/app-config", Map.of(
+                "accentColor", appConfigService.getAccentColor(),
+                "demoEnabled", result.isDemoEnabled()
+        ));
+
+        return ResponseEntity.ok(result);
+    }
+
+    // ── Demo Sandbox Management ──────────────────────────────────────────────────
+
+    @GetMapping("/demo/sandboxes")
+    public ResponseEntity<List<Map<String, Object>>> listDemoSandboxes() {
+        return ResponseEntity.ok(demoService.listSandboxes());
+    }
+
+    @DeleteMapping("/demo/sandboxes/{eventId}")
+    public ResponseEntity<Map<String, Object>> purgeDemoSandbox(@PathVariable Long eventId) {
+        demoService.purgeSandbox(eventId);
+        return ResponseEntity.ok(Map.of("message", "Sandbox purged"));
+    }
+
+    @DeleteMapping("/demo/sandboxes")
+    public ResponseEntity<Map<String, Object>> purgeAllDemoSandboxes() {
+        int count = demoService.purgeAllSandboxes();
+        return ResponseEntity.ok(Map.of("message", "Purged " + count + " sandbox(es)"));
+    }
+
+    @PostMapping("/demo/reset-template")
+    public ResponseEntity<Map<String, Object>> resetTemplate() {
+        demoService.resetTemplate();
+        demoDataSeeder.seed();
+        return ResponseEntity.ok(Map.of("message", "Template event reset and re-seeded"));
     }
 }

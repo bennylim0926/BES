@@ -18,6 +18,7 @@ const showModal    = ref(false)
 
 const accentServer = ref('#ffffff')
 const wsAccentClient = ref(null)
+const demoEnabled = ref(false)
 
 const authStore = useAuthStore()
 const { battleEnabled } = useTierAccess()
@@ -183,6 +184,7 @@ onMounted(async () => {
   try {
     const cfg = await getAppConfig()
     if (cfg?.accentColor) applyAccent(cfg.accentColor)
+    if (cfg?.demoEnabled !== undefined) demoEnabled.value = cfg.demoEnabled
   } catch {
     // server not ready — keep default
   }
@@ -190,6 +192,7 @@ onMounted(async () => {
   wsAccentClient.value = c
   subscribeToChannel(c, '/topic/app-config', (msg) => {
     if (msg?.accentColor) applyAccent(msg.accentColor)
+    if (msg?.demoEnabled !== undefined) demoEnabled.value = msg.demoEnabled
   })
   document.addEventListener('keydown', handleKeydown)
 })

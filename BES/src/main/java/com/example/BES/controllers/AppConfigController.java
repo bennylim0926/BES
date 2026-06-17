@@ -1,5 +1,6 @@
 package com.example.BES.controllers;
 
+import java.util.HashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,11 @@ public class AppConfigController {
     private SimpMessagingTemplate messaging;
 
     @GetMapping("/app")
-    public ResponseEntity<Map<String, String>> getAppConfig() {
-        String color = service.getAccentColor();
-        return ResponseEntity.ok(Map.of("accentColor", color));
+    public ResponseEntity<Map<String, Object>> getAppConfig() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("accentColor", service.getAccentColor());
+        config.put("demoEnabled", service.isDemoEnabled());
+        return ResponseEntity.ok(config);
     }
 
     @PostMapping("/app")

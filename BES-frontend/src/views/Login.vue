@@ -1,9 +1,10 @@
 <script setup>
-import { login } from '@/utils/api'
-import { ref } from 'vue'
+import { login, startDemo, getAppConfig } from '@/utils/api'
+import { ref, onMounted, nextTick } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
+import DemoRolePicker from '@/components/DemoRolePicker.vue'
 import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
 const router    = useRouter()
@@ -21,6 +22,55 @@ const modalVariant = ref('error')
 
 /* Inline validation state — surface missing-field errors at the field, not only after submit */
 const touched = ref({ username: false, password: false })
+
+/* Demo mode */
+const demoEnabled = ref(false)
+const showPasscodeModal = ref(false)
+const showRolePicker = ref(false)
+const passcode = ref('')
+const passcodeError = ref('')
+
+onMounted(async () => {
+  try {
+    const config = await getAppConfig()
+    demoEnabled.value = config.demoEnabled === true
+  } catch (_e) {
+    // fallback: hide demo button if config fetch fails
+    demoEnabled.value = false
+  }
+})
+
+function submitPasscode() {
+  if (!passcode.value.trim()) return
+  passcodeError.value = ''
+  showPasscodeModal.value = false
+  showRolePicker.value = true
+}
+
+async function startDemoSession(role) {
+  try {
+    const result = await startDemo(passcode.value, role)
+    // Populate auth store via setActiveEvent (writes to sessionStorage + Pinia)
+    authStore.isAuthenticated = true
+    authStore.judgeId = result.judgeId ?? null
+    authStore.judgeName = result.judgeName ?? null
+    authStore.user = { authenticated: true, role: [{ authority: 'ROLE_' + role }] }
+    setActiveEvent(result.eventId, result.eventName)
+    // Wait for Pinia reactivity to flush before navigating
+    await nextTick()
+    // Route to the appropriate session view
+    const roleRoutes = {
+      EMCEE: '/emcee/session',
+      JUDGE: '/judge/session',
+      HELPER: '/helper/session'
+    }
+    router.push(roleRoutes[role] || '/')
+  } catch (e) {
+    passcodeError.value = e.message || 'Failed to start demo'
+    showRolePicker.value = false
+    showPasscodeModal.value = true
+  }
+}
 
 const openModal = (title, message, variant = 'error') => {
   modalTitle.value   = title
@@ -177,10 +227,60 @@ const submitLogin = async () => {
               {{ isLoading ? 'Signing in...' : 'Sign In' }}
             </button>
           </form>
+
+          <!-- Demo section -->
+          <div class="demo-section">
+            <div class="demo-section-rule">
+              <span class="demo-section-line"></span>
+              <span class="demo-section-label">or</span>
+              <span class="demo-section-line"></span>
+            </div>
+
+            <button
+              v-if="demoEnabled"
+              class="btn-demo"
+              @click="showPasscodeModal = true"
+            >
+              Try Demo
+            </button>
+
+            <p v-if="demoEnabled" class="type-prose-sm demo-hint">
+              Experience Kyrove as an Emcee, Judge, or Helper
+            </p>
+          </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Passcode modal -->
+    <Teleport to="body">
+      <div v-if="showPasscodeModal" class="modal-backdrop" @click="showPasscodeModal = false">
+        <div class="modal-content passcode-modal" @click.stop>
+          <h2 class="modal-title">Enter Demo Passcode</h2>
+          <input
+            v-model="passcode"
+            type="text"
+            class="input-passcode"
+            placeholder="Enter passcode"
+            autocomplete="off"
+            @keyup.enter="submitPasscode"
+          />
+          <p v-if="passcodeError" class="error-text">{{ passcodeError }}</p>
+          <button class="btn-primary" @click="submitPasscode" :disabled="!passcode.trim()">
+            Continue
+          </button>
+          <p class="type-prose-sm modal-hint">Tap outside to close</p>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Role picker -->
+    <DemoRolePicker
+      v-if="showRolePicker"
+      @select="startDemoSession"
+      @back="showRolePicker = false; showPasscodeModal = true"
+    />
 
     <!-- Error modal -->
     <ActionDoneModal
@@ -194,3 +294,154 @@ const submitLogin = async () => {
     </ActionDoneModal>
   </div>
 </template>
+
+<style scoped>
+.demo-section {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.demo-section-rule {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.demo-section-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+}
+
+.demo-section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--surface-600);
+}
+
+.demo-section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--surface-600);
+}
+
+.btn-demo {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--accent-color);
+  padding: 0.75rem 2rem;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-demo:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.demo-hint {
+  margin-top: 0.75rem;
+  color: rgba(255,255,255,0.35);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  padding: 2rem;
+  width: 100%;
+}
+
+.passcode-modal {
+  max-width: 360px;
+}
+
+.modal-title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  text-align: center;
+}
+
+.input-passcode {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #0a0a0a;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 1rem 0;
+}
+
+.input-passcode::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+
+.input-passcode:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: #000;
+}
+
+.error-text {
+  color: var(--primary-500, #ef4444);
+  font-family: var(--font-body);
+  font-size: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--accent-color);
+  color: var(--color-surface-900, #111);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  border: none;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(0.88);
+}
+
+.modal-hint {
+  margin-top: 0.75rem;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+</style>

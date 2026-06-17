@@ -42,6 +42,7 @@ public class SecurityConfig {
         .csrf(csrf -> csrf.disable())
         .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/demo/**").permitAll()
                         .requestMatchers("/api/v1/battle/**").permitAll()
                         .requestMatchers("/api/v1/event/audition-display/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
