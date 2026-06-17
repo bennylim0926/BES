@@ -5,16 +5,19 @@ import java.util.List;
 public class GetResultsDto {
     private String participantName;
     private String eventName;
+    private String resultsReleaseMode;
     private List<CategoryResult> categories;
 
-    public GetResultsDto(String participantName, String eventName, List<CategoryResult> categories) {
+    public GetResultsDto(String participantName, String eventName, String resultsReleaseMode, List<CategoryResult> categories) {
         this.participantName = participantName;
         this.eventName = eventName;
+        this.resultsReleaseMode = resultsReleaseMode;
         this.categories = categories;
     }
 
     public String getParticipantName() { return participantName; }
     public String getEventName() { return eventName; }
+    public String getResultsReleaseMode() { return resultsReleaseMode; }
     public List<CategoryResult> getCategories() { return categories; }
 
     public static class CategoryResult {
