@@ -28,6 +28,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.BES.dtos.event.AddEventFeedbackGroupDto;
+import com.example.BES.dtos.event.AddEventFeedbackTagDto;
+import com.example.BES.dtos.event.EventFeedbackGroupDto;
+import com.example.BES.dtos.event.UpdateEventFeedbackTagDto;
 import com.example.BES.dtos.AddCategoryToEventDto;
 import com.example.BES.dtos.AddDivisionDto;
 import com.example.BES.dtos.AddEventDto;
@@ -63,6 +67,7 @@ import com.example.BES.models.Participant;
 import com.example.BES.dtos.CreatePickupCrewDto;
 import com.example.BES.dtos.GetPickupCrewDto;
 import com.example.BES.services.AuditionFeedbackService;
+import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.BattleGuestService;
 import com.example.BES.services.CheckinPreviewService;
 import com.example.BES.services.EventCategoryParticipantService;
@@ -128,6 +133,9 @@ public class EventController {
 
     @Autowired
     AuditionFeedbackService feedbackService;
+
+    @Autowired
+    EventFeedbackTagService eventFeedbackTagService;
 
     @Autowired
     ScoringCriteriaService scoringCriteriaService;
@@ -1044,6 +1052,84 @@ public class EventController {
             return ResponseEntity.ok(Map.of("message", "Audition numbers released"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── Event-scoped feedback taxonomy (#157) ────────────────────────────
+
+    @GetMapping("/{eventName}/feedback-tags")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE', 'HELPER')")
+    public ResponseEntity<?> getEventFeedbackTags(@PathVariable String eventName) {
+        try {
+            List<EventFeedbackGroupDto> groups = eventFeedbackTagService.getResolvedGroups(eventName);
+            return ResponseEntity.ok(groups);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @PostMapping("/{eventName}/feedback-tags/groups")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> addEventFeedbackGroup(
+            @PathVariable String eventName,
+            @Valid @RequestBody AddEventFeedbackGroupDto dto) {
+        try {
+            return ResponseEntity.ok(eventFeedbackTagService.addEventScopedGroup(eventName, dto.getName()));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @PostMapping("/{eventName}/feedback-tags/tags")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> addEventFeedbackTag(
+            @PathVariable String eventName,
+            @Valid @RequestBody AddEventFeedbackTagDto dto) {
+        try {
+            return ResponseEntity.ok(
+                eventFeedbackTagService.addEventScopedTag(eventName, dto.getGroupId(), dto.getLabel())
+            );
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @PutMapping("/{eventName}/feedback-tags/tags/{tagId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateEventFeedbackTag(
+            @PathVariable String eventName,
+            @PathVariable Long tagId,
+            @Valid @RequestBody UpdateEventFeedbackTagDto dto) {
+        try {
+            return ResponseEntity.ok(
+                eventFeedbackTagService.updateEventScopedTag(eventName, tagId, dto.getLabel())
+            );
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @DeleteMapping("/{eventName}/feedback-tags/tags/{tagId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteEventFeedbackTag(
+            @PathVariable String eventName,
+            @PathVariable Long tagId) {
+        try {
+            return ResponseEntity.ok(eventFeedbackTagService.deleteEventScopedTag(eventName, tagId));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @DeleteMapping("/{eventName}/feedback-tags/groups/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> deleteEventFeedbackGroup(
+            @PathVariable String eventName,
+            @PathVariable Long groupId) {
+        try {
+            return ResponseEntity.ok(eventFeedbackTagService.deleteEventScopedGroup(eventName, groupId));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }
     }
 }
