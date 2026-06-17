@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs, insertEventInTable } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -54,6 +54,15 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const paymentRequired = ref(false)
 const feedbackEnabled = ref(true)
 const feedbackSaving = ref(false)
+
+// Event-scoped feedback taxonomy (#157)
+const feedbackGroups = ref([])
+const showAddFeedbackGroup = ref(false)
+const newFeedbackGroupName = ref('')
+const addTagForGroupId = ref(null)
+const newFeedbackTagLabel = ref('')
+const editingTagId = ref(null)
+const editingTagLabel = ref('')
 const resultsReleased = ref(false)
 const qrImageUrl = ref('')
 const loadingQr = ref(false)
@@ -446,6 +455,78 @@ const refreshParticipant = async () => {
 const refreshFromDb = async () => {
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
+}
+
+// ── Event-scoped feedback taxonomy (#157) ────────────────────────────────
+
+const loadFeedbackGroups = async () => {
+  feedbackGroups.value = await getEventFeedbackTags(props.eventName) ?? []
+}
+
+const onAddFeedbackGroup = async () => {
+  const name = newFeedbackGroupName.value.trim()
+  if (!name) return
+  const updated = await createEventFeedbackGroup(props.eventName, name)
+  if (updated) {
+    feedbackGroups.value = updated
+    newFeedbackGroupName.value = ''
+    showAddFeedbackGroup.value = false
+  } else {
+    openModal('Add Group Failed', 'Could not create feedback group.', 'warning')
+  }
+}
+
+const startAddTag = (groupId) => {
+  addTagForGroupId.value = groupId
+  newFeedbackTagLabel.value = ''
+}
+
+const onAddFeedbackTag = async (groupId) => {
+  const label = newFeedbackTagLabel.value.trim()
+  if (!label) return
+  const updated = await createEventFeedbackTag(props.eventName, groupId, label)
+  if (updated) {
+    feedbackGroups.value = updated
+    addTagForGroupId.value = null
+    newFeedbackTagLabel.value = ''
+  } else {
+    openModal('Add Tag Failed', 'Could not create feedback tag.', 'warning')
+  }
+}
+
+const startEditTag = (tag) => {
+  editingTagId.value = tag.id
+  editingTagLabel.value = tag.label
+}
+
+const onSaveTagEdit = async () => {
+  const label = editingTagLabel.value.trim()
+  if (!label || !editingTagId.value) {
+    editingTagId.value = null
+    return
+  }
+  const updated = await updateEventFeedbackTag(props.eventName, editingTagId.value, label)
+  if (updated) {
+    feedbackGroups.value = updated
+    editingTagId.value = null
+    editingTagLabel.value = ''
+  } else {
+    openModal('Save Failed', 'Could not update feedback tag.', 'warning')
+  }
+}
+
+const onDeleteTag = async (tag) => {
+  if (!confirm(`Delete the feedback tag "${tag.label}"?`)) return
+  const updated = await deleteEventFeedbackTag(props.eventName, tag.id)
+  if (updated) feedbackGroups.value = updated
+  else openModal('Delete Failed', 'Could not delete feedback tag.', 'warning')
+}
+
+const onDeleteGroup = async (group) => {
+  if (!confirm(`Delete the feedback group "${group.name}" and all its event-scoped tags?`)) return
+  const updated = await deleteEventFeedbackGroup(props.eventName, group.id)
+  if (updated) feedbackGroups.value = updated
+  else openModal('Delete Failed', 'Could not delete feedback group.', 'warning')
 }
 
 const onFeedbackEnabledToggle = async (e) => {
@@ -1202,6 +1283,7 @@ onMounted(async () => {
       loadSessionTokens()
       const fb = await getFeedbackEnabled(props.eventName)
       if (fb && typeof fb.feedbackEnabled === 'boolean') feedbackEnabled.value = fb.feedbackEnabled
+      await loadFeedbackGroups()
       // Load results status and participant QR if feedback is enabled
       await loadResultsAndQr()
     }
@@ -1604,6 +1686,133 @@ onUnmounted(() => {
           </p>
         </div>
       </label>
+    </div>
+
+    <!-- Feedback Tags card (#157) — event-scoped taxonomy management -->
+    <div v-if="tableExist && feedbackEnabled" class="card-hover p-4 relative mt-6">
+      <div class="corner-bar-tl"></div>
+      <div class="section-rule mb-3">
+        <span class="section-rule-label">Feedback Tags</span>
+        <div class="section-rule-line"></div>
+        <button
+          v-if="!showAddFeedbackGroup"
+          @click="showAddFeedbackGroup = true; newFeedbackGroupName = ''"
+          class="para-chip-sm px-3 py-1.5 type-label shrink-0"
+        >
+          <i class="pi pi-plus mr-1" style="font-size:0.7rem"></i>Add Group
+        </button>
+      </div>
+
+      <p class="type-prose-sm text-content-muted mb-3">
+        Global tags from <span class="type-label">/admin</span> are inherited automatically.
+        Add event-specific groups and tags here — they will only appear for this event.
+      </p>
+
+      <!-- Inline add-group form -->
+      <div v-if="showAddFeedbackGroup" class="flex items-center gap-2 mb-4">
+        <input
+          v-model="newFeedbackGroupName"
+          @keyup.enter="onAddFeedbackGroup"
+          placeholder="Group name (e.g. Locking-specific)"
+          class="input-base flex-1"
+        />
+        <button @click="onAddFeedbackGroup" class="para-chip-sm px-3 py-1.5 type-label text-accent">Save</button>
+        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-3 py-1.5 type-label text-content-muted">Cancel</button>
+      </div>
+
+      <!-- Empty state -->
+      <p v-if="!feedbackGroups.length" class="type-prose text-content-muted">
+        No feedback groups yet — use global tags from /admin, or add event-specific ones here.
+      </p>
+
+      <!-- Group list -->
+      <div v-else class="space-y-4">
+        <div v-for="group in feedbackGroups" :key="`${group.scope}-${group.id}`" class="para-chip p-3">
+          <div class="flex items-center justify-between mb-2 gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="type-name truncate">{{ group.name }}</span>
+              <span
+                v-if="group.scope === 'GLOBAL'"
+                class="type-label opacity-60 shrink-0"
+                style="font-size: 9px; letter-spacing: 0.18em;"
+              >GLOBAL (INHERITED)</span>
+              <span
+                v-else
+                class="type-label text-accent shrink-0"
+                style="font-size: 9px; letter-spacing: 0.18em;"
+              >EVENT</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                v-if="group.scope === 'EVENT'"
+                @click="startAddTag(group.id)"
+                class="para-chip-sm px-2 py-1 type-label"
+                title="Add tag"
+              ><i class="pi pi-plus" style="font-size:0.65rem"></i></button>
+              <button
+                v-if="group.scope === 'EVENT'"
+                @click="onDeleteGroup(group)"
+                class="para-chip-sm px-2 py-1 type-label text-red-400"
+                title="Delete group"
+              ><i class="pi pi-trash" style="font-size:0.65rem"></i></button>
+              <span
+                v-else
+                class="type-prose-sm text-content-muted"
+                title="Manage in /admin"
+              >manage in /admin</span>
+            </div>
+          </div>
+
+          <!-- Inline add-tag form for this group -->
+          <div v-if="addTagForGroupId === group.id" class="flex items-center gap-2 mb-2">
+            <input
+              v-model="newFeedbackTagLabel"
+              @keyup.enter="onAddFeedbackTag(group.id)"
+              placeholder="Tag label"
+              class="input-base flex-1"
+            />
+            <button @click="onAddFeedbackTag(group.id)" class="para-chip-sm px-3 py-1 type-label text-accent">Save</button>
+            <button @click="addTagForGroupId = null" class="para-chip-sm px-3 py-1 type-label text-content-muted">Cancel</button>
+          </div>
+
+          <!-- Tag chips -->
+          <div class="flex flex-wrap gap-2">
+            <template v-for="tag in (group.tags || [])" :key="`${tag.scope}-${tag.id}`">
+              <!-- Editing mode -->
+              <div v-if="editingTagId === tag.id" class="flex items-center gap-1">
+                <input
+                  v-model="editingTagLabel"
+                  @keyup.enter="onSaveTagEdit"
+                  @keyup.escape="editingTagId = null"
+                  class="input-base py-1 px-2"
+                  style="width: 12rem;"
+                />
+                <button @click="onSaveTagEdit" class="para-chip-sm px-2 py-1 type-label text-accent">Save</button>
+                <button @click="editingTagId = null" class="para-chip-sm px-2 py-1 type-label text-content-muted">×</button>
+              </div>
+              <!-- Display mode -->
+              <span
+                v-else
+                class="para-chip-sm type-name-sm px-2.5 py-1 inline-flex items-center gap-1.5"
+                :class="tag.scope === 'EVENT' ? 'text-content-primary' : 'text-content-muted'"
+              >
+                {{ tag.label }}
+                <template v-if="tag.scope === 'EVENT'">
+                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100" title="Edit">
+                    <i class="pi pi-pencil" style="font-size:0.6rem"></i>
+                  </button>
+                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400" title="Delete">
+                    <i class="pi pi-times" style="font-size:0.65rem"></i>
+                  </button>
+                </template>
+              </span>
+            </template>
+            <span v-if="!(group.tags || []).length" class="type-prose-sm text-content-muted">
+              No tags in this group yet.
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
 
