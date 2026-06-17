@@ -1,6 +1,5 @@
 package com.example.BES.services;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,20 +16,29 @@ public class EventAuditionDisplayService {
 
     private final ConcurrentHashMap<String, AuditionDisplayStateDto> stateStore = new ConcurrentHashMap<>();
 
-    /**
-     * Save state in memory and broadcast to all display clients for this event.
-     */
+    private String stateKey(String eventName, String categoryName) {
+        return eventName + ":" + categoryName;
+    }
+
     public void updateState(String eventName, AuditionDisplayStateDto dto) {
-        // dto.eventName is already set by the caller (frontend POST body)
-        stateStore.put(eventName, dto);
+        String key = stateKey(eventName, dto.categoryName);
+        stateStore.put(key, dto);
         messagingTemplate.convertAndSend(
-            "/topic/audition/" + eventName + "/display", dto);
+            "/topic/audition/" + eventName + "/" + dto.categoryName + "/display", dto);
+    }
+
+    public AuditionDisplayStateDto getState(String eventName, String categoryName) {
+        return stateStore.get(stateKey(eventName, categoryName));
     }
 
     /**
-     * Return the current display state for an event, or null if none published yet.
+     * Backward compatibility method for single-argument calls.
+     * Returns the first state found for this event across all categories.
      */
     public AuditionDisplayStateDto getState(String eventName) {
-        return stateStore.get(eventName);
+        return stateStore.values().stream()
+            .filter(dto -> dto.eventName.equals(eventName))
+            .findFirst()
+            .orElse(null);
     }
 }

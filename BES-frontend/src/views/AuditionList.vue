@@ -1,10 +1,10 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, claimEmceeCategory, getActiveEmceeCategories } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { RouterLink, useRouter, onBeforeRouteLeave } from 'vue-router';
+import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import { useAuthStore } from '@/utils/auth';
@@ -30,6 +30,7 @@ const eventDivisions = ref([]) // { eventCategoryId, name } for current event �
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
 const isEmcee = ref(false)
+const activeEmceeCategories = ref(new Set())
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -115,12 +116,6 @@ const switchCategory = (g) => {
   if (hasUnsaved) {
     modalTitle.value = `Switch to ${g}?`
     modalMessage.value = `You have unsaved scores for ${selectedCategory.value}. They're cached and won't be lost, but submit them first to be safe.`
-    modalVariant.value = 'warning'
-    showModal.value = true
-    dynamicCallBack.value = () => { showModal.value = false; selectedCategory.value = g }
-  } else if (isEmcee.value) {
-    modalTitle.value = `Switch to ${g}?`
-    modalMessage.value = `This will update the audition display and reset the timer.`
     modalVariant.value = 'warning'
     showModal.value = true
     dynamicCallBack.value = () => { showModal.value = false; selectedCategory.value = g }
@@ -280,6 +275,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
 
 watch(selectedCategory, async (newVal) => {
   if (newVal) localStorage.setItem("selectedCategory", newVal)
+  else localStorage.removeItem("selectedCategory")
   selectedEntryType.value = 'Teams'
   if (!newVal || !selectedEvent.value) return
   if (eventDivisions.value.length === 0) {
@@ -567,6 +563,18 @@ const showFilters = ref(false)
 const scoreError = ref('')
 const hasActiveSession = computed(() => !!selectedCategory.value && !!selectedRole.value)
 const router = useRouter()
+const route = useRoute()
+
+function pickEmceeCategory(name) {
+  if (activeEmceeCategories.value.has(name)) {
+    const ok = window.confirm(
+      `"${name}" is already being run by another emcee right now.\n\nContinue anyway? Joining will not disrupt scores, but two emcees on the same category can confuse the flow.`
+    )
+    if (!ok) return
+  }
+  selectedCategory.value = name
+  claimEmceeCategory(selectedEvent.value, name)
+}
 const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
 
 const wsClients = []
@@ -599,6 +607,14 @@ onBeforeRouteLeave(() => {
   return new Promise(resolve => setTimeout(resolve, 300))
 })
 
+// When the chip nav sends picker=1 while already mounted, reset the category
+watch(() => route.query.picker, (val) => {
+  if (val === '1' && isEmcee.value) {
+    selectedCategory.value = ""
+    router.replace({ name: 'Audition List', query: {} })
+  }
+})
+
 onUnmounted(() => {
   wsClients.forEach(c => deactivateClient(c));
   [document.documentElement, document.body].forEach(el => {
@@ -612,6 +628,16 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
+  // If the chip nav sent us here with picker=1, reset any auto-selected category so the picker shows
+  if (isEmcee.value && route.query.picker === '1') {
+    selectedCategory.value = ""
+    router.replace({ name: 'Audition List', query: {} })
+  }
+  // Load active emcee categories for the picker warning
+  if (isEmcee.value && selectedEvent.value) {
+    const active = await getActiveEmceeCategories(selectedEvent.value)
+    activeEmceeCategories.value = new Set(active)
+  }
   const [groupRes, divRes] = await Promise.all([getFeedbackGroups(), getCategoriesByEvent(selectedEvent.value)])
   tagGroups.value = groupRes ?? []
   eventDivisions.value = divRes ?? []
@@ -623,6 +649,14 @@ onMounted(async () => {
     const stopOnce = watch(participants, (list) => {
       if (list.length > 0) { loadFeedbackGiven(); stopOnce() }
     }, { immediate: true })
+  }
+
+  if (isEmcee.value && selectedEvent.value) {
+    const cEmcee = createClient()
+    wsClients.push(cEmcee)
+    subscribeToChannel(cEmcee, `/topic/emcee/active-categories/${selectedEvent.value}`, (msg) => {
+      activeEmceeCategories.value = new Set(msg.categories ?? [])
+    })
   }
 
   const c1 = createClient()
@@ -738,7 +772,7 @@ onMounted(async () => {
           ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
-          v-if="isAdmin || isOrganiser || isEmcee"
+          v-if="isAdmin || isOrganiser"
           @click="showFilters = !showFilters"
           :aria-expanded="showFilters"
           aria-label="Toggle filters"
@@ -804,7 +838,7 @@ onMounted(async () => {
           <span v-if="!isJudgeSession && (isAdmin || isOrganiser)" class="text-surface-600 select-none hidden sm:inline">|</span>
 
           <!-- Category toggle (hidden for session judges — locked to assigned category) -->
-          <div v-if="isAdmin || isOrganiser || isEmcee" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
+          <div v-if="isAdmin || isOrganiser || (isEmcee && !selectedCategory)" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1">
             <span class="section-rule-label sm:hidden">Category</span>
             <div class="flex flex-wrap gap-2 sm:gap-1">
               <button
@@ -919,6 +953,39 @@ onMounted(async () => {
         :numberColor="currentDivision?.numberColor ?? null"
       />
     </template>
+
+    <!-- Emcee: no category selected yet — show picker -->
+    <div
+      v-else-if="selectedRole === 'Emcee' && !selectedCategory"
+      class="flex flex-col items-center justify-center h-full gap-6 px-4"
+      style="max-width:480px;margin:0 auto;width:100%"
+    >
+      <div class="text-center">
+        <p class="type-page-title text-content-primary mb-1" style="font-size:1.4rem">SELECT CATEGORY</p>
+        <p class="type-prose text-content-muted">Choose which category you are running</p>
+      </div>
+      <div class="flex flex-col gap-2 w-full">
+        <button
+          v-for="div in eventDivisions"
+          :key="div.eventCategoryId"
+          @click="pickEmceeCategory(div.name)"
+          class="w-full para-chip px-4 py-3.5 flex items-center justify-between type-name text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150"
+        >
+          <span>{{ div.name }}</span>
+          <div class="flex items-center gap-2">
+            <span
+              v-if="activeEmceeCategories.has(div.name)"
+              class="text-[9px] tracking-[0.14em] text-amber-300/90 border border-amber-400/40 bg-amber-400/8 px-1.5 py-0.5"
+              style="clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+            >ACTIVE</span>
+            <i class="pi pi-chevron-right text-xs text-content-muted" aria-hidden="true"></i>
+          </div>
+        </button>
+        <div v-if="eventDivisions.length === 0" class="type-prose text-content-muted text-center py-4">
+          No categories found for this event.
+        </div>
+      </div>
+    </div>
 
     <!-- Emcee: no participants in this category -->
     <div

@@ -23,30 +23,31 @@ public class EventAuditionDisplayController {
     @Autowired
     private EventAuditionDisplayService displayService;
 
-    /**
-     * Called by EmceeRoundView on round change and timer start/stop.
-     * Stores state and broadcasts to display clients.
-     */
     @PostMapping
     public ResponseEntity<?> updateDisplayState(@RequestBody AuditionDisplayStateDto dto) {
         if (dto == null || dto.eventName == null || dto.eventName.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "eventName is required"));
         }
+        if (dto.categoryName == null || dto.categoryName.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "categoryName is required"));
+        }
         displayService.updateState(dto.eventName, dto);
         return ResponseEntity.ok(Map.of("message", "ok"));
     }
 
-    /**
-     * Called by AuditionDisplay.vue on mount / OBS refresh.
-     * Returns the latest published state for this event.
-     */
     @GetMapping
-    public ResponseEntity<?> getDisplayState(@RequestParam String event) {
-        AuditionDisplayStateDto state = displayService.getState(event);
+    public ResponseEntity<?> getDisplayState(
+            @RequestParam String event,
+            @RequestParam String category) {
+        if (category == null || category.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "category is required"));
+        }
+        AuditionDisplayStateDto state = displayService.getState(event, category);
         if (state == null) {
             return ResponseEntity.ok(Map.of(
                 "standby", true,
-                "eventName", event
+                "eventName", event,
+                "categoryName", category
             ));
         }
         return ResponseEntity.ok(state);

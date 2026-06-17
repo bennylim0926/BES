@@ -1601,11 +1601,10 @@ export const postAuditionDisplayState = async (state) => {
   }
 }
 
-export const getAuditionDisplayState = async (eventName) => {
+export const getAuditionDisplayState = async (eventName, categoryName) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/audition-display?event=${encodeURIComponent(eventName)}`, {
-      credentials: 'include'
-    })
+    const url = `${domain}/api/v1/event/audition-display?event=${encodeURIComponent(eventName)}&category=${encodeURIComponent(categoryName || '')}`
+    const res = await fetch(url, { credentials: 'include' })
     if (res.ok) return await res.json()
     return null
   } catch (e) {
@@ -1627,4 +1626,26 @@ export const setOrganiserTier = async (accountId, tier) => {
     console.error(e)
     return null
   }
+}
+
+export const claimEmceeCategory = async (eventName, categoryName) => {
+  try {
+    await fetch(`${domain}/api/v1/emcee/active-category`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, categoryName })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getActiveEmceeCategories = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/emcee/active-categories?eventName=${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.from(data.categories ?? [])
+  } catch (e) { console.error(e); return [] }
 }

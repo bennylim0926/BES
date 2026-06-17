@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
-import { whoami } from '@/utils/api'
+import { whoami, getCategoriesByEvent } from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -11,6 +11,8 @@ const eventName = computed(() => authStore.activeEvent?.name || '')
 const sessionReady = ref(false)
 const loading = ref(true)
 const linkCopied = ref(false)
+const categories = ref([])
+const copiedCategoryId = ref(null)
 
 onMounted(async () => {
   if (!authStore.user) {
@@ -21,7 +23,20 @@ onMounted(async () => {
   }
   loading.value = false
   sessionReady.value = !!authStore.user && !!authStore.activeEvent
+  if (sessionReady.value && eventName.value) {
+    categories.value = await getCategoriesByEvent(eventName.value) ?? []
+  }
 })
+
+function displayUrlFor(categoryName) {
+  return `${window.location.origin}/audition/display?event=${encodeURIComponent(eventName.value)}&category=${encodeURIComponent(categoryName)}`
+}
+
+function copyDisplayUrl(category) {
+  copyToClipboard(displayUrlFor(category.name))
+  copiedCategoryId.value = category.eventCategoryId
+  setTimeout(() => { copiedCategoryId.value = null }, 2000)
+}
 
 function copyToClipboard(text) {
   const ta = document.createElement('textarea')
@@ -123,6 +138,31 @@ function goToEventDetails() {
         </button>
       </div>
 
+      <!-- Display URLs per category — for OBS / projector setup -->
+      <div v-if="!loading && categories.length > 0" class="section-header">
+        <span class="section-label">DISPLAY URLS</span>
+        <span class="section-rule"></span>
+      </div>
+      <p v-if="!loading && categories.length > 0" class="display-hint">
+        Paste these into OBS browser sources or open in a projector browser. No login required.
+      </p>
+      <div v-if="!loading && categories.length > 0" class="display-list">
+        <button
+          v-for="cat in categories"
+          :key="cat.eventCategoryId"
+          @click="copyDisplayUrl(cat)"
+          class="display-btn"
+          :class="copiedCategoryId === cat.eventCategoryId ? 'display-btn--copied' : ''"
+          aria-live="polite"
+        >
+          <span class="display-btn-name">{{ cat.name }}</span>
+          <span class="display-btn-action">
+            <i class="pi" :class="copiedCategoryId === cat.eventCategoryId ? 'pi-check' : 'pi-copy'" aria-hidden="true"></i>
+            {{ copiedCategoryId === cat.eventCategoryId ? 'Copied' : 'Copy URL' }}
+          </span>
+        </button>
+      </div>
+
     </div>
   </div>
 </template>
@@ -132,12 +172,13 @@ function goToEventDetails() {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: #111111;
   font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
-  padding: 16px;
+  padding: 32px 16px;
+  overflow-y: auto;
 }
 
 .color-bleed {
@@ -291,6 +332,69 @@ function goToEventDetails() {
 .nav-btn-label {
   font-size: 13px;
   letter-spacing: 0.05em;
+}
+
+.display-hint {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.35);
+  text-transform: none;
+  margin: -8px 0 4px 0;
+}
+
+.display-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.display-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.7);
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+}
+
+.display-btn:hover,
+.display-btn:active {
+  color: var(--accent-color, #fff);
+  border-color: var(--accent-muted, rgba(255,255,255,0.25));
+  background: var(--accent-subtle, rgba(255,255,255,0.04));
+}
+
+.display-btn--copied {
+  color: #4ade80;
+  border-color: rgba(74,222,128,0.3);
+  background: rgba(74,222,128,0.06);
+}
+
+.display-btn-name {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-align: left;
+  flex: 1;
+}
+
+.display-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* Mobile */

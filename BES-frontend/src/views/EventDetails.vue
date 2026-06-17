@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
 import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs, insertEventInTable } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
@@ -879,11 +879,26 @@ function copyAuditionScreenLink() {
 }
 
 const displayLinkCopied = ref(false)
-function copyDisplayLink() {
-  copyToClipboard(window.location.origin + '/audition/display?event=' + encodeURIComponent(props.eventName))
+const showDisplayMenu = ref(false)
+const displayMenuRef = ref(null)
+const copiedDisplayCategoryId = ref(null)
+
+function copyDisplayLinkForCategory(category) {
+  const url = `${window.location.origin}/audition/display?event=${encodeURIComponent(props.eventName)}&category=${encodeURIComponent(category.name)}`
+  copyToClipboard(url)
+  copiedDisplayCategoryId.value = category.eventCategoryId
   displayLinkCopied.value = true
   setTimeout(() => { displayLinkCopied.value = false }, 2000)
 }
+
+function handleDisplayMenuOutside(e) {
+  if (!showDisplayMenu.value) return
+  if (displayMenuRef.value && !displayMenuRef.value.contains(e.target)) {
+    showDisplayMenu.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', handleDisplayMenuOutside))
+onBeforeUnmount(() => document.removeEventListener('click', handleDisplayMenuOutside))
 
 const formatExpiry = (expiresAt) => {
   const d = new Date(expiresAt)
@@ -1325,18 +1340,46 @@ onUnmounted(() => {
               <i class="pi text-sm" :class="auditionLinkCopied ? 'pi-check' : 'pi-link'"></i>
               {{ auditionLinkCopied ? 'Link Copied!' : 'Number Draw' }}
             </button>
-            <button
-              @click="copyDisplayLink"
-              class="flex items-center gap-2 px-4 py-2 para-chip type-label transition-all duration-200"
-              :class="displayLinkCopied
-                ? 'text-emerald-400 border-emerald-400/40'
-                : 'text-content-muted hover:text-content-primary'"
-              style="border-style:dashed;"
-              title="Copy the broadcast link for the live audition display (current name + timer)"
-            >
-              <i class="pi text-sm" :class="displayLinkCopied ? 'pi-check' : 'pi-link'"></i>
-              {{ displayLinkCopied ? 'Link Copied!' : 'Stage Display' }}
-            </button>
+            <div class="relative" ref="displayMenuRef">
+              <button
+                @click="showDisplayMenu = !showDisplayMenu"
+                class="flex items-center gap-2 px-4 py-2 para-chip type-label transition-all duration-200"
+                :class="displayLinkCopied
+                  ? 'text-emerald-400 border-emerald-400/40'
+                  : 'text-content-muted hover:text-content-primary'"
+                style="border-style:dashed;"
+                title="Copy broadcast links for the live audition display"
+              >
+                <i class="pi text-sm" :class="displayLinkCopied ? 'pi-check' : 'pi-link'"></i>
+                {{ displayLinkCopied ? 'Link Copied!' : 'Stage Display' }}
+                <i class="pi pi-chevron-down text-[10px] opacity-60"></i>
+              </button>
+              <div
+                v-if="showDisplayMenu"
+                class="absolute right-0 mt-2 z-50 min-w-[280px] bg-surface-800 border border-surface-600 shadow-2xl"
+                style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);padding:10px"
+              >
+                <p class="type-label text-content-muted px-3 pt-1 pb-2" style="font-size:9px;letter-spacing:0.2em">
+                  Display URLs
+                </p>
+                <button
+                  v-for="cat in eventCategories"
+                  :key="cat.eventCategoryId"
+                  @click="copyDisplayLinkForCategory(cat)"
+                  class="w-full flex items-center justify-between gap-3 px-3 py-2 type-label hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
+                  :class="copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'text-emerald-400' : 'text-content-secondary'"
+                >
+                  <span style="font-size:12px;letter-spacing:0.06em">{{ cat.name }}</span>
+                  <span class="inline-flex items-center gap-1" style="font-size:9px;letter-spacing:0.16em;opacity:0.7">
+                    <i class="pi text-[10px]" :class="copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'pi-check' : 'pi-copy'"></i>
+                    {{ copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'Copied' : 'Copy' }}
+                  </span>
+                </button>
+                <p v-if="eventCategories.length === 0" class="px-3 py-2 type-label text-content-muted" style="font-size:11px">
+                  No categories added yet.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

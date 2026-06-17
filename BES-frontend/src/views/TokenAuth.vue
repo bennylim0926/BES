@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { redeemToken } from '@/utils/api'
+import { redeemToken, whoami } from '@/utils/api'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
 
 const route = useRoute()
@@ -11,7 +11,26 @@ const authStore = useAuthStore()
 const loading = ref(true)
 const error = ref(null)
 
+function redirectByRole(user) {
+  const authority = user.role?.[0]?.authority
+  if (authority === 'ROLE_JUDGE') router.replace('/judge/session')
+  else if (authority === 'ROLE_EMCEE') router.replace('/emcee/session')
+  else if (authority === 'ROLE_HELPER') router.replace('/helper/session')
+  else router.replace('/')
+}
+
 onMounted(async () => {
+  // If already authenticated (same link opened in a second tab), skip redemption
+  const existing = authStore.user || await whoami().catch(() => null)
+  if (existing?.authenticated) {
+    authStore.login(existing)
+    if (existing.eventId && existing.eventName) {
+      setActiveEvent(existing.eventId, existing.eventName)
+    }
+    redirectByRole(existing)
+    return
+  }
+
   const token = route.query.t
   if (!token) {
     error.value = 'No token provided.'
@@ -20,9 +39,7 @@ onMounted(async () => {
   }
   const data = await redeemToken(token)
   if (!data?.authenticated) {
-    error.value = data?.status === 409
-      ? 'This session link is already active in another browser. Close the other session first.'
-      : data?.error || 'Invalid or expired link.'
+    error.value = data?.error || 'Invalid or expired link.'
     loading.value = false
     return
   }
@@ -30,16 +47,7 @@ onMounted(async () => {
   if (data.eventId && data.eventName) {
     setActiveEvent(data.eventId, data.eventName)
   }
-  const authority = data.role?.[0]?.authority
-  if (authority === 'ROLE_JUDGE') {
-    router.replace('/judge/session')
-  } else if (authority === 'ROLE_EMCEE') {
-    router.replace('/emcee/session')
-  } else if (authority === 'ROLE_HELPER') {
-    router.replace('/helper/session')
-  } else {
-    router.replace('/')
-  }
+  redirectByRole(data)
 })
 </script>
 
