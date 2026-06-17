@@ -129,7 +129,7 @@ const revealingRef = ref(null) // name of participant whose ref code is being he
 const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? 'event-day' : 'setup') // 'setup' | 'event-day'
 // Setup tab is split into three sub-tabs to keep each screen scannable.
 // Persisted per event so switching events does not leak prior state.
-const setupSubTab = ref('categories') // 'categories' | 'judges' | 'links'
+const setupSubTab = ref('categories') // 'categories' | 'judges' | 'links' | 'feedback'
 // The single currently-expanded division inside the categories accordion (by eventCategoryId).
 const expandedDivisionId = ref(null)
 const toggleDivision = (id) => {
@@ -1269,7 +1269,7 @@ onMounted(async () => {
       await Promise.all(eventCategories.value.map(loadJudgesForDivision))
       // Restore per-event setup sub-tab + auto-expand the first division.
       const savedSub = localStorage.getItem(`setupSubTab_${props.eventName}`)
-      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links') {
+      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links' || savedSub === 'feedback') {
         setupSubTab.value = savedSub
       }
       expandedDivisionId.value = eventCategories.value[0].eventCategoryId
@@ -1688,132 +1688,6 @@ onUnmounted(() => {
       </label>
     </div>
 
-    <!-- Feedback Tags card (#157) — event-scoped taxonomy management -->
-    <div v-if="tableExist && feedbackEnabled" class="card-hover p-4 relative mt-6">
-      <div class="corner-bar-tl"></div>
-      <div class="section-rule mb-3">
-        <span class="section-rule-label">Feedback Tags</span>
-        <div class="section-rule-line"></div>
-        <button
-          v-if="!showAddFeedbackGroup"
-          @click="showAddFeedbackGroup = true; newFeedbackGroupName = ''"
-          class="para-chip-sm px-3 py-1.5 type-label shrink-0"
-        >
-          <i class="pi pi-plus mr-1" style="font-size:0.7rem"></i>Add Group
-        </button>
-      </div>
-
-      <p class="type-prose-sm text-content-muted mb-3">
-        Global tags from <span class="type-label">/admin</span> are inherited automatically.
-        Add event-specific groups and tags here — they will only appear for this event.
-      </p>
-
-      <!-- Inline add-group form -->
-      <div v-if="showAddFeedbackGroup" class="flex items-center gap-2 mb-4">
-        <input
-          v-model="newFeedbackGroupName"
-          @keyup.enter="onAddFeedbackGroup"
-          placeholder="Group name (e.g. Locking-specific)"
-          class="input-base flex-1"
-        />
-        <button @click="onAddFeedbackGroup" class="para-chip-sm px-3 py-1.5 type-label text-accent">Save</button>
-        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-3 py-1.5 type-label text-content-muted">Cancel</button>
-      </div>
-
-      <!-- Empty state -->
-      <p v-if="!feedbackGroups.length" class="type-prose text-content-muted">
-        No feedback groups yet — use global tags from /admin, or add event-specific ones here.
-      </p>
-
-      <!-- Group list -->
-      <div v-else class="space-y-4">
-        <div v-for="group in feedbackGroups" :key="`${group.scope}-${group.id}`" class="para-chip p-3">
-          <div class="flex items-center justify-between mb-2 gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="type-name truncate">{{ group.name }}</span>
-              <span
-                v-if="group.scope === 'GLOBAL'"
-                class="type-label opacity-60 shrink-0"
-                style="font-size: 9px; letter-spacing: 0.18em;"
-              >GLOBAL (INHERITED)</span>
-              <span
-                v-else
-                class="type-label text-accent shrink-0"
-                style="font-size: 9px; letter-spacing: 0.18em;"
-              >EVENT</span>
-            </div>
-            <div class="flex items-center gap-1 shrink-0">
-              <button
-                v-if="group.scope === 'EVENT'"
-                @click="startAddTag(group.id)"
-                class="para-chip-sm px-2 py-1 type-label"
-                title="Add tag"
-              ><i class="pi pi-plus" style="font-size:0.65rem"></i></button>
-              <button
-                v-if="group.scope === 'EVENT'"
-                @click="onDeleteGroup(group)"
-                class="para-chip-sm px-2 py-1 type-label text-red-400"
-                title="Delete group"
-              ><i class="pi pi-trash" style="font-size:0.65rem"></i></button>
-              <span
-                v-else
-                class="type-prose-sm text-content-muted"
-                title="Manage in /admin"
-              >manage in /admin</span>
-            </div>
-          </div>
-
-          <!-- Inline add-tag form for this group -->
-          <div v-if="addTagForGroupId === group.id" class="flex items-center gap-2 mb-2">
-            <input
-              v-model="newFeedbackTagLabel"
-              @keyup.enter="onAddFeedbackTag(group.id)"
-              placeholder="Tag label"
-              class="input-base flex-1"
-            />
-            <button @click="onAddFeedbackTag(group.id)" class="para-chip-sm px-3 py-1 type-label text-accent">Save</button>
-            <button @click="addTagForGroupId = null" class="para-chip-sm px-3 py-1 type-label text-content-muted">Cancel</button>
-          </div>
-
-          <!-- Tag chips -->
-          <div class="flex flex-wrap gap-2">
-            <template v-for="tag in (group.tags || [])" :key="`${tag.scope}-${tag.id}`">
-              <!-- Editing mode -->
-              <div v-if="editingTagId === tag.id" class="flex items-center gap-1">
-                <input
-                  v-model="editingTagLabel"
-                  @keyup.enter="onSaveTagEdit"
-                  @keyup.escape="editingTagId = null"
-                  class="input-base py-1 px-2"
-                  style="width: 12rem;"
-                />
-                <button @click="onSaveTagEdit" class="para-chip-sm px-2 py-1 type-label text-accent">Save</button>
-                <button @click="editingTagId = null" class="para-chip-sm px-2 py-1 type-label text-content-muted">×</button>
-              </div>
-              <!-- Display mode -->
-              <span
-                v-else
-                class="para-chip-sm type-name-sm px-2.5 py-1 inline-flex items-center gap-1.5"
-                :class="tag.scope === 'EVENT' ? 'text-content-primary' : 'text-content-muted'"
-              >
-                {{ tag.label }}
-                <template v-if="tag.scope === 'EVENT'">
-                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100" title="Edit">
-                    <i class="pi pi-pencil" style="font-size:0.6rem"></i>
-                  </button>
-                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400" title="Delete">
-                    <i class="pi pi-times" style="font-size:0.65rem"></i>
-                  </button>
-                </template>
-              </span>
-            </template>
-            <span v-if="!(group.tags || []).length" class="type-prose-sm text-content-muted">
-              No tags in this group yet.
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
 
 
   <!-- Empty state: no participants -->
@@ -1833,6 +1707,7 @@ onUnmounted(() => {
       v-for="sub in [
         { key: 'categories', label: 'Categories' },
         { key: 'judges', label: 'Judges' },
+        { key: 'feedback', label: 'Feedback Tags' },
         { key: 'links',  label: 'Share Links' },
       ]"
       :key="sub.key"
@@ -2341,6 +2216,143 @@ onUnmounted(() => {
   </div>
   </template>
   <!-- ── END Share Links sub-tab ──────────────────────────────────────────── -->
+
+
+  <!-- ── Sub-tab: Feedback Tags (#157) ────────────────────────────────────── -->
+  <template v-if="setupSubTab === 'feedback'">
+    <div v-if="tableExist && feedbackEnabled" class="card-hover p-4 relative mt-6">
+      <div class="corner-bar-tl"></div>
+      <div class="section-rule mb-3">
+        <span class="section-rule-label">Feedback Tags</span>
+        <div class="section-rule-line"></div>
+        <button
+          v-if="!showAddFeedbackGroup"
+          @click="showAddFeedbackGroup = true; newFeedbackGroupName = ''"
+          class="para-chip-sm px-3 py-1.5 type-label shrink-0"
+        >
+          <i class="pi pi-plus mr-1" style="font-size:0.7rem"></i>Add Group
+        </button>
+      </div>
+
+      <p class="type-prose-sm text-content-muted mb-3">
+        Global tags from <span class="type-label">/admin</span> are inherited automatically.
+        Add event-specific groups and tags here — they will only appear for this event.
+      </p>
+
+      <!-- Inline add-group form -->
+      <div v-if="showAddFeedbackGroup" class="flex items-center gap-2 mb-4">
+        <input
+          v-model="newFeedbackGroupName"
+          @keyup.enter="onAddFeedbackGroup"
+          placeholder="Group name (e.g. Locking-specific)"
+          class="input-base flex-1"
+        />
+        <button @click="onAddFeedbackGroup" class="para-chip-sm px-3 py-1.5 type-label text-accent">Save</button>
+        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-3 py-1.5 type-label text-content-muted">Cancel</button>
+      </div>
+
+      <!-- Empty state -->
+      <p v-if="!feedbackGroups.length" class="type-prose text-content-muted">
+        No feedback groups yet — use global tags from /admin, or add event-specific ones here.
+      </p>
+
+      <!-- Group list -->
+      <div v-else class="space-y-4">
+        <div v-for="group in feedbackGroups" :key="`${group.scope}-${group.id}`" class="para-chip p-3">
+          <div class="flex items-center justify-between mb-2 gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="type-name truncate">{{ group.name }}</span>
+              <span
+                v-if="group.scope === 'GLOBAL'"
+                class="type-label opacity-60 shrink-0"
+                style="font-size: 9px; letter-spacing: 0.18em;"
+              >GLOBAL (INHERITED)</span>
+              <span
+                v-else
+                class="type-label text-accent shrink-0"
+                style="font-size: 9px; letter-spacing: 0.18em;"
+              >EVENT</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                v-if="group.scope === 'EVENT'"
+                @click="startAddTag(group.id)"
+                class="para-chip-sm px-2 py-1 type-label"
+                title="Add tag"
+              ><i class="pi pi-plus" style="font-size:0.65rem"></i></button>
+              <button
+                v-if="group.scope === 'EVENT'"
+                @click="onDeleteGroup(group)"
+                class="para-chip-sm px-2 py-1 type-label text-red-400"
+                title="Delete group"
+              ><i class="pi pi-trash" style="font-size:0.65rem"></i></button>
+              <span
+                v-else
+                class="type-prose-sm text-content-muted"
+                title="Manage in /admin"
+              >manage in /admin</span>
+            </div>
+          </div>
+
+          <!-- Inline add-tag form for this group -->
+          <div v-if="addTagForGroupId === group.id" class="flex items-center gap-2 mb-2">
+            <input
+              v-model="newFeedbackTagLabel"
+              @keyup.enter="onAddFeedbackTag(group.id)"
+              placeholder="Tag label"
+              class="input-base flex-1"
+            />
+            <button @click="onAddFeedbackTag(group.id)" class="para-chip-sm px-3 py-1 type-label text-accent">Save</button>
+            <button @click="addTagForGroupId = null" class="para-chip-sm px-3 py-1 type-label text-content-muted">Cancel</button>
+          </div>
+
+          <!-- Tag chips -->
+          <div class="flex flex-wrap gap-2">
+            <template v-for="tag in (group.tags || [])" :key="`${tag.scope}-${tag.id}`">
+              <!-- Editing mode -->
+              <div v-if="editingTagId === tag.id" class="flex items-center gap-1">
+                <input
+                  v-model="editingTagLabel"
+                  @keyup.enter="onSaveTagEdit"
+                  @keyup.escape="editingTagId = null"
+                  class="input-base py-1 px-2"
+                  style="width: 12rem;"
+                />
+                <button @click="onSaveTagEdit" class="para-chip-sm px-2 py-1 type-label text-accent">Save</button>
+                <button @click="editingTagId = null" class="para-chip-sm px-2 py-1 type-label text-content-muted">×</button>
+              </div>
+              <!-- Display mode -->
+              <span
+                v-else
+                class="para-chip-sm type-name-sm px-2.5 py-1 inline-flex items-center gap-1.5"
+                :class="tag.scope === 'EVENT' ? 'text-content-primary' : 'text-content-muted'"
+              >
+                {{ tag.label }}
+                <template v-if="tag.scope === 'EVENT'">
+                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100" title="Edit">
+                    <i class="pi pi-pencil" style="font-size:0.6rem"></i>
+                  </button>
+                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400" title="Delete">
+                    <i class="pi pi-times" style="font-size:0.65rem"></i>
+                  </button>
+                </template>
+              </span>
+            </template>
+            <span v-if="!(group.tags || []).length" class="type-prose-sm text-content-muted">
+              No tags in this group yet.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback disabled: tab content unavailable -->
+    <div v-else-if="tableExist" class="card p-6 text-center mt-6">
+      <p class="type-body text-content-muted mb-2">Feedback system is disabled for this event.</p>
+      <p class="type-prose-sm">Enable it in Event Settings above to manage event-scoped feedback tags.</p>
+    </div>
+  </template>
+  <!-- ── END Feedback Tags sub-tab ────────────────────────────────────────── -->
 
   </template>
   <!-- ── END SETUP TAB ─────────────────────────────────────────────────────── -->
