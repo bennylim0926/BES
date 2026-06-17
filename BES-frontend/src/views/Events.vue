@@ -198,9 +198,13 @@ onMounted(async () => {
               </p>
             </div>
 
-            <!-- Step 1: Initial warning -->
-            <div v-if="deleteConfirmName === ''">
-              <p class="type-prose text-content-muted mb-3">Type the event name to enable deletion.</p>
+            <!-- Type-to-confirm: input always visible, hint changes -->
+            <div>
+              <p class="type-prose text-content-muted mb-3">
+                <template v-if="deleteConfirmName === ''">Type the event name to enable deletion.</template>
+                <template v-else-if="deleteConfirmName === eventToDelete?.folderName">✓ Name confirmed. Ready to delete.</template>
+                <template v-else>Keep typing — name must match exactly.</template>
+              </p>
               <input
                 v-model="deleteConfirmName"
                 type="text"
@@ -208,11 +212,6 @@ onMounted(async () => {
                 class="input-base w-full"
                 autofocus
               />
-            </div>
-
-            <!-- Step 2: Name matched — ready to delete -->
-            <div v-else-if="deleteConfirmName === eventToDelete?.folderName">
-              <p class="type-label text-red-400 mb-3">✓ Name confirmed. Ready to delete.</p>
             </div>
 
             <!-- Error -->
