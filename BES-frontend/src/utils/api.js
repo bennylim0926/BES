@@ -1754,3 +1754,51 @@ export const deleteEventFeedbackGroup = async (eventName, groupId) => {
     return await res.json()
   } catch (e) { console.error(e); return null }
 }
+
+/**
+ * Start a demo session with the given passcode and role.
+ * @param {string} passcode
+ * @param {string} role - "EMCEE", "JUDGE", or "HELPER"
+ * @returns {Promise<object>} - { authenticated, role, eventId, eventName, judgeId?, judgeName? }
+ */
+export const startDemo = async (passcode, role) => {
+  const res = await fetch('/api/v1/demo/start', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passcode, role })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to start demo')
+  }
+  return res.json()
+}
+
+/**
+ * Get demo config (admin only).
+ * @returns {Promise<object>} - { demoEnabled, passcode }
+ */
+export const getDemoConfig = async () => {
+  const res = await fetch('/api/v1/admin/demo/config', {
+    credentials: 'include'
+  })
+  if (!res.ok) throw new Error('Failed to fetch demo config')
+  return res.json()
+}
+
+/**
+ * Update demo config (admin only).
+ * @param {object} config - { demoEnabled, regeneratePasscode? }
+ * @returns {Promise<object>} - updated { demoEnabled, passcode }
+ */
+export const updateDemoConfig = async (config) => {
+  const res = await fetch('/api/v1/admin/demo/config', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  })
+  if (!res.ok) throw new Error('Failed to update demo config')
+  return res.json()
+}
