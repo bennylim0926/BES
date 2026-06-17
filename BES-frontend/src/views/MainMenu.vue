@@ -113,9 +113,9 @@ const roleDisplay = computed(() => {
           <p class="type-prose">Manage registrations and judges.</p>
         </router-link>
 
-        <!-- Scoreboard (Admin / Organiser / Emcee) -->
+        <!-- Scoreboard (Admin / Organiser / Emcee / Helper) -->
         <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE')"
+          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_HELPER')"
           :to="{ name: 'Score' }"
           class="card-hover p-6 relative cursor-pointer group"
         >
