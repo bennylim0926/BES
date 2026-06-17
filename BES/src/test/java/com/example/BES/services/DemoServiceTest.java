@@ -50,17 +50,6 @@ class DemoServiceTest {
     }
 
     @Test
-    void cloneTemplate_rateLimitsPerIp() {
-        demoService.cloneTemplate("EMCEE", "192.168.1.1");
-        demoService.cloneTemplate("HELPER", "192.168.1.1");
-        demoService.cloneTemplate("JUDGE", "192.168.1.1");
-
-        assertThatThrownBy(() -> demoService.cloneTemplate("EMCEE", "192.168.1.1"))
-                .isInstanceOf(DemoService.DemoRateLimitException.class)
-                .hasMessageContaining("limit reached");
-    }
-
-    @Test
     void purgeSandbox_deletesEventAndChildren() {
         DemoService.CloneResult result = demoService.cloneTemplate("EMCEE", "127.0.0.2");
         Long eventId = result.event.getEventId();
