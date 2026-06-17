@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -963,6 +964,21 @@ public class EventController {
             return ResponseEntity.ok(gson.toJson("Solo allowed updated"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Delete Event", description = "Permanently deletes an event and ALL associated data — participants, categories, scores, feedback, battle state, session tokens. Admin only.")
+    @DeleteMapping("/{eventName}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteEvent(@PathVariable String eventName) {
+        try {
+            eventService.deleteEvent(eventName);
+            return ResponseEntity.ok(Map.of("message", "Event '" + eventName + "' and all associated data deleted"));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        } catch (Exception e) {
+            log.error("Error deleting event: {}", eventName, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to delete event: " + e.getMessage()));
         }
     }
 

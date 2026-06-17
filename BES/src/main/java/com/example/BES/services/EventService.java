@@ -12,15 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.example.BES.models.Account;
-import com.example.BES.models.Event;
+import com.example.BES.models.*;
 import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetFeedbackEnabledDto;
 import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.dtos.UpdateReleaseScoreDto;
-import com.example.BES.respositories.AccountRepository;
-import com.example.BES.respositories.EventRepo;
+import com.example.BES.respositories.*;
 
 @Service
 public class EventService {
@@ -35,6 +33,57 @@ public class EventService {
 
     @Autowired
     AccountRepository accountRepository;
+
+    @Autowired
+    private ScoreRepo scoreRepo;
+
+    @Autowired
+    private AuditionFeedbackRepository auditionFeedbackRepository;
+
+    @Autowired
+    private EventCategoryParticipantRepo eventCategoryParticipantRepo;
+
+    @Autowired
+    private EventCategoryParticipantMemberRepo eventCategoryParticipantMemberRepo;
+
+    @Autowired
+    private EventParticipantRepo eventParticipantRepo;
+
+    @Autowired
+    private EventParticipantTeamMemberRepo eventParticipantTeamMemberRepo;
+
+    @Autowired
+    private ScoringCriteriaRepo scoringCriteriaRepo;
+
+    @Autowired
+    private FeedbackTagRepository feedbackTagRepository;
+
+    @Autowired
+    private FeedbackTagGroupRepository feedbackTagGroupRepository;
+
+    @Autowired
+    private EventCategoryBattleGuestRepo eventCategoryBattleGuestRepo;
+
+    @Autowired
+    private PickupCrewRepo pickupCrewRepo;
+
+    @Autowired
+    private SessionTokenRepository sessionTokenRepository;
+
+    @Autowired
+    private BattleCategoryStateRepository battleCategoryStateRepository;
+
+    @Autowired
+    private BattleActiveCategoryRepository battleActiveCategoryRepository;
+
+    @Autowired
+    private EventEmailTemplateRepo eventEmailTemplateRepo;
+
+    @Autowired
+    private EventCategoryRepo eventCategoryRepo;
+
+    @Autowired
+    private JudgeRepo judgeRepo;
 
     public void createEventService(AddEventDto dto){
         if (repo.findByEventName(dto.eventName).isPresent()) return;
@@ -178,5 +227,93 @@ public class EventService {
             }
         }
         return assigned;
+    }
+
+    @Transactional
+    public void deleteEvent(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        Long eventId = event.getEventId();
+
+        // 1. Categories and their children
+        List<EventCategory> categories = eventCategoryRepo.findByEvent(event);
+        for (EventCategory cat : categories) {
+            List<EventCategoryParticipant> ecps = eventCategoryParticipantRepo.findByEventCategory(cat);
+            for (EventCategoryParticipant ecp : ecps) {
+                // 1a. AuditionFeedback
+                auditionFeedbackRepository.deleteByEventCategoryParticipant(ecp);
+                // 1b. Scores (all judges)
+                scoreRepo.deleteAllByEventCategoryParticipant(ecp);
+                // 1c. Category participant members
+                eventCategoryParticipantMemberRepo.deleteByEventCategoryParticipant(ecp);
+            }
+            // 1d. EventCategoryParticipants for this category
+            eventCategoryParticipantRepo.deleteByEventCategory(cat);
+        }
+
+        // 2. EventParticipants and team members
+        List<EventParticipant> participants = eventParticipantRepo.findByEvent(event);
+        for (EventParticipant ep : participants) {
+            eventParticipantTeamMemberRepo.deleteByEventParticipant(ep);
+        }
+        eventParticipantRepo.deleteByEvent(event);
+
+        // 3. ScoringCriteria (event-level and category-level)
+        scoringCriteriaRepo.deleteByEvent(event);
+        for (EventCategory cat : categories) {
+            scoringCriteriaRepo.deleteByEventCategory(cat);
+        }
+
+        // 4. Feedback tags and groups (event-scoped)
+        feedbackTagRepository.deleteAll(feedbackTagRepository.findByEventEventId(eventId));
+        feedbackTagGroupRepository.deleteAll(feedbackTagGroupRepository.findByEventEventId(eventId));
+
+        // 5. Battle guests
+        eventCategoryBattleGuestRepo.deleteByEvent(event);
+
+        // 6. Pickup crews (members cascade via orphanRemoval)
+        List<PickupCrew> crews = pickupCrewRepo.findByEvent(event);
+        pickupCrewRepo.deleteAll(crews);
+
+        // 7. Session tokens
+        sessionTokenRepository.deleteAll(sessionTokenRepository.findByEvent_EventId(eventId));
+
+        // 8. Battle state
+        battleCategoryStateRepository.deleteAll(battleCategoryStateRepository.findByEventName(eventName));
+
+        // 8b. Battle active category
+        battleActiveCategoryRepository.deleteByEventName(eventName);
+
+        // 9. Clear event_judge join table
+        List<Judge> eventJudges = judgeRepo.findJudgesByEventId(eventId);
+        for (Judge judge : eventJudges) {
+            judgeRepo.deleteEventJudge(eventId, judge.getJudgeId());
+        }
+
+        // 9b. Clear event_category_judge join table — clear each category's judges list
+        for (EventCategory cat : categories) {
+            cat.getJudges().clear();
+            eventCategoryRepo.save(cat);
+        }
+
+        // 10. Email template
+        eventEmailTemplateRepo.findByEvent_EventId(eventId)
+            .ifPresent(eventEmailTemplateRepo::delete);
+
+        // 11. EventCategories
+        eventCategoryRepo.deleteByEvent(event);
+
+        // 12. Clear organiser_event join table
+        List<Account> organisers = accountRepository.findByRole("ORGANISER");
+        for (Account org : organisers) {
+            List<Event> assigned = org.getAssignedEvents();
+            if (assigned != null && assigned.removeIf(e -> e.getEventId().equals(eventId))) {
+                accountRepository.save(org);
+            }
+        }
+
+        // 13. Finally
+        repo.delete(event);
     }
 }

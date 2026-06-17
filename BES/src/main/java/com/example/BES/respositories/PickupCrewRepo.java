@@ -14,7 +14,10 @@ import com.example.BES.models.PickupCrew;
 @Repository
 public interface PickupCrewRepo extends JpaRepository<PickupCrew, Long> {
     List<PickupCrew> findByEventAndEventCategory(Event event, EventCategory eventCategory);
+    List<PickupCrew> findByEvent(Event event);
 
     @Query("SELECT COUNT(m) FROM PickupCrewMember m WHERE m.crew.event = :event AND m.crew.eventCategory = :eventCategory AND m.participant.participantId = :participantId")
     long countMemberInEventCategory(@Param("event") Event event, @Param("eventCategory") EventCategory eventCategory, @Param("participantId") Long participantId);
+
+    void deleteByEvent(Event event);
 }

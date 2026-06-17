@@ -13,4 +13,5 @@ import com.example.BES.models.EventCategory;
 public interface EventCategoryRepo extends JpaRepository<EventCategory, Long>{
     Optional<EventCategory> findByEventAndName(Event event, String name);
     List<EventCategory> findByEvent(Event event);
+    void deleteByEvent(Event event);
 }

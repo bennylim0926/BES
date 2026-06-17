@@ -7,4 +7,5 @@ import com.example.BES.models.EventCategoryParticipantMember;
 public interface EventCategoryParticipantMemberRepo
         extends JpaRepository<EventCategoryParticipantMember, Long> {
     boolean existsByEventCategoryParticipantAndMemberName(EventCategoryParticipant ecp, String memberName);
+    void deleteByEventCategoryParticipant(EventCategoryParticipant ecp);
 }
