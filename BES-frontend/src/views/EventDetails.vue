@@ -1196,8 +1196,8 @@ const confirmCheckIn = async () => {
   const refEntry = verifiedDbParticipants.value.find(ep => ep.participantId === p.participantId)
   checkinConfirm.value.refCode = refEntry?.referenceCode || null
 
-  // Generate QR code if feedback is enabled
-  if (feedbackEnabled.value && checkinConfirm.value.refCode) {
+  // Generate QR code if results are released
+  if (resultsReleaseMode.value !== 'NONE' && checkinConfirm.value.refCode) {
     try {
       const res = await fetch(`/api/v1/results/qr?ref=${encodeURIComponent(checkinConfirm.value.refCode)}`, {
         credentials: 'include'
@@ -1326,6 +1326,16 @@ onMounted(async () => {
     subscribeToChannel(wsClient, '/topic/walkin/', (msg) => {
       if (msg.eventName !== props.eventName) return
       fetchCheckinList()
+    })
+    subscribeToChannel(wsClient, '/topic/release-mode', (msg) => {
+      try {
+        const body = typeof msg === 'string' ? JSON.parse(msg) : msg
+        if (body.eventName === props.eventName && body.mode) {
+          resultsReleaseMode.value = body.mode
+          // Re-generate QR when mode changes to non-NONE
+          if (body.mode !== 'NONE') loadResultsAndQr()
+        }
+      } catch (_) { /* ignore malformed messages */ }
     })
     // Hydrate previewingIds from server state so late-joining/refreshed clients see current previews
     const existingPreviews = await getCheckinPreviews(props.eventName)
@@ -2377,7 +2387,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Results QR Section (participant-facing only — hidden for Admin/Organiser/Helper) -->
-    <template v-if="feedbackEnabled && !isAdminOrOrganiser && !isHelper">
+    <template v-if="resultsReleaseMode !== 'NONE' && !isAdminOrOrganiser && !isHelper">
       <div class="card-hover p-6 relative mb-6">
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>
@@ -3079,8 +3089,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Results QR (done state, feedback enabled) -->
-          <div v-if="checkinConfirm.phase === 'done' && feedbackEnabled && checkinConfirm.qrImageUrl" class="mb-5">
+          <!-- Results QR (done state, results released) -->
+          <div v-if="checkinConfirm.phase === 'done' && resultsReleaseMode !== 'NONE' && checkinConfirm.qrImageUrl" class="mb-5">
             <div class="section-rule mb-3">
               <span class="section-rule-label">Your Results QR</span>
               <div class="section-rule-line"></div>
@@ -3091,8 +3101,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Ref code (done state only, shown if feedback disabled or QR not available) -->
-          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode && (!feedbackEnabled || !checkinConfirm.qrImageUrl)" class="mb-5">
+          <!-- Ref code (done state only, shown if results not released or QR not available) -->
+          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode && resultsReleaseMode !== 'NONE' && !checkinConfirm.qrImageUrl" class="mb-5">
             <div class="section-rule mb-3">
               <span class="section-rule-label">Ref Code</span>
               <div class="section-rule-line"></div>
