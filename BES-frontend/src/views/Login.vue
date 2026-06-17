@@ -50,14 +50,18 @@ function submitPasscode() {
 async function startDemoSession(role) {
   try {
     const result = await startDemo(passcode.value, role)
-    // Populate auth store directly from demo response — avoids whoami() round-trip
-    authStore.login({
-      authenticated: true,
-      role: [{ authority: 'ROLE_' + role }],
+    // Populate auth store directly from demo response — bypass whoami() round-trip
+    authStore.$patch({
+      user: { authenticated: true, role: [{ authority: 'ROLE_' + role }] },
+      isAuthenticated: true,
       judgeId: result.judgeId ?? null,
       judgeName: result.judgeName ?? null
     })
     setActiveEvent(result.eventId, result.eventName)
+    // Double-check store was written — router guard and JudgeSessionView depend on it
+    if (!authStore.activeEvent) {
+      authStore.activeEvent = { id: result.eventId, name: result.eventName }
+    }
     // Route to the appropriate session view
     const roleRoutes = {
       EMCEE: '/emcee/session',
