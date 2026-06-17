@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch, provide } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { logout, whoami, getAppConfig, sendHeartbeat } from './utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from './utils/websocket'
 import { useAuthStore } from './utils/auth'
@@ -154,8 +154,6 @@ function toggleTheme() {
 watch(route, () => {
   panelOpen.value = false
 })
-
-provide('demoEnabled', demoEnabled)
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 let heartbeatTimer = null

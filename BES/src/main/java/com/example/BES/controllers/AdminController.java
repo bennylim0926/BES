@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +38,7 @@ import com.example.BES.dtos.DemoConfigDto;
 import com.example.BES.services.AccountService;
 import com.example.BES.services.AppConfigService;
 import com.example.BES.services.AuditionFeedbackService;
+import com.example.BES.services.DemoService;
 import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
@@ -64,6 +66,12 @@ public class AdminController {
 
     @Autowired
     AppConfigService appConfigService;
+
+    @Autowired
+    private SimpMessagingTemplate messaging;
+
+    @Autowired
+    private DemoService demoService;
 
     // ── Feedback Tag Groups ──────────────────────────────────────────────────
 
@@ -197,7 +205,8 @@ public class AdminController {
         return ResponseEntity.ok(new DemoConfigDto(
                 appConfigService.isDemoEnabled(),
                 appConfigService.getDemoPasscode(),
-                null
+                null,
+                demoService.countActiveSandboxes()
         ));
     }
 
@@ -208,10 +217,19 @@ public class AdminController {
             appConfigService.setDemoPasscode(newPasscode);
         }
         appConfigService.setDemoEnabled(dto.isDemoEnabled());
-        return ResponseEntity.ok(new DemoConfigDto(
+
+        DemoConfigDto result = new DemoConfigDto(
                 appConfigService.isDemoEnabled(),
                 appConfigService.getDemoPasscode(),
-                null
+                null,
+                demoService.countActiveSandboxes()
+        );
+
+        messaging.convertAndSend("/topic/app-config", Map.of(
+                "accentColor", appConfigService.getAccentColor(),
+                "demoEnabled", result.isDemoEnabled()
         ));
+
+        return ResponseEntity.ok(result);
     }
 }

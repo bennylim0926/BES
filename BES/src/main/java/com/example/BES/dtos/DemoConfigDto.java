@@ -11,4 +11,5 @@ public class DemoConfigDto {
     private boolean demoEnabled;
     private String passcode;
     private Boolean regeneratePasscode;  // set to true to trigger regeneration on POST
+    private int activeSandboxes;
 }

@@ -169,9 +169,8 @@ const saveAccent = async () => {
 }
 
 // ── Demo Settings ──────────────────────────────────────────
-const demoConfig = ref({ demoEnabled: false, passcode: '' })
+const demoConfig = ref({ demoEnabled: false, passcode: '', activeSandboxes: 0 })
 const showPasscode = ref(false)
-const activeSandboxes = ref(0)
 
 async function loadDemoConfig() {
   try {
@@ -542,7 +541,7 @@ onMounted(async () => {
           </div>
 
           <p class="type-prose-sm text-content-muted">
-            Active sandboxes: {{ activeSandboxes }}
+            Active sandboxes: {{ demoConfig.activeSandboxes }}
           </p>
         </div>
       </div>

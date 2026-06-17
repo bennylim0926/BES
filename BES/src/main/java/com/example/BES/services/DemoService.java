@@ -204,7 +204,6 @@ public class DemoService {
     @Scheduled(fixedRate = 6 * 3600 * 1000) // every 6 hours
     public void purgeOrphanSandboxes() {
         List<Event> demos = eventRepo.findAllDemoEvents();
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
         int purged = 0;
         for (Event demo : demos) {
             // Check if there are any valid session tokens for this event
