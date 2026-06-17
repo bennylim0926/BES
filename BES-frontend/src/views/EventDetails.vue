@@ -538,10 +538,12 @@ const onFeedbackEnabledToggle = async (e) => {
   feedbackSaving.value = true
   try {
     const res = await setFeedbackEnabled(props.eventName, next)
-    if (!res?.ok) {
+    if (!res || !res.ok) {
       feedbackEnabled.value = prev
       openModal('Save Failed', `Could not update feedback setting (${res?.status ?? 'no response'}).`, 'warning')
+      return
     }
+    await loadResultsAndQr()
   } catch (err) {
     feedbackEnabled.value = prev
     console.error('setFeedbackEnabled error:', err)
@@ -1688,48 +1690,49 @@ onUnmounted(() => {
         <span class="section-rule-label">Event Settings</span>
         <div class="section-rule-line"></div>
       </div>
-      <label
-        class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit"
-        :class="feedbackEnabled ? 'border-accent' : ''"
-      >
-        <input
-          type="checkbox"
-          :checked="feedbackEnabled"
-          :disabled="feedbackSaving"
-          @change="onFeedbackEnabledToggle"
-          class="w-4 h-4"
-        />
-        <div>
-          <span class="type-body">Feedback System</span>
-          <p class="type-prose-sm mt-0.5">
-            {{ feedbackEnabled
-              ? 'Judges can submit feedback tags and notes for each participant.'
-              : 'Disabled — judges will only see the score keypad.' }}
-          </p>
-        </div>
-      </label>
+      <div class="flex flex-wrap gap-3">
+        <label
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
+          :class="feedbackEnabled ? 'border-accent' : ''"
+        >
+          <input
+            type="checkbox"
+            :checked="feedbackEnabled"
+            :disabled="feedbackSaving"
+            @change="onFeedbackEnabledToggle"
+            class="w-4 h-4"
+          />
+          <div>
+            <span class="type-body">Feedback System</span>
+            <p class="type-prose-sm mt-0.5">
+              {{ feedbackEnabled
+                ? 'Judges can submit feedback tags and notes for each participant.'
+                : 'Disabled — judges will only see the score keypad.' }}
+            </p>
+          </div>
+        </label>
 
-      <!-- Release Score toggle -->
-      <label
-        class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit mt-2"
-        :class="releaseScore ? 'border-accent' : ''"
-      >
-        <input
-          type="checkbox"
-          :checked="releaseScore"
-          :disabled="releaseScoreSaving"
-          @change="onReleaseScoreToggle"
-          class="w-4 h-4"
-        />
-        <div>
-          <span class="type-body">Release Scores</span>
-          <p class="type-prose-sm mt-0.5">
-            {{ releaseScore
-              ? 'Scores will be visible on the public results portal when results are released.'
-              : 'Disabled — only feedback will appear on results when released.' }}
-          </p>
-        </div>
-      </label>
+        <label
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
+          :class="releaseScore ? 'border-accent' : ''"
+        >
+          <input
+            type="checkbox"
+            :checked="releaseScore"
+            :disabled="releaseScoreSaving"
+            @change="onReleaseScoreToggle"
+            class="w-4 h-4"
+          />
+          <div>
+            <span class="type-body">Release Scores</span>
+            <p class="type-prose-sm mt-0.5">
+              {{ releaseScore
+                ? 'Scores will be visible on the public results portal when results are released.'
+                : 'Disabled — only feedback will appear on results when released.' }}
+            </p>
+          </div>
+        </label>
+      </div>
     </div>
 
 
