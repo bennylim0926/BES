@@ -4,6 +4,7 @@ import com.example.BES.models.*;
 import com.example.BES.respositories.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -198,6 +199,26 @@ public class DemoService {
         eventCategoryRepo.deleteAll(categories);
         // Delete event
         eventRepo.delete(event);
+    }
+
+    @Scheduled(fixedRate = 6 * 3600 * 1000) // every 6 hours
+    public void purgeOrphanSandboxes() {
+        List<Event> demos = eventRepo.findAllDemoEvents();
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+        int purged = 0;
+        for (Event demo : demos) {
+            // Check if there are any valid session tokens for this event
+            List<SessionToken> tokens = sessionTokenRepo.findByEvent_EventId(demo.getEventId());
+            boolean hasValidToken = tokens.stream().anyMatch(t ->
+                    !t.isRevoked() && t.getExpiresAt().isAfter(LocalDateTime.now()));
+            if (!hasValidToken) {
+                purgeSandbox(demo.getEventId());
+                purged++;
+            }
+        }
+        if (purged > 0) {
+            log.info("Purged {} orphan demo sandboxes", purged);
+        }
     }
 
     public int countActiveSandboxes() {
