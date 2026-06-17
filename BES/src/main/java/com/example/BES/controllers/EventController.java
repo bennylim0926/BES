@@ -210,9 +210,9 @@ public class EventController {
         return ResponseEntity.ok(Map.of("battleEnabled", enabled));
     }
 
-    @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event (admin only)")
+    @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event")
     @PostMapping("/feedback-enabled")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setFeedbackEnabled(@Valid @RequestBody UpdateFeedbackDto dto) {
         try {
             eventService.setFeedbackEnabled(dto.eventName, dto.feedbackEnabled);
