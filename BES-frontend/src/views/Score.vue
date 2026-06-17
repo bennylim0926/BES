@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsReleaseMode, setResultsReleaseMode, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
@@ -35,7 +35,7 @@ const mode = ref(initialMode)
 watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadcast')) localStorage.setItem(k, m) })
 
 // Results release state (admin/organiser only)
-const resultsReleased = ref(false)
+const resultsReleaseMode = ref('NONE')
 const refsMap = ref({}) // participantId -> { name, ref }
 
 // Criteria for the selected category (used for multi-aspect score aggregation)
@@ -114,11 +114,11 @@ const matchesEntryType = (p) => {
 // Load admin/organiser specific data for an event
 const loadAdminData = async (eventName) => {
   if (!isAdminOrOrganiser.value || !eventName) return
-  const [status, refs] = await Promise.all([
-    getResultsStatus(eventName),
+  const [modeRes, refs] = await Promise.all([
+    getResultsReleaseMode(eventName),
     getParticipantRefs(eventName)
   ])
-  resultsReleased.value = status?.released ?? false
+  resultsReleaseMode.value = modeRes?.mode ?? 'NONE'
   refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantId, { name: r.participantName, ref: r.referenceCode }]))
 }
 
@@ -150,6 +150,17 @@ const subscribeScoreUpdates = (eventName) => {
     }
   })
 }
+const subscribeReleaseMode = (eventName) => {
+  if (!wsClient.value || !eventName) return
+  subscribeToChannel(wsClient.value, `/topic/release-mode`, (msg) => {
+    try {
+      const body = typeof msg === 'string' ? JSON.parse(msg) : msg
+      if (body.eventName === eventName && body.mode) {
+        resultsReleaseMode.value = body.mode
+      }
+    } catch (_) { /* ignore malformed messages */ }
+  })
+}
 onUnmounted(() => {
   if (wsClient.value) {
     deactivateClient(wsClient.value)
@@ -171,6 +182,7 @@ watch(selectedEvent, async (newVal) => {
     await refetchScores(newVal)
     await loadAdminData(newVal)
     subscribeScoreUpdates(newVal)
+    subscribeReleaseMode(newVal)
   }
 }, { immediate: true });
 
@@ -412,14 +424,14 @@ const broadcastColumns = computed(() => {
   return n <= 12 ? '1col' : '2col'
 })
 
-// Release results toggle
-const toggleRelease = async () => {
-  const newVal = !resultsReleased.value
-  const res = await releaseResults(selectedEvent.value, newVal)
+// Results release mode control
+const MODES = ['NONE', 'SCORE_ONLY', 'FEEDBACK_ONLY', 'BOTH']
+const modeLabel = (m) => ({ NONE: 'NOT RELEASED', SCORE_ONLY: 'SCORE ONLY', FEEDBACK_ONLY: 'FEEDBACK ONLY', BOTH: 'SCORE + FEEDBACK' }[m] || m)
+const setReleaseMode = async (mode) => {
+  const res = await setResultsReleaseMode(selectedEvent.value, mode)
   if (res !== null) {
-    resultsReleased.value = newVal
-    if (newVal) {
-      // Refresh refs in case new participants were added
+    resultsReleaseMode.value = mode
+    if (mode !== 'NONE') {
       const refs = await getParticipantRefs(selectedEvent.value)
       refsMap.value = Object.fromEntries((refs || []).map(r => [r.participantId, { name: r.participantName, ref: r.referenceCode }]))
     }
@@ -617,19 +629,24 @@ function transformForScore(data) {
       </div>
       <div v-else></div>
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Release Results pill (admin/organiser only, Control mode only) -->
-        <button
+        <!-- Results Release mode selector (admin/organiser only, Control mode only) -->
+        <div
           v-if="isAdminOrOrganiser && mode === 'control'"
-          @click="toggleRelease"
-          :aria-pressed="resultsReleased"
-          class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all"
-          :class="resultsReleased
-            ? 'border-emerald-500/40 text-emerald-400'
-            : 'text-content-muted hover:text-content-primary'"
+          class="flex p-0.5 border border-surface-600 bg-surface-800/50"
+          role="group"
+          aria-label="Results release mode"
         >
-          <span class="w-1.5 h-1.5 rounded-full" :class="resultsReleased ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]' : 'bg-content-muted/40'"></span>
-          {{ resultsReleased ? 'RELEASED' : 'HIDDEN' }}
-        </button>
+          <button
+            v-for="m in MODES"
+            :key="m"
+            @click="setReleaseMode(m)"
+            :aria-pressed="resultsReleaseMode === m"
+            class="para-chip-sm px-3 py-1.5 type-label transition-all"
+            :class="resultsReleaseMode === m
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+          >{{ modeLabel(m) }}</button>
+        </div>
         <!-- Mode toggle -->
         <div class="flex p-0.5 border border-surface-600 bg-surface-800/50" role="group" aria-label="Display mode">
           <button
@@ -762,7 +779,7 @@ function transformForScore(data) {
             <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
               <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(finalRows[0].participantName)" :aria-label="`View score breakdown for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
               <button @click="viewFeedback(finalRows[0].participantName)" :aria-label="`View judge feedback for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
-              <button v-if="resultsReleased && refsMap[finalRows[0].participantId]" @click="openQR(finalRows[0].participantId, finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
+              <button v-if="resultsReleaseMode !== 'NONE' && refsMap[finalRows[0].participantId]" @click="openQR(finalRows[0].participantId, finalRows[0].participantName)" :aria-label="`Show results QR code for ${finalRows[0].participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
             </div>
             <button
               v-if="isAdminOrOrganiser"
@@ -786,7 +803,7 @@ function transformForScore(data) {
               <div v-if="isAdminOrOrganiser" class="hidden sm:flex gap-1 flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
                 <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(row.participantName)" :aria-label="`View score breakdown for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-chart-bar text-sm" aria-hidden="true"></i></button>
                 <button @click="viewFeedback(row.participantName)" :aria-label="`View judge feedback for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-accent"><i class="pi pi-comment text-sm" aria-hidden="true"></i></button>
-                <button v-if="resultsReleased && refsMap[row.participantId]" @click="openQR(row.participantId, row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
+                <button v-if="resultsReleaseMode !== 'NONE' && refsMap[row.participantId]" @click="openQR(row.participantId, row.participantName)" :aria-label="`Show results QR code for ${row.participantName}`" class="p-2 rounded text-content-muted hover:text-emerald-400"><i class="pi pi-qrcode text-sm" aria-hidden="true"></i></button>
               </div>
               <button
                 v-if="isAdminOrOrganiser"
@@ -1249,7 +1266,7 @@ function transformForScore(data) {
         <p class="type-name text-content-secondary mb-2">{{ rowActionSheet.name }}</p>
         <button v-if="topNResult.isMultiAspect" @click="viewBreakdown(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-chart-bar"></i>VIEW SCORE BREAKDOWN</button>
         <button @click="viewFeedback(rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3"><i class="pi pi-comment"></i>VIEW JUDGE FEEDBACK</button>
-        <button v-if="resultsReleased && refsMap[rowActionSheet.participantId]" @click="openQR(rowActionSheet.participantId, rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
+        <button v-if="resultsReleaseMode !== 'NONE' && refsMap[rowActionSheet.participantId]" @click="openQR(rowActionSheet.participantId, rowActionSheet.name); closeRowActions()" class="para-chip-sm type-label px-3 py-3 text-left flex items-center gap-3 text-emerald-400"><i class="pi pi-qrcode"></i>SHOW RESULTS QR</button>
         <button @click="closeRowActions" class="para-chip-sm type-label px-3 py-3 text-center text-content-muted">CANCEL</button>
       </div>
     </div>

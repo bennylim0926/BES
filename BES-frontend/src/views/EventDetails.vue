@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsStatus, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsReleaseMode, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -63,7 +63,7 @@ const addTagForGroupId = ref(null)
 const newFeedbackTagLabel = ref('')
 const editingTagId = ref(null)
 const editingTagLabel = ref('')
-const resultsReleased = ref(false)
+const resultsReleaseMode = ref('NONE')
 const qrImageUrl = ref('')
 const loadingQr = ref(false)
 const sheetCategories = ref([])
@@ -169,12 +169,12 @@ function additionalMemberCount(fmt) {
 const loadResultsAndQr = async () => {
   if (!feedbackEnabled.value || !props.eventName) return
   try {
-    const status = await getResultsStatus(props.eventName)
-    resultsReleased.value = status?.released ?? false
+    const modeRes = await getResultsReleaseMode(props.eventName)
+    resultsReleaseMode.value = modeRes?.mode ?? 'NONE'
 
     // Find this user's participant record to get their ref code
     const currentUserParticipantId = authStore.user?.participant?.participantId
-    if (currentUserParticipantId && resultsReleased.value) {
+    if (currentUserParticipantId && resultsReleaseMode.value !== 'NONE') {
       const refs = await getParticipantRefs(props.eventName)
       const userRef = refs?.find(r => String(r.participantId) === String(currentUserParticipantId))
       if (userRef) {
@@ -2383,14 +2383,14 @@ onUnmounted(() => {
         <div class="corner-bar-bl"></div>
         <div class="flex items-start gap-4">
           <!-- QR Code -->
-          <div v-if="resultsReleased && qrImageUrl" class="flex flex-col items-center gap-3">
+          <div v-if="resultsReleaseMode !== 'NONE' && qrImageUrl" class="flex flex-col items-center gap-3">
             <img :src="qrImageUrl" alt="Results QR Code" class="w-32 h-32 block" />
             <p class="type-label text-content-muted text-center">Scan to view your results</p>
           </div>
           <!-- Status Message -->
           <div class="flex-1 flex flex-col justify-center">
             <p class="type-body text-content-primary mb-2">Your Results</p>
-            <template v-if="resultsReleased">
+            <template v-if="resultsReleaseMode !== 'NONE'">
               <p v-if="qrImageUrl" class="type-prose text-content-secondary">
                 Your scores and feedback are now available. Scan the QR code with your phone to view your results instantly.
               </p>
