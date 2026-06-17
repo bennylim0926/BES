@@ -232,10 +232,34 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
 
     @Transactional
     public void resetTemplate() {
-        eventRepo.findByEventName(TEMPLATE_NAME).ifPresent(e -> {
-            log.info("Deleting demo template event for reset");
-            eventRepo.delete(e);
-        });
+        Event template = eventRepo.findByEventName(TEMPLATE_NAME).orElse(null);
+        if (template == null) return;
+        log.info("Deleting demo template event for reset: {}", template.getEventName());
+
+        // Cascade delete in correct order (same as purgeSandbox, but for template)
+        List<EventCategory> categories = eventCategoryRepo.findByEvent(template);
+        for (EventCategory cat : categories) {
+            List<EventCategoryParticipant> ecps = eventCategoryParticipantRepo.findByEventCategory(cat);
+            for (EventCategoryParticipant ecp : ecps) {
+                auditionFeedbackRepo.deleteAll(auditionFeedbackRepo.findByEventCategoryParticipant(ecp));
+                scoreRepo.deleteAll(scoreRepo.findByEventCategoryParticipant(ecp));
+            }
+            eventCategoryParticipantRepo.deleteAll(ecps);
+            scoringCriteriaRepo.deleteAll(scoringCriteriaRepo.findByEventAndEventCategory(template, cat));
+            cat.getJudges().clear();
+            eventCategoryRepo.save(cat);
+        }
+        scoringCriteriaRepo.deleteAll(scoringCriteriaRepo.findByEventAndEventCategory(template, null));
+        List<EventParticipant> eps = eventParticipantRepo.findByEvent(template);
+        eventParticipantRepo.deleteAll(eps);
+        List<Judge> eventJudges = judgeRepo.findJudgesByEventId(template.getEventId());
+        for (Judge j : eventJudges) {
+            judgeRepo.deleteEventJudge(template.getEventId(), j.getJudgeId());
+        }
+        List<SessionToken> tokens = sessionTokenRepo.findByEvent_EventId(template.getEventId());
+        sessionTokenRepo.deleteAll(tokens);
+        eventCategoryRepo.deleteAll(categories);
+        eventRepo.delete(template);
     }
 
     @Transactional
