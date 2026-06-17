@@ -1,5 +1,5 @@
 <script setup>
-import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
+import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getFeedbackTagOverrides, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -21,6 +21,11 @@ const openModal = (title, message, variant = 'info') => {
 const events = ref([])
 const images = ref([])
 const feedbackGroups = ref([])
+const feedbackOverrides = ref([]) // [{ globalGroupId, groupName, overridingEventNames[] }]
+const overridingEventsForGroup = (id) => {
+  const match = feedbackOverrides.value.find(o => o.globalGroupId === id)
+  return match?.overridingEventNames ?? []
+}
 const addGroupInput = ref('')
 const addTagInputs = ref({})  // { [groupId]: string }
 const dynamicHandler = ref(() => {})
@@ -167,6 +172,7 @@ onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
   feedbackGroups.value = await getFeedbackGroups() ?? []
+  feedbackOverrides.value = await getFeedbackTagOverrides() ?? []
   organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
@@ -254,7 +260,17 @@ onMounted(async () => {
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
-              <span class="type-name text-content-primary">{{ group.name }}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="type-name text-content-primary truncate">{{ group.name }}</span>
+                <span
+                  v-if="overridingEventsForGroup(group.id).length"
+                  class="para-chip-sm type-label text-accent shrink-0 px-2 py-0.5"
+                  :title="`Overridden in: ${overridingEventsForGroup(group.id).join(', ')}`"
+                  style="font-size: 9px; letter-spacing: 0.18em;"
+                >
+                  OVERRIDDEN IN {{ overridingEventsForGroup(group.id).length }} EVENT{{ overridingEventsForGroup(group.id).length === 1 ? '' : 'S' }}
+                </span>
+              </div>
               <button
                 @click="submitDeleteGroup(group.id)"
                 class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"

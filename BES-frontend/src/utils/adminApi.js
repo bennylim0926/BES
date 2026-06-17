@@ -114,6 +114,14 @@ export const getFeedbackGroups = async () => {
     } catch (_err) { return [] }
 }
 
+export const getFeedbackTagOverrides = async () => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/feedback-tags/overrides`, { credentials: 'include' })
+        if (res.ok) return await res.json()
+        return []
+    } catch (_err) { return [] }
+}
+
 export const addFeedbackGroup = async (name) => {
     try {
         return await fetch(`${domain}/api/v1/admin/feedback-group`, {

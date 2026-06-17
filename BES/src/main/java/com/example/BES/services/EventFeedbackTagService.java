@@ -1,5 +1,6 @@
 package com.example.BES.services;
 
+import com.example.BES.dtos.admin.FeedbackTagOverrideDto;
 import com.example.BES.dtos.event.EventFeedbackGroupDto;
 import com.example.BES.dtos.event.EventFeedbackTagDto;
 import com.example.BES.models.Event;
@@ -14,8 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -52,6 +55,40 @@ public class EventFeedbackTagService {
             byName.put(g.getName().toLowerCase(), toDto(g, SCOPE_EVENT));
         }
         return new ArrayList<>(byName.values());
+    }
+
+    /**
+     * For each global group whose name is also used by at least one event-scoped group,
+     * returns the global group id + name + list of event names that override it.
+     * Informational only — used by AdminPage to show an "Overridden in N event(s)" chip.
+     */
+    public List<FeedbackTagOverrideDto> getOverrides() {
+        List<FeedbackTagGroup> globalGroups = tagGroupRepo.findByEventIsNull();
+        Map<String, FeedbackTagGroup> globalByName = new HashMap<>();
+        for (FeedbackTagGroup g : globalGroups) {
+            globalByName.put(g.getName().toLowerCase(Locale.ROOT), g);
+        }
+
+        // Map: global group id → set of event names that override it.
+        Map<Long, List<String>> overridesByGlobalId = new LinkedHashMap<>();
+        for (FeedbackTagGroup scoped : tagGroupRepo.findAll()) {
+            if (scoped.getEvent() == null) continue;
+            FeedbackTagGroup match = globalByName.get(scoped.getName().toLowerCase(Locale.ROOT));
+            if (match == null) continue;
+            overridesByGlobalId
+                    .computeIfAbsent(match.getId(), k -> new ArrayList<>())
+                    .add(scoped.getEvent().getEventName());
+        }
+
+        List<FeedbackTagOverrideDto> result = new ArrayList<>();
+        for (Map.Entry<Long, List<String>> entry : overridesByGlobalId.entrySet()) {
+            FeedbackTagGroup global = globalGroups.stream()
+                    .filter(g -> g.getId().equals(entry.getKey()))
+                    .findFirst().orElse(null);
+            if (global == null) continue;
+            result.add(new FeedbackTagOverrideDto(global.getId(), global.getName(), entry.getValue()));
+        }
+        return result;
     }
 
     public List<EventFeedbackGroupDto> addEventScopedGroup(String eventName, String name) {
