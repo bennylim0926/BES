@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchAllFolderEvents, fetchAllEvents } from '@/utils/api'
+import { fetchAllFolderEvents, fetchAllEvents, deleteEvent } from '@/utils/api'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
@@ -12,6 +12,11 @@ const dbEvents = ref([])
 const search  = ref('')
 const router  = useRouter()
 const isAdmin = ref(false)
+const showDeleteModal = ref(false)
+const eventToDelete = ref(null)
+const deleteConfirmName = ref('')
+const deleteError = ref('')
+const deleting = ref(false)
 
 // Only one card expanded at a time (mobile)
 const expandedId = ref(null)
@@ -38,6 +43,38 @@ function activateAndGo(folderName, routeName) {
   const dbEvent = dbEvents.value.find(e => e.name === folderName)
   if (dbEvent) setActiveEvent(dbEvent.id, dbEvent.name)
   router.push({ name: routeName })
+}
+
+function openDeleteModal(event) {
+  eventToDelete.value = event
+  deleteConfirmName.value = ''
+  deleteError.value = ''
+  showDeleteModal.value = true
+  expandedId.value = null  // close the action panel
+}
+
+function closeDeleteModal() {
+  showDeleteModal.value = false
+  eventToDelete.value = null
+  deleteConfirmName.value = ''
+  deleteError.value = ''
+}
+
+async function confirmDelete() {
+  if (!eventToDelete.value || deleteConfirmName.value !== eventToDelete.value.folderName) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await deleteEvent(eventToDelete.value.folderName)
+    // Remove from local list
+    events.value = events.value.filter(e => e.folderID !== eventToDelete.value.folderID)
+    dbEvents.value = dbEvents.value.filter(e => e.name !== eventToDelete.value.folderName)
+    closeDeleteModal()
+  } catch (err) {
+    deleteError.value = err.message || 'Failed to delete event'
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -102,6 +139,7 @@ onMounted(async () => {
         @onParticipants="activateAndGo(event.folderName, 'Update Event Details')"
         @onScoreboard="activateAndGo(event.folderName, 'Score')"
         @onBattle="activateAndGo(event.folderName, 'Battle Control')"
+        @onDelete="openDeleteModal(event)"
       />
     </div>
 
@@ -122,6 +160,97 @@ onMounted(async () => {
         {{ search ? 'Try a different search term' : 'No events are available yet' }}
       </p>
     </div>
+
+    <!-- Delete Event Confirmation Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showDeleteModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style="background: rgba(0,0,0,0.8)"
+          @click.self="closeDeleteModal"
+        >
+          <div
+            class="w-full max-w-md p-6 flex flex-col gap-5"
+            style="background: #1a1a1a; border: 1px solid rgba(239,68,68,0.3); clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)"
+          >
+            <!-- Header -->
+            <div class="flex items-center gap-3">
+              <div class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" style="box-shadow: 0 0 10px rgba(239,68,68,0.7)"></div>
+              <h2 class="type-page-title text-red-400" style="font-size: 20px">DELETE EVENT</h2>
+            </div>
+
+            <!-- Warning -->
+            <div class="px-4 py-3" style="border-left: 3px solid rgba(239,68,68,0.6); background: rgba(239,68,68,0.07)">
+              <p class="type-label text-red-300/90 mb-1">This will permanently delete:</p>
+              <p class="type-prose text-red-200/70">
+                <strong class="type-name text-red-300">{{ eventToDelete?.folderName }}</strong>
+                and ALL associated data — participants, categories, scores, feedback, battle state, and session tokens.
+                This cannot be undone.
+              </p>
+            </div>
+
+            <!-- Step 1: Initial warning -->
+            <div v-if="deleteConfirmName === ''">
+              <p class="type-prose text-content-muted mb-3">Type the event name to enable deletion.</p>
+              <input
+                v-model="deleteConfirmName"
+                type="text"
+                :placeholder="eventToDelete?.folderName"
+                class="input-base w-full"
+                autofocus
+              />
+            </div>
+
+            <!-- Step 2: Name matched — ready to delete -->
+            <div v-else-if="deleteConfirmName === eventToDelete?.folderName">
+              <p class="type-label text-red-400 mb-3">✓ Name confirmed. Ready to delete.</p>
+            </div>
+
+            <!-- Error -->
+            <div
+              v-if="deleteError"
+              class="px-3 py-2 type-label text-red-300"
+              style="border-left: 3px solid rgba(239,68,68,0.5); background: rgba(239,68,68,0.08)"
+            >
+              {{ deleteError }}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <button
+                @click="closeDeleteModal"
+                class="flex-1 py-2.5 type-label border border-surface-600 text-content-muted hover:text-content-primary transition-colors"
+                style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)"
+                :disabled="deleting"
+              >CANCEL</button>
+              <button
+                @click="confirmDelete"
+                :disabled="deleteConfirmName !== eventToDelete?.folderName || deleting"
+                class="flex-1 py-2.5 type-label font-bold transition-all"
+                :class="deleteConfirmName === eventToDelete?.folderName && !deleting
+                  ? 'bg-red-600 text-white hover:bg-red-500'
+                  : 'bg-surface-700 text-content-muted cursor-not-allowed'"
+                style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)"
+              >
+                <span v-if="deleting">DELETING…</span>
+                <span v-else>DELETE EVENT</span>
+              </button>
+            </div>
+
+            <!-- Tap outside hint -->
+            <p class="type-prose-sm text-content-muted/50 text-center">Tap outside to cancel</p>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
   </div>
   </div>

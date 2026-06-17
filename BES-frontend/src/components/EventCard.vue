@@ -6,7 +6,7 @@ const props = defineProps({
   expanded:   { type: Boolean, default: false },  // controlled by parent
 })
 
-const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle'])
+const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle', 'onDelete'])
 
 const isHovered = ref(false)  // desktop only
 
@@ -16,6 +16,7 @@ const actions = [
   { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
   { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
   { key: 'onBattle',       icon: 'pi-bolt',      label: 'Battle'   },
+  { key: 'onDelete',      icon: 'pi-trash',     label: 'Delete'  },
 ]
 </script>
 
@@ -56,15 +57,17 @@ const actions = [
         style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
         @click.stop="emit('toggle')"
       >
-        <div class="grid grid-cols-5">
+        <div class="grid grid-cols-6">
           <button
             v-for="action in actions"
             :key="action.key"
             @click.stop="emit(action.key)"
-            class="flex flex-col items-center gap-1.5 py-3.5 text-content-muted
-                   hover:text-accent hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150"
+            class="flex flex-col items-center gap-1.5 py-3.5 transition-all duration-150"
+            :class="action.key === 'onDelete'
+              ? 'text-content-muted hover:text-red-400 hover:bg-red-950/30'
+              : 'text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)]'"
           >
-            <i class="pi text-base text-accent" :class="action.icon"></i>
+            <i class="pi text-base" :class="[action.icon, action.key === 'onDelete' ? '' : 'text-accent']"></i>
             <span class="type-label">{{ action.label }}</span>
           </button>
         </div>
