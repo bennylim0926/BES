@@ -26,8 +26,18 @@ public class Event {
     @Column(name = "judging_mode", length = 10)
     private String judgingMode = "SOLO";
 
-    @Column(name = "results_released")
-    private boolean resultsReleased = false;
+    @Column(name = "results_release_mode", length = 20)
+    private String resultsReleaseMode = "NONE";
+
+    /** Constants for the {@link #resultsReleaseMode} field. */
+    public static class ReleaseMode {
+        public static final String NONE = "NONE";
+        public static final String SCORE_ONLY = "SCORE_ONLY";
+        public static final String FEEDBACK_ONLY = "FEEDBACK_ONLY";
+        public static final String BOTH = "BOTH";
+
+        private ReleaseMode() {}
+    }
 
     @Column(name = "feedback_enabled")
     private boolean feedbackEnabled = true;
