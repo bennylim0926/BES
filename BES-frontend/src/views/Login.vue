@@ -34,7 +34,7 @@ onMounted(async () => {
   try {
     const config = await getAppConfig()
     demoEnabled.value = config.demoEnabled === true
-  } catch (e) {
+  } catch (_e) {
     // fallback: hide demo button if config fetch fails
     demoEnabled.value = false
   }
