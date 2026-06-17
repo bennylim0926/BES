@@ -22,6 +22,7 @@ const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 // Auth
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
+const isHelper = computed(() => userRole.value === 'ROLE_HELPER')
 
 // ── Mode toggle: Control (organiser) vs Broadcast (emcee) ─────────────────
 // Default is role-driven; user choice persists per event in localStorage.
@@ -29,7 +30,7 @@ const modeKey = computed(() => `score_mode_${selectedEvent.value || 'global'}`)
 const initialMode = (() => {
   const saved = localStorage.getItem(`score_mode_${authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || 'global'}`)
   if (saved === 'control' || saved === 'broadcast') return saved
-  return userRole.value === 'ROLE_EMCEE' ? 'broadcast' : 'control'
+  return (userRole.value === 'ROLE_EMCEE' || userRole.value === 'ROLE_HELPER') ? 'broadcast' : 'control'
 })()
 const mode = ref(initialMode)
 watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadcast')) localStorage.setItem(k, m) })
