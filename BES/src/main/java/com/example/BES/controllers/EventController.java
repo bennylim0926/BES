@@ -584,7 +584,7 @@ public class EventController {
 
     @Operation(summary = "Get Participant Scores", description = "Gets all scores for participants in a specific event")
     @GetMapping("/scores/{eventName}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE', 'HELPER')")
     public ResponseEntity<List<GetParticipatnScoreDto>> getParticipantScore(@PathVariable String eventName) {
         try {
             return new ResponseEntity<>(scoreService.getAllScore(eventName), HttpStatus.OK);
