@@ -33,7 +33,9 @@ import com.example.BES.dtos.admin.UpdateOrganiserTierDto;
 import com.example.BES.models.Account;
 import com.example.BES.models.Judge;
 import com.example.BES.dtos.admin.FeedbackTagOverrideDto;
+import com.example.BES.dtos.DemoConfigDto;
 import com.example.BES.services.AccountService;
+import com.example.BES.services.AppConfigService;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.JudgeService;
@@ -59,6 +61,9 @@ public class AdminController {
 
     @Autowired
     AccountService accountService;
+
+    @Autowired
+    AppConfigService appConfigService;
 
     // ── Feedback Tag Groups ──────────────────────────────────────────────────
 
@@ -182,6 +187,31 @@ public class AdminController {
         return ResponseEntity.ok(Map.of(
             "message", "score deleted",
             "deleted", deletedRows.toString()
+        ));
+    }
+
+    // ── Demo Config ────────────────────────────────────────────────────────────
+
+    @GetMapping("/demo/config")
+    public ResponseEntity<DemoConfigDto> getDemoConfig() {
+        return ResponseEntity.ok(new DemoConfigDto(
+                appConfigService.isDemoEnabled(),
+                appConfigService.getDemoPasscode(),
+                null
+        ));
+    }
+
+    @PostMapping("/demo/config")
+    public ResponseEntity<DemoConfigDto> updateDemoConfig(@RequestBody DemoConfigDto dto) {
+        if (dto.getRegeneratePasscode() != null && dto.getRegeneratePasscode()) {
+            String newPasscode = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            appConfigService.setDemoPasscode(newPasscode);
+        }
+        appConfigService.setDemoEnabled(dto.isDemoEnabled());
+        return ResponseEntity.ok(new DemoConfigDto(
+                appConfigService.isDemoEnabled(),
+                appConfigService.getDemoPasscode(),
+                null
         ));
     }
 }
