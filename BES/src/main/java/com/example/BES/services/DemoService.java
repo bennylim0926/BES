@@ -10,8 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class DemoService {
@@ -31,10 +29,7 @@ public class DemoService {
     private final AuditionFeedbackRepository auditionFeedbackRepo;
     private final SessionTokenRepository sessionTokenRepo;
 
-    // IP rate limiting: map of IP to list of timestamps
-    private final ConcurrentHashMap<String, List<LocalDateTime>> ipRequestLog = new ConcurrentHashMap<>();
-
-    public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
+public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
                        EventParticipantRepo eventParticipantRepo,
                        EventCategoryParticipantRepo eventCategoryParticipantRepo,
                        JudgeRepo judgeRepo, ScoringCriteriaRepo scoringCriteriaRepo,
@@ -53,9 +48,6 @@ public class DemoService {
 
     @Transactional
     public CloneResult cloneTemplate(String role, String clientIp) {
-        // Rate limit: max 3 per IP per 24h
-        checkIpRateLimit(clientIp);
-
         // Limit concurrent sandboxes
         long active = eventRepo.findAllDemoEvents().size();
         if (active >= MAX_CONCURRENT_SANDBOXES) {
@@ -151,9 +143,6 @@ public class DemoService {
             }
         }
         token = sessionTokenRepo.save(token);
-
-        // Record this IP request
-        ipRequestLog.computeIfAbsent(clientIp, k -> new CopyOnWriteArrayList<>()).add(LocalDateTime.now());
 
         log.info("Demo sandbox created: {} for role {}", cloneName, role);
 
@@ -282,15 +271,6 @@ public class DemoService {
             }
         }
         return sessionTokenRepo.save(token);
-    }
-
-    private void checkIpRateLimit(String ip) {
-        List<LocalDateTime> timestamps = ipRequestLog.getOrDefault(ip, Collections.emptyList());
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
-        long recent = timestamps.stream().filter(t -> t.isAfter(cutoff)).count();
-        if (recent >= 3) {
-            throw new DemoRateLimitException("Demo limit reached for today. Try again later.");
-        }
     }
 
     private Event cloneEvent(Event template, String newName) {
