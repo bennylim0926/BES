@@ -1,8 +1,10 @@
 package com.example.BES.respositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,4 +18,14 @@ public interface EventRepo extends JpaRepository<Event, Long>{
     @Query("SELECT e FROM Event e WHERE LOWER(e.eventName) = LOWER(:eventName)")
     Optional<Event> findByEventNameIgnoreCase(@Param("eventName") String eventName);
 
+    @Query("SELECT e FROM Event e WHERE e.eventName LIKE 'Kyrove Demo-%'")
+    List<Event> findAllDemoEvents();
+
+    @Modifying
+    @Query("DELETE FROM Event e WHERE e.eventName LIKE 'Kyrove Demo-%'")
+    int deleteAllDemoEvents();
+
+    @Modifying
+    @Query("DELETE FROM Event e WHERE e.eventName = :eventName")
+    void deleteByEventName(@Param("eventName") String eventName);
 }

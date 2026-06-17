@@ -14,4 +14,6 @@ public interface SessionTokenRepository extends JpaRepository<SessionToken, Stri
         Long eventId, String role, LocalDateTime now);
 
     List<SessionToken> findByEvent_EventIdAndRevokedFalse(Long eventId);
+
+    List<SessionToken> findByEvent_EventId(Long eventId);
 }
