@@ -89,7 +89,7 @@ public class DemoDataSeeder {
             judgeRepo.insertEventJudge(event.getEventId(), judge.getJudgeId());
         }
         for (EventCategory cat : categories) {
-            cat.setJudges(Arrays.asList(judges));
+            cat.setJudges(new ArrayList<>(Arrays.asList(judges)));
             eventCategoryRepo.save(cat);
         }
 
