@@ -22,10 +22,6 @@ public interface EventRepo extends JpaRepository<Event, Long>{
     List<Event> findAllDemoEvents();
 
     @Modifying
-    @Query("DELETE FROM Event e WHERE e.eventName LIKE 'Kyrove Demo-%'")
-    int deleteAllDemoEvents();
-
-    @Modifying
     @Query("DELETE FROM Event e WHERE e.eventName = :eventName")
     void deleteByEventName(@Param("eventName") String eventName);
 }

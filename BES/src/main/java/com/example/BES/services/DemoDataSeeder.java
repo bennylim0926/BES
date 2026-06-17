@@ -25,16 +25,16 @@ public class DemoDataSeeder {
     private final JudgeRepo judgeRepo;
     private final ScoringCriteriaRepo scoringCriteriaRepo;
     private final ScoreRepo scoreRepo;
-    private final AuditionFeedbackRepo auditionFeedbackRepo;
-    private final FeedbackTagRepo feedbackTagRepo;
-    private final FeedbackTagGroupRepo feedbackTagGroupRepo;
+    private final AuditionFeedbackRepository auditionFeedbackRepo;
+    private final FeedbackTagRepository feedbackTagRepo;
+    private final FeedbackTagGroupRepository feedbackTagGroupRepo;
 
     public DemoDataSeeder(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
                           ParticipantRepo participantRepo, EventParticipantRepo eventParticipantRepo,
                           EventCategoryParticipantRepo eventCategoryParticipantRepo,
                           JudgeRepo judgeRepo, ScoringCriteriaRepo scoringCriteriaRepo,
-                          ScoreRepo scoreRepo, AuditionFeedbackRepo auditionFeedbackRepo,
-                          FeedbackTagRepo feedbackTagRepo, FeedbackTagGroupRepo feedbackTagGroupRepo) {
+                          ScoreRepo scoreRepo, AuditionFeedbackRepository auditionFeedbackRepo,
+                          FeedbackTagRepository feedbackTagRepo, FeedbackTagGroupRepository feedbackTagGroupRepo) {
         this.eventRepo = eventRepo;
         this.eventCategoryRepo = eventCategoryRepo;
         this.participantRepo = participantRepo;

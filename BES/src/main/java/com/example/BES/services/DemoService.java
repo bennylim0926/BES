@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class DemoService {
@@ -21,7 +22,6 @@ public class DemoService {
 
     private final EventRepo eventRepo;
     private final EventCategoryRepo eventCategoryRepo;
-    private final ParticipantRepo participantRepo;
     private final EventParticipantRepo eventParticipantRepo;
     private final EventCategoryParticipantRepo eventCategoryParticipantRepo;
     private final JudgeRepo judgeRepo;
@@ -29,20 +29,18 @@ public class DemoService {
     private final ScoreRepo scoreRepo;
     private final AuditionFeedbackRepository auditionFeedbackRepo;
     private final SessionTokenRepository sessionTokenRepo;
-    private final AppConfigService appConfigService;
 
     // IP rate limiting: map of IP to list of timestamps
     private final ConcurrentHashMap<String, List<LocalDateTime>> ipRequestLog = new ConcurrentHashMap<>();
 
     public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
-                       ParticipantRepo participantRepo, EventParticipantRepo eventParticipantRepo,
+                       EventParticipantRepo eventParticipantRepo,
                        EventCategoryParticipantRepo eventCategoryParticipantRepo,
                        JudgeRepo judgeRepo, ScoringCriteriaRepo scoringCriteriaRepo,
                        ScoreRepo scoreRepo, AuditionFeedbackRepository auditionFeedbackRepo,
-                       SessionTokenRepository sessionTokenRepo, AppConfigService appConfigService) {
+                       SessionTokenRepository sessionTokenRepo) {
         this.eventRepo = eventRepo;
         this.eventCategoryRepo = eventCategoryRepo;
-        this.participantRepo = participantRepo;
         this.eventParticipantRepo = eventParticipantRepo;
         this.eventCategoryParticipantRepo = eventCategoryParticipantRepo;
         this.judgeRepo = judgeRepo;
@@ -50,7 +48,6 @@ public class DemoService {
         this.scoreRepo = scoreRepo;
         this.auditionFeedbackRepo = auditionFeedbackRepo;
         this.sessionTokenRepo = sessionTokenRepo;
-        this.appConfigService = appConfigService;
     }
 
     @Transactional
@@ -155,13 +152,14 @@ public class DemoService {
         token = sessionTokenRepo.save(token);
 
         // Record this IP request
-        ipRequestLog.computeIfAbsent(clientIp, k -> new ArrayList<>()).add(LocalDateTime.now());
+        ipRequestLog.computeIfAbsent(clientIp, k -> new CopyOnWriteArrayList<>()).add(LocalDateTime.now());
 
         log.info("Demo sandbox created: {} for role {}", cloneName, role);
 
         return new CloneResult(clone, token);
     }
 
+    @Transactional
     public void purgeSandbox(Long eventId) {
         Event event = eventRepo.findById(eventId).orElse(null);
         if (event == null || !event.getEventName().startsWith(CLONE_PREFIX)) {
