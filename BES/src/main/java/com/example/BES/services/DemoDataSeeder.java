@@ -194,8 +194,23 @@ public class DemoDataSeeder {
             }
         }
 
-        // 9. Pre-fill feedback on ~30% of scored participants
+        // 9. Seed default feedback tag groups + tags if none exist
         List<FeedbackTag> allTags = feedbackTagRepo.findAll();
+        if (allTags.isEmpty()) {
+            FeedbackTagGroup technique = createTagGroup(event, "Technique");
+            FeedbackTagGroup performance = createTagGroup(event, "Performance");
+            createTag(technique, event, "Musicality");
+            createTag(technique, event, "Foundation");
+            createTag(technique, event, "Originality");
+            createTag(technique, event, "Control");
+            createTag(performance, event, "Stage Presence");
+            createTag(performance, event, "Confidence");
+            createTag(performance, event, "Showmanship");
+            createTag(performance, event, "Dynamics");
+            allTags = feedbackTagRepo.findAll();
+        }
+
+        // 10. Pre-fill feedback on ~30% of scored participants
         if (!allTags.isEmpty()) {
             for (Judge judge : judges) {
                 for (int i = 0; i < hipHopECPs.size(); i += 6) { // every 6th
@@ -258,6 +273,21 @@ public class DemoDataSeeder {
         score.setAspect(aspect);
         score.setValue(value);
         scoreRepo.save(score);
+    }
+
+    private FeedbackTagGroup createTagGroup(Event event, String name) {
+        FeedbackTagGroup group = new FeedbackTagGroup();
+        group.setName(name);
+        group.setEvent(event);
+        return feedbackTagGroupRepo.save(group);
+    }
+
+    private void createTag(FeedbackTagGroup group, Event event, String label) {
+        FeedbackTag tag = new FeedbackTag();
+        tag.setLabel(label);
+        tag.setGroup(group);
+        tag.setEvent(event);
+        feedbackTagRepo.save(tag);
     }
 
     private void createFeedback(EventCategoryParticipant ecp, Judge judge,
