@@ -31,9 +31,12 @@ npm run test:coverage # With coverage
 ### Docker (from root)
 
 ```bash
-docker-compose up --build --no-cache   # Build and start all services (always use --no-cache)
+docker compose up -d --build           # Default rebuild — reuses Maven/npm dep layers, fast
+docker compose up -d --build --no-cache  # Only when pom.xml / package.json / Dockerfile change, or stale layer suspected
 # backend → port 5050, frontend → ports 80/443, postgres → port 5433
 ```
+
+Avoid reflex `--no-cache` — it writes new cache layers every time and bloats disk (~1 GB per rebuild). The multi-stage Dockerfile already invalidates the Maven dep layer when `pom.xml` changes. Tear down with `docker compose down --rmi local` so old images don't pile up as `<none>` tags. Run `docker container prune -f && docker image prune -f && docker builder prune -f --filter "until=72h"` weekly (or alias to `dclean`) to keep Docker storage under control.
 
 ### Environment Setup
 
