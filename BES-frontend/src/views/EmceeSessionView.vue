@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { whoami, getCategoriesByEvent } from '@/utils/api'
+import { whoami, getCategoriesByEvent, claimEmceeCategory, getActiveEmceeCategories } from '@/utils/api'
+import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -14,6 +15,9 @@ const sessionError = ref(false)
 
 const showCategoryPicker = ref(false)
 const categories = ref([])
+const activeEmceeCategories = ref(new Set())
+
+let wsClient = null
 
 onMounted(async () => {
   // Clear any previously selected category so emcee always picks fresh
@@ -35,7 +39,18 @@ onMounted(async () => {
   if (authStore.activeEvent?.name) {
     authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
     categories.value = await getCategoriesByEvent(authStore.activeEvent.name) ?? []
+    const active = await getActiveEmceeCategories(authStore.activeEvent.name)
+    activeEmceeCategories.value = new Set(active)
+
+    wsClient = createClient()
+    subscribeToChannel(wsClient, `/topic/emcee/active-categories/${authStore.activeEvent.name}`, (msg) => {
+      activeEmceeCategories.value = new Set(msg.categories ?? [])
+    })
   }
+})
+
+onUnmounted(() => {
+  if (wsClient) deactivateClient(wsClient)
 })
 
 const ALL_LINKS = [
@@ -56,13 +71,20 @@ function handleNavClick(link) {
   }
 }
 
-function selectCategory(categoryName) {
+async function selectCategory(categoryName) {
   if (!sessionReady.value) {
     sessionError.value = true
     return
   }
+  if (activeEmceeCategories.value.has(categoryName)) {
+    const ok = window.confirm(
+      `"${categoryName}" is already being run by another emcee right now.\n\nContinue anyway? Joining will not disrupt scores, but two emcees on the same category can confuse the flow.`
+    )
+    if (!ok) return
+  }
   localStorage.setItem('selectedCategory', categoryName)
   localStorage.setItem('selectedRole', 'Emcee')
+  await claimEmceeCategory(eventName.value, categoryName)
   router.push({ name: 'Audition List' })
 }
 </script>
@@ -111,7 +133,10 @@ function selectCategory(categoryName) {
             class="category-btn"
           >
             <span class="category-btn-name">{{ cat.name }}</span>
-            <i class="pi pi-chevron-right category-btn-arrow" aria-hidden="true"></i>
+            <div class="category-btn-right">
+              <span v-if="activeEmceeCategories.has(cat.name)" class="category-active-badge">ACTIVE</span>
+              <i class="pi pi-chevron-right category-btn-arrow" aria-hidden="true"></i>
+            </div>
           </button>
           <div v-if="categories.length === 0" class="empty-text">No categories found for this event.</div>
         </div>
@@ -145,12 +170,13 @@ function selectCategory(categoryName) {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: #111111;
   font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
-  padding: 16px;
+  padding: 32px 16px;
+  overflow-y: auto;
 }
 
 .color-bleed {
@@ -308,7 +334,17 @@ function selectCategory(categoryName) {
   background: var(--accent-subtle, rgba(255,255,255,0.04));
 }
 .category-btn-name { flex: 1; text-align: left; }
+.category-btn-right { display: flex; align-items: center; gap: 8px; }
 .category-btn-arrow { font-size: 10px; opacity: 0.4; }
+.category-active-badge {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: rgba(245,158,11,0.9);
+  border: 1px solid rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.08);
+  padding: 2px 6px;
+  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
+}
 
 .session-error-banner {
   display: flex;

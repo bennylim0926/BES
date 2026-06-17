@@ -1627,3 +1627,25 @@ export const setOrganiserTier = async (accountId, tier) => {
     return null
   }
 }
+
+export const claimEmceeCategory = async (eventName, categoryName) => {
+  try {
+    await fetch(`${domain}/api/v1/emcee/active-category`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, categoryName })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getActiveEmceeCategories = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/emcee/active-categories?eventName=${encodeURIComponent(eventName)}`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.from(data.categories ?? [])
+  } catch (e) { console.error(e); return [] }
+}

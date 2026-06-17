@@ -1,10 +1,10 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, claimEmceeCategory, getActiveEmceeCategories } from '@/utils/api';
 import { getFeedbackGroups } from '@/utils/adminApi';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { RouterLink, useRouter, onBeforeRouteLeave } from 'vue-router';
+import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import ActionDoneModal from './ActionDoneModal.vue';
 import FeedbackPopout from '@/components/FeedbackPopout.vue';
 import { useAuthStore } from '@/utils/auth';
@@ -30,6 +30,7 @@ const eventDivisions = ref([]) // { eventCategoryId, name } for current event â€
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
 const isEmcee = ref(false)
+const activeEmceeCategories = ref(new Set())
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -562,6 +563,18 @@ const showFilters = ref(false)
 const scoreError = ref('')
 const hasActiveSession = computed(() => !!selectedCategory.value && !!selectedRole.value)
 const router = useRouter()
+const route = useRoute()
+
+function pickEmceeCategory(name) {
+  if (activeEmceeCategories.value.has(name)) {
+    const ok = window.confirm(
+      `"${name}" is already being run by another emcee right now.\n\nContinue anyway? Joining will not disrupt scores, but two emcees on the same category can confuse the flow.`
+    )
+    if (!ok) return
+  }
+  selectedCategory.value = name
+  claimEmceeCategory(selectedEvent.value, name)
+}
 const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judgeId)
 
 const wsClients = []
@@ -594,6 +607,14 @@ onBeforeRouteLeave(() => {
   return new Promise(resolve => setTimeout(resolve, 300))
 })
 
+// When the chip nav sends picker=1 while already mounted, reset the category
+watch(() => route.query.picker, (val) => {
+  if (val === '1' && isEmcee.value) {
+    selectedCategory.value = ""
+    router.replace({ name: 'Audition List', query: {} })
+  }
+})
+
 onUnmounted(() => {
   wsClients.forEach(c => deactivateClient(c));
   [document.documentElement, document.body].forEach(el => {
@@ -607,6 +628,16 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await dynamicRole()
+  // If the chip nav sent us here with picker=1, reset any auto-selected category so the picker shows
+  if (isEmcee.value && route.query.picker === '1') {
+    selectedCategory.value = ""
+    router.replace({ name: 'Audition List', query: {} })
+  }
+  // Load active emcee categories for the picker warning
+  if (isEmcee.value && selectedEvent.value) {
+    const active = await getActiveEmceeCategories(selectedEvent.value)
+    activeEmceeCategories.value = new Set(active)
+  }
   const [groupRes, divRes] = await Promise.all([getFeedbackGroups(), getCategoriesByEvent(selectedEvent.value)])
   tagGroups.value = groupRes ?? []
   eventDivisions.value = divRes ?? []
@@ -618,6 +649,14 @@ onMounted(async () => {
     const stopOnce = watch(participants, (list) => {
       if (list.length > 0) { loadFeedbackGiven(); stopOnce() }
     }, { immediate: true })
+  }
+
+  if (isEmcee.value && selectedEvent.value) {
+    const cEmcee = createClient()
+    wsClients.push(cEmcee)
+    subscribeToChannel(cEmcee, `/topic/emcee/active-categories/${selectedEvent.value}`, (msg) => {
+      activeEmceeCategories.value = new Set(msg.categories ?? [])
+    })
   }
 
   const c1 = createClient()
@@ -929,11 +968,18 @@ onMounted(async () => {
         <button
           v-for="div in eventDivisions"
           :key="div.eventCategoryId"
-          @click="selectedCategory = div.name"
+          @click="pickEmceeCategory(div.name)"
           class="w-full para-chip px-4 py-3.5 flex items-center justify-between type-name text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150"
         >
           <span>{{ div.name }}</span>
-          <i class="pi pi-chevron-right text-xs text-content-muted" aria-hidden="true"></i>
+          <div class="flex items-center gap-2">
+            <span
+              v-if="activeEmceeCategories.has(div.name)"
+              class="text-[9px] tracking-[0.14em] text-amber-300/90 border border-amber-400/40 bg-amber-400/8 px-1.5 py-0.5"
+              style="clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
+            >ACTIVE</span>
+            <i class="pi pi-chevron-right text-xs text-content-muted" aria-hidden="true"></i>
+          </div>
         </button>
         <div v-if="eventDivisions.length === 0" class="type-prose text-content-muted text-center py-4">
           No categories found for this event.

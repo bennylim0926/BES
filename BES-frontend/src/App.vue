@@ -93,6 +93,8 @@ function goToSection(routeName) {
   panelOpen.value = false
   if (routeName === 'Audition List' && isEmceeRole.value) {
     localStorage.removeItem('selectedCategory')
+    router.push({ name: routeName, query: { picker: '1' } })
+    return
   }
   router.push({ name: routeName })
 }

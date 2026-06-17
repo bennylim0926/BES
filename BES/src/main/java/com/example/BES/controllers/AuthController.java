@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.BES.config.SecurityConfig;
 import com.example.BES.services.AccountService;
 import com.example.BES.services.ActiveSessionStore;
+import com.example.BES.services.EmceeCategoryStore;
 import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
@@ -60,10 +61,13 @@ public class AuthController {
     private ActiveSessionStore activeSessionStore;
 
     @Autowired
+    private EmceeCategoryStore emceeCategoryStore;
+
+    @Autowired
     private AccountService accountService;
 
     private static final java.util.Set<String> UNLIMITED_ROLES =
-        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER");
+        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE");
 
     @Operation(summary = "Debug Session", description = "Returns current session ID and authentication context for debugging")
     @GetMapping("/debug-session")
@@ -157,7 +161,10 @@ public class AuthController {
     @PostMapping("/heartbeat")
     public ResponseEntity<?> heartbeat(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session != null) activeSessionStore.heartbeat(session.getId());
+        if (session != null) {
+            activeSessionStore.heartbeat(session.getId());
+            emceeCategoryStore.heartbeat(session.getId());
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -183,7 +190,7 @@ public class AuthController {
             String role = token.getRole();
             String roleAuthority = "ROLE_" + role;
 
-            boolean isUnlimitedToken = roleAuthority.equals("ROLE_ADMIN") || roleAuthority.equals("ROLE_HELPER");
+            boolean isUnlimitedToken = UNLIMITED_ROLES.contains(roleAuthority);
             if (!isUnlimitedToken && activeSessionStore.isActive(username)) {
                 HttpSession existingSession = request.getSession(false);
                 String registeredId = activeSessionStore.getSessionId(username);

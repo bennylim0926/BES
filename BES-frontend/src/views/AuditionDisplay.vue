@@ -160,6 +160,7 @@ onUnmounted(() => {
       <div class="corner-bar-tl"></div>
       <div class="corner-bar-bl"></div>
       <span class="type-label text-content-muted" style="font-size:14px;letter-spacing:0.22em">{{ eventLabel }}</span>
+      <span v-if="selectedCategory" class="type-label text-accent" style="font-size:18px;letter-spacing:0.18em;margin-top:4px">{{ selectedCategory }}</span>
       <span class="type-stat text-accent" style="font-size: clamp(48px,8vw,80px);margin-top:12px">STANDBY</span>
       <span class="type-label text-content-muted" style="margin-top:8px">
         {{ selectedCategory ? 'AWAITING AUDITION START' : 'SELECT A CATEGORY TO BEGIN' }}
