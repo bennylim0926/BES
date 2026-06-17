@@ -59,18 +59,45 @@ public class DemoController {
                     .body(Map.of("error", "Invalid role. Must be EMCEE, JUDGE, or HELPER."));
         }
 
-        // 4. Clone template
-        String clientIp = httpRequest.getRemoteAddr();
-        DemoService.CloneResult result;
-        try {
-            result = demoService.cloneTemplate(role, clientIp);
-        } catch (DemoService.DemoRateLimitException e) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("error", e.getMessage()));
+        // 4. Check for existing demo session — reuse sandbox if one exists
+        HttpSession existingSession = httpRequest.getSession(false);
+        String existingEventName = null;
+        Long existingEventId = null;
+        if (existingSession != null) {
+            try {
+                existingEventName = (String) existingSession.getAttribute("eventName");
+                existingEventId = (Long) existingSession.getAttribute("eventId");
+            } catch (IllegalStateException e) {
+                // session already invalidated
+            }
+        }
+
+        SessionToken token;
+        Long eventId;
+        String eventName;
+
+        if (existingEventName != null && existingEventName.startsWith("Kyrove Demo-") && existingEventId != null) {
+            // Reuse existing sandbox — just create a new token for the new role
+            log.info("Reusing existing demo sandbox {} for role {}", existingEventName, role);
+            token = demoService.createTokenForExistingSandbox(existingEventId, role);
+            eventId = existingEventId;
+            eventName = existingEventName;
+        } else {
+            // No existing demo session — clone a fresh sandbox
+            String clientIp = httpRequest.getRemoteAddr();
+            DemoService.CloneResult result;
+            try {
+                result = demoService.cloneTemplate(role, clientIp);
+            } catch (DemoService.DemoRateLimitException e) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", e.getMessage()));
+            }
+            token = result.token;
+            eventId = result.event.getEventId();
+            eventName = result.event.getEventName();
         }
 
         // 5. Create session and authenticate (same pattern as AuthController.token)
-        SessionToken token = result.token;
         String username = "token:" + token.getTokenId();
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 username, null,
@@ -82,8 +109,8 @@ public class DemoController {
 
         HttpSession session = httpRequest.getSession(true);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-        session.setAttribute("eventId", result.event.getEventId());
-        session.setAttribute("eventName", result.event.getEventName());
+        session.setAttribute("eventId", eventId);
+        session.setAttribute("eventName", eventName);
 
         if (token.getJudge() != null) {
             session.setAttribute("judgeId", token.getJudge().getJudgeId());
@@ -94,14 +121,14 @@ public class DemoController {
         DemoStartResponseDto response = new DemoStartResponseDto();
         response.setAuthenticated(true);
         response.setRole(role);
-        response.setEventId(result.event.getEventId());
-        response.setEventName(result.event.getEventName());
+        response.setEventId(eventId);
+        response.setEventName(eventName);
         if (token.getJudge() != null) {
             response.setJudgeId(token.getJudge().getJudgeId());
             response.setJudgeName(token.getJudge().getName());
         }
 
-        log.info("Demo session started: {} as {}", result.event.getEventName(), role);
+        log.info("Demo session started: {} as {}", eventName, role);
         return ResponseEntity.ok(response);
     }
 }

@@ -50,6 +50,8 @@ function submitPasscode() {
 async function startDemoSession(role) {
   try {
     const result = await startDemo(passcode.value, role)
+    // Populate auth store before navigation so router guard sees authenticated user
+    await authStore.fetchUser()
     // Route to the appropriate session view
     const roleRoutes = {
       EMCEE: '/emcee/session',

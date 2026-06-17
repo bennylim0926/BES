@@ -224,6 +224,32 @@ public class DemoService {
         return eventRepo.findAllDemoEvents().size();
     }
 
+    /**
+     * Create a new session token for a different role in an existing demo sandbox.
+     * Does NOT create a new sandbox and does NOT count against IP rate limits.
+     */
+    @Transactional
+    public SessionToken createTokenForExistingSandbox(Long eventId, String role) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new IllegalStateException("Demo sandbox not found"));
+        if (!event.getEventName().startsWith(CLONE_PREFIX)) {
+            throw new IllegalArgumentException("Not a demo event");
+        }
+
+        SessionToken token = new SessionToken();
+        token.setTokenId(UUID.randomUUID().toString());
+        token.setRole(role);
+        token.setEvent(event);
+        token.setExpiresAt(LocalDateTime.now().plusDays(1));
+        if ("JUDGE".equals(role)) {
+            List<Judge> judges = judgeRepo.findJudgesByEventId(event.getEventId());
+            if (!judges.isEmpty()) {
+                token.setJudge(judges.get(new Random().nextInt(judges.size())));
+            }
+        }
+        return sessionTokenRepo.save(token);
+    }
+
     private void checkIpRateLimit(String ip) {
         List<LocalDateTime> timestamps = ipRequestLog.getOrDefault(ip, Collections.emptyList());
         LocalDateTime cutoff = LocalDateTime.now().minusHours(24);

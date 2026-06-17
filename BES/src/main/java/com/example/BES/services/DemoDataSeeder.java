@@ -143,20 +143,47 @@ public class DemoDataSeeder {
             poppingECPs.add(createECP(event, popping, p, i - 9, "1v1"));
         }
 
-        // 8. Pre-fill scores (~50% of participants scored per category per judge)
-        // Hip Hop: judges score participants at even indices (0,2,4,...,18) = 10 scored
-        // Popping: judges score participants at odd indices in the popping list = 10 scored
-        for (Judge judge : judges) {
-            for (int i = 0; i < hipHopECPs.size(); i += 2) {
-                double scoreVal = 5.0 + rng.nextDouble() * 4.5; // 5.0-9.5
-                createScore(hipHopECPs.get(i), judge, null, Math.round(scoreVal * 10.0) / 10.0);
+        // 8. Pre-fill scores with intentional tie scenarios
+        //
+        // Hip Hop (20 participants, single-score, default judging):
+        // All 3 judges give the same score per participant (so average = that score).
+        // Design: 4-way tie at the Top 16 cutoff (positions 14-17 all scored 7.5),
+        // and a 2-way tie at the Top 8 boundary (positions 7-8 both scored 8.3).
+        double[] hipHopScores = {
+            9.5, 9.3, 9.1, 8.9, 8.7,   // #1-5: clear leaders
+            8.5, 8.3, 8.3,              // #6-8: tie at #7-8 (Top 8 boundary)
+            8.0, 7.9, 7.8, 7.7, 7.6,   // #9-13
+            7.5, 7.5, 7.5, 7.5,        // #14-17: 4-way tie (Top 16 boundary!)
+            7.0, 6.5, 6.0               // #18-20
+        };
+        for (int i = 0; i < hipHopECPs.size(); i++) {
+            double scoreVal = hipHopScores[i];
+            for (Judge judge : judges) {
+                createScore(hipHopECPs.get(i), judge, null, scoreVal);
             }
+        }
+
+        // Popping (20 participants, multi-criteria: Musicality, Technique, Originality):
+        // Score 10 participants (odd indices in ECP list: 1,3,5,...,19).
+        // Create a tie at Top 8: positions 7-9 all total ~22.5 (avg 7.5 per aspect).
+        double[][] poppingTotals = {
+            {9.0, 9.0, 9.0}, {8.5, 8.5, 8.5}, {8.0, 8.5, 8.0}, {8.0, 8.0, 8.0}, {7.5, 8.0, 7.5}, // scored #1-5
+            {7.5, 7.5, 7.5}, {7.5, 7.5, 7.5}, {7.5, 7.5, 7.5},                                     // scored #6-8: 3-way tie
+            {7.0, 7.5, 7.0}, {6.5, 7.0, 6.5}                                                         // scored #9-10
+        };
+        for (Judge judge : judges) {
+            int scoredIdx = 0;
             for (int i = 1; i < poppingECPs.size(); i += 2) {
-                // For Popping, create 3 aspect scores per scored participant
-                EventCategoryParticipant ecp = poppingECPs.get(i);
-                createScore(ecp, judge, "Musicality", 5.0 + rng.nextDouble() * 4.5);
-                createScore(ecp, judge, "Technique", 5.0 + rng.nextDouble() * 4.5);
-                createScore(ecp, judge, "Originality", 5.0 + rng.nextDouble() * 4.5);
+                if (scoredIdx < poppingTotals.length) {
+                    EventCategoryParticipant ecp = poppingECPs.get(i);
+                    double[] aspects = poppingTotals[scoredIdx];
+                    // Add small judge-specific variation so scores differ slightly per judge
+                    double judgeOffset = (judge.getJudgeId() % 3) * 0.1;
+                    createScore(ecp, judge, "Musicality", Math.round((aspects[0] + judgeOffset) * 10.0) / 10.0);
+                    createScore(ecp, judge, "Technique", Math.round((aspects[1] + judgeOffset) * 10.0) / 10.0);
+                    createScore(ecp, judge, "Originality", Math.round((aspects[2] + judgeOffset) * 10.0) / 10.0);
+                }
+                scoredIdx++;
             }
         }
 
