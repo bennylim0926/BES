@@ -146,29 +146,51 @@ If no unmerged siblings are found: proceed to Step 3 silently.
 
 ## Step 3 — Rebuild Affected Docker Containers
 
-**Targeted rebuild (preferred — faster)**
+### When to use `--no-cache`
+
+**Default: plain `--build`.** The multi-stage Dockerfiles already invalidate dependency layers when their inputs (`pom.xml`, `package.json`) change. Docker's content-hash caching is reliable — trust it.
+
+Only add `--no-cache` when ONE of these is true:
+- `pom.xml` was modified this session
+- `package.json` or `package-lock.json` was modified this session
+- Any `Dockerfile` was modified this session
+- A previous build produced unexpected behavior and you suspect a stale layer (rare)
+
+Reflex `--no-cache` writes ~1 GB of new BuildKit cache every rebuild that will never be reused — disk climbs from ~5 GB steady-state to 40+ GB within weeks.
+
+### Targeted rebuild (preferred — faster)
+
 ```bash
-# frontend and/or backend: always --no-cache (code changes must not be stale)
-docker compose stop <service>
-docker compose rm -f <service>
+# Default — fast rebuild, reuses dependency layers
+docker compose up -d --build <service>
+```
+
+If a `--no-cache` trigger applies (see above):
+```bash
 docker compose build --no-cache <service>
 docker compose up -d <service>
 ```
 
-**Database container — use cache unless DB files changed**
+### Database container
+
 ```bash
-# DB image rarely changes; only use --no-cache if migration files,
-# docker-compose.yml DB section, or init scripts were modified.
-docker compose stop db
-docker compose rm -f db
-docker compose build db          # no --no-cache (PostgreSQL image is large)
-docker compose up -d db
+# DB image rarely changes — let cache do its job.
+# Only rebuild when migration files, docker-compose.yml DB section, or init scripts were modified.
+docker compose up -d --build db
 ```
 
-**Full rebuild (shared layer changed — e.g. docker-compose.yml, root .env)**
+### Full rebuild (shared layer changed — e.g. docker-compose.yml, root .env)
+
 ```bash
-docker compose down
-docker compose build --no-cache frontend backend   # skip --no-cache for db
+# Teardown with --rmi local so old images don't pile up as <none> dangling tags.
+docker compose down --rmi local --remove-orphans
+docker compose up -d --build
+```
+
+If `--no-cache` is also warranted (pom.xml / package.json / Dockerfile changed):
+```bash
+docker compose down --rmi local --remove-orphans
+docker compose build --no-cache frontend backend
 docker compose build db
 docker compose up -d
 ```
@@ -248,6 +270,37 @@ Always output a status block in this format:
 
 ---
 
+## Step 6 — Disk Hygiene (run after successful verify if disk is heavy)
+
+After Step 5 reports green, check Docker's disk usage:
+
+```bash
+docker system df
+```
+
+If **reclaimable** exceeds ~5 GB for images or ~10 GB for build cache, clean up:
+
+```bash
+docker container prune -f
+docker image prune -f
+docker builder prune -f --filter "until=72h"   # keep last 3 days of cache
+```
+
+Or, if the user has the `dclean` alias configured, just suggest running it:
+
+```bash
+dclean
+```
+
+Do **not** run `docker system prune --volumes` from this skill — that wipes the Postgres data volume. Volume cleanup must be an explicit user request.
+
+When to volunteer cleanup vs stay quiet:
+- ✅ Volunteer when `docker system df` shows reclaimable > 10 GB
+- ✅ Volunteer when the build was slow due to disk pressure (extraction errors, "no space" warnings in logs)
+- ❌ Stay quiet on routine rebuilds with healthy disk usage
+
+---
+
 ## Auto-Trigger Checklist (for the agent)
 
 Before responding after any code change, silently run through this:
@@ -270,7 +323,10 @@ to save time; a broken Docker build is worse than a slower response.
 | Spring Boot fails in Docker but passed locally | Check: missing `COPY target/*.jar` in Dockerfile, wrong `SPRING_PROFILES_ACTIVE`, DB URL env var not set |
 | Vue build passes locally but blank page in Docker | Check: Nginx config missing `try_files` for Vue Router history mode; `VITE_*` env vars not passed at build time |
 | Spring Boot can't reach DB on startup | DB container may still be initialising. Check `depends_on` with healthcheck in `docker-compose.yml`, or wait and `docker compose restart backend` |
-| `pom.xml` changed | Always rebuild backend — dependency tree may have changed |
+| `pom.xml` changed | Rebuild backend with `--no-cache` (dependency layer must re-resolve) |
+| `package.json` / `package-lock.json` changed | Rebuild frontend with `--no-cache` (npm install layer must re-run) |
+| `Dockerfile` (any) changed | Rebuild affected service with `--no-cache` |
+| Disk full / "no space left on device" during build | Run `docker system df`, then `docker builder prune -af && docker image prune -af`, retry |
 | Flyway migration version conflict | Spring Boot will log `FlywayException`. Fix migration filename versioning, then rebuild backend only |
 | User says "skip docker, just check local" | Run Steps 1–2 only, report local build status |
 | `mvnw` not executable | Run `chmod +x ./mvnw` first |
