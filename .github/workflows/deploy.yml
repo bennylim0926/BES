@@ -41,6 +41,12 @@ jobs:
             docker compose ps
             echo "→ Pruning dangling images"
             docker image prune -f
+            echo "→ Pruning stopped containers"
+            docker container prune -f
+            echo "→ Pruning build cache older than 7 days"
+            docker builder prune -f --filter "until=168h"
+            echo "→ Disk usage after cleanup:"
+            docker system df
         env:
           DEPLOY_REF: ${{ github.event.inputs.ref || github.ref_name }}
 
