@@ -131,16 +131,19 @@ public class DemoDataSeeder {
         // 7. Create EventCategoryParticipant links
         // Hip Hop: participants 0-19 (first 20)
         // Popping: participants 10-29 (last 20, overlapping 10-19)
+        // First 15 per category get audition numbers; last 5 get null (for helper check-in)
         List<EventCategoryParticipant> hipHopECPs = new ArrayList<>();
         List<EventCategoryParticipant> poppingECPs = new ArrayList<>();
 
         for (int i = 0; i < 20; i++) {
             Participant p = participants.get(i);
-            hipHopECPs.add(createECP(event, hipHop, p, i + 1, "1v1"));
+            Integer auditionNum = i < 15 ? i + 1 : null;
+            hipHopECPs.add(createECP(event, hipHop, p, auditionNum, "1v1"));
         }
         for (int i = 10; i < 30; i++) {
             Participant p = participants.get(i);
-            poppingECPs.add(createECP(event, popping, p, i - 9, "1v1"));
+            Integer auditionNum = (i - 10) < 15 ? (i - 9) : null;
+            poppingECPs.add(createECP(event, popping, p, auditionNum, "1v1"));
         }
 
         // 8. Pre-fill scores with intentional tie scenarios
@@ -230,7 +233,7 @@ public class DemoDataSeeder {
     }
 
     private EventCategoryParticipant createECP(Event event, EventCategory cat,
-                                                Participant p, int auditionNum, String format) {
+                                                Participant p, Integer auditionNum, String format) {
         EventCategoryParticipant ecp = new EventCategoryParticipant();
         EventCategoryParticipantId id = new EventCategoryParticipantId(
                 event.getEventId(), cat.getId(), p.getParticipantId());

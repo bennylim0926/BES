@@ -1,5 +1,5 @@
 <script setup>
-import { login, startDemo, getAppConfig, whoami } from '@/utils/api'
+import { login, startDemo, getAppConfig } from '@/utils/api'
 import { ref, onMounted } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
@@ -50,12 +50,14 @@ function submitPasscode() {
 async function startDemoSession(role) {
   try {
     const result = await startDemo(passcode.value, role)
-    // Populate auth store from session so router guard sees authenticated user
-    const user = await whoami()
-    if (user?.authenticated) {
-      authStore.login(user)
-      setActiveEvent(result.eventId, result.eventName)
-    }
+    // Populate auth store directly from demo response — avoids whoami() round-trip
+    authStore.login({
+      authenticated: true,
+      role: [{ authority: 'ROLE_' + role }],
+      judgeId: result.judgeId ?? null,
+      judgeName: result.judgeName ?? null
+    })
+    setActiveEvent(result.eventId, result.eventName)
     // Route to the appropriate session view
     const roleRoutes = {
       EMCEE: '/emcee/session',
