@@ -79,7 +79,7 @@ const roleDisplay = computed(() => {
 
         <!-- Audition List -->
         <router-link
-          v-if="activeEvent && role !== 'ROLE_HELPER' && role !== 'ROLE_EMCEE'"
+          v-if="activeEvent && role !== 'ROLE_HELPER' && role !== 'ROLE_EMCEE' && role !== 'ROLE_ORGANISER'"
           :to="{ name: 'Audition List' }"
           class="card-hover p-6 relative cursor-pointer group"
         >
