@@ -1649,3 +1649,17 @@ export const getActiveEmceeCategories = async (eventName) => {
     return Array.from(data.categories ?? [])
   } catch (e) { console.error(e); return [] }
 }
+
+// Event-scoped feedback taxonomy (#157). Returns merged groups: global +
+// event-scoped, with event-scoped overriding global by group name. Each group
+// and tag carries a `scope` field of "GLOBAL" or "EVENT".
+export const getEventFeedbackTags = async (eventName) => {
+  if (!eventName) return []
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/feedback-tags`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return []
+    return await res.json()
+  } catch (e) { console.error(e); return [] }
+}
