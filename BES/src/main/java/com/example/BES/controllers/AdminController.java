@@ -39,6 +39,7 @@ import com.example.BES.services.AccountService;
 import com.example.BES.services.AppConfigService;
 import com.example.BES.services.AuditionFeedbackService;
 import com.example.BES.services.DemoService;
+import com.example.BES.services.DemoDataSeeder;
 import com.example.BES.services.EventFeedbackTagService;
 import com.example.BES.services.JudgeService;
 import com.example.BES.services.ScoreService;
@@ -72,6 +73,9 @@ public class AdminController {
 
     @Autowired
     private DemoService demoService;
+
+    @Autowired
+    private DemoDataSeeder demoDataSeeder;
 
     // ── Feedback Tag Groups ──────────────────────────────────────────────────
 
@@ -250,5 +254,12 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> purgeAllDemoSandboxes() {
         int count = demoService.purgeAllSandboxes();
         return ResponseEntity.ok(Map.of("message", "Purged " + count + " sandbox(es)"));
+    }
+
+    @PostMapping("/demo/reset-template")
+    public ResponseEntity<Map<String, Object>> resetTemplate() {
+        demoService.resetTemplate();
+        demoDataSeeder.seed();
+        return ResponseEntity.ok(Map.of("message", "Template event reset and re-seeded"));
     }
 }

@@ -242,6 +242,14 @@ public class DemoService {
     }
 
     @Transactional
+    public void resetTemplate() {
+        eventRepo.findByEventName(TEMPLATE_NAME).ifPresent(e -> {
+            log.info("Deleting demo template event for reset");
+            eventRepo.delete(e);
+        });
+    }
+
+    @Transactional
     public int purgeAllSandboxes() {
         List<Event> demos = eventRepo.findAllDemoEvents();
         for (Event demo : demos) {

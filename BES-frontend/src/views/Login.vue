@@ -3,7 +3,7 @@ import { login, startDemo, getAppConfig, whoami } from '@/utils/api'
 import { ref, onMounted } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import DemoRolePicker from '@/components/DemoRolePicker.vue'
 import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
@@ -49,10 +49,13 @@ function submitPasscode() {
 
 async function startDemoSession(role) {
   try {
-    await startDemo(passcode.value, role)
+    const result = await startDemo(passcode.value, role)
     // Populate auth store from session so router guard sees authenticated user
     const user = await whoami()
-    if (user?.authenticated) authStore.login(user)
+    if (user?.authenticated) {
+      authStore.login(user)
+      setActiveEvent(result.eventId, result.eventName)
+    }
     // Route to the appropriate session view
     const roleRoutes = {
       EMCEE: '/emcee/session',

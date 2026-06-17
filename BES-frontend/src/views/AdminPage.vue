@@ -215,6 +215,12 @@ async function purgeAllSandboxes() {
   await loadDemoConfig()
 }
 
+async function resetTemplateData() {
+  if (!confirm('Reset demo template event? This deletes and re-seeds the template with fresh data. Existing sandboxes are unaffected.')) return
+  await fetch('/api/v1/admin/demo/reset-template', { method: 'POST', credentials: 'include' })
+  await loadDemoConfig()
+}
+
 onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
@@ -560,6 +566,9 @@ onMounted(async () => {
               </button>
               <button @click="regeneratePasscode" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px]">
                 Regenerate
+              </button>
+              <button @click="resetTemplateData" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px] text-amber-400 border-amber-400/30">
+                Reset Template
               </button>
             </div>
           </div>
