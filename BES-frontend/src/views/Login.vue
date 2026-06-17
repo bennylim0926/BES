@@ -3,7 +3,7 @@ import { login, startDemo, getAppConfig } from '@/utils/api'
 import { ref, onMounted, nextTick } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import DemoRolePicker from '@/components/DemoRolePicker.vue'
 import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
@@ -50,12 +50,12 @@ function submitPasscode() {
 async function startDemoSession(role) {
   try {
     const result = await startDemo(passcode.value, role)
-    // Populate auth store — set every property directly for reliability
+    // Populate auth store via setActiveEvent (writes to sessionStorage + Pinia)
     authStore.isAuthenticated = true
     authStore.judgeId = result.judgeId ?? null
     authStore.judgeName = result.judgeName ?? null
     authStore.user = { authenticated: true, role: [{ authority: 'ROLE_' + role }] }
-    authStore.activeEvent = { id: result.eventId, name: result.eventName }
+    setActiveEvent(result.eventId, result.eventName)
     // Wait for Pinia reactivity to flush before navigating
     await nextTick()
     // Route to the appropriate session view

@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/utils/auth'
+import { useAuthStore, setActiveEvent } from '@/utils/auth'
 import { getJudgeDivisions, whoami } from '@/utils/api'
 
 const router = useRouter()
@@ -35,6 +35,9 @@ onMounted(async () => {
       const user = await whoami()
       if (user?.authenticated && user.judgeName) {
         authStore.login(user)
+        if (user.eventId && user.eventName) {
+          setActiveEvent(user.eventId, user.eventName)
+        }
       }
     } catch { /* not authenticated */ }
   }

@@ -131,22 +131,23 @@ public class DemoDataSeeder {
         // 7. Create EventCategoryParticipant links
         // Hip Hop: participants 0-19 (first 20)
         // Popping: participants 10-29 (last 20, overlapping 10-19)
-        // Scatter assigned audition numbers with gaps (for realistic helper check-in)
-        // Assigned indices (0-based) per category: randomly chosen gaps at 3, 7, 12, 16, 19
+        // Scatter assigned audition numbers with gaps (for realistic helper check-in).
+        // A single set of unassigned participant indices applied consistently across
+        // ALL categories — a participant either gets an audition number in every
+        // category they're in, or in none, simulating real-world registration.
         List<EventCategoryParticipant> hipHopECPs = new ArrayList<>();
         List<EventCategoryParticipant> poppingECPs = new ArrayList<>();
-        Set<Integer> hipHopUnassigned = Set.of(3, 7, 12, 16, 19);
-        Set<Integer> poppingUnassigned = Set.of(2, 6, 10, 15, 17);
+        Set<Integer> unassignedIndices = Set.of(3, 7, 12, 16, 19);
 
         for (int i = 0; i < 20; i++) {
             Participant p = participants.get(i);
-            Integer auditionNum = hipHopUnassigned.contains(i) ? null : i + 1;
+            Integer auditionNum = unassignedIndices.contains(i) ? null : i + 1;
             hipHopECPs.add(createECP(event, hipHop, p, auditionNum, "1v1"));
         }
         for (int i = 10; i < 30; i++) {
             Participant p = participants.get(i);
             int localIdx = i - 10;
-            Integer auditionNum = poppingUnassigned.contains(i) ? null : localIdx + 1;
+            Integer auditionNum = unassignedIndices.contains(i) ? null : localIdx + 1;
             poppingECPs.add(createECP(event, popping, p, auditionNum, "1v1"));
         }
 
@@ -194,8 +195,8 @@ public class DemoDataSeeder {
             }
         }
 
-        // 9. Seed default feedback tag groups + tags if none exist
-        List<FeedbackTag> allTags = feedbackTagRepo.findAll();
+        // 9. Seed default feedback tag groups + tags for the template event if none exist
+        List<FeedbackTag> allTags = feedbackTagRepo.findByEventEventId(event.getEventId());
         if (allTags.isEmpty()) {
             FeedbackTagGroup technique = createTagGroup(event, "Technique");
             FeedbackTagGroup performance = createTagGroup(event, "Performance");
@@ -207,7 +208,7 @@ public class DemoDataSeeder {
             createTag(performance, event, "Confidence");
             createTag(performance, event, "Showmanship");
             createTag(performance, event, "Dynamics");
-            allTags = feedbackTagRepo.findAll();
+            allTags = feedbackTagRepo.findByEventEventId(event.getEventId());
         }
 
         // 10. Pre-fill feedback on ~30% of scored participants

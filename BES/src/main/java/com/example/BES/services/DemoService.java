@@ -27,6 +27,8 @@ public class DemoService {
     private final ScoringCriteriaRepo scoringCriteriaRepo;
     private final ScoreRepo scoreRepo;
     private final AuditionFeedbackRepository auditionFeedbackRepo;
+    private final FeedbackTagGroupRepository feedbackTagGroupRepo;
+    private final FeedbackTagRepository feedbackTagRepo;
     private final SessionTokenRepository sessionTokenRepo;
 
 public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
@@ -34,6 +36,8 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
                        EventCategoryParticipantRepo eventCategoryParticipantRepo,
                        JudgeRepo judgeRepo, ScoringCriteriaRepo scoringCriteriaRepo,
                        ScoreRepo scoreRepo, AuditionFeedbackRepository auditionFeedbackRepo,
+                       FeedbackTagGroupRepository feedbackTagGroupRepo,
+                       FeedbackTagRepository feedbackTagRepo,
                        SessionTokenRepository sessionTokenRepo) {
         this.eventRepo = eventRepo;
         this.eventCategoryRepo = eventCategoryRepo;
@@ -43,6 +47,8 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
         this.scoringCriteriaRepo = scoringCriteriaRepo;
         this.scoreRepo = scoreRepo;
         this.auditionFeedbackRepo = auditionFeedbackRepo;
+        this.feedbackTagGroupRepo = feedbackTagGroupRepo;
+        this.feedbackTagRepo = feedbackTagRepo;
         this.sessionTokenRepo = sessionTokenRepo;
     }
 
@@ -63,10 +69,14 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
 
         // 2. Clone categories + scoring criteria + judge assignments
         Map<Long, EventCategory> oldToNewCategory = new HashMap<>();
+        Set<Judge> allJudges = new LinkedHashSet<>(); // preserve order for deterministic pick
         List<EventCategory> templateCategories = eventCategoryRepo.findByEvent(template);
         for (EventCategory templateCat : templateCategories) {
             EventCategory clonedCat = cloneCategory(templateCat, clone);
             oldToNewCategory.put(templateCat.getId(), clonedCat);
+
+            // Collect judges from template categories (before the native insert below)
+            allJudges.addAll(templateCat.getJudges());
 
             // Clone scoring criteria for this category
             List<ScoringCriteria> criteria = scoringCriteriaRepo.findByEventAndEventCategory(template, templateCat);
@@ -78,6 +88,11 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
         List<ScoringCriteria> eventCriteria = scoringCriteriaRepo.findByEventAndEventCategory(template, null);
         for (ScoringCriteria sc : eventCriteria) {
             cloneScoringCriteria(sc, clone, null);
+        }
+
+        // Insert event_judge entries for the cloned event
+        for (Judge judge : allJudges) {
+            judgeRepo.insertEventJudge(clone.getEventId(), judge.getJudgeId());
         }
 
         // 3. Clone EventParticipants
@@ -115,7 +130,29 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
             }
         }
 
-        // 6. Clone feedback
+        // 6. Clone feedback tag groups and tags (event-scoped — need their own copies)
+        Map<Long, FeedbackTagGroup> oldToNewGroup = new HashMap<>();
+        List<FeedbackTagGroup> templateGroups = feedbackTagGroupRepo.findByEventEventId(template.getEventId());
+        for (FeedbackTagGroup templateGroup : templateGroups) {
+            FeedbackTagGroup clonedGroup = new FeedbackTagGroup();
+            clonedGroup.setName(templateGroup.getName());
+            clonedGroup.setEvent(clone);
+            clonedGroup = feedbackTagGroupRepo.save(clonedGroup);
+            oldToNewGroup.put(templateGroup.getId(), clonedGroup);
+        }
+
+        Map<Long, FeedbackTag> oldToNewTag = new HashMap<>();
+        List<FeedbackTag> templateTags = feedbackTagRepo.findByEventEventId(template.getEventId());
+        for (FeedbackTag templateTag : templateTags) {
+            FeedbackTag clonedTag = new FeedbackTag();
+            clonedTag.setLabel(templateTag.getLabel());
+            clonedTag.setEvent(clone);
+            clonedTag.setGroup(oldToNewGroup.get(templateTag.getGroup().getId()));
+            clonedTag = feedbackTagRepo.save(clonedTag);
+            oldToNewTag.put(templateTag.getId(), clonedTag);
+        }
+
+        // 7. Clone feedback (remap tag refs to cloned tags)
         for (EventCategory templateCat : templateCategories) {
             List<EventCategoryParticipant> templateECPs =
                     eventCategoryParticipantRepo.findByEventCategory(templateCat);
@@ -124,22 +161,22 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
                 EventCategoryParticipant clonedECP =
                         compositeKeyToNewECP.get(compositeKey(templateECP));
                 for (AuditionFeedback fb : feedbacks) {
-                    cloneFeedback(fb, clonedECP);
+                    cloneFeedback(fb, clonedECP, oldToNewTag);
                 }
             }
         }
 
-        // 7. Generate session token for the requested role
+        // 8. Generate session token for the requested role
         SessionToken token = new SessionToken();
         token.setTokenId(UUID.randomUUID().toString());
         token.setRole(role);
         token.setEvent(clone);
         token.setExpiresAt(LocalDateTime.now().plusDays(1));
         if ("JUDGE".equals(role)) {
-            // Pick a random judge from the clone
-            List<Judge> judges = judgeRepo.findJudgesByEventId(clone.getEventId());
-            if (!judges.isEmpty()) {
-                token.setJudge(judges.get(new Random().nextInt(judges.size())));
+            // Pick a random judge from those collected during category cloning
+            if (!allJudges.isEmpty()) {
+                List<Judge> judgeList = new ArrayList<>(allJudges);
+                token.setJudge(judgeList.get(new Random().nextInt(judgeList.size())));
             }
         }
         token = sessionTokenRepo.save(token);
@@ -157,7 +194,7 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
         }
         log.info("Purging demo sandbox: {}", event.getEventName());
 
-        // Delete in order: feedback -> scores -> ECPs -> criteria -> EPs -> categories -> event_judge -> tokens -> event
+        // Delete in order: feedback -> tags -> groups -> scores -> ECPs -> criteria -> EPs -> categories -> event_judge -> tokens -> event
         List<EventCategory> categories = eventCategoryRepo.findByEvent(event);
         for (EventCategory cat : categories) {
             List<EventCategoryParticipant> ecps = eventCategoryParticipantRepo.findByEventCategory(cat);
@@ -171,6 +208,9 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
             cat.getJudges().clear();
             eventCategoryRepo.save(cat);
         }
+        // Delete feedback tags then groups (tags reference groups via FK)
+        feedbackTagRepo.deleteAll(feedbackTagRepo.findByEventEventId(event.getEventId()));
+        feedbackTagGroupRepo.deleteAll(feedbackTagGroupRepo.findByEventEventId(event.getEventId()));
         // Delete event-level criteria
         scoringCriteriaRepo.deleteAll(scoringCriteriaRepo.findByEventAndEventCategory(event, null));
         // Delete EventParticipants
@@ -249,6 +289,9 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
             cat.getJudges().clear();
             eventCategoryRepo.save(cat);
         }
+        // Delete feedback tags then groups
+        feedbackTagRepo.deleteAll(feedbackTagRepo.findByEventEventId(template.getEventId()));
+        feedbackTagGroupRepo.deleteAll(feedbackTagGroupRepo.findByEventEventId(template.getEventId()));
         scoringCriteriaRepo.deleteAll(scoringCriteriaRepo.findByEventAndEventCategory(template, null));
         List<EventParticipant> eps = eventParticipantRepo.findByEvent(template);
         eventParticipantRepo.deleteAll(eps);
@@ -371,12 +414,21 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
         scoreRepo.save(clone);
     }
 
-    private void cloneFeedback(AuditionFeedback template, EventCategoryParticipant newECP) {
+    private void cloneFeedback(AuditionFeedback template, EventCategoryParticipant newECP,
+                                 Map<Long, FeedbackTag> tagMap) {
         AuditionFeedback clone = new AuditionFeedback();
         clone.setEventCategoryParticipant(newECP);
         clone.setJudge(template.getJudge());
         clone.setNote(template.getNote());
-        clone.setTags(new HashSet<>(template.getTags()));
+        // Remap tag references to the cloned tags (event-scoped)
+        Set<FeedbackTag> clonedTags = new HashSet<>();
+        for (FeedbackTag templateTag : template.getTags()) {
+            FeedbackTag clonedTag = tagMap.get(templateTag.getId());
+            if (clonedTag != null) {
+                clonedTags.add(clonedTag);
+            }
+        }
+        clone.setTags(clonedTags);
         auditionFeedbackRepo.save(clone);
     }
 
