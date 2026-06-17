@@ -1,9 +1,9 @@
 <script setup>
 import { login, startDemo, getAppConfig } from '@/utils/api'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore, setActiveEvent } from '@/utils/auth'
+import { useAuthStore } from '@/utils/auth'
 import DemoRolePicker from '@/components/DemoRolePicker.vue'
 import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
@@ -50,18 +50,14 @@ function submitPasscode() {
 async function startDemoSession(role) {
   try {
     const result = await startDemo(passcode.value, role)
-    // Populate auth store directly from demo response — bypass whoami() round-trip
-    authStore.$patch({
-      user: { authenticated: true, role: [{ authority: 'ROLE_' + role }] },
-      isAuthenticated: true,
-      judgeId: result.judgeId ?? null,
-      judgeName: result.judgeName ?? null
-    })
-    setActiveEvent(result.eventId, result.eventName)
-    // Double-check store was written — router guard and JudgeSessionView depend on it
-    if (!authStore.activeEvent) {
-      authStore.activeEvent = { id: result.eventId, name: result.eventName }
-    }
+    // Populate auth store — set every property directly for reliability
+    authStore.isAuthenticated = true
+    authStore.judgeId = result.judgeId ?? null
+    authStore.judgeName = result.judgeName ?? null
+    authStore.user = { authenticated: true, role: [{ authority: 'ROLE_' + role }] }
+    authStore.activeEvent = { id: result.eventId, name: result.eventName }
+    // Wait for Pinia reactivity to flush before navigating
+    await nextTick()
     // Route to the appropriate session view
     const roleRoutes = {
       EMCEE: '/emcee/session',
