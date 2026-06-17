@@ -20,4 +20,8 @@ public class FeedbackTag {
     @ManyToOne
     @JoinColumn(name = "group_id", nullable = false)
     private FeedbackTagGroup group;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
 }

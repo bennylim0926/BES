@@ -10,4 +10,10 @@ import java.util.List;
 @Repository
 public interface FeedbackTagRepository extends JpaRepository<FeedbackTag, Long> {
     List<FeedbackTag> findByGroup(FeedbackTagGroup group);
+
+    List<FeedbackTag> findByEventIsNull();
+
+    List<FeedbackTag> findByEventEventId(Long eventId);
+
+    List<FeedbackTag> findByEventEventIdOrEventIsNull(Long eventId);
 }
