@@ -2,10 +2,9 @@ package com.example.BES.dtos;
 
 import jakarta.validation.constraints.NotBlank;
 
-public class UpdateResultsReleaseModeDto {
+public class UpdateReleaseScoreDto {
     @NotBlank
     public String eventName;
 
-    @NotBlank
-    public String mode;
+    public boolean releaseScore;
 }

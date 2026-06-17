@@ -41,8 +41,7 @@ import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateFeedbackDto;
-import com.example.BES.dtos.GetResultsReleaseModeDto;
-import com.example.BES.dtos.UpdateResultsReleaseModeDto;
+import com.example.BES.dtos.UpdateReleaseScoreDto;
 // import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.AddParticipantToEventCategoryDto;
@@ -751,26 +750,52 @@ public class EventController {
         return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, categoryName, participantName));
     }
 
-    @Operation(summary = "Get Results Release Mode", description = "Returns the current results release mode for the event")
-    @GetMapping("/{eventName}/results-release-mode")
-    public ResponseEntity<?> getResultsReleaseMode(@PathVariable String eventName) {
+    @Operation(summary = "Get Results Status", description = "Returns whether results have been released for the event")
+    @GetMapping("/{eventName}/results-status")
+    public ResponseEntity<?> getResultsStatus(@PathVariable String eventName) {
         try {
-            GetResultsReleaseModeDto dto = eventService.getResultsReleaseMode(eventName);
-            return ResponseEntity.ok(dto);
+            boolean released = eventService.isResultsReleased(eventName);
+            return ResponseEntity.ok(Map.of("released", released));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }
     }
 
-    @Operation(summary = "Set Results Release Mode", description = "Sets which results are visible on the public portal — NONE, SCORE_ONLY, FEEDBACK_ONLY, or BOTH")
-    @PostMapping("/{eventName}/results-release-mode")
+    @Operation(summary = "Release or Retract Results", description = "Toggles whether results are visible on the public results portal")
+    @PostMapping("/{eventName}/release-results")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
-    public ResponseEntity<?> setResultsReleaseMode(
+    public ResponseEntity<?> releaseResults(
             @PathVariable String eventName,
-            @Valid @RequestBody UpdateResultsReleaseModeDto body) {
+            @Valid @RequestBody Map<String, Boolean> body) {
         try {
-            eventService.setResultsReleaseMode(eventName, body.mode);
-            return ResponseEntity.ok(Map.of("message", "Results release mode updated", "mode", body.mode));
+            boolean released = Boolean.TRUE.equals(body.get("released"));
+            eventService.releaseResults(eventName, released);
+            return ResponseEntity.ok(Map.of("message", "Results release updated", "released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Release Score", description = "Returns whether scores are configured for release for this event")
+    @GetMapping("/{eventName}/release-score")
+    public ResponseEntity<?> getReleaseScore(@PathVariable String eventName) {
+        try {
+            boolean releaseScore = eventService.isReleaseScore(eventName);
+            return ResponseEntity.ok(Map.of("eventName", eventName, "releaseScore", releaseScore));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Set Release Score", description = "Toggles whether scores are available for release to the public results portal")
+    @PostMapping("/{eventName}/release-score")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setReleaseScore(
+            @PathVariable String eventName,
+            @Valid @RequestBody UpdateReleaseScoreDto body) {
+        try {
+            eventService.setReleaseScore(eventName, body.releaseScore);
+            return ResponseEntity.ok(Map.of("message", "Release score updated", "releaseScore", body.releaseScore));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }

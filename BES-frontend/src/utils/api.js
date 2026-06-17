@@ -1072,10 +1072,13 @@ export const getParticipantFeedback = async (eventName, categoryName, participan
   }
 }
 
-export const getResultsReleaseMode = async (eventName) => {
+export const releaseResults = async (eventName, released) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-release-mode`, {
-      credentials: 'include'
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-results`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ released })
     })
     if (res.ok) return await res.json()
     return null
@@ -1085,13 +1088,35 @@ export const getResultsReleaseMode = async (eventName) => {
   }
 }
 
-export const setResultsReleaseMode = async (eventName, mode) => {
+export const getResultsStatus = async (eventName) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-release-mode`, {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-status`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const getReleaseScore = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-score`, { credentials: 'include' })
+    if (res.ok) return await res.json()
+    return null
+  } catch (e) {
+    console.log(e)
+    return null
+  }
+}
+
+export const setReleaseScore = async (eventName, releaseScore) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-score`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventName, mode })
+      body: JSON.stringify({ eventName, releaseScore })
     })
     if (res.ok) return await res.json()
     return null

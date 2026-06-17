@@ -5,16 +5,16 @@ public class GetEventDto {
     String name;
     boolean paymentRequired;
     boolean feedbackEnabled = true;
-    String resultsReleaseMode;
+    boolean releaseScore;
 
     public Long getId() { return id; }
     public String getName() { return name; }
     public boolean isPaymentRequired() { return paymentRequired; }
     public boolean isFeedbackEnabled() { return feedbackEnabled; }
-    public String getResultsReleaseMode() { return resultsReleaseMode; }
+    public boolean isReleaseScore() { return releaseScore; }
     public void setId(Long id) { this.id = id; }
     public void setName(String name) { this.name = name; }
     public void setPaymentRequired(boolean paymentRequired) { this.paymentRequired = paymentRequired; }
     public void setFeedbackEnabled(boolean feedbackEnabled) { this.feedbackEnabled = feedbackEnabled; }
-    public void setResultsReleaseMode(String resultsReleaseMode) { this.resultsReleaseMode = resultsReleaseMode; }
+    public void setReleaseScore(boolean releaseScore) { this.releaseScore = releaseScore; }
 }

@@ -41,7 +41,7 @@ class ResultsServiceTest {
     @Test
     void getResultsByRefCode_returnsNullWhenResultsNotReleased() {
         Event e = new Event();
-        e.setResultsReleaseMode("NONE");
+        e.setResultsReleased(false);
         e.setEventName("Fest");
         EventParticipant ep = new EventParticipant();
         ep.setEvent(e);
@@ -58,7 +58,9 @@ class ResultsServiceTest {
         Event e = new Event();
         e.setEventId(1L);
         e.setEventName("Fest");
-        e.setResultsReleaseMode("BOTH");
+        e.setResultsReleased(true);
+        e.setReleaseScore(true);
+        e.setFeedbackEnabled(true);
         Participant p = new Participant();
         p.setParticipantId(10L);
         EventParticipant ep = new EventParticipant();

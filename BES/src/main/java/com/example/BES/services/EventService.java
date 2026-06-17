@@ -18,7 +18,7 @@ import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetFeedbackEnabledDto;
 import com.example.BES.dtos.GetJudgingModeDto;
-import com.example.BES.dtos.GetResultsReleaseModeDto;
+import com.example.BES.dtos.UpdateReleaseScoreDto;
 import com.example.BES.respositories.AccountRepository;
 import com.example.BES.respositories.EventRepo;
 
@@ -87,7 +87,7 @@ public class EventService {
             dto.setName(event.getEventName());
             dto.setPaymentRequired(event.isPaymentRequired());
             dto.setFeedbackEnabled(event.isFeedbackEnabled());
-            dto.setResultsReleaseMode(event.getResultsReleaseMode());
+            dto.setReleaseScore(event.isReleaseScore());
             dtos.add(dto);
         }
         return dtos;
@@ -123,19 +123,30 @@ public class EventService {
             java.util.Map.of("eventName", eventName, "feedbackEnabled", enabled));
     }
 
-    public GetResultsReleaseModeDto getResultsReleaseMode(String eventName) {
+    public void releaseResults(String eventName, boolean released) {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        return new GetResultsReleaseModeDto(event.getEventName(), event.getResultsReleaseMode());
+        event.setResultsReleased(released);
+        repo.save(event);
     }
 
-    public void setResultsReleaseMode(String eventName, String mode) {
+    public boolean isResultsReleased(String eventName) {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        event.setResultsReleaseMode(mode);
+        return event.isResultsReleased();
+    }
+
+    public void setReleaseScore(String eventName, boolean releaseScore) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        event.setReleaseScore(releaseScore);
         repo.save(event);
-        messagingTemplate.convertAndSend("/topic/release-mode",
-            java.util.Map.of("eventName", eventName, "mode", mode));
+    }
+
+    public boolean isReleaseScore(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        return event.isReleaseScore();
     }
 
     /**

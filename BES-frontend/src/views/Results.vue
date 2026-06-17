@@ -83,15 +83,9 @@ const groupTags = (tags) => {
   return groups
 }
 
-const showScores = computed(() => {
-  const m = results.value?.resultsReleaseMode
-  return m === 'SCORE_ONLY' || m === 'BOTH'
-})
-const showFeedback = computed(() => {
-  const m = results.value?.resultsReleaseMode
-  return m === 'FEEDBACK_ONLY' || m === 'BOTH'
-})
-const isFeedbackOnly = computed(() => results.value?.resultsReleaseMode === 'FEEDBACK_ONLY')
+const showScores = computed(() => results.value?.releaseScore)
+const showFeedback = computed(() => results.value?.feedbackEnabled)
+const isFeedbackOnly = computed(() => !results.value?.releaseScore && results.value?.feedbackEnabled)
 </script>
 
 <template>

@@ -58,50 +58,39 @@ class EventServiceTest {
     }
 
     @Test
-    void setResultsReleaseMode_updatesMode() {
+    void releaseResults_setsFlag() {
         Event e = event("Fest");
         when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
 
-        service.setResultsReleaseMode("Fest", "SCORE_ONLY");
+        service.releaseResults("Fest", true);
 
-        assertThat(e.getResultsReleaseMode()).isEqualTo("SCORE_ONLY");
+        assertThat(e.isResultsReleased()).isTrue();
         verify(repo).save(e);
-        verify(messagingTemplate).convertAndSend("/topic/release-mode",
-            java.util.Map.of("eventName", "Fest", "mode", "SCORE_ONLY"));
     }
 
     @Test
-    void setResultsReleaseMode_allFourModes() {
-        Event e = event("Fest");
-        when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
-
-        for (String mode : new String[]{"NONE", "SCORE_ONLY", "FEEDBACK_ONLY", "BOTH"}) {
-            service.setResultsReleaseMode("Fest", mode);
-            assertThat(e.getResultsReleaseMode()).isEqualTo(mode);
-        }
-    }
-
-    @Test
-    void setResultsReleaseMode_throwsWhenNotFound() {
+    void releaseResults_throwsWhenNotFound() {
         when(repo.findByEventName("Missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.setResultsReleaseMode("Missing", "BOTH"))
+        assertThatThrownBy(() -> service.releaseResults("Missing", true))
             .isInstanceOf(ResponseStatusException.class);
     }
 
     @Test
-    void getResultsReleaseMode_returnsDto() {
+    void setReleaseScore_updatesFlag() {
         Event e = event("Fest");
-        e.setResultsReleaseMode("BOTH");
         when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
 
-        assertThat(service.getResultsReleaseMode("Fest").mode).isEqualTo("BOTH");
+        service.setReleaseScore("Fest", true);
+
+        assertThat(e.isReleaseScore()).isTrue();
+        verify(repo).save(e);
     }
 
     @Test
-    void newEvent_defaultsToNone() {
+    void newEvent_defaultsReleaseScoreFalse() {
         Event e = new Event();
-        assertThat(e.getResultsReleaseMode()).isEqualTo("NONE");
+        assertThat(e.isReleaseScore()).isFalse();
     }
 
     @Test

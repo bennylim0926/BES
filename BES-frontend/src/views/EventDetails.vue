@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getResultsReleaseMode, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -54,6 +54,7 @@ const eventName = ref(props.eventName.split(" ").join("%20"));
 const paymentRequired = ref(false)
 const feedbackEnabled = ref(true)
 const feedbackSaving = ref(false)
+const releaseScoreSaving = ref(false)
 
 // Event-scoped feedback taxonomy (#157)
 const feedbackGroups = ref([])
@@ -63,7 +64,7 @@ const addTagForGroupId = ref(null)
 const newFeedbackTagLabel = ref('')
 const editingTagId = ref(null)
 const editingTagLabel = ref('')
-const resultsReleaseMode = ref('NONE')
+const releaseScore = ref(false)
 const qrImageUrl = ref('')
 const loadingQr = ref(false)
 const sheetCategories = ref([])
@@ -165,16 +166,17 @@ function additionalMemberCount(fmt) {
   return m ? parseInt(m[1]) - 1 : 0
 }
 
-// Load results status and generate participant QR if available
+// Load release score and generate participant QR if anything is configured
 const loadResultsAndQr = async () => {
-  if (!feedbackEnabled.value || !props.eventName) return
+  if (!props.eventName) return
   try {
-    const modeRes = await getResultsReleaseMode(props.eventName)
-    resultsReleaseMode.value = modeRes?.mode ?? 'NONE'
+    const scoreRes = await getReleaseScore(props.eventName)
+    releaseScore.value = scoreRes?.releaseScore ?? false
 
-    // Find this user's participant record to get their ref code
+    // QR if either feedback or score is configured
+    const anythingConfigured = feedbackEnabled.value || releaseScore.value
     const currentUserParticipantId = authStore.user?.participant?.participantId
-    if (currentUserParticipantId && resultsReleaseMode.value !== 'NONE') {
+    if (currentUserParticipantId && anythingConfigured) {
       const refs = await getParticipantRefs(props.eventName)
       const userRef = refs?.find(r => String(r.participantId) === String(currentUserParticipantId))
       if (userRef) {
@@ -545,6 +547,26 @@ const onFeedbackEnabledToggle = async (e) => {
     console.error('setFeedbackEnabled error:', err)
   } finally {
     feedbackSaving.value = false
+  }
+}
+
+const onReleaseScoreToggle = async (e) => {
+  const next = e.target.checked
+  const prev = releaseScore.value
+  releaseScore.value = next
+  releaseScoreSaving.value = true
+  try {
+    const res = await setReleaseScore(props.eventName, next)
+    if (!res) {
+      releaseScore.value = prev
+      openModal('Save Failed', 'Could not update release score setting.', 'warning')
+    }
+    await loadResultsAndQr()
+  } catch (err) {
+    releaseScore.value = prev
+    console.error('setReleaseScore error:', err)
+  } finally {
+    releaseScoreSaving.value = false
   }
 }
 
@@ -1196,8 +1218,8 @@ const confirmCheckIn = async () => {
   const refEntry = verifiedDbParticipants.value.find(ep => ep.participantId === p.participantId)
   checkinConfirm.value.refCode = refEntry?.referenceCode || null
 
-  // Generate QR code if results are released
-  if (resultsReleaseMode.value !== 'NONE' && checkinConfirm.value.refCode) {
+  // Generate QR code if anything is configured
+  if ((feedbackEnabled.value || releaseScore.value) && checkinConfirm.value.refCode) {
     try {
       const res = await fetch(`/api/v1/results/qr?ref=${encodeURIComponent(checkinConfirm.value.refCode)}`, {
         credentials: 'include'
@@ -1326,16 +1348,6 @@ onMounted(async () => {
     subscribeToChannel(wsClient, '/topic/walkin/', (msg) => {
       if (msg.eventName !== props.eventName) return
       fetchCheckinList()
-    })
-    subscribeToChannel(wsClient, '/topic/release-mode', (msg) => {
-      try {
-        const body = typeof msg === 'string' ? JSON.parse(msg) : msg
-        if (body.eventName === props.eventName && body.mode) {
-          resultsReleaseMode.value = body.mode
-          // Re-generate QR when mode changes to non-NONE
-          if (body.mode !== 'NONE') loadResultsAndQr()
-        }
-      } catch (_) { /* ignore malformed messages */ }
     })
     // Hydrate previewingIds from server state so late-joining/refreshed clients see current previews
     const existingPreviews = await getCheckinPreviews(props.eventName)
@@ -1693,6 +1705,28 @@ onUnmounted(() => {
             {{ feedbackEnabled
               ? 'Judges can submit feedback tags and notes for each participant.'
               : 'Disabled — judges will only see the score keypad.' }}
+          </p>
+        </div>
+      </label>
+
+      <!-- Release Score toggle -->
+      <label
+        class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150 w-fit mt-2"
+        :class="releaseScore ? 'border-accent' : ''"
+      >
+        <input
+          type="checkbox"
+          :checked="releaseScore"
+          :disabled="releaseScoreSaving"
+          @change="onReleaseScoreToggle"
+          class="w-4 h-4"
+        />
+        <div>
+          <span class="type-body">Release Scores</span>
+          <p class="type-prose-sm mt-0.5">
+            {{ releaseScore
+              ? 'Scores will be visible on the public results portal when results are released.'
+              : 'Disabled — only feedback will appear on results when released.' }}
           </p>
         </div>
       </label>
@@ -2387,20 +2421,20 @@ onUnmounted(() => {
     </div>
 
     <!-- Results QR Section (participant-facing only — hidden for Admin/Organiser/Helper) -->
-    <template v-if="resultsReleaseMode !== 'NONE' && !isAdminOrOrganiser && !isHelper">
+    <template v-if="(feedbackEnabled || releaseScore) && !isAdminOrOrganiser && !isHelper">
       <div class="card-hover p-6 relative mb-6">
         <div class="corner-bar-tl"></div>
         <div class="corner-bar-bl"></div>
         <div class="flex items-start gap-4">
           <!-- QR Code -->
-          <div v-if="resultsReleaseMode !== 'NONE' && qrImageUrl" class="flex flex-col items-center gap-3">
+          <div v-if="(feedbackEnabled || releaseScore) && qrImageUrl" class="flex flex-col items-center gap-3">
             <img :src="qrImageUrl" alt="Results QR Code" class="w-32 h-32 block" />
             <p class="type-label text-content-muted text-center">Scan to view your results</p>
           </div>
           <!-- Status Message -->
           <div class="flex-1 flex flex-col justify-center">
             <p class="type-body text-content-primary mb-2">Your Results</p>
-            <template v-if="resultsReleaseMode !== 'NONE'">
+            <template v-if="(feedbackEnabled || releaseScore)">
               <p v-if="qrImageUrl" class="type-prose text-content-secondary">
                 Your scores and feedback are now available. Scan the QR code with your phone to view your results instantly.
               </p>
@@ -3090,7 +3124,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Results QR (done state, results released) -->
-          <div v-if="checkinConfirm.phase === 'done' && resultsReleaseMode !== 'NONE' && checkinConfirm.qrImageUrl" class="mb-5">
+          <div v-if="checkinConfirm.phase === 'done' && (feedbackEnabled || releaseScore) && checkinConfirm.qrImageUrl" class="mb-5">
             <div class="section-rule mb-3">
               <span class="section-rule-label">Your Results QR</span>
               <div class="section-rule-line"></div>
@@ -3102,7 +3136,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Ref code (done state only, shown if results not released or QR not available) -->
-          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode && resultsReleaseMode !== 'NONE' && !checkinConfirm.qrImageUrl" class="mb-5">
+          <div v-if="checkinConfirm.phase === 'done' && checkinConfirm.refCode && (feedbackEnabled || releaseScore) && !checkinConfirm.qrImageUrl" class="mb-5">
             <div class="section-rule mb-3">
               <span class="section-rule-label">Ref Code</span>
               <div class="section-rule-line"></div>
