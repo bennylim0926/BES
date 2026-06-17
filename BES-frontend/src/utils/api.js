@@ -1072,9 +1072,11 @@ export const getParticipantFeedback = async (eventName, categoryName, participan
   }
 }
 
-export const getResultsStatus = async (eventName) => {
+export const getResultsReleaseMode = async (eventName) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-status`, { credentials: 'include' })
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-release-mode`, {
+      credentials: 'include'
+    })
     if (res.ok) return await res.json()
     return null
   } catch (e) {
@@ -1083,13 +1085,13 @@ export const getResultsStatus = async (eventName) => {
   }
 }
 
-export const releaseResults = async (eventName, released) => {
+export const setResultsReleaseMode = async (eventName, mode) => {
   try {
-    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/release-results`, {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/results-release-mode`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ released })
+      body: JSON.stringify({ eventName, mode })
     })
     if (res.ok) return await res.json()
     return null
