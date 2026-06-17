@@ -58,22 +58,50 @@ class EventServiceTest {
     }
 
     @Test
-    void releaseResults_setsFlag() {
+    void setResultsReleaseMode_updatesMode() {
         Event e = event("Fest");
         when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
 
-        service.releaseResults("Fest", true);
+        service.setResultsReleaseMode("Fest", "SCORE_ONLY");
 
-        assertThat(e.isResultsReleased()).isTrue();
+        assertThat(e.getResultsReleaseMode()).isEqualTo("SCORE_ONLY");
         verify(repo).save(e);
+        verify(messagingTemplate).convertAndSend("/topic/release-mode",
+            java.util.Map.of("eventName", "Fest", "mode", "SCORE_ONLY"));
     }
 
     @Test
-    void releaseResults_throwsWhenNotFound() {
+    void setResultsReleaseMode_allFourModes() {
+        Event e = event("Fest");
+        when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
+
+        for (String mode : new String[]{"NONE", "SCORE_ONLY", "FEEDBACK_ONLY", "BOTH"}) {
+            service.setResultsReleaseMode("Fest", mode);
+            assertThat(e.getResultsReleaseMode()).isEqualTo(mode);
+        }
+    }
+
+    @Test
+    void setResultsReleaseMode_throwsWhenNotFound() {
         when(repo.findByEventName("Missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.releaseResults("Missing", true))
+        assertThatThrownBy(() -> service.setResultsReleaseMode("Missing", "BOTH"))
             .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void getResultsReleaseMode_returnsDto() {
+        Event e = event("Fest");
+        e.setResultsReleaseMode("BOTH");
+        when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
+
+        assertThat(service.getResultsReleaseMode("Fest").mode).isEqualTo("BOTH");
+    }
+
+    @Test
+    void newEvent_defaultsToNone() {
+        Event e = new Event();
+        assertThat(e.getResultsReleaseMode()).isEqualTo("NONE");
     }
 
     @Test
