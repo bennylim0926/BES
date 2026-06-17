@@ -52,18 +52,20 @@ const roles = [
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  padding: 1rem;
 }
 
 .role-picker {
   max-width: 680px;
   width: 90vw;
   padding: 2rem;
-  background: var(--surface-800);
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
 }
 

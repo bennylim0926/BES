@@ -231,6 +231,7 @@ const submitLogin = async () => {
           <!-- Demo section -->
           <div class="demo-section">
             <div class="demo-section-rule">
+              <span class="demo-section-line"></span>
               <span class="demo-section-label">or</span>
               <span class="demo-section-line"></span>
             </div>
@@ -313,6 +314,13 @@ const submitLogin = async () => {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+}
+
+.demo-section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--surface-600);
 }
 
 .demo-section-line {
@@ -356,8 +364,8 @@ const submitLogin = async () => {
 }
 
 .modal-content {
-  background: var(--surface-800, #1a1a1a);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
   padding: 2rem;
   width: 100%;
@@ -379,8 +387,8 @@ const submitLogin = async () => {
 .input-passcode {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: var(--surface-900);
-  border: 1px solid var(--surface-600);
+  background: #0a0a0a;
+  border: 1px solid rgba(255,255,255,0.2);
   color: #fff;
   font-family: var(--font-sans);
   font-size: 18px;
@@ -390,9 +398,14 @@ const submitLogin = async () => {
   margin: 1rem 0;
 }
 
+.input-passcode::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+
 .input-passcode:focus {
   outline: none;
   border-color: var(--accent-color);
+  background: #000;
 }
 
 .error-text {
