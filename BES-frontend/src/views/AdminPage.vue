@@ -3,7 +3,7 @@ import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackG
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, getAppConfig, postAppConfig } from '@/utils/api';
+import { fetchAllEvents, getAppConfig, postAppConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -102,7 +102,7 @@ const isEventAssigned = (organiser, eventId) => {
 
 const accentInput = ref('#ffffff')
 const activeTab = ref('scores')
-const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers'])
+const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers', 'demo'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -168,6 +168,31 @@ const saveAccent = async () => {
   await postAppConfig(accentInput.value)
 }
 
+// ── Demo Settings ──────────────────────────────────────────
+const demoConfig = ref({ demoEnabled: false, passcode: '' })
+const showPasscode = ref(false)
+const activeSandboxes = ref(0)
+
+async function loadDemoConfig() {
+  try {
+    const cfg = await getDemoConfig()
+    demoConfig.value = cfg
+  } catch (e) {
+    console.error('Failed to load demo config', e)
+  }
+}
+
+async function toggleDemoEnabled() {
+  const newState = !demoConfig.value.demoEnabled
+  await updateDemoConfig({ demoEnabled: newState })
+  demoConfig.value.demoEnabled = newState
+}
+
+async function regeneratePasscode() {
+  await updateDemoConfig({ demoEnabled: demoConfig.value.demoEnabled, regeneratePasscode: true })
+  await loadDemoConfig()
+}
+
 onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
@@ -176,6 +201,7 @@ onMounted(async () => {
   organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
+  loadDemoConfig()
 })
 </script>
 
@@ -472,6 +498,52 @@ onMounted(async () => {
               Apply Accent Color
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- ── Demo Settings ──────────────────────────────────── -->
+      <div v-if="activeTab === 'demo'">
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Demo Settings</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div class="card-hover p-4 relative">
+          <div class="corner-bar-tl"></div>
+
+          <div class="setting-row mb-4">
+            <span class="type-prose">Enable demo system</span>
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                :checked="demoConfig.demoEnabled"
+                @change="toggleDemoEnabled"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row mb-4">
+            <span class="type-prose">Passcode</span>
+            <div class="passcode-controls flex items-center gap-2">
+              <input
+                :type="showPasscode ? 'text' : 'password'"
+                :value="showPasscode ? demoConfig.passcode : '••••••••'"
+                class="input-base flex-1 max-w-[180px] type-body"
+                readonly
+              />
+              <button @click="showPasscode = !showPasscode" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px]">
+                {{ showPasscode ? 'Hide' : 'Show' }}
+              </button>
+              <button @click="regeneratePasscode" class="para-chip-sm type-label px-3 py-1.5 min-h-[44px]">
+                Regenerate
+              </button>
+            </div>
+          </div>
+
+          <p class="type-prose-sm text-content-muted">
+            Active sandboxes: {{ activeSandboxes }}
+          </p>
         </div>
       </div>
 
