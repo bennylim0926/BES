@@ -18,6 +18,7 @@ import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetFeedbackEnabledDto;
 import com.example.BES.dtos.GetJudgingModeDto;
+import com.example.BES.dtos.GetResultsReleaseModeDto;
 import com.example.BES.respositories.AccountRepository;
 import com.example.BES.respositories.EventRepo;
 
@@ -86,6 +87,7 @@ public class EventService {
             dto.setName(event.getEventName());
             dto.setPaymentRequired(event.isPaymentRequired());
             dto.setFeedbackEnabled(event.isFeedbackEnabled());
+            dto.setResultsReleaseMode(event.getResultsReleaseMode());
             dtos.add(dto);
         }
         return dtos;
@@ -121,17 +123,19 @@ public class EventService {
             java.util.Map.of("eventName", eventName, "feedbackEnabled", enabled));
     }
 
-    public void releaseResults(String eventName, boolean released) {
+    public GetResultsReleaseModeDto getResultsReleaseMode(String eventName) {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        event.setResultsReleased(released);
-        repo.save(event);
+        return new GetResultsReleaseModeDto(event.getEventName(), event.getResultsReleaseMode());
     }
 
-    public boolean isResultsReleased(String eventName) {
+    public void setResultsReleaseMode(String eventName, String mode) {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
-        return event.isResultsReleased();
+        event.setResultsReleaseMode(mode);
+        repo.save(event);
+        messagingTemplate.convertAndSend("/topic/release-mode",
+            java.util.Map.of("eventName", eventName, "mode", mode));
     }
 
     /**
