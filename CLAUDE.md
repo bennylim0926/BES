@@ -54,11 +54,11 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 | Package | Purpose |
 |---------|---------|
-| `controllers/` | 9 REST controllers under `/api/v1/` |
-| `services/` | 21 business logic services |
+| `controllers/` | 13 REST controllers under `/api/v1/` (+ STOMP `BattleTimerController`) |
+| `services/` | Business logic services (tier access, session tokens, emcee category presence, audition display, etc.) |
 | `respositories/` | Spring Data JPA repos |
-| `models/` | 19 JPA entities → PostgreSQL tables |
-| `dtos/` | ~40 request/response DTOs |
+| `models/` | 24 JPA entities → PostgreSQL tables |
+| `dtos/` | Request/response DTOs |
 | `config/` | Security, CORS, WebSocket, Google API config |
 | `mapper/` | Entity ↔ DTO converters |
 
@@ -66,10 +66,14 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 | Controller | Base Path | Purpose |
 |-----------|-----------|---------|
-| `AuthController` | `/api/v1/auth` | Login, logout, session check |
-| `EventController` | `/api/v1/event` | CRUD events, participants, scores, genres, scoring criteria, feedback, pickup crews |
-| `BattleController` | `/api/v1/battle` | Battle mode, voting, judges, images, battle phase state machine |
-| `AdminController` | `/api/v1/admin` | Admin CRUD for genres, judges, scores, feedback groups/tags |
+| `AuthController` | `/api/v1/auth` | Login, logout, session check, token-link login (`/auth/me` returns `tier`) |
+| `EventController` | `/api/v1/event` | CRUD events, participants, scores, categories, scoring criteria, feedback toggle, pickup crews, session tokens |
+| `BattleController` | `/api/v1/battle` | Battle mode, voting, judges, images, battle phase state machine (most endpoints gated by `TierAccessService`) |
+| `BattleTimerController` | STOMP `/app/battle/timer/...` | WebSocket timer relay for battle overlay |
+| `EmceeCategoryController` | `/api/v1/emcee/active-categories` | Heartbeat-based registry of categories actively being run by emcees |
+| `EventAuditionDisplayController` | `/api/v1/event/audition-display` | Live round/timer state for the OBS audition display |
+| `AdminController` | `/api/v1/admin` | Admin CRUD for categories (genre groups), judges, scores, feedback groups/tags, organiser tier |
+| `AppConfigController` | `/api/v1/app-config` | Global runtime config (accent color) broadcast to all clients |
 | `ResultsController` | `/api/v1/results` | Public results by reference code, QR access |
 | `SecurityController` | `/api/v1/security` | CSRF token endpoint |
 | `GoogleDriveFileController` | `/api/v1/files` | Google Drive file listing |
@@ -80,33 +84,43 @@ Vue 3 frontend  →  Nginx (reverse proxy)  →  Spring Boot backend (port 5050)
 
 | Model | Purpose |
 |-------|---------|
-| `Event` | Event with access code, payment flag, judging mode, results release toggle |
-| `EventParticipant` | Participant linked to event; supports walk-ins, stage name, team format, display name |
+| `Event` | Event with payment flag, judging mode, results release toggle, `feedbackEnabled`, `animTheme` |
+| `EventParticipant` / `EventParticipantId` | Participant linked to event; supports walk-ins, stage name, team format, display name |
 | `EventParticipantTeamMember` | Individual member rows for team entries |
-| `EventGenre` | Genre linked to event with format field |
-| `EventGenreParticipant` | Participant-genre junction with audition number |
-| `Score` | Single overall score per judge/participant/genre |
-| `ScoringCriteria` | Named weighted criteria per event/genre (custom scoring mode) |
-| `AuditionFeedback` | Judge feedback per participant/genre with tags and note |
+| `EventCategory` | Category (formerly "genre") linked to event with format, display fields, scoring config |
+| `EventCategoryParticipant` / `EventCategoryParticipantId` | Participant-category junction with audition number |
+| `EventCategoryParticipantMember` | Per-category team member roster |
+| `EventCategoryBattleGuest` | Battle-only guest participants attached to a category |
+| `BattleCategoryState` | Persisted bracket / smoke / phase state per (event, category) |
+| `BattleActiveCategory` | Tracks which category each event is currently running |
+| `Score` | Single overall score per judge/participant/category |
+| `ScoringCriteria` | Named weighted criteria per event/category (custom scoring mode) |
+| `AuditionFeedback` | Judge feedback per participant/category with tags and note |
 | `FeedbackTag` / `FeedbackTagGroup` | Configurable tag taxonomy for feedback |
 | `PickupCrew` / `PickupCrewMember` | Ad-hoc crews formed from individual participants |
 | `EventEmailTemplate` | Customisable per-event email subject/body |
+| `Account` | User account with role + `tier` (PRO/MAX) for organisers |
+| `SessionToken` | Permanent/long-lived tokens for direct session links (Emcee, Helper, per-judge) |
+| `AppConfig` | Global runtime config row (e.g. accent color) |
+| `Judge` / `Participant` | Global judge / participant directories reused across events |
 
 ### Frontend Layout (`BES-frontend/src/`)
 
 | Path | Purpose |
 |------|---------|
-| `views/` | 19 page-level components (see Routes section) |
-| `components/` | 22 reusable UI components |
-| `utils/api.js` | ~65 frontend→backend fetch functions |
-| `utils/adminApi.js` | ~14 admin-specific API functions |
-| `utils/auth.js` | Pinia auth store + active event helpers |
+| `views/` | 25 page-level components (see Routes section) |
+| `components/` | Reusable UI components |
+| `utils/api.js` | Frontend→backend fetch functions |
+| `utils/adminApi.js` | Admin-specific API functions |
+| `utils/auth.js` | Pinia auth store + active event helpers; persists `tier`, holds `activeEventBattleEnabled` |
 | `utils/battleLogic.js` | Battle game logic |
 | `utils/websocket.js` | WebSocket/STOMP setup |
-| `utils/eventUtils.js` | Shared event/genre helpers |
+| `utils/eventUtils.js` | Shared event/category helpers |
 | `utils/dropdown.js` | Dropdown state utilities |
 | `utils/useScrollReveal.js` | Scroll-reveal animation composable |
-| `router/index.js` | Client-side routes with RBAC guards |
+| `utils/useTierAccess.js` | Composable + `resolveBattleEnabled` helper for PRO/MAX gating (router guard reuses it) |
+| `utils/branding.js` | Central `APP_NAME` / `APP_TAGLINE` / `APP_DESCRIPTION` constants (Kyrove) |
+| `router/index.js` | Client-side routes with RBAC + tier guards |
 
 ### Navigation Architecture
 
@@ -159,7 +173,8 @@ When switching to a new branch (option B): check for open PRs on the current bra
 
 - File naming: `V{version}__{description}.sql` (double underscore, snake_case description)
 - Always add new migrations as new files — never edit existing ones
-- Latest migration: `V33__add_format_timer.sql` → next is `V34__...`
+- Latest migration: `V43__drop_access_code_column.sql` → next is `V44__...`
+- Recent schema shifts to be aware of: `V39` added `event_genre_link` junction; `V40` added organiser `tier`; `V41`/`V42` renamed `event_genre` → `event_category` and `event_participant.genre` → `category`; `V43` dropped `access_code`
 
 ### Layer Modification Order
 
@@ -172,6 +187,7 @@ Public routes (no authentication required):
 | Route | View | Purpose |
 |-------|------|---------|
 | `/login` | `Login` | Login page |
+| `/403` | — | Forbidden landing for tier-gated redirects |
 | `/results` | `Results` | Public results portal (enter reference code) |
 | `/results-qr` | `ResultsQR` | Results via QR scan |
 | `/battle/overlay` | `BattleOverlay` | Stream overlay (OBS/broadcast display) |
@@ -180,6 +196,7 @@ Public routes (no authentication required):
 | `/battle/bracket` | `BracketVisualization` | Live bracket with winner animation + LED ticker |
 | `/audition/display` | `AuditionDisplay` | Live audition round + timer OBS source |
 | `/event/select` | `EventSelector` | Select active event (redirected here if no event set) |
+| `/auth/token` | `TokenAuth` | Token-based login landing (consumes EMCEE/HELPER/JUDGE session-token links) |
 
 Authenticated routes (role-gated):
 
@@ -187,73 +204,97 @@ Authenticated routes (role-gated):
 |-------|-------|------|---------|
 | `/` | all | `MainMenu` | Role-filtered quick-action home |
 | `/events` | Admin, Organiser | `Events` | Event list with search |
-| `/events/:eventName` | Admin, Organiser | `EventDetails` | Event overview, genre accordion, Google Drive setup |
+| `/events/:eventName` | Admin, Organiser | `EventDetails` | Event overview, category accordion, Google Drive setup, session-link generation |
 | `/event/audition-number` | Admin, Organiser | `AuditionNumber` | Display audition number on screen |
+| `/event/audition-adjust` | Admin, Organiser | `AuditionAdjust` | Tune/adjust audition number assignments |
 | `/event/update-event-details` | Admin, Organiser | `UpdateEventDetails` | Participant table, judge assignment, verification, payment |
 | `/event/audition-list` | Admin, Organiser, Emcee, Judge | `AuditionList` | Role-split view: Judge scores / Emcee timer+status |
-| `/event/score` | Admin, Organiser, Emcee | `Score` | Scoreboard with podium top-3 and by-judge breakdown |
+| `/event/score` | Admin, Organiser, Emcee | `Score` | Top N qualifier tool: Control vs Broadcast modes, live WS updates, tie-pool resolver |
 | `/event/crew-formation` | Admin, Organiser | `CrewFormation` | Form pickup crews from individual participants |
-| `/battle/control` | Admin, Organiser | `BattleControl` | Bracket seeding, battle phases, live match control |
-| `/admin` | Admin only | `AdminPage` | Genre/judge/image/feedback-tag CRUD |
+| `/battle/control` | Admin, Organiser (**MAX tier only**) | `BattleControl` | Bracket seeding, battle phases, live match control, overlay/animation theme config |
+| `/admin` | Admin only | `AdminPage` | Category/judge/image/feedback-tag CRUD + organiser PRO/MAX tier control + global accent color |
+| `/judge/session` | Judge (token) | `JudgeSessionView` | Token-link landing for a per-judge session |
+| `/emcee/session` | Emcee (token) | `EmceeSessionView` | Token-link landing for an emcee — includes Display URLs for OBS |
+| `/helper/session` | Helper (token) | `HelperSessionView` | Token-link landing for the Helper check-in flow |
 
 ## Workflow by Role
 
 ### Admin
-Full access to everything. Also manages global resources on `/admin`: genres, judges, images, and feedback tag groups/tags used across all events.
+Full access to everything (always treated as MAX tier). Also manages global resources on `/admin`: categories (genre groups), judges, images, feedback tag groups/tags, **organiser PRO/MAX tier**, and the global accent color used across all clients.
 
-### Organiser
+### Organiser (PRO or MAX)
+**Tier matters** — PRO organisers do not see any battle UI; battle endpoints return 403. MAX organisers get the full lifecycle. Tier is set by Admin on `/admin`.
+
 Event lifecycle end-to-end:
-1. Create event on `/events` (link Google Drive folder, add genres)
+1. Create event on `/events` (link Google Drive folder, add categories)
 2. Import participants from Google Sheets or add walk-ins on `EventDetails`
 3. Manage participants on `/event/update-event-details` — assign judges, verify & email, track payment, set stage names/team format
 4. Customise per-event email template
-5. Configure scoring criteria per genre (default single score or weighted multi-criteria)
-6. Run audition day: monitor `/event/audition-list`, check `/event/score` scoreboard
-7. Form pickup crews from individuals on `/event/crew-formation`
-8. Battle day: seed bracket on `/battle/control`, manage battle phases (IDLE → LOCKED → VOTING → REVEALED), watch `/battle/bracket` and `/battle/overlay` for stream
-9. Release results on `/event/score` → results become visible on public `/results` portal via reference code/QR
+5. Configure scoring criteria per category (default single score or weighted multi-criteria), toggle `feedbackEnabled`
+6. Generate session links (Emcee / Helper / per-judge) from EventDetails to hand to staff
+7. Run audition day: monitor `/event/audition-list`, check `/event/score` (Top N qualifier) scoreboard
+8. Form pickup crews from individuals on `/event/crew-formation`
+9. **MAX only** — Battle day: seed bracket on `/battle/control`, manage battle phases (IDLE → LOCKED → VOTING → REVEALED), choose animation theme (IMPACT / HYPE), watch `/battle/bracket` and `/battle/overlay` for stream
+10. Release results on `/event/score` → results become visible on public `/results` portal via reference code/QR
 
 ### Emcee
-Event-day read/announce role:
-- `/event/audition-list` — timer, participant status (scored/unscored), swipe through rounds with `EmceeRoundView`
-- `/event/score` — live scoreboard to announce standings
+Event-day read/announce role. Multiple emcees can run **different categories concurrently** — heartbeat-based active-category tracker shows an "ACTIVE" badge on categories already being run; second emcee gets a confirm prompt before overriding.
+- `/emcee/session` — token-link landing with Display URLs (one OBS URL per category)
+- `/event/audition-list` — timer, participant status (scored/unscored), swipe / `‹ PREV` / `NEXT ›` buttons through rounds with `EmceeRoundView`
+- `/event/score` — live Broadcast-mode scoreboard to announce standings
 
 ### Judge
 Scoring only:
-- `/event/audition-list` — `SwipeableCardsV2` score entry (whole + decimal keypads), per-aspect scoring if custom criteria are set, submit audition feedback tags + note via `FeedbackPopout`
+- `/judge/session` — token-link landing (per-judge token; refresh extends; tied to judge lifecycle)
+- `/event/audition-list` — `SwipeableCardsV2` score entry (whole + decimal keypads), per-aspect scoring if custom criteria are set, submit audition feedback tags + note via `FeedbackPopout` (only shown when event `feedbackEnabled` is true)
 - `/battle/judge` — vote for a battler during VOTING phase; result revealed on REVEALED phase
+
+### Helper
+Check-in role (new):
+- `/helper/session` — token-link landing
+- Runs the check-in flow on participants; sees the results QR in the post-check-in dialog
 
 ### Public (no login)
 - `/results` or `/results-qr` — participants look up their own results using a reference code (released by organiser)
 - `/battle/overlay` — OBS browser source for stream
 - `/battle/bracket` — projector/audience bracket display with live winner animation and LED ticker
 - `/battle/chart` — 7-to-Smoke cumulative battle chart
+- `/audition/display` — OBS source showing current round, participant name(s), countdown timer (live via WebSocket; survives refresh)
 
 ## Feature Overview
 
 | Feature | Location | Notes |
 |---------|----------|-------|
-| Google Sheets import | `EventDetails`, `GoogleSheetsController` | Imports stage name, team format, member roster |
+| Google Sheets import | `EventDetails`, `GoogleSheetsController` | Imports stage name, team format, member roster; comma-separated category column values are split |
 | Walk-in registration | `EventDetails` → `addWalkinToSystem` | Supports team members, team name |
 | Participant verification + email | `UpdateEventDetails` | Verify individually or batch; uses `EventEmailTemplate` |
 | Payment tracking | `UpdateEventDetails` | Per-participant payment flag |
-| Custom scoring criteria | `ScoringCriteriaModal` / `ScoringCriteriaPanel` | Weighted criteria per event/genre; judge scores per aspect |
-| Audition feedback | `FeedbackPopout` | Tags (grouped taxonomy) + free-text note per judge/participant |
+| Custom scoring criteria | `ScoringCriteriaModal` / `ScoringCriteriaPanel` | Weighted criteria per event/category; judge scores per aspect |
+| Audition feedback | `FeedbackPopout` | Tags (grouped taxonomy) + free-text note per judge/participant; hidden when event `feedbackEnabled` is false |
+| Feedback system toggle | `EventDetails` Event Settings | Per-event `feedbackEnabled` boolean; live WS broadcast to judge UIs |
 | Results portal | `/results`, `/results-qr` | Reference code or QR; organiser controls release toggle |
-| Battle phase state machine | `BattleControl` | IDLE → LOCKED → VOTING → REVEALED via WebSocket |
+| Top N qualifier | `Score.vue` (Control mode) | Top 8 / 16 / 32 / ALL picker; tie-pool stepper; black-box rule hides expanded pool from Broadcast/public |
+| Score broadcast mode | `Score.vue` (Broadcast mode) | Uniform-row leaderboard, 2-col packing at Top 16/32, glowing Top N separator; live WS updates on score/feedback save |
+| Battle phase state machine | `BattleControl` (MAX tier only) | IDLE → LOCKED → VOTING → REVEALED via WebSocket |
+| Battle tier gating | `TierAccessService` (backend) + `useTierAccess` (frontend) | PRO organisers blocked; UI hidden (no lock icons); 20+ battle endpoints + `GET /battle/state` gated |
 | Bracket seeding | `BattleControl` | By Rank (asc/desc), High↔Low pairing, Random; slot-picker UI |
-| Tie-breaker persistence | `Score` + localStorage | Tie-breaker selections survive page refresh, scoped per event/genre |
+| Tie-breaker persistence | `Score` + localStorage | Tie-breaker selections survive page refresh, scoped per event/category |
 | Live bracket visualization | `/battle/bracket` | Winner animations, LED ticker |
 | 7-to-Smoke format | `/battle/chart` | Cumulative smoke chart |
+| Animation theme | `BattleControl` Overlay Settings → `event.animTheme` | IMPACT (default) or HYPE; broadcasts via `/topic/battle/{event}/overlay-config`; `BattleOverlay`/`BracketVisualization`/`BattleJudge` switch via `data-anim-theme` |
 | Pickup crew formation | `/event/crew-formation` | Form named crews from individual participants |
-| Access code | `EventDetails` | Per-event access code, visible to organiser |
+| Concurrent emcee sessions | `EmceeCategoryController` + `/topic/emcee/active-categories/{event}` | Heartbeat tracker (~90s release); ACTIVE badge + confirm prompt before joining a category an emcee is already running |
+| Audition Display (OBS) | `/audition/display?event=X` | Public route; subscribes to display state; timer reconstructs from `timerStartedAt + timerDuration`; survives refresh |
+| Session-token links | EventDetails → Session Links + `TokenAuth` view | EMCEE/HELPER permanent tokens + per-judge tokens; refresh-to-extend; consumed via `/auth/token?token=...` |
 | Judging mode | `EventDetails` | Default (single score) or custom criteria mode |
 | Judge scoring card | `SwipeableCardsV2` | `py-5` keypad buttons, `py-3` "10 — Full Score" button, `w-[97%]` card width, `p-2` card padding. Reset/GoTo live in the AuditionList context bar (not in the card). |
 | Event selector grid | `EventSelector` | ≤4 events → 1 col, 5+ events → 2-col grid; no scroll. Always passes `?redirect=` back to originating page |
+| Helper check-in | `HelperSessionView` + check-in dialog | Helper role can see results QR in post-check-in dialog (GET `/api/v1/results/qr` allows HELPER) |
+| Global runtime config | `AppConfigController` + `/topic/app-config` | Admin sets accent color on `/admin` → broadcast to all clients |
 
 ## Battle Endpoint Permission Matrix
 
-**When debugging battle issues, check this first.** Most "data not persisting" or "feature not working" bugs are missing `EMCEE` on a `@PreAuthorize` annotation.
+**When debugging battle issues, check this first.** Most "data not persisting" or "feature not working" bugs are either (a) missing `EMCEE` on a `@PreAuthorize` annotation, or (b) the organiser is on PRO tier — `TierAccessService.requireBattleAccess()` returns 403 for non-MAX before authorisation even runs.
 
 | Endpoint | Method | Admin | Organiser | Emcee | What It Saves |
 |----------|--------|:---:|:---:|:---:|---------------|
@@ -270,13 +311,13 @@ Scoring only:
 | `/battle/judge/weightage` | POST | ✅ | ✅ | ❌ | Update judge weight |
 | `/battle/upload` | POST | ✅ | ✅ | ❌ | Upload images |
 | `/battle/overlay-config` | POST | ✅ | ✅ | ❌ | Overlay colors/visibility |
-| `/battle/active-genre` | POST | ✅ | ✅ | ✅ | Switch active event+genre |
+| `/battle/active-category` | POST | ✅ | ✅ | ✅ | Switch active event+category |
 
-**Every time you add a new battle endpoint, explicitly decide whether Emcee needs it.** The default should be to include `'EMCEE'` unless the operation is setup/admin-only.
+**Every time you add a new battle endpoint, explicitly decide whether Emcee needs it.** The default should be to include `'EMCEE'` unless the operation is setup/admin-only. Also wire it through `TierAccessService.requireBattleAccess()` so PRO organisers get 403 instead of partial access.
 
 ## Battle Persistence Architecture
 
-### Two Data Stores (both in the same `battle_genre_state` DB row)
+### Two Data Stores (both in the same `battle_category_state` DB row)
 
 | Store | Backend Field | API | Updated By | Used For |
 |-------|-------------|-----|------------|----------|
@@ -296,8 +337,8 @@ Both paths receive state from `GET /battle/state` (REST) and `/topic/battle/stat
 
 ### Format Detection (7-to-Smoke vs Standard)
 
-- **Frontend:** `isSmoke` = `topSize === 7`. Set by genre watcher when genre name contains "7 to smoke".
-- **Backend:** `genreFormat` loaded from `EventGenre.format` field. Included in `/battle/state` response.
+- **Frontend:** `isSmoke` = `topSize === 7`. Set by category watcher when category name contains "7 to smoke".
+- **Backend:** `categoryFormat` loaded from `EventCategory.format` field. Included in `/battle/state` response. *(Note: the JSON key was renamed from `genreFormat` → `categoryFormat` in #149. Any old frontend code still reading `genreFormat` will silently see undefined.)*
 - **`hydrateFromState`:** Uses `applySmoke`/`applyStd` hard gates to prevent cross-format data corruption.
 
 ## Common Pitfalls & Debugging Checklist
@@ -309,30 +350,30 @@ When someone reports a bug or requests a feature in the battle system, **ask cla
 | # | Question | Why It Matters |
 |---|----------|---------------|
 | 1 | **Which format?** 7-to-Smoke, regular bracket, or both? | Entirely different data structures (`[{name,score}]` vs `{Top16:[[L,R,W],...]}`), different state machines, different UI |
-| 2 | **Which role?** Admin, Organiser, or Emcee? | Most bugs are role-specific. Emcee has restricted endpoints and a separate UI code path in `LiveMatchPanel` |
-| 3 | **One event with both formats?** Do they switch genres? | The save-then-load cycle on genre switch is the #1 source of state leaks (see Pitfall #0) |
-| 4 | **Single tab or multiple?** Any other clients connected? | `activeGenreName` is a global server field — multiple tabs race on it |
+| 2 | **Which role?** Admin, Organiser (PRO/MAX), or Emcee? | Most bugs are role-specific. PRO organisers are blocked at `TierAccessService`; Emcee has restricted endpoints and a separate UI code path in `LiveMatchPanel` |
+| 3 | **One event with both formats?** Do they switch categories? | The save-then-load cycle on category switch is the #1 source of state leaks (see Pitfall #0) |
+| 4 | **Single tab or multiple?** Any other clients connected? | `activeCategoryName` is a global server field — multiple tabs race on it. Emcees can now run different categories concurrently, so cross-tab activity is the norm |
 | 5 | **What phase is the battle in?** IDLE / LOCKED / VOTING / REVEALED / DECIDED? | Different phases take different code paths in `jumpToRecoveredPair`, `hydrateFromState`, and the template |
-| 6 | **Page refresh or server restart?** | Page refresh = frontend re-hydrates from REST. Server restart = `@PostConstruct` loads last active genre from DB |
+| 6 | **Page refresh or server restart?** | Page refresh = frontend re-hydrates from REST. Server restart = `@PostConstruct` loads last active category from DB |
 
 **If the answer to any of these is unclear or "both," investigate each path separately.** The formats diverge in `broadcastBracket`, `setWinner` vs `update7toSmokeMatch`, `hydrateFromState` format gates, and the template sections.
 
 ### ⚠️ 0. One event = both formats coexisting (read this first)
 
-**An event can have both 7-to-Smoke and regular battle genres simultaneously.** The user switches between them via the genre selector in `LiveMatchPanel`. This is the single most important architectural fact — every other pitfall flows from it.
+**An event can have both 7-to-Smoke and regular battle categories simultaneously.** The user switches between them via the category selector in `LiveMatchPanel`. This is the single most important architectural fact — every other pitfall flows from it.
 
-**The core problem:** `battlePhase`, `champion`, `bracketState`, and `battlers` in `BattleService.java` are **single in-memory fields shared across ALL genres**. They are NOT per-genre data structures. When the frontend switches genres:
+**The core problem:** `battlePhase`, `champion`, `bracketState`, and `battlers` in `BattleService.java` are **single in-memory fields shared across ALL categories**. They are NOT per-category data structures. When the frontend switches categories:
 
 ```
-1. persistActiveState()  → saves current in-memory state to OUTGOING genre's DB row
-2. activeGenreName = newGenre
-3. loadGenreStateIntoMemory() → overwrites in-memory state from INCOMING genre's DB row
+1. persistActiveState()       → saves current in-memory state to OUTGOING category's DB row
+2. activeCategoryName = new
+3. loadCategoryStateIntoMemory() → overwrites in-memory state from INCOMING category's DB row
 ```
 
 This save-then-load cycle is the critical path. If anything goes wrong (race condition, missing permission, stale WS message, format mismatch), data from one format **leaks into the other's DB row**. Always ask:
 
-- "What happens to this state when the user switches genres?"
-- "Is this field scoped to the current genre or global?"
+- "What happens to this state when the user switches categories?"
+- "Is this field scoped to the current category or global?"
 - "Does this mutation include a format guard (`isSmoke`/`applySmoke`)?"
 
 ### 1. "Data not persisting on refresh" → Check permissions first
@@ -345,8 +386,8 @@ This save-then-load cycle is the critical path. If anything goes wrong (race con
 ### 2. Silent failures in API calls
 Most API functions in `api.js` catch errors with `console.error(e)` but **don't surface them to the UI** and **don't check HTTP status codes**. A 403 Forbidden returns a Response object that `res.ok` would reject, but callers rarely check. When debugging, always check the browser's Network tab.
 
-### 3. Global backend state shared across genres
-`battlePhase`, `champion`, `bracketState`, and `battlers` in `BattleService.java` are single in-memory fields — NOT per-genre. They get overwritten by `loadGenreStateIntoMemory()` on genre switch. If two browser tabs have different genres active, the last tab to call `setActiveGenre()` wins the `activeGenreName` race. The DB rows are correctly separated per `(event_name, genre_name)`, but in-memory state is a single slot.
+### 3. Global backend state shared across categories
+`battlePhase`, `champion`, `bracketState`, and `battlers` in `BattleService.java` are single in-memory fields — NOT per-category. They get overwritten by `loadCategoryStateIntoMemory()` on category switch. If two browser tabs have different categories active, the last tab to call `setActiveCategory()` wins the `activeCategoryName` race. The DB rows are correctly separated per `(event_name, category_name)`, but in-memory state is a single slot.
 
 ### 4. `watch(topSize)` clears `currentBattle`/`currentTop`/`currentRound`
 These are always reset at the end of the watcher callback. Programmatic changes set `skipSizeChangeClear=true` to suppress this, but if the watcher fires **async after hydration** (triggered by a topSize change in `hydrateFromState`), it can wipe just-restored state. Always guard these clears with the `programmatic` flag.
@@ -399,9 +440,26 @@ All alert banners, warning chips, and status callouts use:
 - **Glowing dot indicator** (same color with `box-shadow` glow)
 - Never use full solid fills or low-opacity tints alone — both were hard to read
 
-### Typography — Full Anton SC
+### Typography — Oswald (chrome) + Inter (prose) + Oswald name tier
 
-**Every text element uses Anton SC.** `--font-sans` is `'Anton SC'` (the default body font). Inter is available as `--font-body` but is not used by default. All text is `text-transform: uppercase`. Letter-spacing + opacity provide hierarchy (Anton SC has only one weight).
+**Anton SC is no longer the default.** As of #141 the rollout is:
+
+- **`--font-sans` = `'Oswald'`** (self-hosted latin 500) — default body / chrome font
+- **`--font-body` = `'Inter'`** — used for prose, descriptions, helper subcopy
+- **Anton SC** stays loaded as fallback only on the 3 untouched broadcast files (`BattleOverlay.vue`, `BracketVisualization.vue`, `Chart.vue`) — do not reintroduce it elsewhere
+- **Inputs no longer force uppercase.** User-typed data (participant names, team names, judge names, event names, criterion labels, etc.) reads **as typed** everywhere — EventDetails, UpdateEventDetails, AuditionAdjust, AuditionList, AuditionNumber, Score, BattleControl, LiveMatchPanel, AdminPage, EventCard, EventPanel, EventSelector, ScoringCriteriaModal, FeedbackPopout, scoring cards, broadcast displays, BattleJudge.
+- **Chrome labels stay capitalised** (section headers, button labels, status badges, round counters, "VS", "UP NEXT"). When in doubt: if it's a label, uppercase; if it's user data or descriptive prose, leave the case alone.
+
+**New tiers** added in `base.css`:
+
+| Tier | Font | Use |
+|------|------|-----|
+| `.type-prose` / `.type-prose-sm` | Inter 12px sentence case | Every helper / description / explanatory subcopy |
+| `.type-name` / `.type-name-sm` | Oswald sentence case | Every user-typed name (participant, team, member, judge, division, event, criterion) |
+| `.section-rule-lg` | — | Larger section subheaders |
+| `.tab-item-data` | — | Tab item with attached data badge |
+
+Legacy chrome tiers (now Oswald, not Anton SC):
 
 | Tier | Size | Letter-spacing | Use |
 |------|------|----------------|-----|
@@ -422,6 +480,17 @@ clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)
 ```
 **No more** `rounded-2xl` cards or `rounded-full` badges. The `.card` and `.badge-*` utilities in `base.css` use this shape.
 
+### Modal Standardisation (post-#126 / #130)
+
+All modals (`FeedbackPopout`, `ScoringCriteriaModal`, `CreateParticipantForm`, EventDetails Category Entries / Add Division) share a slide-up shell:
+
+- `bg-black/80` backdrop (no bleed-through)
+- `pb-6` mobile bottom padding (clears browser chrome)
+- **No header X button** — backdrop click closes; show "Tap outside to close" hint
+- Header is icon + badge; rows use `.para-chip-sm` parallelogram tag chips
+- Use `<Teleport>` for portal rendering
+- Save state shown as centered status text (`Saving…` / `Feedback saved`) instead of a Done button
+
 ### Six Cinematic Chrome Elements
 
 | Element | Where | Notes |
@@ -431,7 +500,7 @@ clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)
 | **Corner accent bars** | Panels, modals only | Top-left + bottom-left bars only (not all 4 corners) |
 | **Section rules** | Every section header | Label + `flex:1` hairline — replaces `border-b` dividers |
 | **Color bleed** | Page root only | Radial gradients from bottom corners using `--accent-subtle`; hidden in light mode |
-| **Topbar** | `App.vue` navbar | Anton SC, parallelogram nav chips, glowing dot |
+| **Topbar** | `App.vue` navbar | Oswald, parallelogram nav chips, glowing dot |
 
 ### Surface Scale (unchanged)
 | Token | Value | Use |
