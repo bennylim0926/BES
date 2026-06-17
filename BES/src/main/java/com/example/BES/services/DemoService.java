@@ -224,6 +224,32 @@ public class DemoService {
         return eventRepo.findAllDemoEvents().size();
     }
 
+    public List<Map<String, Object>> listSandboxes() {
+        List<Event> demos = eventRepo.findAllDemoEvents();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Event demo : demos) {
+            Map<String, Object> info = new HashMap<>();
+            info.put("eventId", demo.getEventId());
+            info.put("eventName", demo.getEventName());
+            List<SessionToken> tokens = sessionTokenRepo.findByEvent_EventId(demo.getEventId());
+            long validTokens = tokens.stream()
+                    .filter(t -> !t.isRevoked() && t.getExpiresAt().isAfter(LocalDateTime.now()))
+                    .count();
+            info.put("activeTokens", validTokens);
+            result.add(info);
+        }
+        return result;
+    }
+
+    @Transactional
+    public int purgeAllSandboxes() {
+        List<Event> demos = eventRepo.findAllDemoEvents();
+        for (Event demo : demos) {
+            purgeSandbox(demo.getEventId());
+        }
+        return demos.size();
+    }
+
     /**
      * Create a new session token for a different role in an existing demo sandbox.
      * Does NOT create a new sandbox and does NOT count against IP rate limits.

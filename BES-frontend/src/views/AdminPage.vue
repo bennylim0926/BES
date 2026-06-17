@@ -192,6 +192,29 @@ async function regeneratePasscode() {
   await loadDemoConfig()
 }
 
+// ── Demo Sandbox Management ─────────────────────────────────
+const sandboxes = ref([])
+
+async function loadSandboxes() {
+  try {
+    const res = await fetch('/api/v1/admin/demo/sandboxes', { credentials: 'include' })
+    sandboxes.value = res.ok ? await res.json() : []
+  } catch { sandboxes.value = [] }
+}
+
+async function purgeSandbox(eventId) {
+  await fetch(`/api/v1/admin/demo/sandboxes/${eventId}`, { method: 'DELETE', credentials: 'include' })
+  await loadSandboxes()
+  await loadDemoConfig()
+}
+
+async function purgeAllSandboxes() {
+  if (!confirm('Delete all demo sandboxes?')) return
+  await fetch('/api/v1/admin/demo/sandboxes', { method: 'DELETE', credentials: 'include' })
+  await loadSandboxes()
+  await loadDemoConfig()
+}
+
 onMounted(async () => {
   events.value = await fetchAllEvents() ?? []
   images.value = await getAllImages() ?? []
@@ -201,6 +224,7 @@ onMounted(async () => {
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
   loadDemoConfig()
+  loadSandboxes()
 })
 </script>
 
@@ -540,9 +564,28 @@ onMounted(async () => {
             </div>
           </div>
 
-          <p class="type-prose-sm text-content-muted">
+          <p class="type-prose-sm text-content-muted mb-3">
             Active sandboxes: {{ demoConfig.activeSandboxes }}
           </p>
+
+          <!-- Sandbox list -->
+          <div v-if="sandboxes.length" class="border-t border-surface-600 pt-3 mt-3">
+            <div class="flex items-center justify-between mb-3">
+              <span class="type-label text-content-muted">Sandboxes</span>
+              <button @click="purgeAllSandboxes" class="para-chip-sm px-3 py-1 min-h-[36px] text-red-400 border-red-400/30">
+                Purge All
+              </button>
+            </div>
+            <div v-for="s in sandboxes" :key="s.eventId" class="flex items-center justify-between py-2 border-b border-surface-600/50 last:border-b-0">
+              <div>
+                <span class="type-body block">{{ s.eventName }}</span>
+                <span class="type-prose-sm text-content-muted">{{ s.activeTokens }} active token(s)</span>
+              </div>
+              <button @click="purgeSandbox(s.eventId)" class="para-chip-sm px-3 py-1 min-h-[36px] text-red-400 border-red-400/30">
+                Purge
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

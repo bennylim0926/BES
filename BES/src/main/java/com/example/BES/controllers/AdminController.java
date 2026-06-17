@@ -232,4 +232,23 @@ public class AdminController {
 
         return ResponseEntity.ok(result);
     }
+
+    // ── Demo Sandbox Management ──────────────────────────────────────────────────
+
+    @GetMapping("/demo/sandboxes")
+    public ResponseEntity<List<Map<String, Object>>> listDemoSandboxes() {
+        return ResponseEntity.ok(demoService.listSandboxes());
+    }
+
+    @DeleteMapping("/demo/sandboxes/{eventId}")
+    public ResponseEntity<Map<String, Object>> purgeDemoSandbox(@PathVariable Long eventId) {
+        demoService.purgeSandbox(eventId);
+        return ResponseEntity.ok(Map.of("message", "Sandbox purged"));
+    }
+
+    @DeleteMapping("/demo/sandboxes")
+    public ResponseEntity<Map<String, Object>> purgeAllDemoSandboxes() {
+        int count = demoService.purgeAllSandboxes();
+        return ResponseEntity.ok(Map.of("message", "Purged " + count + " sandbox(es)"));
+    }
 }
