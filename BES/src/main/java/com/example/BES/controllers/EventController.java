@@ -41,6 +41,7 @@ import com.example.BES.dtos.UpdateScoringCriteriaDto;
 import com.example.BES.dtos.GetJudgingModeDto;
 import com.example.BES.dtos.UpdateJudgingModeDto;
 import com.example.BES.dtos.UpdateFeedbackDto;
+import com.example.BES.dtos.UpdateReleaseScoreDto;
 // import com.example.BES.dtos.AddJudgesDto;
 import com.example.BES.dtos.AddJudgeDto;
 import com.example.BES.dtos.AddParticipantToEventCategoryDto;
@@ -209,9 +210,9 @@ public class EventController {
         return ResponseEntity.ok(Map.of("battleEnabled", enabled));
     }
 
-    @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event (admin only)")
+    @Operation(summary = "Set Feedback Enabled", description = "Toggles whether the feedback button is shown on judge scoring cards for an event")
     @PostMapping("/feedback-enabled")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setFeedbackEnabled(@Valid @RequestBody UpdateFeedbackDto dto) {
         try {
             eventService.setFeedbackEnabled(dto.eventName, dto.feedbackEnabled);
@@ -749,9 +750,8 @@ public class EventController {
         return ResponseEntity.ok(feedbackService.getAllFeedbackForParticipant(eventName, categoryName, participantName));
     }
 
-    @Operation(summary = "Get Results Release Status", description = "Returns whether results have been released for the event")
+    @Operation(summary = "Get Results Status", description = "Returns whether results have been released for the event")
     @GetMapping("/{eventName}/results-status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> getResultsStatus(@PathVariable String eventName) {
         try {
             boolean released = eventService.isResultsReleased(eventName);
@@ -771,6 +771,31 @@ public class EventController {
             boolean released = Boolean.TRUE.equals(body.get("released"));
             eventService.releaseResults(eventName, released);
             return ResponseEntity.ok(Map.of("message", "Results release updated", "released", released));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Get Release Score", description = "Returns whether scores are configured for release for this event")
+    @GetMapping("/{eventName}/release-score")
+    public ResponseEntity<?> getReleaseScore(@PathVariable String eventName) {
+        try {
+            boolean releaseScore = eventService.isReleaseScore(eventName);
+            return ResponseEntity.ok(Map.of("eventName", eventName, "releaseScore", releaseScore));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        }
+    }
+
+    @Operation(summary = "Set Release Score", description = "Toggles whether scores are available for release to the public results portal")
+    @PostMapping("/{eventName}/release-score")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setReleaseScore(
+            @PathVariable String eventName,
+            @Valid @RequestBody UpdateReleaseScoreDto body) {
+        try {
+            eventService.setReleaseScore(eventName, body.releaseScore);
+            return ResponseEntity.ok(Map.of("message", "Release score updated", "releaseScore", body.releaseScore));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         }

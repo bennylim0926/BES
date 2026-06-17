@@ -18,6 +18,7 @@ import com.example.BES.dtos.AddEventDto;
 import com.example.BES.dtos.GetEventDto;
 import com.example.BES.dtos.GetFeedbackEnabledDto;
 import com.example.BES.dtos.GetJudgingModeDto;
+import com.example.BES.dtos.UpdateReleaseScoreDto;
 import com.example.BES.respositories.AccountRepository;
 import com.example.BES.respositories.EventRepo;
 
@@ -86,6 +87,7 @@ public class EventService {
             dto.setName(event.getEventName());
             dto.setPaymentRequired(event.isPaymentRequired());
             dto.setFeedbackEnabled(event.isFeedbackEnabled());
+            dto.setReleaseScore(event.isReleaseScore());
             dtos.add(dto);
         }
         return dtos;
@@ -132,6 +134,19 @@ public class EventService {
         Event event = repo.findByEventName(eventName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         return event.isResultsReleased();
+    }
+
+    public void setReleaseScore(String eventName, boolean releaseScore) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        event.setReleaseScore(releaseScore);
+        repo.save(event);
+    }
+
+    public boolean isReleaseScore(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        return event.isReleaseScore();
     }
 
     /**

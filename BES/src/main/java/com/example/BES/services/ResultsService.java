@@ -39,6 +39,12 @@ public class ResultsService {
 
         if (!ep.getEvent().isResultsReleased()) return null;
 
+        boolean feedbackEnabled = ep.getEvent().isFeedbackEnabled();
+        boolean releaseScore = ep.getEvent().isReleaseScore();
+
+        // Must have at least one thing configured to show
+        if (!feedbackEnabled && !releaseScore) return null;
+
         List<EventCategoryParticipant> egps = egpRepo.findByEventIdAndParticipantId(
             ep.getEvent().getEventId(),
             ep.getParticipant().getParticipantId()
@@ -79,6 +85,8 @@ public class ResultsService {
         return new GetResultsDto(
             ep.getDisplayName(),
             ep.getEvent().getEventName(),
+            feedbackEnabled,
+            releaseScore,
             categoryResults
         );
     }

@@ -5,16 +5,22 @@ import java.util.List;
 public class GetResultsDto {
     private String participantName;
     private String eventName;
+    private boolean feedbackEnabled;
+    private boolean releaseScore;
     private List<CategoryResult> categories;
 
-    public GetResultsDto(String participantName, String eventName, List<CategoryResult> categories) {
+    public GetResultsDto(String participantName, String eventName, boolean feedbackEnabled, boolean releaseScore, List<CategoryResult> categories) {
         this.participantName = participantName;
         this.eventName = eventName;
+        this.feedbackEnabled = feedbackEnabled;
+        this.releaseScore = releaseScore;
         this.categories = categories;
     }
 
     public String getParticipantName() { return participantName; }
     public String getEventName() { return eventName; }
+    public boolean isFeedbackEnabled() { return feedbackEnabled; }
+    public boolean isReleaseScore() { return releaseScore; }
     public List<CategoryResult> getCategories() { return categories; }
 
     public static class CategoryResult {

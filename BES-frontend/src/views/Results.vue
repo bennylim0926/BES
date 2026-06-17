@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { getResultsByRefCode } from '@/utils/api'
 import { APP_NAME } from '../utils/branding.js'
@@ -82,6 +82,10 @@ const groupTags = (tags) => {
   }
   return groups
 }
+
+const showScores = computed(() => results.value?.releaseScore)
+const showFeedback = computed(() => results.value?.feedbackEnabled)
+const isFeedbackOnly = computed(() => !results.value?.releaseScore && results.value?.feedbackEnabled)
 </script>
 
 <template>
@@ -231,14 +235,14 @@ const groupTags = (tags) => {
                       #{{ category.auditionNumber }}
                     </span>
                   </div>
-                  <div v-if="category.scores && category.scores.length > 0" class="text-right ml-2 flex-shrink-0">
+                  <div v-if="!isFeedbackOnly && category.scores && category.scores.length > 0" class="text-right ml-2 flex-shrink-0">
                     <div class="type-label text-content-muted">Total</div>
                     <div class="type-stat text-[28px]">{{ totalScore(category.scores) }}</div>
                   </div>
                 </div>
 
                 <!-- Scores -->
-                <div v-if="category.scores && category.scores.length > 0" class="mb-4">
+                <div v-if="showScores && category.scores && category.scores.length > 0" class="mb-4">
                   <div class="section-rule mb-3">
                     <span class="section-rule-label">Scores</span>
                     <div class="section-rule-line"></div>
@@ -279,12 +283,12 @@ const groupTags = (tags) => {
                     </div>
                   </template>
                 </div>
-                <div v-else class="mb-4">
+                <div v-else-if="showScores" class="mb-4">
                   <p class="type-body text-content-muted">No scores recorded yet</p>
                 </div>
 
                 <!-- Feedback -->
-                <template v-if="category.feedback && category.feedback.length > 0">
+                <template v-if="showFeedback && category.feedback && category.feedback.length > 0">
                   <div class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
                     <div class="section-rule mb-3">
                       <span class="section-rule-label">Judge Feedback</span>
@@ -327,7 +331,7 @@ const groupTags = (tags) => {
                     </div>
                   </div>
                 </template>
-                <div v-else class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
+                <div v-else-if="showFeedback" class="pt-4" style="border-top: 1px solid rgba(255,255,255,0.07)">
                   <p class="type-label text-content-muted">No judge feedback for this category</p>
                 </div>
               </div>

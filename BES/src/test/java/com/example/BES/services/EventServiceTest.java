@@ -77,6 +77,23 @@ class EventServiceTest {
     }
 
     @Test
+    void setReleaseScore_updatesFlag() {
+        Event e = event("Fest");
+        when(repo.findByEventName("Fest")).thenReturn(Optional.of(e));
+
+        service.setReleaseScore("Fest", true);
+
+        assertThat(e.isReleaseScore()).isTrue();
+        verify(repo).save(e);
+    }
+
+    @Test
+    void newEvent_defaultsReleaseScoreFalse() {
+        Event e = new Event();
+        assertThat(e.isReleaseScore()).isFalse();
+    }
+
+    @Test
     void getAllEvents_returnsAllFields() {
         Event e = event("Fest");
         e.setPaymentRequired(true);

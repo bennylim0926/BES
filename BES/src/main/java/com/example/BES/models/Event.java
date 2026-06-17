@@ -29,6 +29,9 @@ public class Event {
     @Column(name = "results_released")
     private boolean resultsReleased = false;
 
+    @Column(name = "release_score")
+    private boolean releaseScore = false;
+
     @Column(name = "feedback_enabled")
     private boolean feedbackEnabled = true;
 

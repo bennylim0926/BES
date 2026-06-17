@@ -59,6 +59,8 @@ class ResultsServiceTest {
         e.setEventId(1L);
         e.setEventName("Fest");
         e.setResultsReleased(true);
+        e.setReleaseScore(true);
+        e.setFeedbackEnabled(true);
         Participant p = new Participant();
         p.setParticipantId(10L);
         EventParticipant ep = new EventParticipant();
