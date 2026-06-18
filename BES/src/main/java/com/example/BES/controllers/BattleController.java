@@ -45,6 +45,7 @@ import com.example.BES.dtos.battle.SetOverlayConfigDto;
 import com.example.BES.dtos.battle.SetBattleScoreDto;
 import com.example.BES.dtos.battle.SetResolvedParticipantsDto;
 import com.example.BES.dtos.battle.SetSmokeBattlersDto;
+import com.example.BES.dtos.battle.SetTieBreakerStateDto;
 import com.example.BES.dtos.battle.SetVoteDto;
 import com.example.BES.dtos.battle.UpdateJudgeWeightageDto;
 import com.example.BES.services.BattleService;
@@ -486,11 +487,32 @@ public class BattleController {
     }
 
     @PostMapping("/resolved-participants")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'HELPER')")
     public ResponseEntity<?> setResolvedParticipants(Authentication auth, @Valid @RequestBody SetResolvedParticipantsDto dto) {
-        checkBattleAccess(auth, dto.getEventName());
+        // Tie-breaker resolution is an audition scoring feature, not a battle-day
+        // feature — no battle tier gate. Role check is handled by @PreAuthorize.
         battleService.setResolvedParticipants(
             dto.getEventName(), dto.getCategoryName(), dto.getParticipants());
         return ResponseEntity.ok(Map.of("message", "Resolved participants saved"));
+    }
+
+    @PostMapping("/tie-breaker-state")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'HELPER')")
+    public ResponseEntity<?> saveTieBreakerState(Authentication auth, @Valid @RequestBody SetTieBreakerStateDto dto) {
+        battleService.saveTieBreakerState(
+            dto.getEventName(), dto.getCategoryName(),
+            dto.getTabulation(), dto.getTopN(),
+            dto.getWinners(), dto.isConfirmed(),
+            dto.getAddedToPool());
+        return ResponseEntity.ok(Map.of("message", "Tie-breaker state saved"));
+    }
+
+    @GetMapping("/tie-breaker-state")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'HELPER')")
+    public ResponseEntity<?> getTieBreakerState(
+            @RequestParam String event,
+            @RequestParam String category) {
+        Map<String, Object> state = battleService.getTieBreakerState(event, category);
+        return ResponseEntity.ok(state);
     }
 }

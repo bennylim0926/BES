@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { whoami, getCategoriesByEvent } from '@/utils/api'
+import { whoami, getCategoriesByEvent, logout } from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -57,9 +57,14 @@ function copyToClipboard(text) {
   document.body.removeChild(ta)
 }
 
-function copyAuditionScreenLink() {
+function numberDrawUrl() {
+  if (!authStore.activeEvent?.name) return ''
+  return window.location.origin + '/event/audition-number?event=' + encodeURIComponent(authStore.activeEvent.name)
+}
+
+function copyNumberDrawLink() {
   if (!authStore.activeEvent?.name) return
-  copyToClipboard(window.location.origin + '/event/audition-number?event=' + encodeURIComponent(authStore.activeEvent.name))
+  copyToClipboard(numberDrawUrl())
   linkCopied.value = true
   setTimeout(() => { linkCopied.value = false }, 2000)
 }
@@ -72,6 +77,12 @@ function goToEventDetails() {
       query: authStore.activeEvent.folderID ? { folderID: authStore.activeEvent.folderID } : {}
     })
   }
+}
+
+async function handleLogout() {
+  await logout()
+  authStore.logout()
+  router.push('/login')
 }
 </script>
 
@@ -128,30 +139,40 @@ function goToEventDetails() {
           <i class="pi pi-calendar nav-btn-icon" aria-hidden="true"></i>
           <span class="nav-btn-label">Event Details</span>
         </button>
-
-        <!-- aria-live: copy confirmation is announced, success reads via icon + label, not color alone -->
         <button
-          @click="copyAuditionScreenLink"
+          @click="router.push({ name: 'Score' })"
           class="nav-btn"
-          :class="linkCopied ? 'nav-btn--copied' : ''"
+        >
+          <i class="pi pi-chart-bar nav-btn-icon" aria-hidden="true"></i>
+          <span class="nav-btn-label">Score</span>
+        </button>
+      </div>
+
+      <!-- Display URLs — Number Draw + per-category OBS sources -->
+      <div v-if="!loading" class="section-header">
+        <span class="section-label">DISPLAY URLS</span>
+        <span class="section-rule"></span>
+      </div>
+      <p v-if="!loading" class="display-hint">
+        Paste these into OBS browser sources or open in a projector browser. No login required.
+      </p>
+      <div v-if="!loading" class="display-list">
+        <!-- Number Draw (always shown, even if no categories yet) -->
+        <button
+          @click="copyNumberDrawLink"
+          class="display-btn"
+          :class="linkCopied ? 'display-btn--copied' : ''"
           :disabled="!authStore.activeEvent?.name"
           :style="!authStore.activeEvent?.name ? 'opacity:0.35;cursor:not-allowed' : ''"
           aria-live="polite"
         >
-          <i class="pi nav-btn-icon" :class="linkCopied ? 'pi-check' : 'pi-hashtag'" aria-hidden="true"></i>
-          <span class="nav-btn-label">{{ linkCopied ? 'Link Copied!' : 'Audition Screen' }}</span>
+          <span class="display-btn-name">Number Draw</span>
+          <span class="display-btn-action">
+            <i class="pi" :class="linkCopied ? 'pi-check' : 'pi-copy'" aria-hidden="true"></i>
+            {{ linkCopied ? 'Copied' : 'Copy URL' }}
+          </span>
         </button>
-      </div>
 
-      <!-- Display URLs per category — for OBS / projector setup -->
-      <div v-if="!loading && categories.length > 0" class="section-header">
-        <span class="section-label">DISPLAY URLS</span>
-        <span class="section-rule"></span>
-      </div>
-      <p v-if="!loading && categories.length > 0" class="display-hint">
-        Paste these into OBS browser sources or open in a projector browser. No login required.
-      </p>
-      <div v-if="!loading && categories.length > 0" class="display-list">
         <button
           v-for="cat in categories"
           :key="cat.eventCategoryId"
@@ -167,6 +188,12 @@ function goToEventDetails() {
           </span>
         </button>
       </div>
+
+      <!-- Logout — escape route for session users -->
+      <button @click="handleLogout" class="logout-btn">
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+        <span>Logout</span>
+      </button>
 
     </div>
   </div>
@@ -414,5 +441,32 @@ function goToEventDetails() {
   .nav-btn {
     padding: 16px 20px;
   }
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.35);
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  min-height: 44px;
+}
+
+.logout-btn:hover {
+  color: rgba(239,68,68,0.8);
+  border-color: rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.06);
 }
 </style>

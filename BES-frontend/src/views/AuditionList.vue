@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, resetJudgeScores, resetJudgeFeedback, claimEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -98,16 +98,6 @@ const openModal = (title, message, variant = 'info') => {
   dynamicCallBack.value = () => { showModal.value = false }
 }
 
-const confirmReset = (title, message) => {
-  modalTitle.value = title
-  modalMessage.value = message
-  modalVariant.value = 'warning'
-  showModal.value = true
-  dynamicCallBack.value = async () => {
-    showModal.value = false
-    await resetScore()
-  }
-}
 
 const switchCategory = (g) => {
   if (g === selectedCategory.value) return
@@ -372,34 +362,6 @@ const submitScore = async (eventName, categoryName, judgeName, participantList) 
   }
 }
 
-const resetScore = async () => {
-  // Only reset scores for the currently selected category
-  participants.value = participants.value.map(obj => {
-    if (obj.categoryName !== selectedCategory.value) return obj
-    const cs = {}
-    if (obj.criteriaScores) {
-      Object.keys(obj.criteriaScores).forEach(k => { cs[k] = 0 })
-    }
-    return { ...obj, score: 0, criteriaScores: cs, submitted: false }
-  })
-  if (currentJudge.value && selectedEvent.value && selectedCategory.value) {
-    await Promise.all([
-      resetJudgeScores(selectedEvent.value, selectedCategory.value, currentJudge.value),
-      resetJudgeFeedback(selectedEvent.value, selectedCategory.value, currentJudge.value),
-    ])
-    // Clear in-memory feedback for the current category
-    const categoryAuditionNums = new Set(
-      participants.value
-        .filter(p => p.categoryName === selectedCategory.value)
-        .map(p => p.auditionNumber)
-    )
-    const newMap = new Map(feedbackGiven.value)
-    for (const key of newMap.keys()) {
-      if (categoryAuditionNums.has(key)) newMap.delete(key)
-    }
-    feedbackGiven.value = newMap
-  }
-}
 
 // ── Scoring criteria ─────────────────────────────────────────────────────────
 const criteria = ref([])
@@ -757,14 +719,6 @@ onMounted(async () => {
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <template v-if="selectedRole === 'Judge' || isJudgeSession">
-          <!-- Destructive action: red hover distinguishes reset from neutral controls; aria-label for icon-only -->
-          <button
-            @click="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
-            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-red-400 transition-all"
-            style="min-width:44px"
-            title="Reset scores"
-            aria-label="Reset all scores"
-          ><i class="pi pi-undo text-sm sm:text-xs" aria-hidden="true"></i></button>
           <button
             @click="showMiniMenu = true"
             class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
@@ -786,8 +740,38 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Page header (no active session yet) -->
-    <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <!-- Emcee category picker (no active session) — clean session-style list -->
+    <div v-if="!hasActiveSession && isEmcee" class="card p-5 mb-6" style="clip-path:none">
+      <div class="flex items-center gap-3 mb-4">
+        <button
+          @click="router.push({ name: 'EmceeSession' })"
+          class="type-label text-accent hover:text-content-primary transition-colors whitespace-nowrap"
+        >← BACK TO SESSION</button>
+        <span class="section-rule-label">SELECT CATEGORY</span>
+        <span class="section-rule-line flex-1" style="height:1px;background:rgba(255,255,255,0.07)"></span>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <button
+          v-for="cat in uniqueCategories"
+          :key="cat"
+          @click="pickEmceeCategory(cat)"
+          class="flex items-center justify-between px-4 py-3.5 border cursor-pointer transition-all text-left"
+          style="background:transparent;border-color:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:0.08em;text-transform:uppercase"
+          @mouseenter="$event.currentTarget.style.borderColor='var(--accent-muted)';$event.currentTarget.style.color='var(--accent-color)'"
+          @mouseleave="$event.currentTarget.style.borderColor='rgba(255,255,255,0.07)';$event.currentTarget.style.color='rgba(255,255,255,0.7)'"
+        >
+          <span>{{ cat }}</span>
+          <div class="flex items-center gap-2">
+            <span v-if="activeEmceeCategories.has(cat)" class="px-1.5 py-0.5" style="font-size:9px;letter-spacing:0.14em;color:rgba(245,158,11,0.9);border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)">ACTIVE</span>
+            <i class="pi pi-chevron-right" style="font-size:10px;opacity:0.4" aria-hidden="true"></i>
+          </div>
+        </button>
+      </div>
+      <p v-if="uniqueCategories.length === 0" class="type-label text-content-muted text-center py-4">No categories found for this event.</p>
+    </div>
+
+    <!-- Page header (no active session yet — non-emcee) -->
+    <div v-else-if="!hasActiveSession && !isEmcee" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <!-- h1 for document outline -->
         <h1 class="type-page-title mb-1">Audition List</h1>
@@ -814,7 +798,7 @@ onMounted(async () => {
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="showFilters || !hasActiveSession" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.12)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.9)', clipPath: 'none' } : { clipPath: 'none' }">
+      <div v-if="showFilters || (!hasActiveSession && !isEmcee)" class="card p-5" :class="hasActiveSession ? 'fixed left-0 right-0 z-40 mx-4' : 'mb-6'" :style="hasActiveSession ? { top: '138px', background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.12)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.9)', clipPath: 'none' } : { clipPath: 'none' }">
         <!-- Mobile: vertical stack; Tablet+: horizontal wrap -->
         <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 sm:gap-3">
           <!-- Event name (hidden for session judges — locked) -->
@@ -956,39 +940,6 @@ onMounted(async () => {
       />
     </template>
 
-    <!-- Emcee: no category selected yet — show picker -->
-    <div
-      v-else-if="selectedRole === 'Emcee' && !selectedCategory"
-      class="flex flex-col items-center justify-center h-full gap-6 px-4"
-      style="max-width:480px;margin:0 auto;width:100%"
-    >
-      <div class="text-center">
-        <p class="type-page-title text-content-primary mb-1" style="font-size:1.4rem">SELECT CATEGORY</p>
-        <p class="type-prose text-content-muted">Choose which category you are running</p>
-      </div>
-      <div class="flex flex-col gap-2 w-full">
-        <button
-          v-for="div in eventDivisions"
-          :key="div.eventCategoryId"
-          @click="pickEmceeCategory(div.name)"
-          class="w-full para-chip px-4 py-3.5 flex items-center justify-between type-name text-content-primary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-150"
-        >
-          <span>{{ div.name }}</span>
-          <div class="flex items-center gap-2">
-            <span
-              v-if="activeEmceeCategories.has(div.name)"
-              class="text-[9px] tracking-[0.14em] text-amber-300/90 border border-amber-400/40 bg-amber-400/8 px-1.5 py-0.5"
-              style="clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)"
-            >ACTIVE</span>
-            <i class="pi pi-chevron-right text-xs text-content-muted" aria-hidden="true"></i>
-          </div>
-        </button>
-        <div v-if="eventDivisions.length === 0" class="type-prose text-content-muted text-center py-4">
-          No categories found for this event.
-        </div>
-      </div>
-    </div>
-
     <!-- Emcee: no participants in this category -->
     <div
       v-else-if="selectedRole === 'Emcee' && selectedCategory"
@@ -1062,7 +1013,6 @@ onMounted(async () => {
         @remove-tag="removeTag"
         @score-change="autoSave"
         @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
-        @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
         @jump="showMiniMenu = true"
       />
       <SwipeableCardsV2
@@ -1076,7 +1026,6 @@ onMounted(async () => {
         @remove-tag="removeTag"
         @score-change="autoSave"
         @submit="confirmSubmit('Submit Scores', 'Are you sure you want to submit all scores now?')"
-        @reset="confirmReset('Reset Scores', 'Are you sure you want to reset all scores? This cannot be undone.')"
         @jump="showMiniMenu = true"
       />
     </template>

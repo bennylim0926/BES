@@ -8,7 +8,7 @@ const props = defineProps({
   feedbackEnabled: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'reset', 'jump', 'score-change']);
+const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'jump', 'score-change']);
 
 const scrollRef    = ref(null)
 const currentIndex = ref(0)

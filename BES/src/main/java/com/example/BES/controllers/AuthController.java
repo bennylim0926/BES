@@ -35,13 +35,17 @@ import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
 import com.example.BES.models.Account;
+import com.example.BES.models.Judge;
 import com.example.BES.models.SessionToken;
+import com.example.BES.respositories.JudgeRepo;
 import com.example.BES.services.SessionTokenService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -65,6 +69,9 @@ public class AuthController {
 
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private JudgeRepo judgeRepo;
 
     private static final java.util.Set<String> UNLIMITED_ROLES =
         java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE");
@@ -240,6 +247,18 @@ public class AuthController {
         }
     }
 
+    private String buildTokenUrl(String role, Long judgeId, String tokenId) {
+        String roleLower = role.toLowerCase();
+        if ("JUDGE".equals(role) && judgeId != null) {
+            Judge judge = judgeRepo.findById(judgeId).orElse(null);
+            if (judge != null) {
+                String encoded = URLEncoder.encode(judge.getName(), StandardCharsets.UTF_8);
+                return "/auth/token/" + roleLower + "/" + encoded + "?t=" + tokenId;
+            }
+        }
+        return "/auth/token/" + roleLower + "?t=" + tokenId;
+    }
+
     private static final java.util.Set<String> ALLOWED_SESSION_ROLES =
         java.util.Set.of("JUDGE", "EMCEE", "HELPER");
 
@@ -256,9 +275,10 @@ public class AuthController {
                 + ". Allowed session roles: JUDGE, EMCEE, HELPER."));
         }
         String tokenId = sessionTokenService.generateToken(role.toUpperCase(), eventId, judgeId, expiresInDays);
+        String url = buildTokenUrl(role.toUpperCase(), judgeId, tokenId);
         return ResponseEntity.ok(Map.of(
             "tokenId", tokenId,
-            "url", "/auth/token?t=" + tokenId));
+            "url", url));
     }
 
     @Operation(summary = "List Tokens", description = "Returns all non-revoked, non-expired session tokens for an event")
@@ -273,7 +293,7 @@ public class AuthController {
             dto.judgeId = t.getJudge() != null ? t.getJudge().getJudgeId() : null;
             dto.judgeName = t.getJudge() != null ? t.getJudge().getName() : null;
             dto.expiresAt = t.getExpiresAt().toString();
-            dto.url = "/auth/token?t=" + t.getTokenId();
+            dto.url = buildTokenUrl(t.getRole(), t.getJudge() != null ? t.getJudge().getJudgeId() : null, t.getTokenId());
             return dto;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(dtos);

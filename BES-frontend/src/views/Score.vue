@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent } from '@/utils/api';
+import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent, saveTieBreakerState, getTieBreakerState } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { useAuthStore } from '@/utils/auth';
@@ -56,35 +56,56 @@ const tieBreakerWinners = ref(new Set())
 const tieBreakerConfirmed = ref(false)
 const addedToPool = ref(new Set()) // manually-added pool members for the tie resolver
 
-// localStorage key scoped to event + category + tabulation + topN
-const tbKey = computed(() =>
-  `tb_${selectedEvent.value}_${selectedCategory.value}_${selectedTabulation.value}_${selectedTopN.value}`
-)
-const saveTieBreaker = () => {
-  localStorage.setItem(tbKey.value, JSON.stringify({
-    winners: [...tieBreakerWinners.value],
-    confirmed: tieBreakerConfirmed.value,
-    addedToPool: [...addedToPool.value],
-  }))
+// Tie-breaker state persisted via backend (not localStorage) so it syncs
+// across devices. State is scoped to event + category; tabulation + topN
+// are embedded in the persisted payload so stale state can be detected.
+const _tbSaving = ref(false)
+const saveTieBreaker = async () => {
+  if (_tbSaving.value) return // debounce concurrent saves
+  _tbSaving.value = true
+  try {
+    await saveTieBreakerState(
+      selectedEvent.value, selectedCategory.value,
+      selectedTabulation.value, selectedTopN.value,
+      tieBreakerWinners.value, tieBreakerConfirmed.value, addedToPool.value
+    )
+  } catch (e) { /* fire-and-forget */ }
+  finally { _tbSaving.value = false }
 }
-const loadTieBreaker = () => {
-  const saved = localStorage.getItem(tbKey.value)
-  if (saved) {
-    const { winners, confirmed, addedToPool: added } = JSON.parse(saved)
-    tieBreakerWinners.value = new Set(winners)
-    tieBreakerConfirmed.value = confirmed
-    addedToPool.value = new Set(Array.isArray(added) ? added : [])
-  } else {
+const loadTieBreaker = async () => {
+  if (!selectedEvent.value || !selectedCategory.value) return
+  try {
+    const res = await getTieBreakerState(selectedEvent.value, selectedCategory.value)
+    if (!res || !res.ok) {
+      // No saved state or fetch failed — start fresh
+      tieBreakerWinners.value = new Set()
+      tieBreakerConfirmed.value = false
+      addedToPool.value = new Set()
+      return
+    }
+    const data = await res.json()
+    // Only restore if the saved state matches the current view context.
+    // If the organiser switched tabulation or Top N, the old state is stale.
+    if (data.tabulation === selectedTabulation.value && data.topN === selectedTopN.value) {
+      tieBreakerWinners.value = new Set(Array.isArray(data.winners) ? data.winners : [])
+      tieBreakerConfirmed.value = !!data.confirmed
+      addedToPool.value = new Set(Array.isArray(data.addedToPool) ? data.addedToPool : [])
+    } else {
+      tieBreakerWinners.value = new Set()
+      tieBreakerConfirmed.value = false
+      addedToPool.value = new Set()
+    }
+  } catch (e) {
     tieBreakerWinners.value = new Set()
     tieBreakerConfirmed.value = false
     addedToPool.value = new Set()
   }
 }
-const resetTieBreaker = () => {
+const resetTieBreaker = async () => {
   tieBreakerWinners.value = new Set()
   tieBreakerConfirmed.value = false
   addedToPool.value = new Set()
-  localStorage.removeItem(tbKey.value)
+  await saveTieBreaker()
 }
 
 // All categories configured for the event (loaded from /event/categories).
@@ -141,8 +162,34 @@ const subscribeScoreUpdates = (eventName) => {
   }
   if (!eventName) return
   wsClient.value = createClient()
-  subscribeToChannel(wsClient.value, `/topic/score/${eventName}`, async () => {
+  subscribeToChannel(wsClient.value, `/topic/score/${eventName}`, async (msg) => {
     await refetchScores(eventName)
+    // Cross-device tie-breaker sync: when another device confirms Top N,
+    // the backend broadcasts the resolved participant list. Reconstruct
+    // which tie-pool members were selected and mirror the confirmed state.
+    if (msg && Array.isArray(msg.resolvedParticipants) && msg.resolvedParticipants.length > 0 && spotsFromTie.value > 0) {
+      const resolvedSet = new Set(msg.resolvedParticipants)
+      const winners = tiedParticipants.value
+        .filter(r => resolvedSet.has(r.participantName))
+        .map(r => r.participantName)
+      if (winners.length === spotsFromTie.value) {
+        tieBreakerWinners.value = new Set(winners)
+        tieBreakerConfirmed.value = true
+        // State is already persisted by the confirming device — no need
+        // to double-write here; just mirror locally.
+      }
+    }
+    // Cross-device tie-breaker state sync: when another device updates
+    // the intermediate tie-breaker state (winners selection, pool edits),
+    // mirror the state locally so both devices stay in sync.
+    if (msg && msg.tieBreakerState && spotsFromTie.value > 0) {
+      const tb = msg.tieBreakerState
+      if (tb.tabulation === selectedTabulation.value && tb.topN === selectedTopN.value) {
+        tieBreakerWinners.value = new Set(Array.isArray(tb.winners) ? tb.winners : [])
+        tieBreakerConfirmed.value = !!tb.confirmed
+        addedToPool.value = new Set(Array.isArray(tb.addedToPool) ? tb.addedToPool : [])
+      }
+    }
     // Refresh the open feedback panel for the visible participant, if any.
     if (showFeedbackPanel.value && feedbackParticipant.value && selectedCategory.value) {
       const fb = await getParticipantFeedback(eventName, selectedCategory.value, feedbackParticipant.value)
@@ -190,8 +237,11 @@ watch(selectedTabulation, (newVal) => {
   if (newVal) { localStorage.setItem(tabKey(selectedEvent.value), newVal); selectedTopN.value = 'All' }
   resetTieBreaker()
 }, { immediate: true });
-// Load persisted tie-breaker state whenever the scoped key changes
-watch(tbKey, loadTieBreaker, { immediate: true })
+// Load persisted tie-breaker state from backend whenever the view context changes.
+// Debounce by chaining off the same dependencies as the old localStorage tbKey.
+watch([() => selectedEvent.value, () => selectedCategory.value, () => selectedTabulation.value, () => selectedTopN.value],
+  loadTieBreaker, { immediate: true }
+)
 
 const filteredParticipantsForScore = computed({
   get() {
@@ -295,7 +345,8 @@ const confirmTieBreaker = async () => {
     const res = await setResolvedParticipants(selectedEvent.value, selectedCategory.value, resolved)
     if (res && res.ok) {
       tieBreakerConfirmed.value = true
-      saveTieBreaker()
+      // Persist confirmed state to DB so other devices see it.
+      await saveTieBreaker()
     }
   }
 }
@@ -755,7 +806,7 @@ function transformForScore(data) {
           >
             <span class="type-stat flex-shrink-0" style="font-size: 24px; line-height: 1; min-width: 40px">{{ finalRows[0].id }}</span>
             <div class="flex-1 min-w-0">
-              <p class="type-name text-content-primary" style="font-size: 16px">{{ finalRows[0].participantName }}</p>
+              <p class="type-name text-content-primary" style="font-size: 17px">{{ finalRows[0].participantName }}</p>
               <p v-if="judgeMetaLine(finalRows[0])" class="type-prose text-content-muted/80 mt-0.5">{{ judgeMetaLine(finalRows[0]) }}</p>
             </div>
             <span class="type-stat flex-shrink-0" style="font-size: 28px; line-height: 1">{{ finalRows[0].totalScore }}</span>
@@ -779,7 +830,7 @@ function transformForScore(data) {
             <div class="para-chip flex items-start gap-3 px-4 py-2 bg-surface-700/10">
               <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
               <div class="flex-1 min-w-0">
-                <p class="type-name text-content-primary">{{ row.participantName }}</p>
+                <p class="type-name text-content-primary" style="font-size: 16px">{{ row.participantName }}</p>
                 <p v-if="judgeMetaLine(row)" class="type-prose text-content-muted/70 mt-0.5">{{ judgeMetaLine(row) }}</p>
               </div>
               <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.totalScore }}</span>

@@ -1612,6 +1612,27 @@ export const setResolvedParticipants = async (eventName, categoryName, participa
   } catch (e) { console.error(e) }
 }
 
+export const saveTieBreakerState = async (eventName, categoryName, tabulation, topN, winners, confirmed, addedToPool) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/tie-breaker-state`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, categoryName, tabulation, topN, winners: [...winners], confirmed, addedToPool: [...addedToPool] })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const getTieBreakerState = async (eventName, categoryName) => {
+  try {
+    return await fetch(`${domain}/api/v1/battle/tie-breaker-state?event=${encodeURIComponent(eventName)}&category=${encodeURIComponent(categoryName)}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+  } catch (e) { console.error(e) }
+}
+
 export const postAuditionDisplayState = async (state) => {
   try {
     return await fetch(`${domain}/api/v1/event/audition-display`, {

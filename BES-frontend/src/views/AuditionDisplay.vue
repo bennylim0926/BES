@@ -420,21 +420,21 @@ onUnmounted(() => {
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
 .pair-row {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
   justify-content: center;
   gap: clamp(40px, 8vw, 130px);
   width: 100%;
+  max-width: 90vw;
 }
 /* Left column: both names stacked */
 .pair-names {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
   min-width: 0;
-  max-width: 58vw;
+  overflow: hidden;
 }
 .pair-name-entry {
   display: flex;
@@ -451,10 +451,12 @@ onUnmounted(() => {
 
 /* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: clamp(60px, 10vw, 160px);
+  width: 100%;
+  max-width: 90vw;
 }
 
 .current-slots {
@@ -462,12 +464,14 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+  min-width: 0;
 }
 
 .slot-entry {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .audition-number {
@@ -514,12 +518,19 @@ onUnmounted(() => {
 /* ── Timer ────────────────────────────────────────────────────────────────── */
 .timer-display {
   flex-shrink: 0;
+  /* Inherit timer font-size so min-width in ch scales with the digits.
+     2.5ch covers typical 2-digit timers (30-90s); tabular-nums
+     prevents intra-digit jitter without reserving excess space. */
+  font-size: clamp(100px, 18vw, 220px);
+  min-width: 2.5ch;
+  text-align: center;
 }
 
 .timer-number {
-  font-size: clamp(100px, 18vw, 220px);
+  font-size: inherit;
   line-height: 1;
   letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
   color: #ffffff;
   transition: color 0.3s ease;
 }

@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { whoami, getCategoriesByEvent, claimEmceeCategory, getActiveEmceeCategories } from '@/utils/api'
+import { whoami, getCategoriesByEvent, claimEmceeCategory, getActiveEmceeCategories, logout } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 
 const router = useRouter()
@@ -69,6 +69,12 @@ function handleNavClick(link) {
   } else {
     router.push({ name: link.route })
   }
+}
+
+async function handleLogout() {
+  await logout()
+  authStore.logout()
+  router.push('/login')
 }
 
 async function selectCategory(categoryName) {
@@ -159,6 +165,12 @@ async function selectCategory(categoryName) {
             <span class="nav-btn-label">{{ link.label }}</span>
           </button>
         </div>
+
+        <!-- Logout — escape route for session users -->
+        <button @click="handleLogout" class="logout-btn">
+          <i class="pi pi-sign-out" aria-hidden="true"></i>
+          <span>Logout</span>
+        </button>
       </template>
 
     </div>
@@ -170,12 +182,12 @@ async function selectCategory(categoryName) {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   background: #111111;
   font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
-  padding: 32px 16px;
+  padding: 16px;
   overflow-y: auto;
 }
 
@@ -411,8 +423,7 @@ async function selectCategory(categoryName) {
 @media (max-width: 480px) {
   .session-root {
     padding: 12px;
-    align-items: flex-start;
-    padding-top: 32px;
+    align-items: center;
   }
 
   .session-card {
@@ -455,5 +466,36 @@ async function selectCategory(categoryName) {
     font-size: 12px;
     letter-spacing: 0.1em;
   }
+
+  .logout-btn {
+    margin-top: 4px;
+  }
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.35);
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  min-height: 44px;
+}
+
+.logout-btn:hover {
+  color: rgba(239,68,68,0.8);
+  border-color: rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.06);
 }
 </style>

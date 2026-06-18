@@ -484,12 +484,58 @@ public class BattleService {
                 participants != null ? objectMapper.writeValueAsString(participants) : null);
             st.setUpdatedAt(LocalDateTime.now());
             battleCategoryStateRepository.save(st);
-            EventBattleState s = stateFor(eventName);
-            if (categoryName != null && categoryName.equals(s.activeCategoryName)) {
-                broadcastStateSnapshot(eventName);
-            }
+            // Broadcast regardless of active battle category — tie-breaker
+            // resolution is a scoring feature, not a battle-phase operation.
+            broadcastStateSnapshot(eventName);
+            // Also ping the score topic so other Score.vue instances re-fetch.
+            messagingTemplate.convertAndSend("/topic/score/" + eventName,
+                Map.of("resolvedParticipants", participants != null ? participants : List.of()));
         } catch (Exception e) {
             System.err.println("Failed to save resolved participants: " + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void saveTieBreakerState(String eventName, String categoryName,
+                                    String tabulation, String topN,
+                                    List<String> winners, boolean confirmed,
+                                    List<String> addedToPool) {
+        try {
+            BattleCategoryState st = battleCategoryStateRepository
+                .findByEventNameAndCategoryName(eventName, categoryName)
+                .orElse(new BattleCategoryState());
+            st.setEventName(eventName);
+            st.setCategoryName(categoryName);
+            Map<String, Object> tbState = new HashMap<>();
+            tbState.put("tabulation", tabulation != null ? tabulation : "");
+            tbState.put("topN", topN != null ? topN : "");
+            tbState.put("winners", winners != null ? winners : List.of());
+            tbState.put("confirmed", confirmed);
+            tbState.put("addedToPool", addedToPool != null ? addedToPool : List.of());
+            st.setTieBreakerStateJson(objectMapper.writeValueAsString(tbState));
+            st.setUpdatedAt(LocalDateTime.now());
+            battleCategoryStateRepository.save(st);
+            // Broadcast to score topic so other devices can pick up intermediate
+            // tie-breaker state changes (in addition to final confirmations).
+            messagingTemplate.convertAndSend("/topic/score/" + eventName,
+                Map.of("tieBreakerState", tbState));
+        } catch (Exception e) {
+            System.err.println("Failed to save tie-breaker state: " + e.getMessage());
+        }
+    }
+
+    public Map<String, Object> getTieBreakerState(String eventName, String categoryName) {
+        try {
+            Optional<BattleCategoryState> stOpt =
+                battleCategoryStateRepository.findByEventNameAndCategoryName(eventName, categoryName);
+            if (stOpt.isEmpty() || stOpt.get().getTieBreakerStateJson() == null) {
+                return new HashMap<>();
+            }
+            return objectMapper.readValue(stOpt.get().getTieBreakerStateJson(),
+                new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            System.err.println("Failed to load tie-breaker state: " + e.getMessage());
+            return new HashMap<>();
         }
     }
 
@@ -626,6 +672,13 @@ public class BattleService {
             if (db.getSmokeListJson() != null) {
                 result.put("smokeBattlers", objectMapper.readValue(db.getSmokeListJson(),
                     new TypeReference<List<Object>>(){}));
+            }
+
+            // resolved participants (tie-breaker / Top N qualifier)
+            if (db.getResolvedParticipantsJson() != null) {
+                result.put("resolvedParticipants",
+                    objectMapper.readValue(db.getResolvedParticipantsJson(),
+                        new TypeReference<List<String>>(){}));
             }
         } catch (Exception e) {
             System.err.println("Failed to read genre state from DB: " + e.getMessage());

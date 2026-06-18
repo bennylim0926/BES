@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { getJudgeDivisions, whoami } from '@/utils/api'
+import { getJudgeDivisions, whoami, logout } from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -62,6 +62,12 @@ function navigateToAudition(divisionName) {
 
 function navigateToBattle() {
   router.push({ name: 'Battle Judge' })
+}
+
+async function handleLogout() {
+  await logout()
+  authStore.logout()
+  router.push('/login')
 }
 </script>
 
@@ -150,6 +156,12 @@ function navigateToBattle() {
         </div>
       </div>
 
+      <!-- Logout — escape route for session users -->
+      <button @click="handleLogout" class="logout-btn">
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+        <span>Logout</span>
+      </button>
+
     </div>
   </div>
 </template>
@@ -165,6 +177,7 @@ function navigateToBattle() {
   font-family: 'Oswald', sans-serif;
   text-transform: uppercase;
   padding: 16px;
+  overflow-y: auto;
 }
 
 .color-bleed {
@@ -380,5 +393,32 @@ function navigateToBattle() {
   .division-actions {
     align-self: flex-end;
   }
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.35);
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  min-height: 44px;
+}
+
+.logout-btn:hover {
+  color: rgba(239,68,68,0.8);
+  border-color: rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.06);
 }
 </style>

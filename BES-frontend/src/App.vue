@@ -36,7 +36,7 @@ const isHelperRole = computed(() => role.value === 'ROLE_HELPER')
 
 /** Hide the navbar on full-screen / immersive routes */
 const hideNav = computed(() =>
-  ['Login', 'StreamOverlay', 'Battle Judge', 'BracketVisualization', 'AuditionDisplay'].includes(route.name)
+  ['Login', 'StreamOverlay', 'Battle Judge', 'BracketVisualization', 'AuditionDisplay', 'EmceeSession', 'JudgeSession', 'HelperSession'].includes(route.name)
 )
 
 /**
@@ -174,7 +174,14 @@ onMounted(async () => {
   applyTheme(theme.value)
   try {
     const res = await whoami()
-    authStore.login(res)
+    // Only apply the whoami result if the user IS authenticated, or if the
+    // store doesn't already have an authenticated session. This prevents a
+    // race where App.vue's whoami() resolves AFTER a token-auth page has
+    // already logged the user in — without this guard, whoami's
+    // { authenticated: false } would overwrite the token-auth session.
+    if (res?.authenticated || !authStore.isAuthenticated) {
+      authStore.login(res)
+    }
     if (authStore.activeEvent) {
       authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
     }
