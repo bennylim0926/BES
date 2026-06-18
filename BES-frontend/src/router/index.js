@@ -66,7 +66,7 @@ const routes = [
         path: '/event/audition-list',
         name: 'Audition List',
         component: AuditionList,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_JUDGE'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_JUDGE'], requiresEvent: true }
     },
     {
         path: '/event/score',
