@@ -21,7 +21,7 @@ const actions = computed(() => {
     base.push({ key: 'onAudition', icon: 'pi-list', label: 'Audition' })
   }
   base.push(
-    { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
+    { key: 'onParticipants', icon: 'pi-users',     label: 'Participants' },
     { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
   )
   if (props.showBattle) {
