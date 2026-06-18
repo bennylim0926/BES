@@ -2164,7 +2164,7 @@ onUnmounted(() => {
         <select
           v-if="categoriesUnassignedToJudge(j.judgeId).length > 0"
           @change="submitAssignJudge(Number($event.target.value), j.judgeId); $event.target.value = ''"
-          class="w-full px-3 py-2.5 type-name-sm text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
+          class="w-full px-3 py-3 type-name text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm min-h-[44px]"
         >
           <option value="" disabled selected>+ Assign category</option>
           <option
@@ -2177,20 +2177,20 @@ onUnmounted(() => {
 
       <!-- Add judge card -->
       <div class="para-chip p-3 flex flex-col items-center justify-center gap-2" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
-        <div class="flex items-center gap-1.5 w-full">
+        <div class="flex items-center gap-2 w-full">
           <input
             v-model="globalJudgeInput"
             type="text"
             placeholder="Judge name…"
             autocomplete="off"
-            class="bg-transparent type-name-sm placeholder:text-content-muted focus:outline-none flex-1 min-w-0"
+            class="bg-transparent type-name placeholder:text-content-muted focus:outline-none flex-1 min-w-0 py-2.5 px-1"
             @keyup.enter="submitAddJudgeGlobal()"
           />
           <button
             @click="submitAddJudgeGlobal()"
-            class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+            class="para-chip-sm px-4 type-label text-accent hover:opacity-80 transition-opacity shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Add judge"
-          ><i class="pi pi-plus text-xs"></i></button>
+          ><i class="pi pi-plus text-base"></i></button>
         </div>
         <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" >No judges yet</span>
       </div>
@@ -2360,9 +2360,9 @@ onUnmounted(() => {
         <button
           v-if="!showAddFeedbackGroup"
           @click="showAddFeedbackGroup = true; newFeedbackGroupName = ''"
-          class="para-chip-sm px-3 py-1.5 type-label shrink-0"
+          class="para-chip-sm px-4 py-2.5 type-name-sm shrink-0 min-h-[44px] flex items-center gap-1.5"
         >
-          <i class="pi pi-plus mr-1" style="font-size:0.7rem"></i>Add Group
+          <i class="pi pi-plus text-sm"></i>Add Group
         </button>
       </div>
 
@@ -2376,11 +2376,11 @@ onUnmounted(() => {
         <input
           v-model="newFeedbackGroupName"
           @keyup.enter="onAddFeedbackGroup"
-          placeholder="Group name (e.g. Locking-specific)"
-          class="input-base flex-1"
+          placeholder="Group name"
+          class="input-base flex-1 min-h-[44px]"
         />
-        <button @click="onAddFeedbackGroup" class="para-chip-sm px-3 py-1.5 type-label text-accent">Save</button>
-        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-3 py-1.5 type-label text-content-muted">Cancel</button>
+        <button @click="onAddFeedbackGroup" class="para-chip-sm px-4 py-2.5 type-name-sm text-accent min-h-[44px]">Save</button>
+        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-4 py-2.5 type-name-sm text-content-muted min-h-[44px]">Cancel</button>
       </div>
 
       <!-- Empty state -->
@@ -2405,19 +2405,19 @@ onUnmounted(() => {
                 style="font-size: 9px; letter-spacing: 0.18em;"
               >EVENT</span>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
+            <div class="flex items-center gap-1.5 shrink-0">
               <button
                 v-if="group.scope === 'EVENT'"
                 @click="startAddTag(group.id)"
-                class="para-chip-sm px-2 py-1 type-label"
+                class="para-chip-sm px-3 py-2 type-label min-h-[40px] min-w-[40px] flex items-center justify-center"
                 title="Add tag"
-              ><i class="pi pi-plus" style="font-size:0.65rem"></i></button>
+              ><i class="pi pi-plus text-sm"></i></button>
               <button
                 v-if="group.scope === 'EVENT'"
                 @click="onDeleteGroup(group)"
-                class="para-chip-sm px-2 py-1 type-label text-red-400"
+                class="para-chip-sm px-3 py-2 type-label text-red-400 min-h-[40px] min-w-[40px] flex items-center justify-center"
                 title="Delete group"
-              ><i class="pi pi-trash" style="font-size:0.65rem"></i></button>
+              ><i class="pi pi-trash text-sm"></i></button>
               <span
                 v-else
                 class="type-prose-sm text-content-muted"
@@ -2432,40 +2432,40 @@ onUnmounted(() => {
               v-model="newFeedbackTagLabel"
               @keyup.enter="onAddFeedbackTag(group.id)"
               placeholder="Tag label"
-              class="input-base flex-1"
+              class="input-base flex-1 min-h-[44px]"
             />
-            <button @click="onAddFeedbackTag(group.id)" class="para-chip-sm px-3 py-1 type-label text-accent">Save</button>
-            <button @click="addTagForGroupId = null" class="para-chip-sm px-3 py-1 type-label text-content-muted">Cancel</button>
+            <button @click="onAddFeedbackTag(group.id)" class="para-chip-sm px-4 py-2.5 type-name-sm text-accent min-h-[44px]">Save</button>
+            <button @click="addTagForGroupId = null" class="para-chip-sm px-4 py-2.5 type-name-sm text-content-muted min-h-[44px]">Cancel</button>
           </div>
 
           <!-- Tag chips -->
           <div class="flex flex-wrap gap-2">
             <template v-for="tag in (group.tags || [])" :key="`${tag.scope}-${tag.id}`">
               <!-- Editing mode -->
-              <div v-if="editingTagId === tag.id" class="flex items-center gap-1">
+              <div v-if="editingTagId === tag.id" class="flex items-center gap-1.5">
                 <input
                   v-model="editingTagLabel"
                   @keyup.enter="onSaveTagEdit"
                   @keyup.escape="editingTagId = null"
-                  class="input-base py-1 px-2"
+                  class="input-base py-2 px-2.5 min-h-[40px]"
                   style="width: 12rem;"
                 />
-                <button @click="onSaveTagEdit" class="para-chip-sm px-2 py-1 type-label text-accent">Save</button>
-                <button @click="editingTagId = null" class="para-chip-sm px-2 py-1 type-label text-content-muted">×</button>
+                <button @click="onSaveTagEdit" class="para-chip-sm px-3 py-2 type-name-sm text-accent min-h-[40px]">Save</button>
+                <button @click="editingTagId = null" class="para-chip-sm px-3 py-2 type-name-sm text-content-muted min-h-[40px]">×</button>
               </div>
               <!-- Display mode -->
               <span
                 v-else
-                class="para-chip-sm type-name-sm px-2.5 py-1 inline-flex items-center gap-1.5"
+                class="para-chip-sm type-name-sm px-3 py-2 inline-flex items-center gap-2 min-h-[40px]"
                 :class="tag.scope === 'EVENT' ? 'text-content-primary' : 'text-content-muted'"
               >
                 {{ tag.label }}
                 <template v-if="tag.scope === 'EVENT'">
-                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100" title="Edit">
-                    <i class="pi pi-pencil" style="font-size:0.6rem"></i>
+                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100 px-1 py-1" title="Edit">
+                    <i class="pi pi-pencil text-sm"></i>
                   </button>
-                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400" title="Delete">
-                    <i class="pi pi-times" style="font-size:0.65rem"></i>
+                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400 px-1 py-1" title="Delete">
+                    <i class="pi pi-times text-sm"></i>
                   </button>
                 </template>
               </span>
