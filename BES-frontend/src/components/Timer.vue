@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 
 const emit = defineEmits(['started', 'stopped', 'tick'])
 
@@ -7,6 +7,11 @@ const selectedTime = ref(0)
 const timeLeft = ref(0)
 const countUp = ref(false)
 let timer = null
+// Anchor wall-clock time used to recompute timeLeft on every tick.
+// Replacing "increment by 1 every interval" with "diff Date.now()" keeps
+// the timer accurate even when the tab is backgrounded and setInterval is
+// throttled by the browser (iOS Safari throttles to ~1/minute).
+let startedAtMs = 0
 
 const isRunning = computed(() => timer !== null)
 const isFinished = computed(() => selectedTime.value > 0 && timeLeft.value >= selectedTime.value)
@@ -44,19 +49,22 @@ function startTimer(seconds) {
   if (timer) clearInterval(timer)
   selectedTime.value = seconds
   timeLeft.value = 0
+  startedAtMs = Date.now()
   timer = setInterval(() => {
-    if (timeLeft.value < seconds) {
-      timeLeft.value++
+    const elapsed = Math.floor((Date.now() - startedAtMs) / 1000)
+    if (elapsed < seconds) {
+      timeLeft.value = elapsed
       const remaining = selectedTime.value - timeLeft.value
       emit('tick', { remaining, total: selectedTime.value, running: true })
     } else {
+      timeLeft.value = seconds
       clearInterval(timer)
       timer = null
       emit('stopped')
       emit('tick', { remaining: 0, total: selectedTime.value, running: false })
     }
-  }, 1000)
-  emit('started', { duration: seconds, startedAt: Date.now() })
+  }, 250)
+  emit('started', { duration: seconds, startedAt: startedAtMs })
 }
 
 function toggleMode() {
@@ -102,26 +110,53 @@ function resumeTimer(remainingSeconds, totalDuration) {
     return
   }
   selectedTime.value = totalDuration
-  timeLeft.value = totalDuration - remainingSeconds
+  const elapsed0 = totalDuration - remainingSeconds
+  timeLeft.value = elapsed0
+  startedAtMs = Date.now() - (elapsed0 * 1000)
   timer = setInterval(() => {
-    if (timeLeft.value < totalDuration) {
-      timeLeft.value++
+    const elapsed = Math.floor((Date.now() - startedAtMs) / 1000)
+    if (elapsed < totalDuration) {
+      timeLeft.value = elapsed
       const remaining = selectedTime.value - timeLeft.value
       emit('tick', { remaining, total: selectedTime.value, running: true })
     } else {
+      timeLeft.value = totalDuration
       clearInterval(timer)
       timer = null
       emit('stopped')
       emit('tick', { remaining: 0, total: selectedTime.value, running: false })
     }
-  }, 1000)
-  emit('started', { duration: totalDuration, startedAt: Date.now() - ((totalDuration - remainingSeconds) * 1000) })
+  }, 250)
+  emit('started', { duration: totalDuration, startedAt: startedAtMs })
 }
 
 defineExpose({ reset, stop, resumeTimer })
 
+// When the tab returns from background, force an immediate recompute so
+// the display catches up to the real elapsed time without waiting for the
+// next interval tick.
+function onVisibilityChange() {
+  if (document.visibilityState !== 'visible' || !timer || selectedTime.value === 0) return
+  const elapsed = Math.floor((Date.now() - startedAtMs) / 1000)
+  if (elapsed >= selectedTime.value) {
+    timeLeft.value = selectedTime.value
+    clearInterval(timer)
+    timer = null
+    emit('stopped')
+    emit('tick', { remaining: 0, total: selectedTime.value, running: false })
+  } else {
+    timeLeft.value = elapsed
+    emit('tick', { remaining: selectedTime.value - elapsed, total: selectedTime.value, running: true })
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityChange)
+})
+
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
 
