@@ -108,10 +108,52 @@ jobs:
         run: npm run lint
         working-directory: BES-frontend
 
+  migrations:
+    name: Migrations / Flyway against Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: besdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard against hash-named constraints
+        run: |
+          # Hibernate-generated FK constraint names (e.g. fk5nearhompurfhv6qrt792v4pj)
+          # differ per database. Migrations must not reference them by name —
+          # use a pg_constraint lookup instead.
+          if grep -rnE 'CONSTRAINT[[:space:]]+fk[a-z0-9]{20,}' \
+               BES/src/main/resources/db/migration/; then
+            echo "::error::Migration references a Hibernate-hash constraint name above."
+            echo "Hash names are database-specific and will fail in prod."
+            echo "Look up the constraint dynamically via pg_constraint instead."
+            exit 1
+          fi
+          echo "✓ No hash-named constraints found in migrations."
+      - name: Run all Flyway migrations
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE/BES/src/main/resources/db/migration:/flyway/sql" \
+            flyway/flyway \
+            -url=jdbc:postgresql://localhost:5432/besdb \
+            -user=postgres \
+            -password=test \
+            -connectRetries=10 \
+            migrate
+
   report:
     name: Report
     runs-on: ubuntu-latest
-    needs: [backend-build, backend-test, frontend-build, frontend-test, analysis]
+    needs: [backend-build, backend-test, frontend-build, frontend-test, analysis, migrations]
     if: always() && github.event_name == 'pull_request'
     permissions:
       pull-requests: write
@@ -126,6 +168,7 @@ jobs:
               'Frontend / Build': '${{ needs.frontend-build.result }}',
               'Frontend / Tests': '${{ needs.frontend-test.result }}',
               'Analysis':         '${{ needs.analysis.result }}',
+              'Migrations':       '${{ needs.migrations.result }}',
             }
 
             const icon = r => r === 'success' ? '✅ Pass' : r === 'skipped' ? '⏭️ Skipped' : '❌ Fail'
