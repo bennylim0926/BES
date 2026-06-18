@@ -19,7 +19,18 @@ function redirectByRole(user) {
   else router.replace('/')
 }
 
+const roleLabel = ref('')
+const judgeLabel = ref('')
+
 onMounted(async () => {
+  // Read descriptive path params for display
+  const roleParam = route.params.role
+  const judgeParam = route.params.judgeName
+  if (roleParam) {
+    roleLabel.value = roleParam.charAt(0).toUpperCase() + roleParam.slice(1)
+    if (judgeParam) judgeLabel.value = decodeURIComponent(judgeParam)
+  }
+
   // If already authenticated (same link opened in a second tab), skip redemption
   const existing = authStore.user || await whoami().catch(() => null)
   if (existing?.authenticated) {
@@ -59,6 +70,7 @@ onMounted(async () => {
       <template v-if="loading">
         <div class="spinner" aria-hidden="true"></div>
         <p class="token-text">SIGNING IN&#8230;</p>
+        <p v-if="roleLabel" class="token-role">{{ roleLabel }}<template v-if="judgeLabel"> · {{ judgeLabel }}</template></p>
       </template>
       <template v-else-if="error">
         <p class="token-title">LINK INVALID</p>
@@ -115,6 +127,14 @@ onMounted(async () => {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.6);
+}
+
+.token-role {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-color, rgba(255,255,255,0.7));
+  margin-top: 6px;
 }
 
 .token-sub {
