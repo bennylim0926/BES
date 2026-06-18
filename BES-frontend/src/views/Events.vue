@@ -12,6 +12,7 @@ const dbEvents = ref([])
 const search  = ref('')
 const router  = useRouter()
 const isAdmin = ref(false)
+const isOrganiser = ref(false)
 const showDeleteModal = ref(false)
 const eventToDelete = ref(null)
 const deleteConfirmName = ref('')
@@ -79,7 +80,9 @@ async function confirmDelete() {
 
 onMounted(async () => {
   const authStore = useAuthStore()
-  isAdmin.value = authStore.user?.role?.[0]?.authority === 'ROLE_ADMIN'
+  const role = authStore.user?.role?.[0]?.authority
+  isAdmin.value = role === 'ROLE_ADMIN'
+  isOrganiser.value = role === 'ROLE_ORGANISER'
   events.value = await fetchAllFolderEvents()
   dbEvents.value = await fetchAllEvents() ?? []
 })
@@ -134,6 +137,7 @@ onMounted(async () => {
         :buttonName="event.folderName"
         :expanded="expandedId === event.folderID"
         :isAdmin="isAdmin"
+        :showAudition="!isOrganiser"
         @toggle="toggleExpanded(event.folderID)"
         @onDetails="goToEventDetails(event.folderName, event.folderID)"
         @onAudition="activateAndGo(event.folderName, 'Audition List')"

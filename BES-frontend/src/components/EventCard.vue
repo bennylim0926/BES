@@ -2,9 +2,10 @@
 import { ref, computed } from 'vue'
 
 const props = defineProps({
-  buttonName: { type: String, required: true, default: '' },
-  expanded:   { type: Boolean, default: false },  // controlled by parent
-  isAdmin:    { type: Boolean, default: false },
+  buttonName:    { type: String,  required: true, default: '' },
+  expanded:      { type: Boolean, default: false },  // controlled by parent
+  isAdmin:       { type: Boolean, default: false },
+  showAudition:  { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle', 'onDelete'])
@@ -14,11 +15,15 @@ const isHovered = ref(false)  // desktop only
 const actions = computed(() => {
   const base = [
     { key: 'onDetails',      icon: 'pi-cog',      label: 'Details'  },
-    { key: 'onAudition',     icon: 'pi-list',      label: 'Audition' },
+  ]
+  if (props.showAudition) {
+    base.push({ key: 'onAudition', icon: 'pi-list', label: 'Audition' })
+  }
+  base.push(
     { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
     { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
     { key: 'onBattle',       icon: 'pi-bolt',      label: 'Battle'   },
-  ]
+  )
   if (props.isAdmin) {
     base.push({ key: 'onDelete', icon: 'pi-trash', label: 'Delete' })
   }
@@ -63,7 +68,7 @@ const actions = computed(() => {
         style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
         @click.stop="emit('toggle')"
       >
-        <div :class="['grid', props.isAdmin ? 'grid-cols-6' : 'grid-cols-5']">
+        <div class="grid" :style="{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }">
           <button
             v-for="action in actions"
             :key="action.key"
