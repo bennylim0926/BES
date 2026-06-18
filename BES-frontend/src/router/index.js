@@ -72,7 +72,7 @@ const routes = [
         path: '/event/score',
         name: 'Score',
         component: Score,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_ORGANISER', 'ROLE_HELPER'], requiresEvent: true }
     },
     {
         path: '/login',
@@ -155,6 +155,11 @@ const routes = [
         component: TokenAuth
     },
     {
+        path: '/auth/token/:role/:name?',
+        name: 'TokenAuthRole',
+        component: TokenAuth
+    },
+    {
         path: '/judge/session',
         name: 'JudgeSession',
         component: JudgeSessionView
@@ -176,7 +181,7 @@ const router = createRouter({
     routes
 })
 
-const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'JudgeSession', 'EmceeSession', 'HelperSession', 'AuditionDisplay']
+const PUBLIC_ROUTES = ['Login', 'Forbidden', 'StreamOverlay', 'Smoke', 'Results', 'ResultsQR', 'BracketVisualization', 'TokenAuth', 'TokenAuthRole', 'JudgeSession', 'EmceeSession', 'HelperSession', 'AuditionDisplay']
 const BATTLE_ROUTES = ['Battle Control', 'Battle Judge', 'StreamOverlay', 'Smoke', 'BracketVisualization']
 
 router.beforeEach(async (to) => {

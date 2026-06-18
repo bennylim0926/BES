@@ -181,9 +181,9 @@ public class EventController {
         }
     }
 
-    @Operation(summary = "Set Judging Mode", description = "Sets the judging mode (SOLO/PAIR) for an event (admin only)")
+    @Operation(summary = "Set Judging Mode", description = "Sets the judging mode (SOLO/PAIR) for an event")
     @PostMapping("/judging-mode")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setJudgingMode(@Valid @RequestBody UpdateJudgingModeDto dto) {
         try {
             eventService.setJudgingMode(dto.eventName, dto.judgingMode);

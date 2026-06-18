@@ -156,12 +156,13 @@ onBeforeUnmount(() => {
     <div class="flex items-center gap-2 flex-wrap justify-center">
       <button
         @click="toggleMode"
-        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
+        class="para-chip px-6 py-4 type-body transition-all duration-150 active:scale-95"
+        style="font-size:18px"
         :class="countUp
           ? 'text-accent border-[color:var(--accent-muted)]'
           : 'text-content-muted hover:text-content-primary'"
       >
-        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-1 text-xs"></i>
+        <i :class="countUp ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-1"></i>
         {{ countUp ? 'Up' : 'Down' }}
       </button>
       <div class="w-px h-8 bg-white/12"></div>
@@ -169,7 +170,8 @@ onBeforeUnmount(() => {
         v-for="t in [30, 45, 60, 90]"
         :key="t"
         @click="startTimer(t)"
-        class="para-chip px-4 py-3 type-body transition-all duration-150 active:scale-95"
+        class="para-chip px-6 py-4 type-body transition-all duration-150 active:scale-95"
+        style="font-size:18px"
         :class="selectedTime === t && isRunning
           ? 'text-accent border-[color:var(--accent-muted)]'
           : 'text-content-muted hover:text-content-primary'"

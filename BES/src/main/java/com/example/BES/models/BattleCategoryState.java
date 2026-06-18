@@ -70,6 +70,9 @@ public class BattleCategoryState {
     @Column(name = "resolved_participants_json", columnDefinition = "TEXT")
     private String resolvedParticipantsJson;
 
+    @Column(name = "tie_breaker_state_json", columnDefinition = "TEXT")
+    private String tieBreakerStateJson;
+
     @Column(name = "format_timer_json", columnDefinition = "TEXT")
     private String formatTimerJson;
 

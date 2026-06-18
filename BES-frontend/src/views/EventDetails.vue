@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -55,6 +55,8 @@ const paymentRequired = ref(false)
 const feedbackEnabled = ref(true)
 const feedbackSaving = ref(false)
 const releaseScoreSaving = ref(false)
+const judgingMode = ref('SOLO')
+const judgingModeSaving = ref(false)
 
 // Event-scoped feedback taxonomy (#157)
 const feedbackGroups = ref([])
@@ -130,7 +132,7 @@ const revealingRef = ref(null) // name of participant whose ref code is being he
 const activeTab = ref(authStore.user?.role?.[0]?.authority === 'ROLE_HELPER' ? 'event-day' : 'setup') // 'setup' | 'event-day'
 // Setup tab is split into three sub-tabs to keep each screen scannable.
 // Persisted per event so switching events does not leak prior state.
-const setupSubTab = ref('categories') // 'categories' | 'judges' | 'links' | 'feedback'
+const setupSubTab = ref('categories') // 'categories' | 'judges' | 'scoring' | 'feedback' | 'links'
 // The single currently-expanded division inside the categories accordion (by eventCategoryId).
 const expandedDivisionId = ref(null)
 const toggleDivision = (id) => {
@@ -569,6 +571,29 @@ const onReleaseScoreToggle = async (e) => {
     console.error('setReleaseScore error:', err)
   } finally {
     releaseScoreSaving.value = false
+  }
+}
+
+const fetchJudgingMode = async () => {
+  const res = await getJudgingMode(props.eventName)
+  if (res?.judgingMode) judgingMode.value = res.judgingMode
+}
+
+const onJudgingModeChange = async (mode) => {
+  const prev = judgingMode.value
+  judgingMode.value = mode
+  judgingModeSaving.value = true
+  try {
+    const res = await setJudgingMode(props.eventName, mode)
+    if (!res || !res.ok) {
+      judgingMode.value = prev
+      openModal('Save Failed', `Could not update judging mode (${res?.status ?? 'no response'}).`, 'warning')
+    }
+  } catch (err) {
+    judgingMode.value = prev
+    console.error('setJudgingMode error:', err)
+  } finally {
+    judgingModeSaving.value = false
   }
 }
 
@@ -1293,8 +1318,11 @@ onMounted(async () => {
       await Promise.all(eventCategories.value.map(loadJudgesForDivision))
       // Restore per-event setup sub-tab + auto-expand the first division.
       const savedSub = localStorage.getItem(`setupSubTab_${props.eventName}`)
-      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links' || savedSub === 'feedback') {
+      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links' || savedSub === 'feedback' || savedSub === 'scoring') {
         setupSubTab.value = savedSub
+      } else if (savedSub === 'judging-mode') {
+        // Legacy key renamed to 'scoring' — migrate transparently.
+        setupSubTab.value = 'scoring'
       }
       expandedDivisionId.value = eventCategories.value[0].eventCategoryId
     }
@@ -1307,6 +1335,7 @@ onMounted(async () => {
       loadSessionTokens()
       const fb = await getFeedbackEnabled(props.eventName)
       if (fb && typeof fb.feedbackEnabled === 'boolean') feedbackEnabled.value = fb.feedbackEnabled
+      await fetchJudgingMode()
       await loadFeedbackGroups()
       // Load results status and participant QR if feedback is enabled
       await loadResultsAndQr()
@@ -1684,57 +1713,6 @@ onUnmounted(() => {
     </div>
 
     <!-- Event Settings (existing event) -->
-    <div v-if="tableExist" class="card-hover p-4 relative mt-6">
-      <div class="corner-bar-tl"></div>
-      <div class="section-rule mb-4">
-        <span class="section-rule-label">Event Settings</span>
-        <div class="section-rule-line"></div>
-      </div>
-      <div class="flex flex-wrap gap-3">
-        <label
-          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
-          :class="feedbackEnabled ? 'border-accent' : ''"
-        >
-          <input
-            type="checkbox"
-            :checked="feedbackEnabled"
-            :disabled="feedbackSaving"
-            @change="onFeedbackEnabledToggle"
-            class="w-4 h-4"
-          />
-          <div>
-            <span class="type-body">Feedback System</span>
-            <p class="type-prose-sm mt-0.5">
-              {{ feedbackEnabled
-                ? 'Judges can submit feedback tags and notes for each participant.'
-                : 'Disabled — judges will only see the score keypad.' }}
-            </p>
-          </div>
-        </label>
-
-        <label
-          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
-          :class="releaseScore ? 'border-accent' : ''"
-        >
-          <input
-            type="checkbox"
-            :checked="releaseScore"
-            :disabled="releaseScoreSaving"
-            @change="onReleaseScoreToggle"
-            class="w-4 h-4"
-          />
-          <div>
-            <span class="type-body">Release Scores</span>
-            <p class="type-prose-sm mt-0.5">
-              {{ releaseScore
-                ? 'Scores will be visible on the public results portal when results are released.'
-                : 'Disabled — only feedback will appear on results when released.' }}
-            </p>
-          </div>
-        </label>
-      </div>
-    </div>
-
 
 
   <!-- Empty state: no participants -->
@@ -1754,6 +1732,7 @@ onUnmounted(() => {
       v-for="sub in [
         { key: 'categories', label: 'Categories' },
         { key: 'judges', label: 'Judges' },
+        { key: 'scoring', label: 'Scoring Settings' },
         { key: 'feedback', label: 'Feedback Tags' },
         { key: 'links',  label: 'Share Links' },
       ]"
@@ -2209,6 +2188,98 @@ onUnmounted(() => {
   <!-- (Configuration card removed — its content now lives inside each
        division accordion block in the Categories sub-tab above.) -->
 
+  <!-- ── Sub-tab: Scoring Settings ──────────────────────────────────────────── -->
+  <template v-if="setupSubTab === 'scoring'">
+    <div v-if="isAdminOrOrganiser && tableExist" class="card-hover p-4 relative mt-6">
+      <div class="corner-bar-tl"></div>
+      <div class="section-rule mb-4">
+        <span class="section-rule-label">Scoring Settings</span>
+        <div class="section-rule-line"></div>
+      </div>
+
+      <!-- Event-level toggles -->
+      <div class="flex flex-wrap gap-3 mb-6">
+        <label
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
+          :class="feedbackEnabled ? 'border-accent' : ''"
+        >
+          <input
+            type="checkbox"
+            :checked="feedbackEnabled"
+            :disabled="feedbackSaving"
+            @change="onFeedbackEnabledToggle"
+            class="w-4 h-4"
+          />
+          <div>
+            <span class="type-body">Feedback System</span>
+            <p class="type-prose-sm mt-0.5">
+              {{ feedbackEnabled
+                ? 'Judges can submit feedback tags and notes for each participant.'
+                : 'Disabled — judges will only see the score keypad.' }}
+            </p>
+          </div>
+        </label>
+
+        <label
+          class="flex items-center gap-3 px-4 py-3 para-chip cursor-pointer transition-all duration-150"
+          :class="releaseScore ? 'border-accent' : ''"
+        >
+          <input
+            type="checkbox"
+            :checked="releaseScore"
+            :disabled="releaseScoreSaving"
+            @change="onReleaseScoreToggle"
+            class="w-4 h-4"
+          />
+          <div>
+            <span class="type-body">Release Scores</span>
+            <p class="type-prose-sm mt-0.5">
+              {{ releaseScore
+                ? 'Scores will be visible on the public results portal when results are released.'
+                : 'Disabled — only feedback will appear on results when released.' }}
+            </p>
+          </div>
+        </label>
+      </div>
+
+      <!-- Judging presentation mode -->
+      <div class="section-rule mb-3">
+        <span class="section-rule-label">Presentation</span>
+        <div class="section-rule-line"></div>
+      </div>
+      <p class="type-prose mb-4">
+        Choose how participants are presented during the audition. SOLO shows one participant
+        at a time; PAIR shows two side by side for comparison judging.
+      </p>
+
+      <div class="flex items-center gap-3">
+        <button
+          v-for="m in ['SOLO', 'PAIR']"
+          :key="m"
+          @click="onJudgingModeChange(m)"
+          :aria-pressed="judgingMode === m"
+          :disabled="judgingModeSaving"
+          class="para-chip-sm px-5 py-3 type-label transition-all duration-150 min-w-[90px]"
+          :class="judgingMode === m
+            ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
+            : 'text-content-muted hover:text-content-primary'"
+        >{{ m }}</button>
+        <span v-if="judgingModeSaving" class="type-label text-content-muted">Saving…</span>
+      </div>
+
+      <p class="type-prose-sm text-content-muted mt-3">
+        <template v-if="judgingMode === 'SOLO'">
+          Each participant appears individually on the audition display screen.
+          Judges score one dancer at a time.
+        </template>
+        <template v-else>
+          Two participants appear side by side on the audition display screen.
+          Judges compare and score both dancers simultaneously.
+        </template>
+      </p>
+    </div>
+  </template>
+  <!-- ── END Scoring Settings sub-tab ─────────────────────────────────────── -->
 
   <!-- ── Sub-tab: Share Links ─────────────────────────────────────────────── -->
   <template v-if="setupSubTab === 'links'">
@@ -2569,29 +2640,29 @@ onUnmounted(() => {
               :class="isCheckedIn(p) ? 'opacity-50' : ''"
             >
               <div class="flex-1 min-w-0">
-                <p class="type-name text-content-secondary truncate">{{ p.label }}</p>
+                <p class="type-name text-content-secondary truncate" style="font-size:17px">{{ p.label }}</p>
                 <!-- Member names for team entries -->
-                <div v-if="p.memberNames && p.memberNames.length" class="flex items-center gap-1.5 type-prose text-content-muted mt-0.5">
-                  <i class="pi pi-users" style="font-size:0.65rem"></i>
+                <div v-if="p.memberNames && p.memberNames.length" class="flex items-center gap-1.5 type-name text-content-muted mt-0.5" style="font-size:14px">
+                  <i class="pi pi-users"></i>
                   <span>{{ p.memberNames.join(', ') }}</span>
                 </div>
                 <div class="flex flex-wrap gap-1 mt-1">
                   <!-- No divisions assigned -->
-                  <span v-if="p.categories.length === 0" class="inline-flex items-center gap-1 badge-neutral">
+                  <span v-if="p.categories.length === 0" class="inline-flex items-center gap-1 badge-neutral" style="font-size:13px">
                     <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="box-shadow:0 0 5px rgba(245,158,11,0.7)"></span>
-                    <span class="type-label text-amber-400/80">No division assigned</span>
+                    <span class="text-amber-400/80" style="font-size:13px; letter-spacing: 0.12em">No division assigned</span>
                   </span>
                   <!-- Per-division status: green = linked to division -->
                   <span v-for="g in p.categories" :key="g.categoryName"
                     class="inline-flex items-center gap-1 badge-neutral"
-                    style="text-transform:none;letter-spacing:0.02em;"
+                    style="font-size:13px; text-transform:none;letter-spacing:0.02em;"
                   >
                     <span
                       class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
                       style="box-shadow:0 0 5px rgba(52,211,153,0.7)"
                     ></span>
                     {{ g.categoryName }}
-                    <span v-if="g.auditionNumber !== null" class="text-accent">#{{ g.auditionNumber }}</span>
+                    <span v-if="g.auditionNumber !== null" class="text-accent" style="font-size:16px">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
               </div>
@@ -2657,8 +2728,8 @@ onUnmounted(() => {
               class="para-chip p-3"
             >
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="type-name text-content-secondary">{{ p.name }}</span>
-                <span v-if="p.walkin" class="badge-neutral">walk-in</span>
+                <span class="type-name text-content-secondary" style="font-size:17px">{{ p.name }}</span>
+                <span v-if="p.walkin" class="badge-neutral" style="font-size:12px">walk-in</span>
                 <span v-if="p.referenceCode"
                   class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 badge-neutral cursor-pointer select-none touch-none"
                   @mousedown="revealingRef = p.name" @mouseup="revealingRef = null" @mouseleave="revealingRef = null"
@@ -2669,13 +2740,13 @@ onUnmounted(() => {
                   <span v-else class="text-content-muted">Ref code</span>
                 </span>
               </div>
-              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-prose text-content-muted mt-0.5">
-                <i class="pi pi-users" style="font-size:0.65rem"></i>
+              <div v-if="p.memberNames.length" class="flex items-center gap-1.5 type-name text-content-muted mt-0.5" style="font-size:14px">
+                <i class="pi pi-users"></i>
                 <span>{{ p.memberNames.join(', ') }}</span>
               </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
-                <span v-for="e in p.entries" :key="e.category" class="badge-neutral" style="text-transform:none;letter-spacing:0.02em;">
-                  {{ e.category }}<span style="color:var(--accent-color);margin-left:0.25rem">#{{ e.auditionNumber }}</span>
+                <span v-for="e in p.entries" :key="e.category" class="badge-neutral" style="font-size:13px; text-transform:none;letter-spacing:0.02em;">
+                  {{ e.category }}<span style="color:var(--accent-color);margin-left:0.25rem; font-size:16px">#{{ e.auditionNumber }}</span>
                 </span>
               </div>
             </div>

@@ -1,8 +1,10 @@
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
 import { useTierAccess } from '@/utils/useTierAccess'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const { battleEnabled } = useTierAccess()
 
@@ -77,7 +79,7 @@ const roleDisplay = computed(() => {
 
         <!-- Audition List -->
         <router-link
-          v-if="activeEvent && role !== 'ROLE_HELPER'"
+          v-if="activeEvent && role !== 'ROLE_HELPER' && role !== 'ROLE_EMCEE'"
           :to="{ name: 'Audition List' }"
           class="card-hover p-6 relative cursor-pointer group"
         >
@@ -86,6 +88,18 @@ const roleDisplay = computed(() => {
           <div class="type-body mb-1">Audition</div>
           <p class="type-prose">Score and timer controls.</p>
         </router-link>
+
+        <!-- Audition — emcee path: clear category so the inline picker appears -->
+        <button
+          v-if="activeEvent && role === 'ROLE_EMCEE'"
+          @click="localStorage.removeItem('selectedCategory'); router.push({ name: 'Audition List', query: { picker: '1' } })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-list text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Audition</div>
+          <p class="type-prose">Score and timer controls.</p>
+        </button>
 
         <!-- Participants (Admin / Organiser) -->
         <router-link
