@@ -228,6 +228,10 @@ public class EventCategoryParticipantService {
             auditMsg.put("refCode", refCode != null ? refCode : "");
             auditMsg.put("format", participantInEventCategory.getFormat() != null ? participantInEventCategory.getFormat() : "");
             auditMsg.put("poolSize", pool.size());
+            // Send the actual pool of remaining numbers so the slot-machine
+            // animation cycles through what's truly available (e.g. {3, 15})
+            // instead of the trivial 1..poolSize range.
+            auditMsg.put("pool", new ArrayList<>(pool));
             messagingTemplate.convertAndSend("/topic/audition/", auditMsg);
         } else {
             messagingTemplate.convertAndSend("/topic/error/",

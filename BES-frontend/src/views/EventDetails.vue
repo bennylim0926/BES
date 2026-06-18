@@ -1150,7 +1150,10 @@ const checkinConfirm = ref({ show: false, participant: null, phase: 'confirm', r
 const dialogFakeNums = ref({})
 const dialogRollingIntervals = {}
 const dialogNumberQueue = []
-const categoryPoolSizes = ref({}) // { categoryName: poolSize }
+// { categoryName: number[] } — actual remaining-number pool, used to drive
+// the slot-machine animation so it cycles real numbers (e.g. {3, 15}) and
+// not 1..poolSize.
+const categoryPools = ref({})
 
 function processNextDialogNumber() {
   if (dialogNumberQueue.length === 0) {
@@ -1161,7 +1164,11 @@ function processNextDialogNumber() {
   const g = checkinConfirm.value.participant?.categories.find(x => x.categoryName === category)
   if (!g) { processNextDialogNumber(); return }
 
-  const poolSize = categoryPoolSizes.value[category] ?? 99
+  const pool = categoryPools.value[category]
+  const effectivePool = (Array.isArray(pool) && pool.length > 0)
+    ? pool
+    : Array.from({ length: 99 }, (_, i) => i + 1)
+  const poolSize = effectivePool.length
 
   // Skip animation if only one number is available
   if (poolSize === 1) {
@@ -1174,7 +1181,8 @@ function processNextDialogNumber() {
   g.rolling = true
   clearInterval(dialogRollingIntervals[category])
   dialogRollingIntervals[category] = setInterval(() => {
-    dialogFakeNums.value = { ...dialogFakeNums.value, [category]: Math.floor(Math.random() * poolSize) + 1 }
+    const pick = effectivePool[Math.floor(Math.random() * poolSize)]
+    dialogFakeNums.value = { ...dialogFakeNums.value, [category]: pick }
   }, 80)
 
   setTimeout(() => {
@@ -1216,14 +1224,14 @@ const closeCheckinDialog = () => {
   if (checkinConfirm.value.qrImageUrl) {
     URL.revokeObjectURL(checkinConfirm.value.qrImageUrl)
   }
-  // Clear pool sizes from completed check-in
+  // Clear pools from completed check-in
   if (checkinConfirm.value.participant) {
     checkinConfirm.value.participant.categories.forEach(g => {
       const key = g.categoryName
-      if (key in categoryPoolSizes.value) {
-        const next = { ...categoryPoolSizes.value }
+      if (key in categoryPools.value) {
+        const next = { ...categoryPools.value }
         delete next[key]
-        categoryPoolSizes.value = next
+        categoryPools.value = next
       }
     })
   }
@@ -1365,9 +1373,15 @@ onMounted(async () => {
     let refreshPending = false
     subscribeToChannel(wsClient, '/topic/audition/', (msg) => {
       if (msg.eventName !== props.eventName) return
-      // Store pool size for modal animation
-      if (msg.category && msg.poolSize !== undefined) {
-        categoryPoolSizes.value = { ...categoryPoolSizes.value, [msg.category]: msg.poolSize }
+      // Store the actual pool (array of remaining numbers) for the modal
+      // animation. Falls back gracefully when only poolSize is sent.
+      if (msg.category) {
+        if (Array.isArray(msg.pool)) {
+          categoryPools.value = { ...categoryPools.value, [msg.category]: msg.pool }
+        } else if (msg.poolSize !== undefined) {
+          const synthetic = Array.from({ length: msg.poolSize }, (_, i) => i + 1)
+          categoryPools.value = { ...categoryPools.value, [msg.category]: synthetic }
+        }
       }
       const participant = checkinList.value.find(p => p.participantId === msg.participantId)
       if (participant) {
