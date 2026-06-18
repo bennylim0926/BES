@@ -76,7 +76,13 @@ function animateSlot(slotId, msg) {
     slot.person.categories.push(cat)
   }
 
-  const poolSize = msg.poolSize ?? 99
+  // Use the actual remaining-pool list when provided so the animation
+  // cycles through real numbers (e.g. {3, 15}) instead of the trivial
+  // 1..poolSize range. Fallback to 1..poolSize for older messages.
+  const pool = (Array.isArray(msg.pool) && msg.pool.length > 0)
+    ? msg.pool
+    : Array.from({ length: msg.poolSize ?? 99 }, (_, i) => i + 1)
+  const poolSize = pool.length
 
   // Skip animation if only one number is available
   if (poolSize === 1) {
@@ -92,7 +98,7 @@ function animateSlot(slotId, msg) {
   rollingCounters[intervalKey] = 0
   rollingIntervals[intervalKey] = setInterval(() => {
     rollingCounters[intervalKey] = (rollingCounters[intervalKey] + 1) % poolSize
-    fakeNums.value = { ...fakeNums.value, [intervalKey]: rollingCounters[intervalKey] + 1 }
+    fakeNums.value = { ...fakeNums.value, [intervalKey]: pool[rollingCounters[intervalKey]] }
   }, 80)
 
   setTimeout(() => {
