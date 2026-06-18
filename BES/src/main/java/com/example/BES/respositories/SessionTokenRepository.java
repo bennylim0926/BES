@@ -16,4 +16,10 @@ public interface SessionTokenRepository extends JpaRepository<SessionToken, Stri
     List<SessionToken> findByEvent_EventIdAndRevokedFalse(Long eventId);
 
     List<SessionToken> findByEvent_EventId(Long eventId);
+
+    List<SessionToken> findByEvent_EventIdAndRoleAndJudge_JudgeIdAndRevokedFalse(
+        Long eventId, String role, Long judgeId);
+
+    List<SessionToken> findByEvent_EventIdAndRoleAndJudgeIsNullAndRevokedFalse(
+        Long eventId, String role);
 }

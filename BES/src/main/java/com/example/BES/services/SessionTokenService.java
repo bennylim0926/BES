@@ -51,6 +51,17 @@ public class SessionTokenService {
             }
         }
 
+        // Revoke any existing active token for the same (event, role, judge) tuple.
+        // Keeps the invariant: at most one active token per recipient. Prevents
+        // duplicates from concurrent loadSessionTokens auto-repair runs.
+        List<SessionToken> existing = (judgeId != null)
+            ? sessionTokenRepository.findByEvent_EventIdAndRoleAndJudge_JudgeIdAndRevokedFalse(eventId, role, judgeId)
+            : sessionTokenRepository.findByEvent_EventIdAndRoleAndJudgeIsNullAndRevokedFalse(eventId, role);
+        for (SessionToken old : existing) {
+            old.setRevoked(true);
+        }
+        if (!existing.isEmpty()) sessionTokenRepository.saveAll(existing);
+
         SessionToken token = new SessionToken();
         token.setTokenId(UUID.randomUUID().toString());
         token.setRole(role);

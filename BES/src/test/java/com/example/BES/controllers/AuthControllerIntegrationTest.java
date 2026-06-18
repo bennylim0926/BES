@@ -21,8 +21,10 @@ import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
 import com.example.BES.models.Event;
 import com.example.BES.models.Judge;
+import com.example.BES.models.SessionToken;
 import com.example.BES.respositories.EventRepo;
 import com.example.BES.respositories.JudgeRepo;
+import com.example.BES.respositories.SessionTokenRepository;
 import com.example.BES.services.SessionTokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -46,6 +48,9 @@ public class AuthControllerIntegrationTest {
 
     @Autowired
     private SessionTokenService sessionTokenService;
+
+    @Autowired
+    private SessionTokenRepository sessionTokenRepository;
 
     private Event testEvent;
     private Judge testJudge;
@@ -155,6 +160,33 @@ public class AuthControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
+    }
+
+    @Test
+    public void testGenerateTokenRevokesExistingActiveTokenForSameJudge() throws Exception {
+        String firstTokenId  = sessionTokenService.generateToken("JUDGE", testEvent.getEventId(), testJudge.getJudgeId(), 7);
+        String secondTokenId = sessionTokenService.generateToken("JUDGE", testEvent.getEventId(), testJudge.getJudgeId(), 7);
+
+        SessionToken first  = sessionTokenRepository.findById(firstTokenId).orElseThrow();
+        SessionToken second = sessionTokenRepository.findById(secondTokenId).orElseThrow();
+
+        // Existing token must be revoked so at most one active token survives.
+        org.junit.jupiter.api.Assertions.assertTrue(first.isRevoked(),
+            "previous token for same (event, judge) should be revoked");
+        org.junit.jupiter.api.Assertions.assertFalse(second.isRevoked(),
+            "new token should be active");
+    }
+
+    @Test
+    public void testGenerateTokenRevokesExistingActiveEmceeTokenForEvent() throws Exception {
+        String firstTokenId  = sessionTokenService.generateToken("EMCEE", testEvent.getEventId(), null, 7);
+        String secondTokenId = sessionTokenService.generateToken("EMCEE", testEvent.getEventId(), null, 7);
+
+        SessionToken first  = sessionTokenRepository.findById(firstTokenId).orElseThrow();
+        SessionToken second = sessionTokenRepository.findById(secondTokenId).orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertTrue(first.isRevoked());
+        org.junit.jupiter.api.Assertions.assertFalse(second.isRevoked());
     }
 
     @Test
