@@ -2164,7 +2164,7 @@ onUnmounted(() => {
         <select
           v-if="categoriesUnassignedToJudge(j.judgeId).length > 0"
           @change="submitAssignJudge(Number($event.target.value), j.judgeId); $event.target.value = ''"
-          class="w-full px-3 py-2.5 type-name-sm text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm"
+          class="w-full px-3 py-3 type-name text-accent bg-surface-800 border border-[color:var(--accent-muted)] para-chip-sm min-h-[44px]"
         >
           <option value="" disabled selected>+ Assign category</option>
           <option
@@ -2177,20 +2177,20 @@ onUnmounted(() => {
 
       <!-- Add judge card -->
       <div class="para-chip p-3 flex flex-col items-center justify-center gap-2" style="border-style:dashed;border-color:rgba(255,255,255,0.1);">
-        <div class="flex items-center gap-1.5 w-full">
+        <div class="flex items-center gap-2 w-full">
           <input
             v-model="globalJudgeInput"
             type="text"
             placeholder="Judge name…"
             autocomplete="off"
-            class="bg-transparent type-name-sm placeholder:text-content-muted focus:outline-none flex-1 min-w-0"
+            class="bg-transparent type-name placeholder:text-content-muted focus:outline-none flex-1 min-w-0 py-2.5 px-1"
             @keyup.enter="submitAddJudgeGlobal()"
           />
           <button
             @click="submitAddJudgeGlobal()"
-            class="type-label text-accent hover:opacity-80 transition-opacity shrink-0"
+            class="para-chip-sm px-4 type-label text-accent hover:opacity-80 transition-opacity shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Add judge"
-          ><i class="pi pi-plus text-xs"></i></button>
+          ><i class="pi pi-plus text-base"></i></button>
         </div>
         <span v-if="allEventJudges.length === 0" class="type-label text-content-muted" >No judges yet</span>
       </div>
@@ -2360,9 +2360,9 @@ onUnmounted(() => {
         <button
           v-if="!showAddFeedbackGroup"
           @click="showAddFeedbackGroup = true; newFeedbackGroupName = ''"
-          class="para-chip-sm px-3 py-1.5 type-label shrink-0"
+          class="para-chip-sm px-4 py-2.5 type-name-sm shrink-0 min-h-[44px] flex items-center gap-1.5"
         >
-          <i class="pi pi-plus mr-1" style="font-size:0.7rem"></i>Add Group
+          <i class="pi pi-plus text-sm"></i>Add Group
         </button>
       </div>
 
@@ -2376,11 +2376,11 @@ onUnmounted(() => {
         <input
           v-model="newFeedbackGroupName"
           @keyup.enter="onAddFeedbackGroup"
-          placeholder="Group name (e.g. Locking-specific)"
-          class="input-base flex-1"
+          placeholder="Group name"
+          class="input-base flex-1 min-h-[44px]"
         />
-        <button @click="onAddFeedbackGroup" class="para-chip-sm px-3 py-1.5 type-label text-accent">Save</button>
-        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-3 py-1.5 type-label text-content-muted">Cancel</button>
+        <button @click="onAddFeedbackGroup" class="para-chip-sm px-4 py-2.5 type-name-sm text-accent min-h-[44px]">Save</button>
+        <button @click="showAddFeedbackGroup = false; newFeedbackGroupName = ''" class="para-chip-sm px-4 py-2.5 type-name-sm text-content-muted min-h-[44px]">Cancel</button>
       </div>
 
       <!-- Empty state -->
