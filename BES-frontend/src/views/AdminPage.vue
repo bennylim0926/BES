@@ -3,7 +3,7 @@ import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackG
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, getAppConfig, postAppConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
+import { fetchAllEvents, getAppConfig, postAppConfig, saveSheetConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -102,7 +102,7 @@ const isEventAssigned = (organiser, eventId) => {
 
 const accentInput = ref('#ffffff')
 const activeTab = ref('scores')
-const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers', 'demo'])
+const tabs = ref(['scores', 'feedback', 'images', 'theme', 'organisers', 'demo', 'sheets'])
 
 const confirmResetScore = (id, title, message) => {
   modalTitle.value = title
@@ -168,6 +168,57 @@ const saveAccent = async () => {
   await postAppConfig(accentInput.value)
 }
 
+// ── Sheet Config ───────────────────────────────────────────
+const sheetConfig = ref({
+  nameKeyword: '',
+  stageNameKeyword: '',
+  teamNameKeywords: '',
+  memberNameKeywords: '',
+  categoryKeywords: '',
+  entryTypeKeyword: '',
+  emailKeyword: '',
+  paymentKeyword: '',
+  screenshotKeywords: ''
+})
+
+const sheetSaved = ref(false)
+
+async function loadSheetConfig() {
+  try {
+    const cfg = await getAppConfig()
+    if (cfg?.sheetConfig) {
+      sheetConfig.value = cfg.sheetConfig
+    }
+  } catch (e) {
+    console.error('Failed to load sheet config', e)
+  }
+}
+
+async function saveSheet() {
+  try {
+    await saveSheetConfig(sheetConfig.value)
+    sheetSaved.value = true
+    setTimeout(() => { sheetSaved.value = false }, 2000)
+  } catch (e) {
+    console.error('Failed to save sheet config', e)
+  }
+}
+
+const coreFields = [
+  { key: 'nameKeyword',        label: 'Name keyword',           help: 'Column is a candidate for participant name.',            default: 'name' },
+  { key: 'stageNameKeyword',   label: 'Stage name keyword',     help: 'Column is a stage/display name.',                        default: 'stage name' },
+  { key: 'teamNameKeywords',   label: 'Team name keywords',     help: 'Comma-separated — column signals a team/crew entry.',    default: 'team,duo,battler,crew,group' },
+  { key: 'memberNameKeywords', label: 'Member name keywords',   help: 'Comma-separated — column signals a team member/dancer.', default: 'member,dancer' },
+  { key: 'categoryKeywords',   label: 'Category keywords',      help: 'Comma-separated — column signals a battle category.',   default: 'categor' },
+]
+
+const otherFields = [
+  { key: 'entryTypeKeyword',   label: 'Entry type keyword',     help: 'Column is explicit entry type (solo/team).',            default: 'entry type' },
+  { key: 'emailKeyword',       label: 'Email keyword',          help: 'Column is the email address.',                          default: 'email' },
+  { key: 'paymentKeyword',     label: 'Payment keyword',        help: 'Column is payment status.',                             default: 'payment status' },
+  { key: 'screenshotKeywords', label: 'Screenshot keywords',    help: 'Comma-separated — column is a payment screenshot.',     default: 'screenshot,receipt,proof,prove,payment' },
+]
+
 // ── Demo Settings ──────────────────────────────────────────
 const demoConfig = ref({ demoEnabled: false, passcode: '', activeSandboxes: 0 })
 const showPasscode = ref(false)
@@ -229,6 +280,7 @@ onMounted(async () => {
   organisers.value = await getOrganisers() ?? []
   const cfg = await getAppConfig()
   accentInput.value = cfg?.accentColor ?? '#ffffff'
+  sheetConfig.value = cfg?.sheetConfig ?? sheetConfig.value
   loadDemoConfig()
   loadSandboxes()
 })
@@ -596,6 +648,60 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Sheet Import Config ───────────────────────────────── -->
+      <div v-if="activeTab === 'sheets'">
+        <div class="section-rule mb-6">
+          <span class="section-rule-label">Sheet Column Keywords</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <p class="type-prose mb-6">Configure which words in Google Sheets column headers map to each field. Changes apply to all future imports; no sheet reformatting needed.</p>
+
+        <!-- Core fields -->
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Core Fields</span>
+          <span class="badge-neutral type-label px-2 py-0.5">often customised</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="card-hover p-4 relative" v-for="f in coreFields" :key="f.key">
+            <div class="corner-bar-tl"></div>
+            <label class="type-label block mb-1">{{ f.label }}</label>
+            <p class="type-prose-sm text-content-secondary mb-2">{{ f.help }}</p>
+            <input
+              v-model="sheetConfig[f.key]"
+              type="text"
+              :placeholder="f.default"
+              class="w-full bg-surface-900 border border-white/10 px-3 py-2 type-body text-content-secondary focus:border-accent outline-none"
+            />
+          </div>
+        </div>
+
+        <!-- Other fields -->
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Other Fields</span>
+          <span class="badge-neutral type-label px-2 py-0.5">rarely changed</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="card-hover p-4 relative" v-for="f in otherFields" :key="f.key">
+            <div class="corner-bar-tl"></div>
+            <label class="type-label block mb-1">{{ f.label }}</label>
+            <p class="type-prose-sm text-content-secondary mb-2">{{ f.help }}</p>
+            <input
+              v-model="sheetConfig[f.key]"
+              type="text"
+              :placeholder="f.default"
+              class="w-full bg-surface-900 border border-white/10 px-3 py-2 type-body text-content-secondary focus:border-accent outline-none"
+            />
+          </div>
+        </div>
+
+        <button @click="saveSheet" class="para-chip type-label border-accent flex items-center gap-2 px-4 py-2 min-h-[44px]">
+          <i class="pi pi-check text-sm"></i>
+          {{ sheetSaved ? 'Saved' : 'Save Sheet Config' }}
+        </button>
       </div>
 
     </div>

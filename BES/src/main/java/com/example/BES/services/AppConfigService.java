@@ -5,6 +5,9 @@ import com.example.BES.respositories.AppConfigRepository;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class AppConfigService {
@@ -69,6 +72,58 @@ public class AppConfigService {
 
     public void setDemoEnabled(boolean enabled) {
         set(DEMO_ENABLED_KEY, Boolean.toString(enabled));
+    }
+
+    // ---- sheet column-header config ----
+
+    public List<String> getSheetNameKeyword() {
+        return parseCsv(get("sheet.nameKeyword", "name"));
+    }
+
+    public List<String> getSheetStageNameKeyword() {
+        return parseCsv(get("sheet.stageNameKeyword", "stage name"));
+    }
+
+    public List<String> getSheetTeamNameKeywords() {
+        return parseCsv(get("sheet.teamNameKeywords", "team,duo,battler,crew,group"));
+    }
+
+    public List<String> getSheetMemberNameKeywords() {
+        return parseCsv(get("sheet.memberNameKeywords", "member,dancer"));
+    }
+
+    public List<String> getSheetCategoryKeywords() {
+        return parseCsv(get("sheet.categoryKeywords", "categor"));
+    }
+
+    public List<String> getSheetEntryTypeKeyword() {
+        return parseCsv(get("sheet.entryTypeKeyword", "entry type"));
+    }
+
+    public List<String> getSheetEmailKeyword() {
+        return parseCsv(get("sheet.emailKeyword", "email"));
+    }
+
+    public List<String> getSheetPaymentKeyword() {
+        return parseCsv(get("sheet.paymentKeyword", "payment status"));
+    }
+
+    public List<String> getSheetScreenshotKeywords() {
+        return parseCsv(get("sheet.screenshotKeywords", "screenshot,receipt,proof,prove,payment"));
+    }
+
+    /**
+     * Bulk-saves sheet config keys from the admin panel.
+     */
+    public void saveSheetConfig(Map<String, String> config) {
+        config.forEach(this::set);
+    }
+
+    private List<String> parseCsv(String csv) {
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 
     private String generatePasscode() {

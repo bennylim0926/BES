@@ -2,13 +2,14 @@ package com.example.BES.services;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +32,6 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 @Service
 @Profile("!test")
 public class GoogleSheetService {
-    private static final String CATEGORY_KEYWORD = "categor";
-    private final static List<String> PAYMENT_KEYWORDS = new ArrayList<>(Arrays.asList(SheetHeader.EMAIL, SheetHeader.NAME, SheetHeader.PAYMENT_STATUS, SheetHeader.CATEGORIES));
-    private final static List<String> SCREENSHOT_KEYWORDS = new ArrayList<>(Arrays.asList("screenshot", "receipt", "proof", "prove", "payment"));
 
     @Autowired
     private GoogleSheetClient sheetClient;
@@ -49,6 +47,9 @@ public class GoogleSheetService {
 
     @Autowired
     private EventCategoryRepo eventCategoryRepo;
+
+    @Autowired
+    private AppConfigService appConfigService;
 
     public Map<String, Integer> getParticipantsBreakDown(String fileId) throws IOException {
         List<Integer> matchingCategoriesIndixes = getCategoriesColumns(fileId);
@@ -96,7 +97,12 @@ public class GoogleSheetService {
     public void insertPaymentColumn(String fileId) throws IOException {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
-        if (!GoogleSheetParser.columnExists(headers, SheetHeader.PAYMENT_STATUS)) {
+        List<String> paymentKws = appConfigService.getSheetPaymentKeyword();
+        boolean found = false;
+        for (String h : headers) {
+            if (containsAny(h.toLowerCase(), paymentKws)) { found = true; break; }
+        }
+        if (!found) {
             int rowSize = sheetClient.getSheetSize(fileId);
             sheetClient.insertPaymentCheckboxes(fileId, headers.size(), rowSize, sheetClient.getSheetId(fileId));
         }
@@ -164,12 +170,25 @@ public class GoogleSheetService {
     private Map<String, Integer> getColumnIndexMap(String fileId, List<String> headers) throws IOException {
         Map<String, Integer> colIndexMap = new HashMap<>();
 
-        // Pre-scan for stage name and team name before any header modification
+        List<String> stageNameKw = appConfigService.getSheetStageNameKeyword();
+        List<String> teamNameKws = appConfigService.getSheetTeamNameKeywords();
+        List<String> entryTypeKw = appConfigService.getSheetEntryTypeKeyword();
+
+        // Pre-scan for stage name, team name, and entry type before any header modification
         for (int i = 0; i < headers.size(); i++) {
             String h = headers.get(i).toLowerCase();
-            if (h.contains(SheetHeader.STAGE_NAME)) colIndexMap.putIfAbsent(SheetHeader.STAGE_NAME, i);
-            if (h.contains(SheetHeader.TEAM_NAME))  colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i);
-            if (h.contains(SheetHeader.ENTRY_TYPE)) colIndexMap.putIfAbsent(SheetHeader.ENTRY_TYPE, i);
+            for (String kw : stageNameKw) {
+                if (h.contains(kw)) { colIndexMap.putIfAbsent(SheetHeader.STAGE_NAME, i); break; }
+            }
+            for (String kw : teamNameKws) {
+                if (h.contains(kw) && h.contains(appConfigService.getSheetNameKeyword().get(0))) {
+                    colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i); break;
+                }
+            }
+            if (isTeamNameHeader(h)) colIndexMap.putIfAbsent(SheetHeader.TEAM_NAME, i);
+            for (String kw : entryTypeKw) {
+                if (h.contains(kw)) { colIndexMap.putIfAbsent(SheetHeader.ENTRY_TYPE, i); break; }
+            }
         }
 
         // Normalize headers: remove extra name columns (passing pre-scan map so special cols are skipped)
@@ -178,14 +197,23 @@ public class GoogleSheetService {
             normalizedHeaders = removeExtraName(headers, colIndexMap);
         }
 
+        // Build dynamic keyword lists from config
+        List<String> paymentKeywords = new ArrayList<>();
+        paymentKeywords.addAll(appConfigService.getSheetEmailKeyword());
+        paymentKeywords.addAll(appConfigService.getSheetNameKeyword());
+        paymentKeywords.addAll(appConfigService.getSheetPaymentKeyword());
+        paymentKeywords.addAll(appConfigService.getSheetCategoryKeywords());
+
+        List<String> screenshotKeywords = appConfigService.getSheetScreenshotKeywords();
+
         for (int i = 0; i < normalizedHeaders.size(); i++) {
-            for (String keyword : PAYMENT_KEYWORDS) {
+            for (String keyword : paymentKeywords) {
                 if (normalizedHeaders.get(i).toLowerCase().contains(keyword.toLowerCase())) {
                     colIndexMap.putIfAbsent(keyword, i);
                 }
             }
             String headerLower = normalizedHeaders.get(i).toLowerCase();
-            for (String screenshotKw : SCREENSHOT_KEYWORDS) {
+            for (String screenshotKw : screenshotKeywords) {
                 if (headerLower.contains(screenshotKw) && !colIndexMap.containsKey(SheetHeader.SCREENSHOT)) {
                     colIndexMap.put(SheetHeader.SCREENSHOT, i);
                     break;
@@ -197,9 +225,11 @@ public class GoogleSheetService {
 
     private Integer getNameHeaderCount(List<String> headers) {
         int count = 0;
+        List<String> nameKws = appConfigService.getSheetNameKeyword();
         for (String h : headers) {
-            if (h.toLowerCase().contains("name")) {
-                count++;
+            String lower = h.toLowerCase();
+            for (String kw : nameKws) {
+                if (lower.contains(kw)) { count++; break; }
             }
         }
         return count;
@@ -225,21 +255,27 @@ public class GoogleSheetService {
             mutableHeaders.set(idx, "ignore");
         }
 
-        // Mark member name columns as "ignore" (captured by getMemberNameColumns)
+        List<String> memberKws = appConfigService.getSheetMemberNameKeywords();
+        List<String> nameKws = appConfigService.getSheetNameKeyword();
+
+        // Mark secondary member/dancer name columns as "ignore" (captured by getMemberNameColumns).
+        // Primary member/dancer (number 1 or no number) stays as a candidate for primary NAME.
         for (int i = 0; i < mutableHeaders.size(); i++) {
             if (specialIndices.contains(i)) continue;
             String lower = mutableHeaders.get(i).toLowerCase();
-            if (lower.contains("member") && lower.contains("name")) {
-                mutableHeaders.set(i, "ignore");
+            if (containsAny(lower, memberKws) && containsAny(lower, nameKws)) {
+                if (isSecondaryMemberColumn(lower)) {
+                    mutableHeaders.set(i, "ignore");
+                }
             }
         }
 
-        // Keep first remaining "name" column as NAME, mark rest as "ignore"
+        // Keep first remaining name column as NAME, mark rest as "ignore"
         boolean foundFirstName = false;
         for (int i = 0; i < mutableHeaders.size(); i++) {
             String value = mutableHeaders.get(i).toLowerCase();
             if (value.equals("ignore")) continue;
-            if (value.contains("name")) {
+            if (containsAny(value, nameKws)) {
                 if (!foundFirstName) {
                     foundFirstName = true;
                 } else {
@@ -251,18 +287,60 @@ public class GoogleSheetService {
     }
 
     /**
-     * Returns column indices where the header contains both "member" and "name"
-     * (e.g. "Member 2 Name", "Member 3 Name").
+     * Returns column indices where the header indicates an additional team member
+     * (e.g. "Member 2 Name", "Dancer 3 Name"). The primary member/dancer (number 1
+     * or no number) is excluded — it serves as the main participant NAME instead.
      */
     private List<Integer> getMemberNameColumns(List<String> headers) {
         List<Integer> indices = new ArrayList<>();
+        List<String> memberKws = appConfigService.getSheetMemberNameKeywords();
+        List<String> nameKws = appConfigService.getSheetNameKeyword();
         for (int i = 0; i < headers.size(); i++) {
             String lower = headers.get(i).toLowerCase();
-            if (lower.contains("member") && lower.contains("name")) {
-                indices.add(i);
+            if (containsAny(lower, memberKws) && containsAny(lower, nameKws)) {
+                if (isSecondaryMemberColumn(lower)) {
+                    indices.add(i);
+                }
             }
         }
         return indices;
+    }
+
+    /**
+     * Returns true when the header looks like a team/group/crew name rather than
+     * an individual participant name. Matches headers that contain a name keyword plus a
+     * team-indicator word and do NOT contain individual-level member keywords.
+     */
+    private boolean isTeamNameHeader(String header) {
+        String h = header.toLowerCase();
+        List<String> nameKws = appConfigService.getSheetNameKeyword();
+        List<String> memberKws = appConfigService.getSheetMemberNameKeywords();
+        List<String> teamKws = appConfigService.getSheetTeamNameKeywords();
+
+        if (!containsAny(h, nameKws)) return false;
+        if (containsAny(h, memberKws)) return false;
+        return containsAny(h, teamKws);
+    }
+
+    /**
+     * Returns true when a member/dancer name header contains a number greater
+     * than 1 (e.g. "Dancer 2 Name", "Member 3 Name"). Headers with no number or
+     * only the number 1 are treated as the primary participant name.
+     */
+    private boolean isSecondaryMemberColumn(String header) {
+        Matcher m = Pattern.compile("\\b(\\d+)\\b").matcher(header);
+        while (m.find()) {
+            if (Integer.parseInt(m.group(1)) > 1) return true;
+        }
+        return false;
+    }
+
+    /** Returns true if {@code text} contains any of the given keywords (case-insensitive). */
+    private static boolean containsAny(String text, List<String> keywords) {
+        for (String kw : keywords) {
+            if (text.contains(kw)) return true;
+        }
+        return false;
     }
 
     private List<String> getHeaders(String fileId) throws IOException {
@@ -315,8 +393,9 @@ public class GoogleSheetService {
         ValueRange headerRange = sheetClient.getRange(fileId, "1:1");
         List<String> headers = GoogleSheetParser.readHeaders(headerRange);
         List<Integer> matchingColumnIndices = new ArrayList<>();
+        List<String> categoryKws = appConfigService.getSheetCategoryKeywords();
         for (int i = 0; i < headers.size(); i++) {
-            if (headers.get(i).toLowerCase().contains(CATEGORY_KEYWORD.toLowerCase())) {
+            if (containsAny(headers.get(i).toLowerCase(), categoryKws)) {
                 matchingColumnIndices.add(i);
             }
         }

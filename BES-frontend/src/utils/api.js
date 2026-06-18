@@ -1466,6 +1466,16 @@ export const postAppConfig = async (accentColor) => {
   return res.json()
 }
 
+export const saveSheetConfig = async (sheetConfig) => {
+  const res = await fetch('/api/v1/config/sheet', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sheetConfig)
+  })
+  return res.json()
+}
+
 export const addDivision = async (eventName, name, format, categoryId) => {
   try {
     return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions`, {

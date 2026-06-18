@@ -37,26 +37,26 @@ public class RegistrationDtoMapper {
 
         if (row.size() <= nameIdx) return dto;
 
-        dto.setParticipantName(row.get(nameIdx));
+        dto.setParticipantName(row.get(nameIdx).trim());
 
         // Stage name: dedicated column if present and different from identity, otherwise identity doubles as stage name
         if (stageNameIdx != null && !stageNameIdx.equals(nameIdx)
                 && row.size() > stageNameIdx && !row.get(stageNameIdx).isBlank()) {
-            dto.setStageName(row.get(stageNameIdx));
+            dto.setStageName(row.get(stageNameIdx).trim());
         } else {
-            dto.setStageName(row.get(nameIdx));
+            dto.setStageName(row.get(nameIdx).trim());
         }
 
         // Team name
         if (teamNameIdx != null && row.size() > teamNameIdx && !row.get(teamNameIdx).isBlank()) {
-            dto.setTeamName(row.get(teamNameIdx));
+            dto.setTeamName(row.get(teamNameIdx).trim());
         }
 
         // Member names (additional team members beyond the leader)
         List<String> memberNames = new ArrayList<>();
         for (Integer idx : memberCols) {
             if (row.size() > idx && !row.get(idx).isBlank()) {
-                memberNames.add(row.get(idx));
+                memberNames.add(row.get(idx).trim());
             }
         }
         dto.setMemberNames(memberNames);

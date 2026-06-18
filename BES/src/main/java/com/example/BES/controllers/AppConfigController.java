@@ -28,7 +28,22 @@ public class AppConfigController {
         Map<String, Object> config = new HashMap<>();
         config.put("accentColor", service.getAccentColor());
         config.put("demoEnabled", service.isDemoEnabled());
+        config.put("sheetConfig", getSheetConfig());
         return ResponseEntity.ok(config);
+    }
+
+    private Map<String, String> getSheetConfig() {
+        Map<String, String> sc = new HashMap<>();
+        sc.put("nameKeyword",          service.get("sheet.nameKeyword", "name"));
+        sc.put("stageNameKeyword",     service.get("sheet.stageNameKeyword", "stage name"));
+        sc.put("teamNameKeywords",     service.get("sheet.teamNameKeywords", "team,duo,battler,crew,group"));
+        sc.put("memberNameKeywords",   service.get("sheet.memberNameKeywords", "member,dancer"));
+        sc.put("categoryKeywords",     service.get("sheet.categoryKeywords", "categor"));
+        sc.put("entryTypeKeyword",     service.get("sheet.entryTypeKeyword", "entry type"));
+        sc.put("emailKeyword",         service.get("sheet.emailKeyword", "email"));
+        sc.put("paymentKeyword",       service.get("sheet.paymentKeyword", "payment status"));
+        sc.put("screenshotKeywords",   service.get("sheet.screenshotKeywords", "screenshot,receipt,proof,prove,payment"));
+        return sc;
     }
 
     @PostMapping("/app")
@@ -41,5 +56,17 @@ public class AppConfigController {
         String saved = service.saveAccentColor(color);
         messaging.convertAndSend("/topic/app-config", Map.of("accentColor", saved));
         return ResponseEntity.ok(Map.of("accentColor", saved));
+    }
+
+    @PostMapping("/sheet")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> postSheetConfig(@RequestBody Map<String, String> body) {
+        service.saveSheetConfig(body);
+
+        Map<String, Object> broadcast = new HashMap<>();
+        broadcast.put("sheetConfig", getSheetConfig());
+        messaging.convertAndSend("/topic/app-config", broadcast);
+
+        return ResponseEntity.ok(broadcast);
     }
 }
