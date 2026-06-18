@@ -69,4 +69,9 @@ public interface ScoreRepo extends JpaRepository<Score, Long>{
         @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName
     );
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Score s WHERE s.eventCategoryParticipant = :ecp")
+    void deleteAllByEventCategoryParticipant(@Param("ecp") EventCategoryParticipant ecp);
 }

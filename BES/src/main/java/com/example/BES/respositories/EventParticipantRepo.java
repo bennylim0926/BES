@@ -17,4 +17,5 @@ public interface EventParticipantRepo extends JpaRepository<EventParticipant, Lo
     List<EventParticipant> findByEventAndPaymentVerifiedFalse(Event event);
     Optional<EventParticipant> findByReferenceCode(String referenceCode);
     List<EventParticipant> findByParticipant(Participant participant);
+    void deleteByEvent(Event event);
 }

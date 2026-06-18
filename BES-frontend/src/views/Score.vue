@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent, saveTieBreakerState, getTieBreakerState } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -13,26 +13,14 @@ const categoryKey = (eventName) => `selectedCategory_${eventName || 'global'}`
 const tabKey   = (eventName) => `selectedTabMethod_${eventName || 'global'}`
 const selectedCategory = ref(localStorage.getItem(categoryKey(selectedEvent.value)) || '')
 const selectedTabulation = ref(localStorage.getItem(tabKey(selectedEvent.value)) || 'By Total')
-const selectedTopN = ref("All")
+const selectedTopN = ref('')
 const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
-const topNOptions = ["All", "Top 8", "Top 16", "Top 32"]
 
 // Auth
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
-
-// ── Mode toggle: Control (organiser) vs Broadcast (emcee) ─────────────────
-// Default is role-driven; user choice persists per event in localStorage.
-const modeKey = computed(() => `score_mode_${selectedEvent.value || 'global'}`)
-const initialMode = (() => {
-  const saved = localStorage.getItem(`score_mode_${authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || 'global'}`)
-  if (saved === 'control' || saved === 'broadcast') return saved
-  return userRole.value === 'ROLE_EMCEE' ? 'broadcast' : 'control'
-})()
-const mode = ref(initialMode)
-watch([mode, modeKey], ([m, k]) => { if (k && (m === 'control' || m === 'broadcast')) localStorage.setItem(k, m) })
 
 // Results release state (admin/organiser only)
 const resultsReleased = ref(false)
@@ -224,7 +212,7 @@ watch(selectedEvent, async (newVal) => {
 watch(selectedCategory, async (newVal) => {
   if (newVal) {
     localStorage.setItem(categoryKey(selectedEvent.value), newVal)
-    selectedTopN.value = 'All'
+    selectedTopN.value = ''
     selectedEntryType.value = 'Teams'
     if (selectedEvent.value && newVal !== 'All') {
       criteriaForCategory.value = await getScoringCriteria(selectedEvent.value, newVal)
@@ -234,7 +222,7 @@ watch(selectedCategory, async (newVal) => {
   }
 }, { immediate: true });
 watch(selectedTabulation, (newVal) => {
-  if (newVal) { localStorage.setItem(tabKey(selectedEvent.value), newVal); selectedTopN.value = 'All' }
+  if (newVal) { localStorage.setItem(tabKey(selectedEvent.value), newVal); selectedTopN.value = '' }
   resetTieBreaker()
 }, { immediate: true });
 // Load persisted tie-breaker state from backend whenever the view context changes.
@@ -254,7 +242,7 @@ const topNResult = computed(() => {
   const base = filteredParticipantsForScore.value
   if (!base.rows) return { hasTieBreaker: false }
 
-  const n = selectedTopN.value === 'All' ? Infinity : parseInt(selectedTopN.value.replace('Top ', ''))
+  const n = (!selectedTopN.value || selectedTopN.value === '0') ? Infinity : Math.min(parseInt(selectedTopN.value), 64)
   const rows = base.rows
 
   if (n === Infinity || rows.length <= n) {
@@ -423,7 +411,7 @@ const eliminatedRows = computed(() => {
 const statusBanner = computed(() => {
   const t = topNResult.value
   const total = filteredParticipantsForScore.value.rows?.length ?? 0
-  const n = selectedTopN.value === 'All' ? Infinity : parseInt(selectedTopN.value.replace('Top ', ''))
+  const n = (!selectedTopN.value || selectedTopN.value === '0') ? Infinity : Math.min(parseInt(selectedTopN.value), 64)
   if (!Number.isFinite(n)) return null
   if (total < n) {
     return { tone: 'insufficient', message: `ONLY ${total} SCORED — TOP ${n} NOT YET REACHABLE` }
@@ -448,20 +436,6 @@ const eliminatedSummary = computed(() => {
 })
 
 const eliminatedExpanded = ref(false)
-
-// Broadcast-mode column count — 1 below 640px or for very small N, 2 otherwise.
-const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
-const onResize = () => { viewportWidth.value = window.innerWidth }
-onMounted(() => { window.addEventListener('resize', onResize) })
-onUnmounted(() => { window.removeEventListener('resize', onResize) })
-
-const broadcastColumns = computed(() => {
-  if (viewportWidth.value < 640) return '1col'
-  const n = selectedTopN.value === 'All'
-    ? (allRowsForPool.value?.length ?? 0)
-    : parseInt(selectedTopN.value.replace('Top ', ''))
-  return n <= 12 ? '1col' : '2col'
-})
 
 // Release results toggle
 const toggleRelease = async () => {
@@ -656,21 +630,19 @@ function transformForScore(data) {
     <div class="color-bleed"></div>
     <div class="relative z-10">
 
-    <!-- Header row — title block is Control-only; Broadcast renders its own header below.
-         Release pill is Control-only (spec §4.1). Mode toggle stays in both modes so user can flip. -->
+    <!-- Header row -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
-      <div v-if="mode === 'control'">
+      <div>
         <p class="type-label text-content-muted mb-1">SCOREBOARD · <span class="type-name-sm">{{ selectedEvent }}</span></p>
         <h1 class="type-page-title">
           {{ selectedCategory || 'No Category' }}
           <template v-if="hasTeamAndSoloMix"> — {{ selectedEntryType.toUpperCase() }}</template>
         </h1>
       </div>
-      <div v-else></div>
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Release Results pill (admin/organiser only, Control mode only) -->
+        <!-- Release Results pill (admin/organiser only) -->
         <button
-          v-if="isAdminOrOrganiser && mode === 'control'"
+          v-if="isAdminOrOrganiser"
           @click="toggleRelease"
           :aria-pressed="resultsReleased"
           class="para-chip-sm px-3 py-1.5 type-label inline-flex items-center gap-1.5 transition-all"
@@ -681,24 +653,11 @@ function transformForScore(data) {
           <span class="w-1.5 h-1.5 rounded-full" :class="resultsReleased ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]' : 'bg-content-muted/40'"></span>
           {{ resultsReleased ? 'RELEASED' : 'HIDDEN' }}
         </button>
-        <!-- Mode toggle -->
-        <div class="flex p-0.5 border border-surface-600 bg-surface-800/50" role="group" aria-label="Display mode">
-          <button
-            v-for="m in ['control', 'broadcast']"
-            :key="m"
-            @click="mode = m"
-            :aria-pressed="mode === m"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all"
-            :class="mode === m
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'"
-          >{{ m.toUpperCase() }}</button>
-        </div>
       </div>
     </div>
 
-    <!-- Secondary filter row (Control mode only) -->
-    <div v-if="mode === 'control'" class="card p-3 mb-6">
+    <!-- Secondary filter row -->
+    <div class="card p-3 mb-6">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Category -->
         <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category">
@@ -742,24 +701,23 @@ function transformForScore(data) {
       </div>
     </div>
 
-    <!-- Top N hero picker (Control mode only) -->
-    <div v-if="mode === 'control' && selectedTabulation === 'By Total'" class="mb-6">
+    <!-- Top N picker -->
+    <div v-if="selectedTabulation === 'By Total'" class="mb-6">
       <p class="type-label text-content-muted mb-3">QUALIFY</p>
-      <div class="grid grid-cols-4 gap-2" role="group" aria-label="Qualify top N">
-        <button
-          v-for="n in topNOptions"
-          :key="n"
-          @click="selectedTopN = n"
-          :aria-pressed="selectedTopN === n"
-          class="para-chip py-5 flex flex-col items-center justify-center gap-1 transition-all"
-          :class="selectedTopN === n
-            ? 'border-[color:var(--accent-color)] shadow-[0_0_20px_var(--accent-subtle)]'
-            : 'opacity-50 hover:opacity-90'"
-        >
-          <span v-if="n !== 'All'" class="type-label" style="font-size: 9px">TOP</span>
-          <span class="type-stat" style="font-size: 28px; line-height: 1">{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</span>
-          <span v-if="n === 'All'" class="type-label" style="font-size: 9px">· {{ allRowsForPool.length }}</span>
-        </button>
+      <div class="flex items-center gap-3">
+        <label class="type-label text-content-muted whitespace-nowrap">TOP</label>
+        <input
+          v-model="selectedTopN"
+          type="number"
+          min="1"
+          max="64"
+          placeholder="ALL"
+          class="input-base"
+          style="width: 6rem"
+          @input="(e) => { const v = parseInt(e.target.value); if (v > 64) selectedTopN = '64'; else if (v < 1 || isNaN(v)) selectedTopN = ''; else selectedTopN = String(v) }"
+        />
+        <span v-if="!selectedTopN || selectedTopN === '0'" class="type-label text-content-muted">· {{ allRowsForPool.length }} scored</span>
+        <span v-else class="type-label text-content-muted">of {{ allRowsForPool.length }}</span>
       </div>
 
       <!-- Status banner -->
@@ -791,7 +749,7 @@ function transformForScore(data) {
     </div>
 
     <!-- By Total: cut-line leaderboard -->
-    <template v-if="mode === 'control' && selectedTabulation === 'By Total'">
+    <template v-if="selectedTabulation === 'By Total'">
       <div v-if="topNResult.rows && topNResult.rows.length > 0">
         <p class="type-label text-content-muted mb-3 flex justify-between">
           <span>RANKINGS · {{ allRowsForPool.length }} SCORED</span>
@@ -973,8 +931,8 @@ function transformForScore(data) {
 
           <!-- Top N line (separator) -->
           <div
-            v-if="topNResult.rows.length >= (selectedTopN === 'All' ? 0 : parseInt(selectedTopN.replace('Top ','')))
-                  && selectedTopN !== 'All'
+            v-if="selectedTopN && selectedTopN !== '0'
+                  && topNResult.rows.length >= Math.min(parseInt(selectedTopN), 64)
                   && (!topNResult.hasTieBreaker || tieBreakerConfirmed)"
             role="separator"
             :aria-label="`Top ${topNResult.cutoff} line`"
@@ -1012,7 +970,7 @@ function transformForScore(data) {
     </template>
 
     <!-- By Judge sub-view (Control mode only) -->
-    <template v-if="mode === 'control' && selectedTabulation === 'By Judge'">
+    <template v-if="selectedTabulation === 'By Judge'">
       <template v-if="filteredParticipantsForScore.byJudge && Object.keys(filteredParticipantsForScore.byJudge).length > 0">
         <div
           v-for="(group, judge) in filteredParticipantsForScore.byJudge"
@@ -1040,96 +998,6 @@ function transformForScore(data) {
         <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
           <i class="pi pi-chart-bar text-content-muted text-xl"></i>
         </div>
-        <p class="type-body text-content-secondary">{{ selectedCategory ? `No scores for ${selectedCategory}` : 'No scores yet' }}</p>
-      </div>
-    </template>
-
-    <!-- BROADCAST mode -->
-    <template v-if="mode === 'broadcast'">
-      <!-- Header -->
-      <div class="mb-4">
-        <p class="type-name-sm text-content-muted mb-1">{{ selectedEvent }}<template v-if="hasTeamAndSoloMix"> · {{ selectedEntryType.toUpperCase() }}</template></p>
-        <h1 class="type-page-title">{{ selectedCategory }}<span v-if="selectedTopN !== 'All'"> · TOP {{ selectedTopN.replace('Top ', '') }}</span></h1>
-        <p class="type-label text-content-muted mt-1">{{ allRowsForPool.length }} SCORED</p>
-      </div>
-
-      <!-- Compact category + Top N switchers — practical override of "no chrome" rule so
-           emcees can switch categories / cut threshold without flipping to Control mid-show. -->
-      <div class="flex flex-wrap items-center gap-3 mb-6">
-        <div v-if="uniqueCategories.length > 1" class="flex flex-wrap gap-1" role="group" aria-label="Filter by category">
-          <button
-            v-for="g in uniqueCategories"
-            :key="g"
-            @click="selectedCategory = g"
-            :aria-pressed="selectedCategory === g"
-            class="para-chip-sm px-3 py-1.5 type-name-sm transition-all"
-            :class="selectedCategory === g ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
-          >{{ g }}</button>
-        </div>
-        <span v-if="uniqueCategories.length > 1" class="text-surface-600 select-none" aria-hidden="true">|</span>
-        <div class="flex flex-wrap gap-1" role="group" aria-label="Qualify top N">
-          <span class="type-label text-content-muted self-center mr-1">TOP</span>
-          <button
-            v-for="n in topNOptions"
-            :key="n"
-            @click="selectedTopN = n"
-            :aria-pressed="selectedTopN === n"
-            class="para-chip-sm px-3 py-1.5 type-label transition-all"
-            :class="selectedTopN === n ? 'text-accent border-[color:var(--accent-muted)]' : 'text-content-muted hover:text-content-primary'"
-          >{{ n === 'All' ? 'ALL' : n.replace('Top ', '') }}</button>
-        </div>
-      </div>
-
-      <!-- Leaderboard -->
-      <div v-if="finalRows.length > 0">
-        <div :class="broadcastColumns === '2col' ? 'grid grid-cols-2 gap-x-4 gap-y-1.5' : 'flex flex-col gap-1.5'">
-          <template v-for="(row, idx) in finalRows" :key="row.participantName">
-            <div
-              class="para-chip flex items-start gap-3 px-4 py-3"
-              :class="idx === 0 ? 'border-l-[3px] border-[color:var(--accent-color)]' : 'bg-surface-700/10'"
-              :style="broadcastColumns === '2col' && idx < Math.ceil(finalRows.length / 2)
-                ? `order: ${idx * 2}`
-                : broadcastColumns === '2col'
-                  ? `order: ${(idx - Math.ceil(finalRows.length / 2)) * 2 + 1}`
-                  : ''"
-            >
-              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1; min-width: 38px">{{ row.id }}</span>
-              <span class="flex-1 type-name text-content-primary" style="font-size: 16px">{{ row.participantName }}</span>
-              <span class="type-stat flex-shrink-0" style="font-size: 22px; line-height: 1">{{ row.totalScore }}</span>
-            </div>
-          </template>
-        </div>
-
-        <!-- Top N line -->
-        <div
-          v-if="selectedTopN !== 'All' && (!topNResult.hasTieBreaker || tieBreakerConfirmed)"
-          role="separator"
-          :aria-label="`Top ${topNResult.cutoff} line`"
-          class="relative h-px my-6"
-          style="background: linear-gradient(90deg, transparent, var(--accent-color) 50%, transparent); box-shadow: 0 0 14px var(--accent-muted);"
-        >
-          <span class="absolute right-0 -top-6 type-label text-content-muted">▲ TOP {{ topNResult.cutoff }}</span>
-        </div>
-
-        <!-- Eliminated summary (collapsed) -->
-        <p
-          v-if="eliminatedSummary"
-          class="type-label text-content-muted/50 text-center py-3"
-        >⋯ {{ eliminatedSummary.count }} ELIMINATED · LOWEST {{ eliminatedSummary.lowestScore }} ⋯</p>
-
-        <!-- Unresolved tie pending strip (Broadcast read-only) -->
-        <div
-          v-if="topNResult.hasTieBreaker && !tieBreakerConfirmed"
-          role="status"
-          class="mt-4 px-4 py-3 border-l-[3px] border-amber-400 bg-amber-500/8 flex flex-wrap items-center gap-3"
-        >
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></span>
-          <p class="type-label text-amber-400">{{ topNResult.tiedCount }} TIED AT {{ topNResult.tieBreakerScore }} · TIES PENDING — RESOLVE IN CONTROL</p>
-        </div>
-      </div>
-
-      <!-- Empty state -->
-      <div v-else class="flex flex-col items-center justify-center py-20 text-center">
         <p class="type-body text-content-secondary">{{ selectedCategory ? `No scores for ${selectedCategory}` : 'No scores yet' }}</p>
       </div>
     </template>

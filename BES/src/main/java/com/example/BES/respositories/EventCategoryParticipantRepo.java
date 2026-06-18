@@ -149,4 +149,5 @@ public interface EventCategoryParticipantRepo extends JpaRepository<EventCategor
         @Param("displayName") String displayName,
         @Param("excludeParticipantId") Long excludeParticipantId);
 
+    void deleteByEventCategory(EventCategory eventCategory);
 }

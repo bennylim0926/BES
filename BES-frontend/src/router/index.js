@@ -150,7 +150,7 @@ const routes = [
         meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
     },
     {
-        path: '/auth/token',
+        path: '/auth/token/:role?/:judgeName?',
         name: 'TokenAuth',
         component: TokenAuth
     },

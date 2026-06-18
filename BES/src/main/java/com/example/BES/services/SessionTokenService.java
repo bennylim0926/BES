@@ -91,4 +91,8 @@ public class SessionTokenService {
             .filter(t -> t.getExpiresAt().isAfter(LocalDateTime.now()))
             .collect(Collectors.toList());
     }
+
+    public String getJudgeName(Long judgeId) {
+        return judgeRepo.findById(judgeId).map(j -> j.getName()).orElse(null);
+    }
 }

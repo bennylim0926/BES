@@ -20,6 +20,10 @@ public interface AuditionFeedbackRepository extends JpaRepository<AuditionFeedba
 
     @Modifying
     @Transactional
+    void deleteByEventCategoryParticipant(EventCategoryParticipant ecp);
+
+    @Modifying
+    @Transactional
     @Query("""
         DELETE FROM AuditionFeedback f
         WHERE f.eventCategoryParticipant IN (

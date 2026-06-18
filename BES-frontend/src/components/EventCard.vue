@@ -1,22 +1,29 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   buttonName: { type: String, required: true, default: '' },
   expanded:   { type: Boolean, default: false },  // controlled by parent
+  isAdmin:    { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle'])
+const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle', 'onDelete'])
 
 const isHovered = ref(false)  // desktop only
 
-const actions = [
-  { key: 'onDetails',      icon: 'pi-cog',      label: 'Details'  },
-  { key: 'onAudition',     icon: 'pi-list',      label: 'Audition' },
-  { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
-  { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
-  { key: 'onBattle',       icon: 'pi-bolt',      label: 'Battle'   },
-]
+const actions = computed(() => {
+  const base = [
+    { key: 'onDetails',      icon: 'pi-cog',      label: 'Details'  },
+    { key: 'onAudition',     icon: 'pi-list',      label: 'Audition' },
+    { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
+    { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
+    { key: 'onBattle',       icon: 'pi-bolt',      label: 'Battle'   },
+  ]
+  if (props.isAdmin) {
+    base.push({ key: 'onDelete', icon: 'pi-trash', label: 'Delete' })
+  }
+  return base
+})
 </script>
 
 <template>
@@ -56,15 +63,17 @@ const actions = [
         style="clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)"
         @click.stop="emit('toggle')"
       >
-        <div class="grid grid-cols-5">
+        <div :class="['grid', props.isAdmin ? 'grid-cols-6' : 'grid-cols-5']">
           <button
             v-for="action in actions"
             :key="action.key"
             @click.stop="emit(action.key)"
-            class="flex flex-col items-center gap-1.5 py-3.5 text-content-muted
-                   hover:text-accent hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150"
+            class="flex flex-col items-center gap-1.5 py-3.5 transition-all duration-150"
+            :class="action.key === 'onDelete'
+              ? 'text-content-muted hover:text-red-400 hover:bg-red-950/30'
+              : 'text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)]'"
           >
-            <i class="pi text-base text-accent" :class="action.icon"></i>
+            <i class="pi text-base" :class="[action.icon, action.key === 'onDelete' ? '' : 'text-accent']"></i>
             <span class="type-label">{{ action.label }}</span>
           </button>
         </div>

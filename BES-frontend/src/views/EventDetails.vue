@@ -41,6 +41,12 @@ const confirming = ref(false)
 // participantId → true when any operator has that participant's dialog open
 const previewingIds = reactive({})
 const checkinSearch = ref('')
+const checkinCategoryFilter = ref('')
+const checkinCategoryOptions = computed(() => {
+  const cats = new Set()
+  checkinList.value.forEach(p => (p.categories ?? []).forEach(c => { if (c.categoryName) cats.add(c.categoryName) }))
+  return [...cats].sort()
+})
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
 
@@ -1093,12 +1099,20 @@ const sortedCheckinList = computed(() =>
 )
 
 const filteredCheckinList = computed(() => {
+  let list = sortedCheckinList.value
   const q = checkinSearch.value.trim().toLowerCase()
-  if (!q) return sortedCheckinList.value
-  return sortedCheckinList.value.filter(p =>
-    p.label.toLowerCase().includes(q) ||
-    (p.memberNames ?? []).some(m => m.toLowerCase().includes(q))
-  )
+  if (q) {
+    list = list.filter(p =>
+      p.label.toLowerCase().includes(q) ||
+      (p.memberNames ?? []).some(m => m.toLowerCase().includes(q))
+    )
+  }
+  if (checkinCategoryFilter.value) {
+    list = list.filter(p =>
+      (p.categories ?? []).some(c => c.categoryName === checkinCategoryFilter.value)
+    )
+  }
+  return list
 })
 
 const fetchCheckinList = async () => {
@@ -2603,24 +2617,32 @@ onUnmounted(() => {
             <span class="badge-warning">{{ checkinList.filter(p => !isCheckedIn(p)).length }} pending</span>
           </div>
         </div>
-        <!-- Search bar -->
+        <!-- Search + Category filter (inline) -->
         <div class="mb-3 shrink-0">
-          <div class="relative">
-            <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
-            <input
-              v-model="checkinSearch"
-              type="text"
-              placeholder="Search by name or member…"
-              autocomplete="off"
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+              <input
+                v-model="checkinSearch"
+                type="text"
+                placeholder="Search by name or member…"
+                autocomplete="off"
+                class="input-base pr-8"
+                style="padding-left: 2.25rem"
+              />
+              <button v-if="checkinSearch" @click="checkinSearch = ''"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <select v-if="checkinCategoryOptions.length > 0" v-model="checkinCategoryFilter"
               class="input-base"
-              style="padding-left: 2.25rem"
-            />
-            <button v-if="checkinSearch" @click="checkinSearch = ''"
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
-              <i class="pi pi-times text-xs"></i>
-            </button>
+              style="width: auto; flex-shrink: 0">
+              <option value="">All categories</option>
+              <option v-for="cat in checkinCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
           </div>
-          <p v-if="checkinSearch" class="type-label text-content-muted mt-1.5">
+          <p v-if="checkinSearch || checkinCategoryFilter" class="type-label text-content-muted mt-1.5">
             {{ filteredCheckinList.length }} result{{ filteredCheckinList.length !== 1 ? 's' : '' }}
           </p>
         </div>
