@@ -25,7 +25,7 @@ import JudgeSessionView from "@/views/JudgeSessionView.vue";
 import EmceeSessionView from "@/views/EmceeSessionView.vue";
 import HelperSessionView from "@/views/HelperSessionView.vue";
 import { whoami } from "@/utils/api";
-import { getActiveEvent, useAuthStore } from "@/utils/auth";
+import { getActiveEvent, setActiveEvent, useAuthStore } from "@/utils/auth";
 import { resolveBattleEnabled } from "@/utils/useTierAccess";
 
 const routes = [
@@ -227,6 +227,28 @@ router.beforeEach(async (to) => {
         }
         if (userRole === 'ROLE_HELPER' && to.name === 'Main') {
             return { name: 'HelperSession' }
+        }
+
+        // Session roles are PINNED to the event embedded in their token.
+        // The auth response (whoami / token redemption) carries user.eventId
+        // and user.eventName. If a session-role user opens a new tab or
+        // pastes a URL that resolves to a different event (i.e. sessionStorage
+        // has no activeEvent, or it points at the wrong event), force-set the
+        // activeEvent back to their token's event. Without this, an authed
+        // session user could navigate to any event whose route allows their
+        // role. Also block EventSelector for session roles — they have no
+        // legitimate reason to switch events.
+        const SESSION_ROLES = ['ROLE_JUDGE', 'ROLE_EMCEE', 'ROLE_HELPER']
+        if (SESSION_ROLES.includes(userRole) && user.eventId && user.eventName) {
+            const active = getActiveEvent()
+            if (!active || Number(active.id) !== Number(user.eventId)) {
+                setActiveEvent(user.eventId, user.eventName)
+            }
+            if (to.name === 'EventSelector') {
+                if (userRole === 'ROLE_JUDGE')  return { name: 'JudgeSession' }
+                if (userRole === 'ROLE_EMCEE')  return { name: 'EmceeSession' }
+                if (userRole === 'ROLE_HELPER') return { name: 'HelperSession' }
+            }
         }
 
         if (to.meta?.requiresEvent && !getActiveEvent()) {
