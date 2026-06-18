@@ -2617,33 +2617,34 @@ onUnmounted(() => {
             <span class="badge-warning">{{ checkinList.filter(p => !isCheckedIn(p)).length }} pending</span>
           </div>
         </div>
-        <!-- Search bar -->
+        <!-- Search + Category filter (inline) -->
         <div class="mb-3 shrink-0">
-          <div class="relative">
-            <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
-            <input
-              v-model="checkinSearch"
-              type="text"
-              placeholder="Search by name or member…"
-              autocomplete="off"
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-content-muted text-xs pointer-events-none"></i>
+              <input
+                v-model="checkinSearch"
+                type="text"
+                placeholder="Search by name or member…"
+                autocomplete="off"
+                class="input-base pr-8"
+                style="padding-left: 2.25rem"
+              />
+              <button v-if="checkinSearch" @click="checkinSearch = ''"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <select v-if="checkinCategoryOptions.length > 0" v-model="checkinCategoryFilter"
               class="input-base"
-              style="padding-left: 2.25rem"
-            />
-            <button v-if="checkinSearch" @click="checkinSearch = ''"
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors">
-              <i class="pi pi-times text-xs"></i>
-            </button>
+              style="width: auto; flex-shrink: 0">
+              <option value="">All categories</option>
+              <option v-for="cat in checkinCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
           </div>
           <p v-if="checkinSearch || checkinCategoryFilter" class="type-label text-content-muted mt-1.5">
             {{ filteredCheckinList.length }} result{{ filteredCheckinList.length !== 1 ? 's' : '' }}
           </p>
-        </div>
-        <!-- Category filter -->
-        <div v-if="checkinCategoryOptions.length > 0" class="mb-3 shrink-0">
-          <select v-model="checkinCategoryFilter" class="input-base" style="width: 100%">
-            <option value="">All categories</option>
-            <option v-for="cat in checkinCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
-          </select>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2 min-h-0">
           <div v-if="loadingCheckinList" class="flex items-center justify-center h-full type-label text-content-muted">
