@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { getParticipantScore, getParticipantFeedback, getResultsStatus, releaseResults, getParticipantRefs, getScoringCriteria, setResolvedParticipants, getCategoriesByEvent, saveTieBreakerState, getTieBreakerState } from '@/utils/api';
 import { computeNextEligibleAdd, computeNextEligibleRemove, addedPoolOrdered } from '@/utils/scoreTiePool';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -21,7 +21,6 @@ const tabulationMethod = ref(["By Total", "By Judge"])
 // Auth
 const userRole = computed(() => authStore.user?.role?.[0]?.authority)
 const isAdminOrOrganiser = computed(() => ['ROLE_ADMIN', 'ROLE_ORGANISER'].includes(userRole.value))
-const isHelper = computed(() => userRole.value === 'ROLE_HELPER')
 
 // Results release state (admin/organiser only)
 const resultsReleased = ref(false)
