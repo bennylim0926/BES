@@ -41,6 +41,12 @@ const confirming = ref(false)
 // participantId → true when any operator has that participant's dialog open
 const previewingIds = reactive({})
 const checkinSearch = ref('')
+const checkinCategoryFilter = ref('')
+const checkinCategoryOptions = computed(() => {
+  const cats = new Set()
+  checkinList.value.forEach(p => (p.categories ?? []).forEach(c => { if (c.categoryName) cats.add(c.categoryName) }))
+  return [...cats].sort()
+})
 const participantsNumBreakdown = ref([])
 const totalParticipants = ref(0)
 
@@ -1093,12 +1099,20 @@ const sortedCheckinList = computed(() =>
 )
 
 const filteredCheckinList = computed(() => {
+  let list = sortedCheckinList.value
   const q = checkinSearch.value.trim().toLowerCase()
-  if (!q) return sortedCheckinList.value
-  return sortedCheckinList.value.filter(p =>
-    p.label.toLowerCase().includes(q) ||
-    (p.memberNames ?? []).some(m => m.toLowerCase().includes(q))
-  )
+  if (q) {
+    list = list.filter(p =>
+      p.label.toLowerCase().includes(q) ||
+      (p.memberNames ?? []).some(m => m.toLowerCase().includes(q))
+    )
+  }
+  if (checkinCategoryFilter.value) {
+    list = list.filter(p =>
+      (p.categories ?? []).some(c => c.categoryName === checkinCategoryFilter.value)
+    )
+  }
+  return list
 })
 
 const fetchCheckinList = async () => {
@@ -2620,9 +2634,16 @@ onUnmounted(() => {
               <i class="pi pi-times text-xs"></i>
             </button>
           </div>
-          <p v-if="checkinSearch" class="type-label text-content-muted mt-1.5">
+          <p v-if="checkinSearch || checkinCategoryFilter" class="type-label text-content-muted mt-1.5">
             {{ filteredCheckinList.length }} result{{ filteredCheckinList.length !== 1 ? 's' : '' }}
           </p>
+        </div>
+        <!-- Category filter -->
+        <div v-if="checkinCategoryOptions.length > 0" class="mb-3 shrink-0">
+          <select v-model="checkinCategoryFilter" class="input-base" style="width: 100%">
+            <option value="">All categories</option>
+            <option v-for="cat in checkinCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+          </select>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2 min-h-0">
           <div v-if="loadingCheckinList" class="flex items-center justify-center h-full type-label text-content-muted">
