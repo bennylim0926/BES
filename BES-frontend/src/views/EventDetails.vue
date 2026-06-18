@@ -1346,7 +1346,7 @@ onMounted(async () => {
       verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
       unverifiedParticipants.value = await getUnverifiedParticipantsDB(props.eventName)
       await fetchCheckinList()
-      loadSessionTokens()
+      await loadSessionTokens()
       const fb = await getFeedbackEnabled(props.eventName)
       if (fb && typeof fb.feedbackEnabled === 'boolean') feedbackEnabled.value = fb.feedbackEnabled
       await fetchJudgingMode()
