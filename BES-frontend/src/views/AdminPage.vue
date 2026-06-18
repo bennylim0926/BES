@@ -183,17 +183,6 @@ const sheetConfig = ref({
 
 const sheetSaved = ref(false)
 
-async function loadSheetConfig() {
-  try {
-    const cfg = await getAppConfig()
-    if (cfg?.sheetConfig) {
-      sheetConfig.value = cfg.sheetConfig
-    }
-  } catch (e) {
-    console.error('Failed to load sheet config', e)
-  }
-}
-
 async function saveSheet() {
   try {
     await saveSheetConfig(sheetConfig.value)

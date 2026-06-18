@@ -26,12 +26,12 @@ class ParticipantServiceTest {
         AddParticipantDto dto = new AddParticipantDto();
         dto.setParticipantName("Test");
         Participant saved = new Participant();
-        when(repo.save(any())).thenReturn(saved);
+        when(repo.saveAndFlush(any())).thenReturn(saved);
 
         Participant result = service.addParticpantService(dto);
 
         assertThat(result).isSameAs(saved);
-        verify(repo).save(any(Participant.class));
+        verify(repo).saveAndFlush(any(Participant.class));
     }
 
     @Test
@@ -45,7 +45,7 @@ class ParticipantServiceTest {
         Participant result = service.addWalkInService(dto);
 
         assertThat(result).isSameAs(existing);
-        verify(repo, never()).save(any());
+        verify(repo, never()).saveAndFlush(any());
     }
 
     @Test
@@ -54,10 +54,10 @@ class ParticipantServiceTest {
         dto.name = "Newbie";
         Participant empty = new Participant();
         when(repo.findFirstByParticipantNameIgnoreCase("Newbie")).thenReturn(Optional.of(empty));
-        when(repo.save(any())).thenReturn(empty);
+        when(repo.saveAndFlush(any())).thenReturn(empty);
 
         service.addWalkInService(dto);
 
-        verify(repo).save(empty);
+        verify(repo).saveAndFlush(empty);
     }
 }
