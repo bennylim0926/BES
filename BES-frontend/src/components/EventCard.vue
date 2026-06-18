@@ -6,6 +6,7 @@ const props = defineProps({
   expanded:      { type: Boolean, default: false },  // controlled by parent
   isAdmin:       { type: Boolean, default: false },
   showAudition:  { type: Boolean, default: true },
+  showBattle:    { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle', 'onDelete'])
@@ -20,10 +21,12 @@ const actions = computed(() => {
     base.push({ key: 'onAudition', icon: 'pi-list', label: 'Audition' })
   }
   base.push(
-    { key: 'onParticipants', icon: 'pi-users',     label: 'People'   },
+    { key: 'onParticipants', icon: 'pi-users',     label: 'Participants' },
     { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
-    { key: 'onBattle',       icon: 'pi-bolt',      label: 'Battle'   },
   )
+  if (props.showBattle) {
+    base.push({ key: 'onBattle', icon: 'pi-bolt', label: 'Battle' })
+  }
   if (props.isAdmin) {
     base.push({ key: 'onDelete', icon: 'pi-trash', label: 'Delete' })
   }

@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchAllFolderEvents, fetchAllEvents, deleteEvent } from '@/utils/api'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
+import { useTierAccess } from '@/utils/useTierAccess'
 import EventCard from '@/components/EventCard.vue'
 import { useDelay } from '@/utils/utils'
 
@@ -13,6 +14,7 @@ const search  = ref('')
 const router  = useRouter()
 const isAdmin = ref(false)
 const isOrganiser = ref(false)
+const { battleEnabled } = useTierAccess()
 const showDeleteModal = ref(false)
 const eventToDelete = ref(null)
 const deleteConfirmName = ref('')
@@ -138,6 +140,7 @@ onMounted(async () => {
         :expanded="expandedId === event.folderID"
         :isAdmin="isAdmin"
         :showAudition="!isOrganiser"
+        :showBattle="battleEnabled"
         @toggle="toggleExpanded(event.folderID)"
         @onDetails="goToEventDetails(event.folderName, event.folderID)"
         @onAudition="activateAndGo(event.folderName, 'Audition List')"
