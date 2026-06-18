@@ -130,24 +130,16 @@ function handlePanelLogout() {
 }
 
 // ── Theme ───────────────────────────────────────────────────────────────────
-const theme = ref(localStorage.getItem('bes-theme') || 'dark')
+// Light mode disabled — always dark
+const theme = ref('dark')
 
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t)
-  localStorage.setItem('bes-theme', t)
 }
 
 function applyAccent(color) {
   accentServer.value = color
   document.documentElement.style.setProperty('--accent-server', color)
-}
-
-function toggleTheme() {
-  const html = document.documentElement
-  html.classList.add('theme-transition')
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  applyTheme(theme.value)
-  setTimeout(() => html.classList.remove('theme-transition'), 300)
 }
 
 // ── Watchers ───────────────────────────────────────────────────────────────
@@ -283,12 +275,6 @@ onUnmounted(() => {
             </span>
 
             <!-- aria-label: icon-only button needs an accessible name -->
-            <button @click="toggleTheme"
-              :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-              class="inline-flex items-center justify-center w-8 h-8 type-label text-content-muted hover:text-content-primary hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-              <i class="pi text-sm" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
-            </button>
-
             <router-link v-if="!isAuthenticated" to="/login">
               <span
                 class="px-4 py-1.5 type-label text-surface-900 bg-accent cursor-pointer"
@@ -353,7 +339,6 @@ onUnmounted(() => {
         <EventPanel
           :role="role"
           :activeEvent="activeEvent"
-          :theme="theme"
           :battleEnabled="battleEnabled"
           @close="panelOpen = false"
           @navigate="goToSection"
@@ -362,7 +347,6 @@ onUnmounted(() => {
           @changeEvent="changeEvent"
           @goHome="goToHome"
           @goAdmin="goToAdmin"
-          @toggleTheme="toggleTheme"
           @logout="handlePanelLogout"
         />
       </div>

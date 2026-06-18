@@ -21,9 +21,11 @@ const actions = computed(() => {
     base.push({ key: 'onAudition', icon: 'pi-list', label: 'Audition' })
   }
   base.push(
-    { key: 'onParticipants', icon: 'pi-users',     label: 'Participants' },
     { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
   )
+  if (props.isAdmin) {
+    base.push({ key: 'onParticipants', icon: 'pi-users', label: 'Participants' })
+  }
   if (props.showBattle) {
     base.push({ key: 'onBattle', icon: 'pi-bolt', label: 'Battle' })
   }

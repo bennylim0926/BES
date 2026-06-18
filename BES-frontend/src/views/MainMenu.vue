@@ -101,9 +101,9 @@ const roleDisplay = computed(() => {
           <p class="type-prose">Score and timer controls.</p>
         </button>
 
-        <!-- Participants (Admin / Organiser) -->
+        <!-- Participants (Admin only) -->
         <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          v-if="activeEvent && role === 'ROLE_ADMIN'"
           :to="{ name: 'Update Event Details' }"
           class="card-hover p-6 relative cursor-pointer group"
         >

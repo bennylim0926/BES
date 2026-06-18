@@ -394,7 +394,6 @@ const submitLogin = async () => {
   font-size: 18px;
   letter-spacing: 0.3em;
   text-align: center;
-  text-transform: uppercase;
   margin: 1rem 0;
 }
 

@@ -7,7 +7,6 @@ import { setActiveEvent } from '@/utils/auth'
 const props = defineProps({
   role:          { type: String, required: true },
   activeEvent:   { type: Object, default: null },
-  theme:         { type: String, default: 'dark' },
   battleEnabled: { type: Boolean, default: true },
 })
 
@@ -19,7 +18,6 @@ const emit = defineEmits([
   'changeEvent',
   'goHome',
   'goAdmin',
-  'toggleTheme',
   'logout',
 ])
 
@@ -28,10 +26,10 @@ const ALL_TILES = [
   { key: 'admin',        icon: 'pi-cog',       label: 'Admin',        roles: ['ROLE_ADMIN'] },
   { key: 'details',      icon: 'pi-cog',       label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
   { key: 'audition',     icon: 'pi-list',      label: 'Audition',     roles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
-  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
+  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN'] },
   { key: 'score',        icon: 'pi-chart-bar', label: 'Score',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_HELPER'] },
   { key: 'battle',       icon: 'pi-bolt',      label: 'Battle',       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_JUDGE'] },
-  { key: 'numbers',      icon: 'pi-hashtag',   label: 'Numbers',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
+  { key: 'numbers',      icon: 'pi-hashtag',   label: 'Numbers',      roles: ['ROLE_ADMIN'] },
 ]
 
 const TILE_ROUTES = {
@@ -169,16 +167,8 @@ function handleSwitchEvent(event) {
       </div>
     </template>
 
-    <!-- Mobile-only utility row (theme + logout). Desktop has these in the topbar. -->
+    <!-- Mobile-only utility row (logout). Desktop has this in the topbar. -->
     <div class="md:hidden mt-auto border-t border-[rgba(255,255,255,0.07)] p-3 space-y-0.5">
-      <button
-        @click="emit('toggleTheme')"
-        :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-        class="w-full flex items-center gap-3 px-3 py-3 type-label text-content-secondary hover:text-content-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left"
-      >
-        <i class="pi text-sm opacity-70" :class="theme === 'dark' ? 'pi-sun' : 'pi-moon'" aria-hidden="true"></i>
-        {{ theme === 'dark' ? 'Light theme' : 'Dark theme' }}
-      </button>
       <button
         @click="emit('logout'); emit('close')"
         class="w-full flex items-center gap-3 px-3 py-3 type-label text-red-400 hover:bg-red-950 transition-colors text-left"

@@ -41,10 +41,10 @@ describe('EventPanel.vue — section tiles', () => {
   })
 
   describe('Organiser role', () => {
-    it('shows all 6 tiles (audition hidden)', async () => {
+    it('shows all 4 tiles (audition, participants, numbers admin-only)', async () => {
       const w = mountPanel('ROLE_ORGANISER')
       await w.vm.$nextTick()
-      expect(w.findAll('[data-tile]')).toHaveLength(6)
+      expect(w.findAll('[data-tile]')).toHaveLength(4)
     })
   })
 

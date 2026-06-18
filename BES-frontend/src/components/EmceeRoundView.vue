@@ -41,6 +41,20 @@ const rounds = computed(() => {
   return sorted.map(p => [p])
 })
 
+// Missing numbers between the current round and the next round
+const gapAfterCurrent = computed(() => {
+  const current = currentRoundSlots.value
+  if (!current.length) return []
+  const nextRound = rounds.value[currentRound.value] // next round (0-indexed = currentRound)
+  if (!nextRound || !nextRound.length) return []
+  const lastCurrent = Math.max(...current.filter(s => !s._placeholder).map(s => s.auditionNumber))
+  const firstNext = Math.min(...nextRound.filter(s => !s._placeholder).map(s => s.auditionNumber))
+  if (firstNext - lastCurrent <= 1) return []
+  const missing = []
+  for (let i = lastCurrent + 1; i < firstNext; i++) missing.push(i)
+  return missing
+})
+
 const totalRounds        = computed(() => rounds.value.length)
 const currentRoundSlots  = computed(() => rounds.value[currentRound.value - 1] ?? [])
 
@@ -286,6 +300,16 @@ const swipeHint = computed(() => {
                   <div v-if="slot.judgeName" class="text-xs text-white/25 mt-0.5 pl-1">{{ slot.judgeName }}</div>
                 </div>
               </template>
+              <div
+                v-if="gapAfterCurrent.length > 0"
+                class="mt-2 flex items-center gap-2"
+                style="border-left:3px solid rgba(245,158,11,0.5); padding-left:10px;"
+              >
+                <span class="type-prose-sm" style="color:rgba(245,158,11,0.6);">
+                  Number{{ gapAfterCurrent.length > 1 ? 's' : '' }} not taken:
+                  <span style="color:rgba(245,158,11,0.85);">{{ gapAfterCurrent.join(', ') }}</span>
+                </span>
+              </div>
             </div>
             <div class="flex items-stretch gap-1.5 px-4 pb-1.5">
               <button

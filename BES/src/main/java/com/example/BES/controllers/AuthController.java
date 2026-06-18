@@ -74,7 +74,7 @@ public class AuthController {
     private JudgeRepo judgeRepo;
 
     private static final java.util.Set<String> UNLIMITED_ROLES =
-        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE");
+        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE", "ROLE_ORGANISER");
 
     @Operation(summary = "Debug Session", description = "Returns current session ID and authentication context for debugging")
     @GetMapping("/debug-session")

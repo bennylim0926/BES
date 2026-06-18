@@ -659,7 +659,7 @@ public class EventController {
 
     @Operation(summary = "Remove Participant Category", description = "Removes a participant from a specific category in an event")
     @DeleteMapping("/participant-category/{participantId}/{eventId}/{eventCategoryId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<Void> removeParticipantCategory(
             @PathVariable Long participantId,
             @PathVariable Long eventId,
@@ -707,7 +707,7 @@ public class EventController {
 
     @Operation(summary = "Add Category to Existing Participant", description = "Adds a new category to an already-registered participant and assigns an audition number via WebSocket")
     @PostMapping("/participant-category")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<String> addCategoryToParticipant(@Valid @RequestBody UpdateParticipantCategoryDto dto) {
         try {
             eventCategoryParticipantService.addCategoryToExistingParticipant(dto.participantId, dto.eventId, dto.categoryName, dto.entryMode, dto.teamName, dto.teamMembers);

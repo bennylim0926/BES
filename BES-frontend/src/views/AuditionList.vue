@@ -1,6 +1,6 @@
 <script setup>
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -564,6 +564,7 @@ watch(hasActiveSession, (active) => {
 // Reset the audition timer when navigating away (e.g., to Score page).
 // The timer slides up and out, then navigation proceeds.
 onBeforeRouteLeave(() => {
+  releaseEmceeCategory()
   emceeRoundRef.value?.resetTimer()
   return new Promise(resolve => setTimeout(resolve, 300))
 })
@@ -577,6 +578,7 @@ watch(() => route.query.picker, (val) => {
 })
 
 onUnmounted(() => {
+  releaseEmceeCategory()
   wsClients.forEach(c => deactivateClient(c));
   [document.documentElement, document.body].forEach(el => {
     el.style.overflow = ''
