@@ -69,7 +69,7 @@ const saveTieBreaker = async () => {
       selectedTabulation.value, selectedTopN.value,
       tieBreakerWinners.value, tieBreakerConfirmed.value, addedToPool.value
     )
-  } catch (e) { /* fire-and-forget */ }
+  } catch (_e) { /* fire-and-forget */ }
   finally { _tbSaving.value = false }
 }
 const loadTieBreaker = async () => {
@@ -95,7 +95,7 @@ const loadTieBreaker = async () => {
       tieBreakerConfirmed.value = false
       addedToPool.value = new Set()
     }
-  } catch (e) {
+  } catch (_e) {
     tieBreakerWinners.value = new Set()
     tieBreakerConfirmed.value = false
     addedToPool.value = new Set()
