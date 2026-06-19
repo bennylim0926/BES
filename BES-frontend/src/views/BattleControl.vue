@@ -166,7 +166,12 @@ const hydrateFromState = (state) => {
   }
   if (state.resolvedParticipants && state.resolvedParticipants !== '') {
     try {
-      resolvedParticipants.value = JSON.parse(state.resolvedParticipants)
+      // getBattleState returns a JSON string; getCategoryStateFromDb returns an
+      // already-deserialised array. Handle both so resolved participants survive
+      // regardless of which REST endpoint the caller used.
+      resolvedParticipants.value = Array.isArray(state.resolvedParticipants)
+        ? state.resolvedParticipants
+        : JSON.parse(state.resolvedParticipants)
     } catch (_) { resolvedParticipants.value = null }
   }
   if (state.timer) {
@@ -599,7 +604,10 @@ const bracketPool = computed(() => {
   } else if (preFormedTeams.value.length > 0) {
     pool = preFormedTeams.value.map(t => t.name)
   } else {
-    pool = topNParticipants.value
+    // Use resolved tie-breaker list directly when bracket size matches the
+    // resolved Top N. (topNParticipants has the same logic but the computed
+    // chain sometimes evaluates before hydration and doesn't re-propagate.)
+    pool = basePool.value
   }
   // Include battle guests not already in pool so they appear in bracket slot dropdowns
   const guestNames = guestsForCurrentCategory.value.map(g => g.guestName).filter(n => !pool.includes(n))
@@ -625,9 +633,9 @@ const poolParticipants = computed(() => {
   const guestSet = new Set(guestsForCurrentCategory.value.map(g => g.guestName))
   const slots = bracketSize.value - guestSet.size
   if (slots <= 0) return []
-  const eligible = bracketPool.value.filter(n => !guestSet.has(n)).slice(0, slots)
+  const eligible = basePool.value.filter(n => !guestSet.has(n)).slice(0, slots)
   const placed = participantsInFirstRound.value
-  return eligible
+  const result = eligible
     .filter(n => !placed.has(n))
     .map(name => {
       const p = participants.value.find(x => x.participantName === name)
@@ -638,6 +646,16 @@ const poolParticipants = computed(() => {
       return { name, score: c ? (crewSortMode.value === 'leader' ? c.leaderScore : c.avgScore) ?? 0 : 0 }
     })
     .sort((a, b) => b.score - a.score)
+  return result
+})
+
+// Resolved-aware base pool (no guests). Returns the tie-breaker-resolved list
+// when its length matches bracketSize, otherwise falls back to topParticipants.
+// Used by bracketPool, poolParticipants, and all fill methods so they stay in sync.
+const basePool = computed(() => {
+  const rp = resolvedParticipants.value
+  if (rp && rp.length === bracketSize.value) return rp
+  return topNParticipants.value
 })
 
 // Bracket seeding
@@ -676,7 +694,7 @@ const autoFillSeeds = () => {
     const orderedPick = rankAsc.value ? [...pickup].reverse() : pickup
     seeds.value = [...fillHalf(orderedPre, half), ...fillHalf(orderedPick, half)]
   } else {
-    const pool = bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)
+    const pool = basePool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)
     const ordered = rankAsc.value ? [...pool].reverse() : pool
     seeds.value = [...ordered, ...Array(Math.max(0, freeSlots - ordered.length)).fill(null)]
   }
@@ -703,7 +721,7 @@ const highVsLowFill = () => {
       ...hvl(sortedPickupCrews.value.map(c => c.crewName).filter(n => !guestSet.has(n)), half),
     ]
   } else {
-    seeds.value = hvl(bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots), freeSlots)
+    seeds.value = hvl(basePool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots), freeSlots)
   }
   activeSeedIdx.value = null
   applyToFirstRound()
@@ -718,7 +736,7 @@ const randomFill = () => {
     const pickup = [...sortedPickupCrews.value.map(c => c.crewName).filter(n => !guestSet.has(n))].sort(() => Math.random() - 0.5)
     seeds.value = [...fillHalf(preformed, half), ...fillHalf(pickup, half)]
   } else {
-    const pool = [...bracketPool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)].sort(() => Math.random() - 0.5)
+    const pool = [...basePool.value.filter(n => !guestSet.has(n)).slice(0, freeSlots)].sort(() => Math.random() - 0.5)
     seeds.value = [...pool, ...Array(Math.max(0, freeSlots - pool.length)).fill(null)]
   }
   activeSeedIdx.value = null
@@ -1194,6 +1212,7 @@ const restoreAndBroadcastCategoryBattle = async (_category) => {
   currentRound.value = 0
   currentWinner.value = -2
   battlePhase.value = 'IDLE'
+  resolvedParticipants.value = null  // reset per-category; hydrateFromState will repopulate if present
 
   // Fetch state from REST as immediate source; WS will keep it in sync thereafter
   const state = await getBattleState()
@@ -1210,7 +1229,17 @@ const restoreAndBroadcastCategoryBattle = async (_category) => {
 const jumpToRecoveredPair = async () => {
   if (!recoveryState.value) return
   markSaving()
-  const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket, champion: restoredChampion } = recoveryState.value
+  const { currentPair, currentRoundIndex, battlePhase: restoredPhase, bracket, champion: restoredChampion, resolvedParticipants: resolvedParts } = recoveryState.value
+
+  // Restore resolved participants (tie-breaker / Top N qualifier).
+  // hydrateFromState is skipped when the recovery path fires, so reprocess here.
+  if (resolvedParts && resolvedParts !== '') {
+    try {
+      resolvedParticipants.value = Array.isArray(resolvedParts)
+        ? resolvedParts
+        : JSON.parse(resolvedParts)
+    } catch (_) { resolvedParticipants.value = null }
+  }
 
   // Restore topSize from DB bracket state
   if (bracket?.topSize !== undefined) {
@@ -1719,6 +1748,7 @@ watch(selectedCategory, async (newVal, oldVal) => {
     currentRound.value  = 0
     currentWinner.value = -2
     battlePhase.value   = 'IDLE'
+    resolvedParticipants.value = null
 
     const viewedState = await getCategoryStateFromDb(selectedEvent.value, newVal)
     if (viewedState && Object.keys(viewedState).length > 0) {

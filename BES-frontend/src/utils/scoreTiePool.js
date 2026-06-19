@@ -14,9 +14,10 @@ export function sortRowsForPool(rows) {
   return [...rows].sort(cmp)
 }
 
-export function computeNextEligibleAdd(allRows, includedNames) {
+export function computeNextEligibleAdd(allRows, includedNames, maxScore = Infinity) {
   const sorted = sortRowsForPool(allRows)
   for (const r of sorted) {
+    if (r.totalScore >= maxScore) continue
     if (!includedNames.has(r.participantName)) return r
   }
   return null

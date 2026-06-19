@@ -221,9 +221,12 @@ watch(selectedCategory, async (newVal) => {
     }
   }
 }, { immediate: true });
-watch(selectedTabulation, (newVal) => {
+watch(selectedTabulation, (newVal, oldVal) => {
   if (newVal) { localStorage.setItem(tabKey(selectedEvent.value), newVal); selectedTopN.value = '' }
-  resetTieBreaker()
+  // Only reset on actual changes, not initial load — oldVal is undefined on
+  // the immediate invocation, which would wipe the persisted tie-breaker state
+  // before loadTieBreaker has a chance to read it.
+  if (oldVal !== undefined) resetTieBreaker()
 }, { immediate: true });
 // Load persisted tie-breaker state from backend whenever the view context changes.
 // Debounce by chaining off the same dependencies as the old localStorage tbKey.
@@ -301,9 +304,10 @@ const addedToPoolOrdered = computed(() =>
 )
 
 // Next eligible to add — drives "+ INCLUDE <name> · <score>" button label.
+// Only considers participants whose score is strictly below the tie-breaker cutoff.
 const nextEligibleAdd = computed(() =>
   topNResult.value.hasTieBreaker
-    ? computeNextEligibleAdd(allRowsForPool.value, eligibilityPoolNames.value)
+    ? computeNextEligibleAdd(allRowsForPool.value, eligibilityPoolNames.value, topNResult.value.tieBreakerScore)
     : null
 )
 
@@ -329,7 +333,13 @@ const confirmTieBreaker = async () => {
     // Save resolved names server-side FIRST so BattleControl can read them from DB.
     // Only confirm locally after the API succeeds — prevents false-positive UI state
     // when the server call fails silently.
-    const resolved = finalRows.value.map(r => r.participantName)
+    // Compute resolved list directly — do NOT rely on finalRows, which returns ALL
+    // rows when tieBreakerConfirmed is false (chicken-and-egg: it only filters to
+    // winners AFTER we set confirmed=true below).
+    const above = topNResult.value.rows.slice(0, topNResult.value.aboveCount)
+    const poolRows = [...tiedParticipants.value, ...addedToPoolOrdered.value]
+    const winners = poolRows.filter(r => tieBreakerWinners.value.has(r.participantName))
+    const resolved = [...above, ...winners].map(r => r.participantName)
     const res = await setResolvedParticipants(selectedEvent.value, selectedCategory.value, resolved)
     if (res && res.ok) {
       tieBreakerConfirmed.value = true
@@ -400,8 +410,11 @@ const inCutStandardRows = computed(() => {
 })
 
 // Eliminated rows (below the cut), only computed when expanded.
+// Excludes participants already pulled into the tie-breaker pool so they
+// don't appear twice (once in the pool, once in the original ranking).
 const eliminatedRows = computed(() => {
   const visible = new Set(finalRows.value.map(r => r.participantName))
+  for (const n of addedToPool.value) visible.add(n)
   return allRowsForPool.value
     .filter(r => !visible.has(r.participantName))
     .map((r, i) => ({ ...r, id: finalRows.value.length + i + 1 }))
@@ -429,6 +442,7 @@ const statusBanner = computed(() => {
 const eliminatedSummary = computed(() => {
   const all = allRowsForPool.value
   const visible = new Set(finalRows.value.map(r => r.participantName))
+  for (const n of addedToPool.value) visible.add(n)
   const eliminated = all.filter(r => !visible.has(r.participantName))
   if (eliminated.length === 0) return null
   const lowestScore = Math.min(...eliminated.map(r => r.totalScore))
@@ -533,17 +547,19 @@ function transformForScore(data) {
     const byTotal = {}
 
     if (isMultiAspect) {
-      // Group by participant → judge → aspect; track participantId
+      // Group by participant → judge → aspect; track participantId + auditionNumber
       const grouped = {}
       data.forEach(d => {
-        if (!grouped[d.participantName]) grouped[d.participantName] = { participantId: d.participantId }
+        if (!grouped[d.participantName]) grouped[d.participantName] = { participantId: d.participantId, auditionNumber: d.auditionNumber }
         if (!grouped[d.participantName][d.judgeName]) grouped[d.participantName][d.judgeName] = {}
         grouped[d.participantName][d.judgeName][d.aspect] = d.score
       })
       Object.entries(grouped).forEach(([name, judgeMap]) => {
         const participantId = judgeMap.participantId
-        byTotal[name] = { participantName: name, totalScore: 0, participantId }
+        const auditionNumber = judgeMap.auditionNumber
+        byTotal[name] = { participantName: name, totalScore: 0, participantId, auditionNumber }
         delete judgeMap.participantId
+        delete judgeMap.auditionNumber
         Object.entries(judgeMap).forEach(([judge, aspects]) => {
           const agg = aggregateJudgeScore(aspects)
           byTotal[name][judge] = Number(agg.toFixed(2))
@@ -553,7 +569,7 @@ function transformForScore(data) {
     } else {
       data.forEach(d => {
         if (!byTotal[d.participantName]) {
-          byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0, participantId: d.participantId }
+          byTotal[d.participantName] = { participantName: d.participantName, totalScore: 0, participantId: d.participantId, auditionNumber: d.auditionNumber }
         }
         byTotal[d.participantName][d.judgeName] = d.score
         byTotal[d.participantName].totalScore += d.score
