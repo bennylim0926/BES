@@ -40,6 +40,16 @@ const showModal = ref(false)
 const showMiniMenu = ref(false)
 const dynamicCallBack = ref(() => {})
 const emceeRoundRef = ref(null)
+const pairCardsRef = ref(null)
+
+// Find Participant menu picked a specific card. In PAIR mode we have to
+// tell PairScoreCards explicitly, otherwise its currentIndex watcher
+// snaps the active participant back to the first non-placeholder in the
+// pair (= always the odd number).
+function onFindParticipantSelect(card) {
+  if (!card || judgingMode.value !== 'PAIR') return
+  pairCardsRef.value?.selectParticipant(card.auditionNumber)
+}
 
 
 const dynamicRole = async () => {
@@ -1014,9 +1024,11 @@ onMounted(async () => {
         :show="showMiniMenu"
         title="Find Participant"
         @close="showMiniMenu = false"
+        @select="onFindParticipantSelect"
       />
       <PairScoreCards
         v-if="judgingMode === 'PAIR'"
+        ref="pairCardsRef"
         :cards="filteredParticipantsForJudge"
         :feedbackData="feedbackGiven"
         :criteria="criteria"
