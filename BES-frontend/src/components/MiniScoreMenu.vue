@@ -5,7 +5,7 @@ const props = defineProps({
   title: { type: String, default: 'Find Participant' },
 })
 
-const emit = defineEmits(['moveTo', 'close'])
+const emit = defineEmits(['moveTo', 'close', 'select'])
 
 // Snap stride = card width + gap. Cards are `width:100%` inside a
 // `px-2 gap-2` flex container, so each card is `clientWidth - 16` wide
@@ -33,6 +33,10 @@ const moveTo = (index) => {
     const el = pairSlides[pairIndex]
     if (el) scrollTo(el.parentElement, pairIndex)
   }
+  // Tell the parent which specific card was picked. In pair mode this
+  // lets PairScoreCards select the right slot (#54 instead of falling
+  // back to #53 — the default "first non-placeholder in pair").
+  emit('select', card)
   emit('close')
 }
 </script>

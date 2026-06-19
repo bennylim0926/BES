@@ -122,10 +122,39 @@ const activeCard = computed(() =>
   activePair.value.find(c => !c._placeholder && c.auditionNumber === activeParticipantNum.value) ?? null
 )
 
+// "Pending" desired participant — set by the Find Participant menu so
+// the upcoming currentIndex change (from the smooth-scroll settling)
+// honours the specific number the user tapped, instead of defaulting
+// to the first non-placeholder (i.e. always the odd one in a pair).
+const pendingActiveNum = ref(null)
+
 watch(currentIndex, () => {
+  if (pendingActiveNum.value != null) {
+    const inPair = activePair.value.some(
+      c => !c._placeholder && c.auditionNumber === pendingActiveNum.value
+    )
+    if (inPair) {
+      activeParticipantNum.value = pendingActiveNum.value
+      pendingActiveNum.value = null
+      return
+    }
+    pendingActiveNum.value = null
+  }
   const first = activePair.value.find(c => !c._placeholder)
   activeParticipantNum.value = first?.auditionNumber ?? null
 }, { immediate: true })
+
+// Called by the parent when the Find Participant menu picks a specific
+// audition number. Sets both the active value (so the UI updates if
+// we're already on the right pair) and a pending value (so any imminent
+// currentIndex change from the smooth scroll preserves the choice).
+function selectParticipant(auditionNumber) {
+  if (auditionNumber == null) return
+  pendingActiveNum.value = auditionNumber
+  activeParticipantNum.value = auditionNumber
+}
+
+defineExpose({ selectParticipant })
 
 const _aggregateDisplay = computed(() => {
   if (!hasCriteria.value || !activeCard.value) return null
