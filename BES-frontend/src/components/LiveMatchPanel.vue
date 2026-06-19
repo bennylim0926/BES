@@ -18,7 +18,6 @@ const smokeFormatTimerRef = ref(null)
 const props = defineProps({
   selectedEvent:             { type: String,  required: true },
   selectedCategory:          { type: String,  required: true },
-  uniqueCategories:          { type: Array,   default: () => [] },
   battlePhase:               { type: String,  required: true },
   battleJudges:              { type: Array,   default: () => [] },
   currentBattle:             { type: Array,   default: () => [] },
@@ -34,8 +33,6 @@ const props = defineProps({
   finalTieBlocked:           { type: Boolean, default: false },
   isReadonly:                { type: Boolean, default: false },
   isViewingNonActive:        { type: Boolean, default: false },
-  liveCategoryName:          { type: String,  default: '' },
-  livePhase:                 { type: String,  default: 'IDLE' },
   categoryChampions:         { type: Object,  default: () => ({}) },
   stompClient:               { type: Object,  default: null },
   overlayConfig:             { type: Object,  default: () => ({ leftColor: '#dc2626', rightColor: '#2563eb' }) },
@@ -47,7 +44,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'request-category-change',
   'open-voting',
   'get-score',
   'submit-revote',
@@ -117,21 +113,6 @@ watch(() => props.battlePhase, (phase) => {
 const formatTimerSelectedMinutes = computed(() => smokeFormatTimerRef.value?.selectedMinutes ?? 30)
 
 defineExpose({ triggerFormatTimerStart, formatTimerSelectedMinutes, isFormatTimerExpired, checkFormatWinnerIfExpired })
-
-// ── Category status dot ──────────────────────────────────────────
-// Returns 'champion' | 'active' | 'idle'
-function categoryStatusDot(c) {
-  if (props.categoryChampions[c]) return 'champion'
-  // In view-only mode selectedCategory is the viewed category, not the live one.
-  // Use liveCategoryName + livePhase to correctly mark the live category's dot.
-  if (props.isViewingNonActive && props.liveCategoryName) {
-    if (c === props.liveCategoryName && ['LOCKED', 'VOTING', 'REVEALED'].includes(props.livePhase)) return 'active'
-    return 'idle'
-  }
-  const phase = c === props.selectedCategory ? props.battlePhase : 'IDLE'
-  if (['LOCKED', 'VOTING', 'REVEALED'].includes(phase)) return 'active'
-  return 'idle'
-}
 
 // ── Round tab status ──────────────────────────────────────────────
 // Returns 'done' | 'active' | 'idle'
@@ -310,40 +291,6 @@ const viewedPairList = computed(() => {
     >
       <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--accent-color);box-shadow:0 0 8px var(--accent-muted)"></div>
       <span class="type-body flex-1">You control the battle flow. Start the timer when battlers are on stage.</span>
-    </div>
-
-    <!-- Category switcher -->
-    <div class="card px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 mb-3">
-      <span class="type-label text-content-muted" style="font-size:10px;letter-spacing:0.18em">CATEGORY</span>
-      <span
-        v-if="isViewingNonActive"
-        class="type-label px-2 py-0.5"
-        style="font-size:9px;letter-spacing:0.22em;color:rgba(239,68,68,0.85);border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.07);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-      >VIEW ONLY</span>
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="c in uniqueCategories"
-          :key="c"
-          @click="$emit('request-category-change', c)"
-          class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-name-sm transition-all duration-150 inline-flex items-center gap-1.5"
-          :class="[
-            selectedCategory === c
-              ? 'text-accent border-[color:var(--accent-muted)]'
-              : 'text-content-muted hover:text-content-primary'
-          ]"
-        >
-          <template v-if="categoryStatusDot(c) === 'champion'">
-            <i class="pi pi-star-fill text-[9px] text-amber-400"></i>
-          </template>
-          <template v-else-if="categoryStatusDot(c) === 'active'">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
-          </template>
-          <template v-else>
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-surface-400/40"></span>
-          </template>
-          {{ c }}
-        </button>
-      </div>
     </div>
 
     <!-- Live match card -->
