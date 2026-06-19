@@ -51,14 +51,22 @@ const rounds = computed(() => {
   return sorted.map(p => [p])
 })
 
-// Missing numbers between the current round and the next round
+// Missing numbers between the current round and the next round.
+// Guard against all-placeholder rounds: Math.max/min on an empty array
+// returns -Infinity/Infinity, which would turn the for-loop below into
+// an infinite loop (i = -Infinity, -Infinity + 1 === -Infinity in JS)
+// and freeze the tab. Easy to trigger in PAIR mode when both slots of a
+// round are unregistered (e.g. #51 + #52 both "Not Registered").
 const gapAfterCurrent = computed(() => {
   const current = currentRoundSlots.value
   if (!current.length) return []
   const nextRound = rounds.value[currentRound.value] // next round (0-indexed = currentRound)
   if (!nextRound || !nextRound.length) return []
-  const lastCurrent = Math.max(...current.filter(s => !s._placeholder).map(s => s.auditionNumber))
-  const firstNext = Math.min(...nextRound.filter(s => !s._placeholder).map(s => s.auditionNumber))
+  const currentReals = current.filter(s => !s._placeholder).map(s => s.auditionNumber)
+  const nextReals = nextRound.filter(s => !s._placeholder).map(s => s.auditionNumber)
+  if (!currentReals.length || !nextReals.length) return []
+  const lastCurrent = Math.max(...currentReals)
+  const firstNext = Math.min(...nextReals)
   if (firstNext - lastCurrent <= 1) return []
   const missing = []
   for (let i = lastCurrent + 1; i < firstNext; i++) missing.push(i)
