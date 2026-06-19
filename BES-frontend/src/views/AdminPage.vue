@@ -1,5 +1,5 @@
 <script setup>
-import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getFeedbackTagOverrides, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier } from '@/utils/adminApi';
+import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackGroup, deleteFeedbackGroup, addFeedbackTag, deleteFeedbackTag, getFeedbackTagOverrides, getOrganisers, assignOrganiserToEvent, removeOrganiserFromEvent, createOrganiser, deleteOrganiser, setOrganiserTier, resetOrganiserPassword, renameOrganiser } from '@/utils/adminApi';
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
@@ -74,6 +74,55 @@ const submitCreateOrganiser = async () => {
     openModal("Account Created", `Organiser "${username}" created successfully.`, "info")
   } else {
     openModal("Error", res?.error || "Failed to create organiser.", "warning")
+  }
+}
+
+// Per-organiser inline edit state: { [id]: { mode: 'rename'|'password'|null, value: '' } }
+const orgEdit = ref({})
+
+const openRename = (org) => {
+  orgEdit.value = { ...orgEdit.value, [org.id]: { mode: 'rename', value: org.username } }
+}
+const openResetPw = (org) => {
+  orgEdit.value = { ...orgEdit.value, [org.id]: { mode: 'password', value: '' } }
+}
+const cancelEdit = (id) => {
+  const next = { ...orgEdit.value }
+  delete next[id]
+  orgEdit.value = next
+}
+
+const submitRename = async (org) => {
+  const state = orgEdit.value[org.id]
+  const newName = (state?.value ?? '').trim()
+  if (!newName) {
+    openModal('Validation Error', 'Username cannot be empty.', 'error')
+    return
+  }
+  if (newName === org.username) { cancelEdit(org.id); return }
+  const res = await renameOrganiser(org.id, newName)
+  if (res.ok) {
+    organisers.value = await getOrganisers() ?? []
+    cancelEdit(org.id)
+    openModal('Username Updated', `Renamed to "${newName}".`, 'info')
+  } else {
+    openModal('Error', res.error || 'Failed to rename organiser.', 'warning')
+  }
+}
+
+const submitResetPw = async (org) => {
+  const state = orgEdit.value[org.id]
+  const newPw = state?.value ?? ''
+  if (newPw.length < 6) {
+    openModal('Validation Error', 'Password must be at least 6 characters.', 'error')
+    return
+  }
+  const res = await resetOrganiserPassword(org.id, newPw)
+  if (res.ok) {
+    cancelEdit(org.id)
+    openModal('Password Reset', `New password set for "${org.username}".`, 'info')
+  } else {
+    openModal('Error', res.error || 'Failed to reset password.', 'warning')
   }
 }
 
@@ -712,6 +761,22 @@ onMounted(async () => {
                   <option value="MAX">MAX</option>
                 </select>
                 <button
+                  @click="openRename(org)"
+                  class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)] transition-all"
+                  title="Rename username"
+                  :aria-label="`Rename ${org.username}`"
+                >
+                  <i class="pi pi-pencil text-xs" aria-hidden="true"></i>
+                </button>
+                <button
+                  @click="openResetPw(org)"
+                  class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)] transition-all"
+                  title="Reset password"
+                  :aria-label="`Reset password for ${org.username}`"
+                >
+                  <i class="pi pi-key text-xs" aria-hidden="true"></i>
+                </button>
+                <button
                   @click="confirmDeleteOrganiser(org.id, org.username)"
                   class="w-8 h-8 flex items-center justify-center text-content-muted hover:text-red-400 hover:bg-red-950 transition-all"
                   title="Delete organiser"
@@ -720,6 +785,30 @@ onMounted(async () => {
                   <i class="pi pi-times text-xs" aria-hidden="true"></i>
                 </button>
               </div>
+            </div>
+
+            <!-- Inline edit row (rename or reset password) -->
+            <div v-if="orgEdit[org.id]" class="mb-3 flex items-center gap-2">
+              <input
+                :type="orgEdit[org.id].mode === 'password' ? 'password' : 'text'"
+                v-model="orgEdit[org.id].value"
+                :placeholder="orgEdit[org.id].mode === 'password' ? 'New password (min 6 chars)' : 'New username'"
+                class="flex-1 type-name-sm px-3 py-2 para-chip-sm bg-transparent text-content-primary placeholder:text-content-muted focus:outline-none focus:border-[color:var(--accent-muted)]"
+                @keyup.enter="orgEdit[org.id].mode === 'password' ? submitResetPw(org) : submitRename(org)"
+                @keyup.escape="cancelEdit(org.id)"
+              />
+              <button
+                @click="orgEdit[org.id].mode === 'password' ? submitResetPw(org) : submitRename(org)"
+                class="type-label px-3 py-2 para-chip-sm text-accent border-[color:var(--accent-muted)] hover:bg-[rgba(255,255,255,0.04)] transition-all"
+              >
+                SAVE
+              </button>
+              <button
+                @click="cancelEdit(org.id)"
+                class="type-label px-3 py-2 para-chip-sm text-content-muted hover:text-content-primary transition-all"
+              >
+                CANCEL
+              </button>
             </div>
 
             <!-- Drop zone -->

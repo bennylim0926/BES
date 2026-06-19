@@ -185,6 +185,26 @@ public class AdminController {
         ));
     }
 
+    @PostMapping("/organisers/{accountId}/password")
+    public ResponseEntity<?> resetOrganiserPassword(@PathVariable Long accountId,
+                                                    @RequestBody Map<String, String> body) {
+        Account account = accountService.resetOrganiserPassword(accountId, body.get("password"));
+        return ResponseEntity.ok(Map.of(
+            "accountId", account.getAccountId(),
+            "username", account.getUsername()
+        ));
+    }
+
+    @PostMapping("/organisers/{accountId}/username")
+    public ResponseEntity<?> renameOrganiser(@PathVariable Long accountId,
+                                             @RequestBody Map<String, String> body) {
+        Account account = accountService.renameOrganiser(accountId, body.get("username"));
+        return ResponseEntity.ok(Map.of(
+            "accountId", account.getAccountId(),
+            "username", account.getUsername()
+        ));
+    }
+
     @DeleteMapping("/organisers/assign")
     public ResponseEntity<?> removeOrganiser(@Valid @RequestBody AssignOrganiserDto dto) {
         accountService.removeEvent(dto.getAccountId(), dto.getEventId());

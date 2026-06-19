@@ -179,6 +179,49 @@ export const createOrganiser = async (username, password) => {
     }
 }
 
+const parseSpringError = (body, fallback) => {
+    const msg = body?.properties
+        ? Object.values(body.properties)[0]
+        : body?.errors?.[0]?.defaultMessage
+        || body?.message
+        || body?.detail
+        || body?.error
+        || fallback
+    return typeof msg === 'string' ? msg : fallback
+}
+
+export const resetOrganiserPassword = async (accountId, password) => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/organisers/${accountId}/password`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ password })
+        })
+        if (res.ok) return { ok: true }
+        const body = await res.json().catch(() => ({}))
+        return { ok: false, error: parseSpringError(body, 'Failed to reset password.') }
+    } catch (_err) {
+        return { ok: false, error: 'Unable to reach server. Check your connection.' }
+    }
+}
+
+export const renameOrganiser = async (accountId, username) => {
+    try {
+        const res = await fetch(`${domain}/api/v1/admin/organisers/${accountId}/username`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ username })
+        })
+        if (res.ok) return { ok: true }
+        const body = await res.json().catch(() => ({}))
+        return { ok: false, error: parseSpringError(body, 'Failed to rename organiser.') }
+    } catch (_err) {
+        return { ok: false, error: 'Unable to reach server. Check your connection.' }
+    }
+}
+
 export const deleteOrganiser = async (accountId) => {
     try {
         return await fetch(`${domain}/api/v1/admin/organisers/${accountId}`, {
