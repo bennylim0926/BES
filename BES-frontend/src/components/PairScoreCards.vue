@@ -126,32 +126,57 @@ const activeCard = computed(() =>
 // the upcoming currentIndex change (from the smooth-scroll settling)
 // honours the specific number the user tapped, instead of defaulting
 // to the first non-placeholder (i.e. always the odd one in a pair).
+//
+// We track the EXPECTED pair index too, because smooth-scroll fires
+// `scroll` events at every intermediate position. The watcher must
+// ignore those intermediates (they'd consume `pendingActiveNum` on the
+// very first transit) and only commit when we land on the right pair.
 const pendingActiveNum = ref(null)
+const pendingPairIndex = ref(null)
+let pendingTimeoutId = null
+
+const clearPending = () => {
+  pendingActiveNum.value = null
+  pendingPairIndex.value = null
+  if (pendingTimeoutId) { clearTimeout(pendingTimeoutId); pendingTimeoutId = null }
+}
 
 watch(currentIndex, () => {
   if (pendingActiveNum.value != null) {
+    // Still in transit — wait for the scroll to land on the expected
+    // pair. Don't reset activeParticipantNum mid-flight.
+    if (currentIndex.value !== pendingPairIndex.value) return
     const inPair = activePair.value.some(
       c => !c._placeholder && c.auditionNumber === pendingActiveNum.value
     )
     if (inPair) {
       activeParticipantNum.value = pendingActiveNum.value
-      pendingActiveNum.value = null
-      return
+    } else {
+      const first = activePair.value.find(c => !c._placeholder)
+      activeParticipantNum.value = first?.auditionNumber ?? null
     }
-    pendingActiveNum.value = null
+    clearPending()
+    return
   }
+  // Normal user-swipe: default to first non-placeholder
   const first = activePair.value.find(c => !c._placeholder)
   activeParticipantNum.value = first?.auditionNumber ?? null
 }, { immediate: true })
 
 // Called by the parent when the Find Participant menu picks a specific
-// audition number. Sets both the active value (so the UI updates if
-// we're already on the right pair) and a pending value (so any imminent
-// currentIndex change from the smooth scroll preserves the choice).
+// audition number. Sets the value immediately for instant feedback, and
+// stashes a pending intent so the watcher leaves it alone during the
+// smooth-scroll animation.
 function selectParticipant(auditionNumber) {
   if (auditionNumber == null) return
   pendingActiveNum.value = auditionNumber
+  pendingPairIndex.value = Math.floor((auditionNumber - 1) / 2)
   activeParticipantNum.value = auditionNumber
+  // Fail-safe: if the scroll never lands at the expected pair (e.g. the
+  // user interrupts by swiping), clear pending after 2s so normal
+  // auto-default behaviour resumes.
+  if (pendingTimeoutId) clearTimeout(pendingTimeoutId)
+  pendingTimeoutId = setTimeout(clearPending, 2000)
 }
 
 defineExpose({ selectParticipant })
