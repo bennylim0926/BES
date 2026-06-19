@@ -731,8 +731,8 @@ onMounted(async () => {
             @click="showMiniMenu = true"
             class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-content-primary transition-all"
             style="min-width:44px"
-            title="Go to participant"
-            aria-label="Jump to participant"
+            title="Find participant"
+            aria-label="Find participant"
           ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
@@ -1012,7 +1012,7 @@ onMounted(async () => {
       <MiniScoreMenu
         :cards="filteredParticipantsForJudge"
         :show="showMiniMenu"
-        title="Jump to Participant"
+        title="Find Participant"
         @close="showMiniMenu = false"
       />
       <PairScoreCards
