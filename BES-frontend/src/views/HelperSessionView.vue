@@ -220,7 +220,7 @@ function handleLogout() {
     <Teleport to="body">
       <div
         v-if="confirmDialog.show"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmNo" />
         <div class="card-hover relative w-full sm:max-w-sm" style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);padding:24px 20px 20px;">

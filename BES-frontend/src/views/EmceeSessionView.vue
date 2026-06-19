@@ -50,13 +50,20 @@ onMounted(async () => {
   loading.value = false
   sessionReady.value = !!authStore.user && !!authStore.activeEvent
   if (authStore.activeEvent?.name) {
-    authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
-    categories.value = await getCategoriesByEvent(authStore.activeEvent.name) ?? []
-    const active = await getActiveEmceeCategories(authStore.activeEvent.name)
-    activeEmceeCategories.value = new Set(active)
+    const evt = authStore.activeEvent.name
+    // Fire-and-forget: not on critical render path.
+    authStore.fetchEventBattleEnabled(evt)
+
+    // Parallelize the two independent GETs — previously serial, ~2x latency.
+    const [cats, active] = await Promise.all([
+      getCategoriesByEvent(evt),
+      getActiveEmceeCategories(evt),
+    ])
+    categories.value = cats ?? []
+    activeEmceeCategories.value = new Set(active ?? [])
 
     wsClient = createClient()
-    subscribeToChannel(wsClient, `/topic/emcee/active-categories/${authStore.activeEvent.name}`, (msg) => {
+    subscribeToChannel(wsClient, `/topic/emcee/active-categories/${evt}`, (msg) => {
       activeEmceeCategories.value = new Set(msg.categories ?? [])
     })
   }
@@ -206,7 +213,7 @@ function selectCategory(categoryName) {
     <Teleport to="body">
       <div
         v-if="confirmDialog.show"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-6 sm:p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmNo" />
         <div class="card-hover relative w-full sm:max-w-sm" style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);padding:24px 20px 20px;">

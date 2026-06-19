@@ -378,12 +378,13 @@ onUnmounted(() => {
   <!-- Navbar height spacer -->
   <div v-if="!hideNav" class="h-16"></div>
 
-  <!-- Main Content with page transitions -->
+  <!-- Main Content — atomic route swap (no fade transition).
+       Prior page-fade caused either an old-page flash (parallel mode) or
+       a blank gap on back-nav when an outgoing view had a slow
+       onBeforeRouteLeave guard (out-in mode). Atomic swap avoids both. -->
   <main>
     <RouterView v-slot="{ Component, route }">
-      <Transition name="page-fade">
-        <component :is="Component" :key="route.path" />
-      </Transition>
+      <component :is="Component" :key="route.path" />
     </RouterView>
   </main>
 
