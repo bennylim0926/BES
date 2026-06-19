@@ -1,10 +1,11 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, provide } from 'vue'
 import { logout, whoami, getAppConfig, sendHeartbeat } from './utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from './utils/websocket'
 import { useAuthStore } from './utils/auth'
 import ActionDoneModal from './views/ActionDoneModal.vue'
 import EventPanel from './components/EventPanel.vue'
+import EventPickerModal from './components/EventPickerModal.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { APP_NAME } from './utils/branding.js'
 import { useTierAccess } from './utils/useTierAccess'
@@ -22,6 +23,35 @@ const demoEnabled = ref(false)
 
 const authStore = useAuthStore()
 const { battleEnabled } = useTierAccess()
+
+// ── Event picker (shown when a link needs an active event but none is set) ──
+const showEventPicker = ref(false)
+const pendingRoute = ref(null)
+
+function requestEvent(route) {
+  pendingRoute.value = route
+  showEventPicker.value = true
+}
+
+function onEventPicked(event) {
+  showEventPicker.value = false
+  if (pendingRoute.value) {
+    const route = { ...pendingRoute.value }
+    // Patch Event Details params with the newly selected event name
+    if (route.name === 'Event Details') {
+      route.params = { eventName: event.name }
+    }
+    router.push(route)
+    pendingRoute.value = null
+  }
+}
+
+function onEventPickerClose() {
+  showEventPicker.value = false
+  pendingRoute.value = null
+}
+
+provide('requestEvent', requestEvent)
 
 // ── Computed ───────────────────────────────────────────────────────────────
 const role = computed(() =>
@@ -92,6 +122,10 @@ function changeEvent() {
 
 function goToSection(routeName) {
   panelOpen.value = false
+  if (!activeEvent.value) {
+    requestEvent({ name: routeName })
+    return
+  }
   if (routeName === 'Audition List' && isEmceeRole.value) {
     localStorage.removeItem('selectedCategory')
     router.push({ name: routeName, query: { picker: '1' } })
@@ -102,7 +136,14 @@ function goToSection(routeName) {
 
 function goToEventDetails() {
   panelOpen.value = false
-  if (activeEvent.value) router.push({
+  if (!activeEvent.value) {
+    requestEvent({
+      name: 'Event Details',
+      params: { eventName: activeEvent.value?.name }
+    })
+    return
+  }
+  router.push({
     name: 'Event Details',
     params: { eventName: activeEvent.value.name },
     query: activeEvent.value.folderID ? { folderID: activeEvent.value.folderID } : {}
@@ -218,34 +259,14 @@ onUnmounted(() => {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center h-16 gap-4">
 
-        <!-- Left: Kyrove wordmark + glowing dot -->
+        <!-- Left: Kyrove wordmark + icon -->
         <router-link :to="isJudgeRole ? '/judge/session' : isEmceeRole ? '/emcee/session' : isHelperRole ? '/helper/session' : '/'" class="flex items-center gap-2.5 group flex-shrink-0">
-          <div class="glow-dot"></div>
+          <img src="/kyrove-icon-192.png" alt="Kyrove" class="w-7 h-7 flex-shrink-0">
           <span class="type-body text-[18px] tracking-[0.12em] text-content-primary">{{ APP_NAME }}</span>
         </router-link>
 
-        <!-- Center: Primary nav as parallelogram chips -->
-        <div class="hidden md:flex flex-1 items-center justify-center gap-2">
-          <router-link v-if="!isJudgeRole && !isEmceeRole && !isHelperRole" to="/" v-slot="{ isActive }">
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
-              :class="isActive
-                ? 'text-accent border-b-2 border-[color:var(--accent-color)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >Home</span>
-          </router-link>
-          <router-link v-if="role === 'ROLE_ADMIN'" to="/admin" v-slot="{ isActive }">
-            <span
-              class="inline-flex items-center gap-1.5 px-3.5 py-1.5 type-label cursor-pointer transition-all duration-200"
-              :class="isActive
-                ? 'text-accent border-b-2 border-[color:var(--accent-color)]'
-                : 'text-content-muted hover:text-content-primary'"
-            >Admin</span>
-          </router-link>
-        </div>
-
         <!-- Right: event chip (mobile menu trigger) + desktop utilities -->
-        <div class="flex items-center justify-end gap-2 ml-auto md:ml-0">
+        <div class="flex items-center justify-end gap-2 ml-auto">
 
           <!-- Single mobile entry point: event chip / menu button (always opens EventPanel) -->
           <div v-if="isAuthenticated" class="relative">
@@ -254,7 +275,7 @@ onUnmounted(() => {
               :aria-expanded="panelOpen"
               aria-haspopup="dialog"
               :aria-label="activeEvent ? 'Open event menu' : 'Open menu'"
-              class="inline-flex items-center gap-2 px-4 py-2 type-name para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[260px] md:max-w-[320px]"
+              class="inline-flex items-center gap-2 px-4 py-2 type-name para-chip-sm text-content-secondary hover:text-content-primary transition-all duration-200 max-w-[320px] md:max-w-[420px]"
             >
               <i v-if="!activeEvent" class="pi pi-bars text-base flex-shrink-0" aria-hidden="true"></i>
               <span v-if="activeEvent" class="truncate">{{ activeEvent.name }}</span>
@@ -376,4 +397,11 @@ onUnmounted(() => {
   >
     <p class="text-content-secondary leading-relaxed">{{ modalMessage }}</p>
   </ActionDoneModal>
+
+  <!-- Event picker popup (shown when a link needs an active event but none is set) -->
+  <EventPickerModal
+    v-if="showEventPicker"
+    @close="onEventPickerClose"
+    @selected="onEventPicked"
+  />
 </template>

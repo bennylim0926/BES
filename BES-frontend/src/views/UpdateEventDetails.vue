@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { useAuthStore } from '@/utils/auth'
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import {
   getRegisteredParticipantsByEvent,
   deleteParticipantFromEvent,
@@ -14,6 +15,7 @@ import {
 const authStore   = useAuthStore()
 const selectedEvent = computed(() => authStore.activeEvent?.name || localStorage.getItem('selectedEvent') || '')
 
+const loading = ref(true)
 const allJudges   = ref([])
 const rawRows     = ref([])
 const participants = computed(() => groupParticipants(rawRows.value))
@@ -225,14 +227,21 @@ const fetchJudges = async () => {
 }
 
 onMounted(async () => {
-  await reload()
-  await fetchJudges()
+  try {
+    await reload()
+    await fetchJudges()
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
 <template>
   <div class="page-container relative">
     <div class="color-bleed"></div>
+
+    <LoadingOverlay v-if="loading">Loading participants…</LoadingOverlay>
+
     <div class="relative z-10">
 
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">

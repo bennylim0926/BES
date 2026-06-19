@@ -3,7 +3,8 @@ import { deleteImage, deleteScore, getAllImages, getFeedbackGroups, addFeedbackG
 import { checkInputNull } from '@/utils/utils';
 import { computed, onMounted, ref } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { fetchAllEvents, getAppConfig, postAppConfig, saveSheetConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
+import { fetchAllEvents, deleteEvent, getAppConfig, postAppConfig, saveSheetConfig, getDemoConfig, updateDemoConfig } from '@/utils/api';
 
 const modalTitle = ref("")
 const modalMessage = ref("")
@@ -18,6 +19,7 @@ const openModal = (title, message, variant = 'info') => {
   dynamicHandler.value = () => { showModal.value = false }
 }
 
+const loading = ref(true)
 const events = ref([])
 const images = ref([])
 const feedbackGroups = ref([])
@@ -87,17 +89,111 @@ const confirmDeleteOrganiser = (id, username) => {
   }
 }
 
-const toggleOrganiserEvent = async (accountId, eventId, isAssigned) => {
-  if (isAssigned) {
-    await removeOrganiserFromEvent(accountId, eventId)
-  } else {
-    await assignOrganiserToEvent(accountId, eventId)
-  }
-  organisers.value = await getOrganisers() ?? []
+const showDeleteModal = ref(false)
+const eventToDelete = ref(null)
+const deleteConfirmName = ref('')
+const deleteError = ref('')
+const deleting = ref(false)
+
+// ── Drag-and-drop state for organiser event assignment ──
+const dragEvent = ref(null)
+const dragSource = ref(null)  // 'pool' or organiser id
+const dragOverOrgId = ref(null)
+const dragOverPool = ref(false)
+let ghostEl = null
+
+const unassignedEvents = computed(() =>
+  events.value.filter(e => !organisers.value.some(o => o.assignedEventIds?.includes(e.id)))
+)
+
+const assignedEvents = (org) =>
+  (org.assignedEventIds ?? []).map(id => events.value.find(e => e.id === id)).filter(Boolean)
+
+// ── Pointer DnD handlers ──
+function onDragStart(event, e) {
+  e.preventDefault()
+  const el = e.currentTarget
+  dragEvent.value = event
+  dragSource.value = el.dataset.dragSource === 'pool' ? 'pool' : Number(el.dataset.dragSource)
+
+  // Create ghost
+  ghostEl = el.cloneNode(true)
+  ghostEl.style.position = 'fixed'
+  ghostEl.style.zIndex = '9999'
+  ghostEl.style.pointerEvents = 'none'
+  ghostEl.style.opacity = '0.85'
+  ghostEl.style.width = el.offsetWidth + 'px'
+  ghostEl.style.left = (e.clientX - el.offsetWidth / 2) + 'px'
+  ghostEl.style.top = (e.clientY - el.offsetHeight / 2) + 'px'
+  document.body.appendChild(ghostEl)
+
+  // Make source invisible
+  el.style.opacity = '0'
+
+  document.addEventListener('pointermove', onDragMove)
+  document.addEventListener('pointerup', onDragUp)
+  document.addEventListener('pointercancel', onDragUp)
 }
 
-const isEventAssigned = (organiser, eventId) => {
-  return organiser.assignedEventIds?.includes(eventId) ?? false
+function onDragMove(e) {
+  if (!ghostEl) return
+  ghostEl.style.left = (e.clientX - ghostEl.offsetWidth / 2) + 'px'
+  ghostEl.style.top = (e.clientY - ghostEl.offsetHeight / 2) + 'px'
+
+  // Probe drop target
+  ghostEl.style.display = 'none'
+  const target = document.elementFromPoint(e.clientX, e.clientY)
+  ghostEl.style.display = ''
+
+  const orgEl = target?.closest('[data-organiser-id]')
+  const poolEl = target?.closest('[data-pool-zone]')
+
+  dragOverOrgId.value = orgEl ? Number(orgEl.dataset.organiserId) : null
+  dragOverPool.value = !!poolEl && dragSource.value !== 'pool'
+}
+
+async function onDragUp(e) {
+  document.removeEventListener('pointermove', onDragMove)
+  document.removeEventListener('pointerup', onDragUp)
+  document.removeEventListener('pointercancel', onDragUp)
+
+  // Restore source visibility
+  if (dragEvent.value) {
+    const sourceEl = document.querySelector(`[data-event-id="${dragEvent.value.id}"][data-drag-source]`)
+    if (sourceEl) sourceEl.style.opacity = ''
+  }
+
+  // Remove ghost
+  if (ghostEl) { ghostEl.remove(); ghostEl = null }
+
+  // Probe final drop target
+  const target = document.elementFromPoint(e.clientX, e.clientY)
+  const orgEl = target?.closest('[data-organiser-id]')
+  const poolEl = target?.closest('[data-pool-zone]')
+
+  const targetOrgId = orgEl ? Number(orgEl.dataset.organiserId) : null
+  const targetPool = !!poolEl
+
+  const ev = dragEvent.value
+  const src = dragSource.value
+  dragEvent.value = null
+  dragSource.value = null
+  dragOverOrgId.value = null
+  dragOverPool.value = false
+
+  if (!ev) return
+
+  // Determine action
+  if (targetOrgId !== null && targetOrgId !== src) {
+    // Drop on an organiser (different from source)
+    await assignOrganiserToEvent(targetOrgId, ev.id)
+    organisers.value = await getOrganisers() ?? []
+  } else if (targetPool && src !== 'pool') {
+    // Drop back to pool from an organiser
+    await removeOrganiserFromEvent(src, ev.id)
+    organisers.value = await getOrganisers() ?? []
+  }
+  // else: no-op (dropped on same organiser, or pool→pool)
 }
 
 const accentInput = ref('#ffffff')
@@ -261,23 +357,59 @@ async function resetTemplateData() {
   await loadDemoConfig()
 }
 
+function openDeleteModal(event) {
+  eventToDelete.value = event
+  deleteConfirmName.value = ''
+  deleteError.value = ''
+  showDeleteModal.value = true
+}
+
+function closeDeleteModal() {
+  showDeleteModal.value = false
+  eventToDelete.value = null
+  deleteConfirmName.value = ''
+  deleteError.value = ''
+}
+
+async function confirmDelete() {
+  if (!eventToDelete.value || deleteConfirmName.value !== eventToDelete.value.name) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await deleteEvent(eventToDelete.value.name)
+    events.value = events.value.filter(e => e.id !== eventToDelete.value.id)
+    closeDeleteModal()
+  } catch (err) {
+    deleteError.value = err.message || 'Failed to delete event'
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(async () => {
-  events.value = await fetchAllEvents() ?? []
-  images.value = await getAllImages() ?? []
-  feedbackGroups.value = await getFeedbackGroups() ?? []
-  feedbackOverrides.value = await getFeedbackTagOverrides() ?? []
-  organisers.value = await getOrganisers() ?? []
-  const cfg = await getAppConfig()
-  accentInput.value = cfg?.accentColor ?? '#ffffff'
-  sheetConfig.value = cfg?.sheetConfig ?? sheetConfig.value
-  loadDemoConfig()
-  loadSandboxes()
+  try {
+    events.value = await fetchAllEvents() ?? []
+    images.value = await getAllImages() ?? []
+    feedbackGroups.value = await getFeedbackGroups() ?? []
+    feedbackOverrides.value = await getFeedbackTagOverrides() ?? []
+    organisers.value = await getOrganisers() ?? []
+    const cfg = await getAppConfig()
+    accentInput.value = cfg?.accentColor ?? '#ffffff'
+    sheetConfig.value = cfg?.sheetConfig ?? sheetConfig.value
+    loadDemoConfig()
+    loadSandboxes()
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
 <template>
   <div class="page-container relative">
     <div class="color-bleed"></div>
+
+    <LoadingOverlay v-if="loading">Loading admin panel…</LoadingOverlay>
+
     <div class="relative z-10 space-y-8">
 
       <!-- Page header — h1 for document outline -->
@@ -320,6 +452,30 @@ onMounted(async () => {
               class="ml-2 flex-shrink-0 para-chip-sm type-label px-2 py-1 text-red-400 hover:bg-red-950 transition-all"
             >
               Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Delete Events ──────────────────────────────────── -->
+        <div class="section-rule mb-4 mt-10">
+          <span class="section-rule-label">Delete Events</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <p class="type-prose mb-4">Permanently deletes an event and ALL associated data — participants, categories, scores, feedback, battle state, session tokens. This cannot be undone.</p>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div
+            v-for="e in events"
+            :key="e.id"
+            class="card-hover p-3 relative flex items-center justify-between"
+          >
+            <div class="corner-bar-tl"></div>
+            <span class="type-name text-content-secondary truncate flex-1">{{ e.name }}</span>
+            <button
+              @click="openDeleteModal(e)"
+              class="ml-2 flex-shrink-0 para-chip-sm type-label px-2 py-1 text-red-400 hover:bg-red-950 transition-all"
+            >
+              Delete
             </button>
           </div>
         </div>
@@ -496,13 +652,52 @@ onMounted(async () => {
           >{{ f }}</button>
         </div>
 
-        <p class="type-prose mb-4">Assign or remove events for each organiser.</p>
+        <!-- ── Event Pool ────────────────────────────────────── -->
+        <div class="section-rule mb-4 mt-4">
+          <span class="section-rule-label">Event Pool</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ unassignedEvents.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
+
+        <div
+          data-pool-zone
+          class="card-hover p-4 relative mb-6 min-h-[56px] transition-all duration-150"
+          :class="dragOverPool ? 'border-[color:var(--accent-muted)] bg-[rgba(255,255,255,0.03)]' : ''"
+        >
+          <div class="corner-bar-tl"></div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="e in unassignedEvents"
+              :key="e.id"
+              :data-event-id="e.id"
+              data-drag-source="pool"
+              @pointerdown="onDragStart(e, $event)"
+              class="para-chip-sm type-name-sm px-3 py-1.5 inline-flex items-center gap-1.5 transition-all duration-150 text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] cursor-grab active:cursor-grabbing select-none"
+              style="touch-action: none"
+              :aria-label="`Drag ${e.name} to an organiser`"
+            >
+              {{ e.name }}
+            </button>
+            <p v-if="unassignedEvents.length === 0" class="type-label text-content-muted py-2 w-full text-center">
+              All events are assigned
+            </p>
+          </div>
+        </div>
+
+        <!-- ── Organiser Drop Zones ──────────────────────────── -->
+        <div class="section-rule mb-4">
+          <span class="section-rule-label">Organisers</span>
+          <span class="badge-neutral type-label px-2 py-0.5">{{ filteredOrganisers.length }}</span>
+          <div class="section-rule-line"></div>
+        </div>
 
         <div class="space-y-3">
           <div
             v-for="org in filteredOrganisers"
             :key="org.id"
-            class="card-hover p-4 relative"
+            :data-organiser-id="org.id"
+            class="card-hover p-4 relative transition-all duration-150"
+            :class="dragOverOrgId === org.id ? 'border-[color:var(--accent-muted)] bg-[rgba(255,255,255,0.03)]' : ''"
           >
             <div class="corner-bar-tl"></div>
             <div class="flex items-center justify-between mb-3">
@@ -527,22 +722,24 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-2">
-              <!-- aria-pressed + check icon: assigned state reads via icon + semantics, not green alone -->
+            <!-- Drop zone -->
+            <div class="flex flex-wrap gap-2 min-h-[36px] items-start">
               <button
-                v-for="e in events"
+                v-for="e in assignedEvents(org)"
                 :key="e.id"
-                @click="toggleOrganiserEvent(org.id, e.id, isEventAssigned(org, e.id))"
-                :aria-pressed="isEventAssigned(org, e.id)"
-                class="para-chip-sm type-name-sm px-3 py-1.5 transition-all duration-150 inline-flex items-center gap-1.5"
-                :class="isEventAssigned(org, e.id) ? 'text-green-300 border-green-500/50 bg-green-500/15' : 'text-content-muted hover:text-content-primary hover:border-[color:var(--accent-muted)]'"
+                :data-event-id="e.id"
+                :data-drag-source="org.id"
+                @pointerdown="onDragStart(e, $event)"
+                class="para-chip-sm type-name-sm px-3 py-1.5 inline-flex items-center gap-1.5 transition-all duration-150 text-accent border-[color:var(--accent-muted)] cursor-grab active:cursor-grabbing select-none"
+                style="touch-action: none"
+                :aria-label="`Drag ${e.name} to pool or another organiser`"
               >
-                <i v-if="isEventAssigned(org, e.id)" class="pi pi-check text-xs" aria-hidden="true"></i>
                 {{ e.name }}
               </button>
+              <p v-if="assignedEvents(org).length === 0" class="type-label text-content-muted py-2">
+                Drop events here
+              </p>
             </div>
-
-            <p v-if="events.length === 0" class="type-label text-content-muted py-1">No events available</p>
           </div>
 
           <p v-if="organisers.length === 0" class="type-label text-content-muted py-4">
@@ -704,5 +901,80 @@ onMounted(async () => {
     >
       <p class="type-body text-content-secondary">{{ modalMessage }}</p>
     </ActionDoneModal>
+
+    <!-- Delete Event Confirmation Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showDeleteModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="background: rgba(0,0,0,0.8)"
+        @click.self="closeDeleteModal"
+      >
+        <div
+          class="w-full max-w-md p-6 flex flex-col gap-5"
+          style="background: #1a1a1a; border: 1px solid rgba(239,68,68,0.3); clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" style="box-shadow: 0 0 10px rgba(239,68,68,0.7)"></div>
+            <h2 class="type-page-title text-red-400" style="font-size: 20px">DELETE EVENT</h2>
+          </div>
+
+          <div class="px-4 py-3" style="border-left: 3px solid rgba(239,68,68,0.6); background: rgba(239,68,68,0.07)">
+            <p class="type-label text-red-300/90 mb-1">This will permanently delete:</p>
+            <p class="type-prose text-red-200/70">
+              <strong class="type-name text-red-300">{{ eventToDelete?.name }}</strong>
+              and ALL associated data — participants, categories, scores, feedback, battle state, and session tokens.
+              This cannot be undone.
+            </p>
+          </div>
+
+          <div>
+            <p class="type-prose text-content-muted mb-3">
+              <template v-if="deleteConfirmName === ''">Type the event name to enable deletion.</template>
+              <template v-else-if="deleteConfirmName === eventToDelete?.name">✓ Name confirmed. Ready to delete.</template>
+              <template v-else>Keep typing — name must match exactly.</template>
+            </p>
+            <input
+              v-model="deleteConfirmName"
+              type="text"
+              :placeholder="eventToDelete?.name"
+              class="input-base w-full"
+              autofocus
+            />
+          </div>
+
+          <div
+            v-if="deleteError"
+            class="px-3 py-2 type-label text-red-300"
+            style="border-left: 3px solid rgba(239,68,68,0.5); background: rgba(239,68,68,0.08)"
+          >
+            {{ deleteError }}
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              @click="closeDeleteModal"
+              class="flex-1 py-2.5 type-label border border-surface-600 text-content-muted hover:text-content-primary transition-colors"
+              style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)"
+              :disabled="deleting"
+            >CANCEL</button>
+            <button
+              @click="confirmDelete"
+              :disabled="deleteConfirmName !== eventToDelete?.name || deleting"
+              class="flex-1 py-2.5 type-label font-bold transition-all"
+              :class="deleteConfirmName === eventToDelete?.name && !deleting
+                ? 'bg-red-600 text-white hover:bg-red-500'
+                : 'bg-surface-700 text-content-muted cursor-not-allowed'"
+              style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)"
+            >
+              <span v-if="deleting">DELETING…</span>
+              <span v-else>DELETE EVENT</span>
+            </button>
+          </div>
+
+          <p class="type-prose-sm text-content-muted/50 text-center">Tap outside to cancel</p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -24,12 +24,12 @@ const emit = defineEmits([
 const ALL_TILES = [
   { key: 'home',         icon: 'pi-home',      label: 'Home',         roles: ['ROLE_ADMIN', 'ROLE_ORGANISER'] },
   { key: 'admin',        icon: 'pi-cog',       label: 'Admin',        roles: ['ROLE_ADMIN'] },
-  { key: 'details',      icon: 'pi-cog',       label: 'Details',      roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
-  { key: 'audition',     icon: 'pi-list',      label: 'Audition',     roles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
-  { key: 'participants', icon: 'pi-users',     label: 'Participants', roles: ['ROLE_ADMIN'] },
-  { key: 'score',        icon: 'pi-chart-bar', label: 'Score',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_HELPER'] },
-  { key: 'battle',       icon: 'pi-bolt',      label: 'Battle',       roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_JUDGE'] },
-  { key: 'numbers',      icon: 'pi-hashtag',   label: 'Numbers',      roles: ['ROLE_ADMIN'] },
+  { key: 'details',      icon: 'pi-cog',       label: 'Event Details',  roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_HELPER'] },
+  { key: 'audition',     icon: 'pi-list',      label: 'Audition',      roles: ['ROLE_ADMIN', 'ROLE_EMCEE', 'ROLE_JUDGE'] },
+  { key: 'participants', icon: 'pi-users',     label: 'Participants',  roles: ['ROLE_ADMIN'] },
+  { key: 'score',        icon: 'pi-chart-bar', label: 'Scoreboard',     roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE', 'ROLE_HELPER'] },
+  { key: 'battle',       icon: 'pi-bolt',      label: 'Battle',        roles: ['ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_JUDGE'] },
+  { key: 'numbers',      icon: 'pi-hashtag',   label: 'Edit Numbers',   roles: ['ROLE_ADMIN'] },
 ]
 
 const TILE_ROUTES = {

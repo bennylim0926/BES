@@ -7,6 +7,7 @@ import { useBattleLogic } from '@/utils/battleLogic'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { parseDropKey } from '@/utils/pointerDnd'
 import LiveMatchPanel from '@/components/LiveMatchPanel.vue'
+import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import { useAuthStore } from '@/utils/auth'
 
 const { selectedEvent, selectedCategory, initialiseDropdown } = useDropdowns()
@@ -19,6 +20,7 @@ const isAdminOrOrganiser = computed(() => {
   return role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'
 })
 
+const loading = ref(true)
 const battleJudges = ref([])
 const memberLookup = ref({}) // participantName → all member names (including rep)
 const getMembersFor = (name) => memberLookup.value[name] ?? []
@@ -2008,6 +2010,7 @@ onMounted(async () => {
     })
     syncJudgeVoteSubscriptions()
   }
+  loading.value = false
   wsClient.value.activate()
 })
 
@@ -2022,6 +2025,8 @@ onUnmounted(() => {
 <template>
   <div class="page-container relative">
     <div class="color-bleed"></div>
+
+    <LoadingOverlay v-if="loading">Loading battle setup…</LoadingOverlay>
     <div class="relative z-10 space-y-6">
 
     <!-- Page header — h1 for document outline -->

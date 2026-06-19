@@ -1,4 +1,5 @@
 <script setup>
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
 import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
@@ -31,6 +32,7 @@ const isOrganiser = ref(false)
 const isEmcee = ref(false)
 const activeEmceeCategories = ref(new Set())
 
+const loading = ref(true)
 const modalTitle = ref("")
 const modalMessage = ref("")
 const modalVariant = ref("info")
@@ -206,6 +208,7 @@ const filteredParticipantsForEmceeView = computed(() => {
 
 watch(selectedEvent, async (newVal, oldVal) => {
   if (newVal) {
+    loading.value = true
     localStorage.setItem("selectedEvent", newVal);
     if (oldVal !== undefined && oldVal !== newVal) {
       selectedCategory.value = ""
@@ -243,7 +246,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
       localStorage.removeItem("currentJudge")
     }
     if (!authStore.judgeName) filteredJudge.value = ""
-    if (selectedEvent.value !== newVal) return
+    if (selectedEvent.value !== newVal) { loading.value = false; return }
     participants.value = res.map((r, i) => ({ ...r, rowId: r.rowId ?? i, score: 0 }))
     // Auto-select the first category assigned to a session-link judge who has no category selected yet
     if (!selectedCategory.value && authStore.judgeName) {
@@ -259,6 +262,9 @@ watch(selectedEvent, async (newVal, oldVal) => {
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
     if (feedbackRes && typeof feedbackRes.feedbackEnabled === 'boolean') feedbackEnabled.value = feedbackRes.feedbackEnabled
     await loadScoresFromDb(newVal, selectedCategory.value, currentJudge.value)
+    loading.value = false
+  } else {
+    loading.value = false
   }
 }, { immediate: true });
 
@@ -897,7 +903,7 @@ onMounted(async () => {
 
     <!-- No judges banner -->
     <div
-      v-if="noJudgesConfigured"
+      v-if="!loading && noJudgesConfigured"
       class="semantic-chip-warning flex items-center gap-3 px-4 py-3 mb-4 flex-shrink-0"
     >
       <div class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" style="box-shadow: 0 0 6px rgba(245,158,11,0.8)"></div>
@@ -929,7 +935,11 @@ onMounted(async () => {
 
     <!-- Emcee view: Timer + round view -->
     <div class="flex-1 min-h-0" style="overflow: hidden;">
-    <template v-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
+
+    <!-- Loading state — full-viewport overlay so nothing bleeds through -->
+    <LoadingOverlay v-if="loading">Loading audition data…</LoadingOverlay>
+
+    <template v-else-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
       <EmceeRoundView
         ref="emceeRoundRef"
         :key="selectedCategory"
@@ -1079,18 +1089,6 @@ onMounted(async () => {
       </div>
       <p class="type-body text-content-secondary">Select your role to begin</p>
       <p class="type-prose-sm mt-1">Choose Emcee or Judge in the filter panel above.</p>
-    </div>
-
-    <!-- Catch-all fallback: prevent blank page while data is loading -->
-    <div
-      v-else
-      class="flex flex-col items-center justify-center h-full text-center"
-    >
-      <div class="para-chip-sm w-14 h-14 flex items-center justify-center mb-4">
-        <i class="pi pi-spinner pi-spin text-accent text-xl"></i>
-      </div>
-      <p class="type-body text-content-secondary">Loading…</p>
-      <p class="type-prose-sm mt-1">Fetching audition data for {{ selectedEvent }}…</p>
     </div>
 
     </div>
