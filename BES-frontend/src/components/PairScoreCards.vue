@@ -82,10 +82,17 @@ const pairs = computed(() => {
   return result
 })
 
+// Snap stride matches SwipeableCardsV2 / MiniScoreMenu: cards are
+// `width:100%` inside a `px-2 gap-2` flex container, so each pair takes
+// `clientWidth - 16` and the per-pair stride is `(clientWidth - 16) + 8`
+// = `clientWidth - 8`. Using `clientWidth + 8` underestimates the stride;
+// at higher indices the computed idx lags the actually-snapped pair by
+// 1, so the v-if-gated card body silently disappears (visible as a
+// blank "Select a participant" card around pair ~20+ on mobile).
 const getPairIndexFromScroll = () => {
   const container = scrollRef.value
   if (!container) return 0
-  const snapPoint = container.clientWidth + 8
+  const snapPoint = container.clientWidth - 8
   const biased = container.scrollLeft + snapPoint * 0.25
   const idx = Math.round(biased / snapPoint)
   return Math.max(0, Math.min(idx, pairs.value.length - 1))
