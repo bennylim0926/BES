@@ -15,8 +15,18 @@ const props = defineProps({
 const timerRef = ref(null)
 const timerVisible = ref(true)
 
+// Sticky baseline duration the emcee picked for this (event, category).
+// Survives round changes, timer reset, and timer expiry so both the
+// emcee's Timer and the OBS audition display park on it instead of going
+// blank. Re-hydrated from backend state on mount; reset to null when the
+// component re-mounts on category switch.
+const baselineDuration = ref(null)
+
 function resetTimer() {
-  timerRef.value?.reset()
+  // External "go away" — used when switching categories. Wipe both the
+  // running timer and the sticky baseline so the next category starts clean.
+  timerRef.value?.clearAll?.()
+  baselineDuration.value = null
   timerVisible.value = false
 }
 
@@ -88,6 +98,7 @@ function buildStatePayload(timerState = {}) {
     timerStartedAt: timerState.startedAt ?? null,
     timerDuration: timerState.duration ?? null,
     timerRunning: timerState.running ?? false,
+    baselineDuration: baselineDuration.value,
     roundLabel: props.roundLabel ?? null,
     numberColor: props.numberColor ?? null,
   }
@@ -99,6 +110,8 @@ function publishState(timerState = {}) {
 }
 
 function onTimerStarted(detail) {
+  // Picking a preset implicitly establishes the baseline for this category.
+  baselineDuration.value = detail.duration
   lastTimerState.value = { startedAt: detail.startedAt, duration: detail.duration, running: true }
   publishState(lastTimerState.value)
 }
@@ -125,6 +138,10 @@ watch(currentRound, () => {
 onMounted(async () => {
   if (!props.eventName) return
   const state = await getAuditionDisplayState(props.eventName, props.categoryName)
+  // Restore baseline first so Timer can park on it even if no live timer is running.
+  if (state && state.categoryName === props.categoryName && state.baselineDuration) {
+    baselineDuration.value = state.baselineDuration
+  }
   // Timer recovery: only resume if the saved state is for this same category
   if (state && !state.standby && state.categoryName === props.categoryName &&
       state.timerRunning && state.timerStartedAt && state.timerDuration) {
@@ -140,17 +157,15 @@ onMounted(async () => {
   publishState(lastTimerState.value)
 })
 
-const MAX_VISIBLE_UPCOMING = 4
-
-const allUpcomingRounds = computed(() =>
+// Queue is scrollable — show ALL upcoming rounds, reversed so "Up Next"
+// sits at the bottom near the NOW card. The emcee can swipe up to peek
+// further ahead without changing currentRound (no broadcast side-effects).
+const visibleRounds = computed(() =>
   rounds.value.slice(currentRound.value).map((slots, i) => ({
     slots,
     roundNumber: currentRound.value + 1 + i,
-  }))
+  })).reverse()
 )
-
-const visibleRounds    = computed(() => allUpcomingRounds.value.slice(0, MAX_VISIBLE_UPCOMING).reverse())
-const hiddenRoundsCount = computed(() => Math.max(0, allUpcomingRounds.value.length - MAX_VISIBLE_UPCOMING))
 
 const touchStartX = ref(0)
 const dragOffset  = ref(0)
@@ -199,12 +214,13 @@ const swipeHint = computed(() => {
 
     <!-- ── Queue ──────────────────────────────────────────────────────────────
          flex-col-reverse: stack from bottom (near NOW) upward.
-         DOM order: queue first, "+N" second. Reverse means:
-         queue → bottom, "+N" → above queue (top). Overflow clips top only.
+         Scrollable: emcee can swipe up to peek further ahead without
+         touching currentRound. Opacity fades only for the nearest few so
+         the "Up Next" emphasis is preserved; deeper rounds stay readable.
     ──────────────────────────────────────────────────────────────────────── -->
     <div
       class="emcee-queue flex-1 px-3 pt-2 pb-1"
-      style="display: flex; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden;"
+      style="display: flex; flex-direction: column-reverse; justify-content: flex-start; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;"
     >
       <div class="flex flex-col gap-1.5">
         <div
@@ -212,7 +228,7 @@ const swipeHint = computed(() => {
           :key="roundNumber"
           class="queue-item para-chip-sm overflow-hidden flex-shrink-0"
           :class="uIdx === visibleRounds.length - 1 ? 'border-white/15 bg-white/5' : 'border-white/5 bg-transparent'"
-          :style="{ opacity: uIdx === visibleRounds.length - 1 ? '1' : uIdx === visibleRounds.length - 2 ? '0.5' : uIdx === visibleRounds.length - 3 ? '0.3' : '0.15' }"
+          :style="{ opacity: uIdx === visibleRounds.length - 1 ? '1' : uIdx === visibleRounds.length - 2 ? '0.6' : uIdx === visibleRounds.length - 3 ? '0.45' : '0.35' }"
         >
           <div class="flex items-center justify-between px-2 py-1">
             <span class="type-label text-content-muted">
@@ -239,12 +255,6 @@ const swipeHint = computed(() => {
             </template>
           </div>
         </div>
-      </div>
-      <div
-        v-if="hiddenRoundsCount > 0"
-        class="flex-shrink-0 text-center pb-1"
-      >
-        <span class="type-label text-content-muted">+{{ hiddenRoundsCount }} more rounds</span>
       </div>
     </div>
 
@@ -333,7 +343,7 @@ const swipeHint = computed(() => {
     <!-- ── Timer at bottom (thumb reach) ── -->
     <Transition name="timer-slide">
       <div v-if="timerVisible" class="emcee-timer px-3 pb-3 pt-2">
-        <Timer ref="timerRef" @started="onTimerStarted" @stopped="onTimerStopped" @tick="onTimerTick" />
+        <Timer ref="timerRef" :baseline-duration="baselineDuration" @started="onTimerStarted" @stopped="onTimerStopped" @tick="onTimerTick" />
       </div>
     </Transition>
 
@@ -374,6 +384,9 @@ const swipeHint = computed(() => {
 .queue-item {
   transition: opacity 0.3s ease;
 }
+
+/* Hide scrollbar on the scrollable queue (still scrolls via touch/wheel) */
+.emcee-queue::-webkit-scrollbar { display: none; }
 
 /* ── Landscape: timer left column, queue+card right column ──────────── */
 @media (orientation: landscape) {

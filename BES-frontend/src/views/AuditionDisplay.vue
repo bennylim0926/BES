@@ -64,8 +64,11 @@ function applyState(newState) {
   if (newState.timerRunning && newState.timerStartedAt && newState.timerDuration) {
     startLocalTimer(newState.timerStartedAt, newState.timerDuration)
   } else {
+    // Idle: fall back to the sticky baseline picked by the emcee so the
+    // display never goes blank between rounds, on timer expiry, or after
+    // an explicit Reset.
     stopLocalTimer()
-    displayTimeLeft.value = newState.timerDuration ?? 0
+    displayTimeLeft.value = newState.baselineDuration ?? newState.timerDuration ?? 0
   }
 }
 
@@ -83,10 +86,13 @@ const numberColor   = computed(() => state.value?.numberColor ?? null)
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
-const isFinished    = computed(() => displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
+const isFinished    = computed(() => state.value?.timerRunning && displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
+// Show the live countdown when running, otherwise the sticky baseline
+// the emcee picked for this category. Only blank when neither is set.
 const timerLabel    = computed(() => {
-  if (!state.value?.timerDuration) return ''
-  return String(displayTimeLeft.value)
+  if (state.value?.timerRunning && state.value?.timerDuration) return String(displayTimeLeft.value)
+  if (state.value?.baselineDuration) return String(state.value.baselineDuration)
+  return ''
 })
 
 // ── Category subscription watcher ─────────────────────────────────────────────
