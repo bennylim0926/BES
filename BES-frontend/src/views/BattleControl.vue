@@ -605,28 +605,6 @@ const entryRoundOptions = computed(() =>
   roundSizes.value.map(s => `Top${s}`)
 )
 
-// Pool used by bracket slot dropdowns, seeding picker, and all sort/fill functions.
-// When pre-formed teams exist, exclude raw individual names from the pool — team names only.
-const bracketPool = computed(() => {
-  let pool
-  if (isMixedBracket.value) {
-    pool = [
-      ...preFormedTeams.value.map(t => t.name),
-      ...sortedPickupCrews.value.map(c => c.crewName),
-    ]
-  } else if (preFormedTeams.value.length > 0) {
-    pool = preFormedTeams.value.map(t => t.name)
-  } else {
-    // Use resolved tie-breaker list directly when bracket size matches the
-    // resolved Top N. (topNParticipants has the same logic but the computed
-    // chain sometimes evaluates before hydration and doesn't re-propagate.)
-    pool = basePool.value
-  }
-  // Include battle guests not already in pool so they appear in bracket slot dropdowns
-  const guestNames = guestsForCurrentCategory.value.map(g => g.guestName).filter(n => !pool.includes(n))
-  return [...pool, ...guestNames]
-})
-
 const participantsInFirstRound = computed(() => {
   if (isSmoke.value) {
     // Smoke rounds are a flat array of { name, score }
@@ -664,7 +642,7 @@ const poolParticipants = computed(() => {
 
 // Resolved-aware base pool (no guests). Returns the tie-breaker-resolved list
 // when its length matches bracketSize, otherwise falls back to topParticipants.
-// Used by bracketPool, poolParticipants, and all fill methods so they stay in sync.
+// Used by poolParticipants and all fill methods so they stay in sync.
 const basePool = computed(() => {
   const rp = resolvedParticipants.value
   if (rp && rp.length === bracketSize.value) return rp
