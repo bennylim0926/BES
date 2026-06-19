@@ -6,6 +6,9 @@
 *.pem
 credentials.json
 
+# Load test artifacts
+loadtest/results/
+
 # IDE
 .vscode/
 .idea/
