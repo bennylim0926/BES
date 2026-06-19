@@ -66,6 +66,28 @@ describe('computeNextEligibleAdd', () => {
     const all = new Set(['Drift', 'Echo', 'Halo', 'Pulse', 'Mirage'])
     expect(computeNextEligibleAdd(allRows, all)).toBeNull()
   })
+
+  it('with maxScore: skips rows at or above the cutoff and returns first below', () => {
+    // Tie breaker at 7.3 — Drift & Echo (7.3) are above cutoff, Halo (7.2) is first below
+    const included = new Set(['Drift', 'Echo']) // tie base at cutoff
+    const result = computeNextEligibleAdd(allRows, included, 7.3)
+    expect(result.participantName).toBe('Halo')
+    expect(result.totalScore).toBe(7.2)
+  })
+
+  it('with maxScore: respects auditionNumber tiebreak among below-cutoff rows', () => {
+    // Tie breaker at 7.3 — Halo (#7) and Pulse (#22) are both at 7.2, Halo should come first
+    const included = new Set(['Drift', 'Echo'])
+    const result = computeNextEligibleAdd(allRows, included, 7.3)
+    expect(result.participantName).toBe('Halo')
+    expect(result.auditionNumber).toBe(7)
+  })
+
+  it('with maxScore: returns null when no one is below the cutoff', () => {
+    // Cutoff at 7.0 — everyone is at or above
+    const included = new Set()
+    expect(computeNextEligibleAdd(allRows, included, 7.0)).toBeNull()
+  })
 })
 
 describe('computeNextEligibleRemove', () => {
