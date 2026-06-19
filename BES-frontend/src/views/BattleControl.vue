@@ -306,6 +306,19 @@ const isViewingNonActive = computed(() =>
   selectedCategory.value !== liveCategoryName.value
 )
 
+// ── Category status dot for tab bar ──────────────────────────────
+// Returns 'champion' | 'active' | 'idle'
+function categoryStatusDot(c) {
+  if (categoryChampions.value[c]) return 'champion'
+  if (isViewingNonActive.value && liveCategoryName.value) {
+    if (c === liveCategoryName.value && ['LOCKED', 'VOTING', 'REVEALED'].includes(livePhase.value)) return 'active'
+    return 'idle'
+  }
+  const phase = c === selectedCategory.value ? battlePhase.value : 'IDLE'
+  if (['LOCKED', 'VOTING', 'REVEALED'].includes(phase)) return 'active'
+  return 'idle'
+}
+
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 const overlayConfigError = ref('')
 const pushOverlayConfig = async () => {
@@ -2078,26 +2091,6 @@ onUnmounted(() => {
         <i class="pi pi-external-link text-xs text-content-muted"></i>
       </a>
       <a
-        :href="selectedEvent ? `/battle/overlay?event=${encodeURIComponent(selectedEvent)}&isSmoke=true` : '/battle/overlay?isSmoke=true'"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
-      >
-        <i class="pi pi-desktop text-xs"></i>
-        Smoke Overlay
-        <i class="pi pi-external-link text-xs text-content-muted"></i>
-      </a>
-      <a
-        :href="selectedEvent ? `/battle/judge?event=${encodeURIComponent(selectedEvent)}` : '/battle/judge'"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="para-chip-sm inline-flex items-center gap-2 px-4 py-2.5 type-body text-content-secondary hover:text-accent hover:border-[color:var(--accent-muted)] transition-all duration-200"
-      >
-        <i class="pi pi-users text-xs"></i>
-        Judge View
-        <i class="pi pi-external-link text-xs text-content-muted"></i>
-      </a>
-      <a
         :href="selectedEvent ? `/battle/bracket?event=${encodeURIComponent(selectedEvent)}` : '/battle/bracket'"
         target="_blank"
         rel="noopener noreferrer"
@@ -2144,7 +2137,42 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- NOTE: Category switcher is rendered inside LiveMatchPanel below -->
+    <!-- Category tabs — navigate between divisions. All content below
+         (setup, seeding, bracket, live match) is scoped to the active tab. -->
+    <div class="card overflow-x-auto" style="border-bottom:none">
+      <div class="flex min-w-max" role="tablist" aria-label="Categories">
+        <button
+          v-for="c in uniqueCategories"
+          :key="c"
+          role="tab"
+          :aria-selected="selectedCategory === c"
+          @click="requestCategoryChange(c)"
+          class="relative flex-1 sm:flex-initial px-5 sm:px-7 py-4 type-label text-center transition-all duration-150 whitespace-nowrap select-none"
+          :class="selectedCategory === c
+            ? 'text-accent'
+            : 'text-content-muted hover:text-content-primary'"
+        >
+          <span class="inline-flex items-center gap-2">
+            <template v-if="categoryStatusDot(c) === 'champion'">
+              <i class="pi pi-star-fill text-amber-400" style="font-size:11px;filter:drop-shadow(0 0 4px rgba(251,191,36,0.5))"></i>
+            </template>
+            <template v-else-if="categoryStatusDot(c) === 'active'">
+              <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" style="box-shadow:0 0 6px rgba(245,158,11,0.7)"></span>
+            </template>
+            <template v-else>
+              <span class="inline-block w-2 h-2 rounded-full bg-surface-400/40"></span>
+            </template>
+            <span class="tracking-wide">{{ c }}</span>
+          </span>
+          <!-- Active indicator bar -->
+          <div
+            v-if="selectedCategory === c"
+            class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full transition-all duration-200"
+            style="background:var(--accent-color);box-shadow:0 0 10px var(--accent-muted)"
+          ></div>
+        </button>
+      </div>
+    </div>
 
     <!-- Setup panel — hidden in view-only mode (mutations would target the live category, not the viewed category) -->
     <div v-if="isAdminOrOrganiser && !isViewingNonActive" class="card overflow-hidden">
@@ -2834,7 +2862,6 @@ onUnmounted(() => {
       ref="lmpRef"
       :selectedEvent="selectedEvent"
       :selectedCategory="selectedCategory"
-      :uniqueCategories="uniqueCategories"
       :battlePhase="battlePhase"
       :battleJudges="battleJudges?.judges ?? []"
       :currentBattle="currentBattle"
@@ -2850,8 +2877,6 @@ onUnmounted(() => {
       :finalTieBlocked="finalTieBlocked"
       :isReadonly="!isAdminOrOrganiser"
       :isViewingNonActive="isViewingNonActive"
-      :liveCategoryName="liveCategoryName"
-      :livePhase="livePhase"
       :categoryChampions="categoryChampions"
       :stompClient="wsClient"
       :overlayConfig="overlayConfig"
@@ -2860,7 +2885,6 @@ onUnmounted(() => {
       :recoveryTimer="recoveredTimer"
       :recoveryFormatTimer="recoveredFormatTimer"
       :guestsForCurrentCategory="guestsForCurrentCategory"
-      @request-category-change="requestCategoryChange"
       @open-voting="openVoting"
       @get-score="submitGetScore"
       @submit-revote="startRevote"
