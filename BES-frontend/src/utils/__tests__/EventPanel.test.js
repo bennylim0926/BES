@@ -30,12 +30,12 @@ describe('EventPanel.vue — section tiles', () => {
       expect(tiles).toHaveLength(8)
     })
 
-    it('shows Details, Audition, Participants, Score, Battle, Numbers tiles', async () => {
+    it('shows Event Details, Audition, Participants, Scoreboard, Battle, Edit Numbers tiles', async () => {
       const w = mountPanel('ROLE_ADMIN')
       await w.vm.$nextTick()
       const labels = w.findAll('[data-tile]').map(t => t.text())
       expect(labels).toEqual(
-        expect.arrayContaining(['Details', 'Audition', 'Participants', 'Score', 'Battle', 'Numbers'])
+        expect.arrayContaining(['Event Details', 'Audition', 'Participants', 'Scoreboard', 'Battle', 'Edit Numbers'])
       )
     })
   })
@@ -49,15 +49,15 @@ describe('EventPanel.vue — section tiles', () => {
   })
 
   describe('Emcee role', () => {
-    it('shows only Audition and Score tiles', async () => {
+    it('shows only Audition and Scoreboard tiles', async () => {
       const w = mountPanel('ROLE_EMCEE')
       await w.vm.$nextTick()
       const labels = w.findAll('[data-tile]').map(t => t.text())
-      expect(labels).toEqual(expect.arrayContaining(['Audition', 'Score']))
-      expect(labels).not.toContain('Details')
+      expect(labels).toEqual(expect.arrayContaining(['Audition', 'Scoreboard']))
+      expect(labels).not.toContain('Event Details')
       expect(labels).not.toContain('Battle')
       expect(labels).not.toContain('Participants')
-      expect(labels).not.toContain('Numbers')
+      expect(labels).not.toContain('Edit Numbers')
     })
   })
 
