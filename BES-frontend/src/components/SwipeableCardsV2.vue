@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, onMounted, computed } from 'vue';
+import { ref, nextTick, onMounted, computed, watch } from 'vue';
 
 const props = defineProps({
   cards:           { type: Array,   required: true },
@@ -111,6 +111,22 @@ const _aggregateDisplay = computed(() => {
   if (!card) return null
   return computeAggregate(card)
 })
+
+// Sync card.score from prefilled criteriaScores so the AVG display
+// matches the per-criterion values on initial load (otherwise score
+// stays 0 until the judge taps a keypad).
+watch(
+  [() => props.cards, () => props.criteria],
+  () => {
+    if (!hasCriteria.value) return
+    props.cards.forEach(card => {
+      if (!card.criteriaScores) return
+      const hasAnyScore = props.criteria.some(c => (card.criteriaScores[c.name] ?? 0) > 0)
+      if (hasAnyScore) card.score = computeAggregate(card)
+    })
+  },
+  { immediate: true, deep: true }
+)
 
 onMounted(observeCards)
 

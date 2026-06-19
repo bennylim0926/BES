@@ -1466,6 +1466,16 @@ export const postAppConfig = async (accentColor) => {
   return res.json()
 }
 
+export const saveSheetConfig = async (sheetConfig) => {
+  const res = await fetch('/api/v1/config/sheet', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sheetConfig)
+  })
+  return res.json()
+}
+
 export const addDivision = async (eventName, name, format, categoryId) => {
   try {
     return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/divisions`, {
@@ -1700,6 +1710,15 @@ export const claimEmceeCategory = async (eventName, categoryName) => {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventName, categoryName })
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const releaseEmceeCategory = async () => {
+  try {
+    await fetch(`${domain}/api/v1/emcee/active-category`, {
+      method: 'DELETE',
+      credentials: 'include'
     })
   } catch (e) { console.error(e) }
 }

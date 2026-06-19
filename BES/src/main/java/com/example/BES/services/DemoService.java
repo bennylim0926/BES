@@ -346,8 +346,8 @@ public DemoService(EventRepo eventRepo, EventCategoryRepo eventCategoryRepo,
         clone.setPaymentRequired(template.isPaymentRequired());
         clone.setJudgingMode(template.getJudgingMode());
         clone.setFeedbackEnabled(template.isFeedbackEnabled());
-        clone.setResultsReleased(false);
-        clone.setReleaseScore(false);
+        clone.setResultsReleased(template.isResultsReleased());
+        clone.setReleaseScore(template.isReleaseScore());
         clone.setAnimTheme(template.getAnimTheme());
         return eventRepo.save(clone);
     }

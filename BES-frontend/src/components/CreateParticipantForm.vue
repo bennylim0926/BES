@@ -19,7 +19,7 @@ const allJudges = ref([])
 const adminCategoryMap = ref({})
 const createTable = reactive({ categories: [] })
 const showError = ref(false)
-const showNoDivisionError = ref(false)
+const showNoCategoryError = ref(false)
 const showSuccess = ref(false)
 const showSubmitError = ref(false)
 const showAllExisting = ref(false)
@@ -85,14 +85,14 @@ watch(() => createTable.categories.slice(), (selected) => {
   }
 }, { deep: true })
 
-const groupedDivisions = computed(() => {
+const groupedCategories = computed(() => {
   const groups = {}
   for (const opt of categoryOptions.value) {
     const key = opt.categoryId ?? 'custom'
     if (!groups[key]) {
-      groups[key] = { categoryId: key, label: opt.groupLabel || 'Custom', divisions: [] }
+      groups[key] = { categoryId: key, label: opt.groupLabel || 'Custom', categories: [] }
     }
-    groups[key].divisions.push(opt)
+    groups[key].categories.push(opt)
   }
   return Object.values(groups)
 })
@@ -220,20 +220,20 @@ onMounted(async () => {
               />
             </div>
 
-            <!-- Division chips -->
+            <!-- Category chips -->
             <div>
               <div class="flex items-center justify-between mb-2">
-                <label class="type-label text-content-muted">Divisions</label>
+                <label class="type-label text-content-muted">Categories</label>
                 <span class="type-label text-content-muted">tap to select</span>
               </div>
-              <div class="flex flex-wrap gap-1.5">
-                <template v-for="group in groupedDivisions" :key="group.categoryId">
+              <div class="flex flex-wrap gap-2">
+                <template v-for="group in groupedCategories" :key="group.categoryId">
                   <button
-                    v-for="c in group.divisions"
+                    v-for="c in group.categories"
                     :key="c.categoryName"
                     type="button"
                     @click="toggleCategory(c.categoryName)"
-                    class="para-chip-sm px-3 py-1.5 type-name-sm transition-all flex items-center gap-1.5"
+                    class="para-chip-sm px-3 py-2.5 type-name-sm transition-all flex items-center gap-1.5"
                     :class="createTable.categories.includes(c.categoryName)
                       ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
                       : 'text-content-secondary hover:text-accent'"
@@ -368,13 +368,13 @@ onMounted(async () => {
   </ActionDoneModal>
 
   <ActionDoneModal
-    :show="showNoDivisionError"
-    title="No Division Selected"
+    :show="showNoCategoryError"
+    title="No Category Selected"
     variant="error"
-    @accept="showNoDivisionError = false"
-    @close="showNoDivisionError = false"
+    @accept="showNoCategoryError = false"
+    @close="showNoCategoryError = false"
   >
-    <p class="type-body text-content-secondary">Please select at least one division before adding the participant.</p>
+    <p class="type-body text-content-secondary">Please select at least one category before adding the participant.</p>
   </ActionDoneModal>
 
   <ActionDoneModal

@@ -31,8 +31,37 @@ onMounted(async () => {
     if (judgeParam) judgeLabel.value = decodeURIComponent(judgeParam)
   }
 
-  // If already authenticated (same link opened in a second tab), skip redemption
-  const existing = authStore.user || await whoami().catch(() => null)
+  // Short-circuit on in-memory auth (e.g. Pinia rehydrate within same tab).
+  // No network call needed.
+  if (authStore.user?.authenticated) {
+    redirectByRole(authStore.user)
+    return
+  }
+
+  const token = route.query.t
+
+  // Fast path: token present → go straight to redeem. Skipping the preflight
+  // whoami() here saves one round-trip on every session-link login. The
+  // backend's sameSession check already handles the "same browser, second
+  // tab" case correctly, so no auth is lost.
+  if (token) {
+    const data = await redeemToken(token)
+    if (!data?.authenticated) {
+      error.value = data?.error || 'Invalid or expired link.'
+      loading.value = false
+      return
+    }
+    authStore.login(data)
+    if (data.eventId && data.eventName) {
+      setActiveEvent(data.eventId, data.eventName)
+    }
+    redirectByRole(data)
+    return
+  }
+
+  // No token in URL: maybe a refresh on an already-authenticated session.
+  // Only now do we pay for a whoami round-trip.
+  const existing = await whoami().catch(() => null)
   if (existing?.authenticated) {
     authStore.login(existing)
     if (existing.eventId && existing.eventName) {
@@ -42,23 +71,8 @@ onMounted(async () => {
     return
   }
 
-  const token = route.query.t
-  if (!token) {
-    error.value = 'No token provided.'
-    loading.value = false
-    return
-  }
-  const data = await redeemToken(token)
-  if (!data?.authenticated) {
-    error.value = data?.error || 'Invalid or expired link.'
-    loading.value = false
-    return
-  }
-  authStore.login(data)
-  if (data.eventId && data.eventName) {
-    setActiveEvent(data.eventId, data.eventName)
-  }
-  redirectByRole(data)
+  error.value = 'No token provided.'
+  loading.value = false
 })
 </script>
 

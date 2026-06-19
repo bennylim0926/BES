@@ -36,4 +36,14 @@ public class EmceeCategoryController {
     public ResponseEntity<Map<String, Set<String>>> getActiveCategories(@RequestParam String eventName) {
         return ResponseEntity.ok(Map.of("categories", emceeCategoryStore.getActiveCategories(eventName)));
     }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
+    @DeleteMapping("/active-category")
+    public ResponseEntity<?> releaseCategory(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            emceeCategoryStore.release(session.getId());
+        }
+        return ResponseEntity.ok().build();
+    }
 }

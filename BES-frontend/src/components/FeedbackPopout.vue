@@ -98,20 +98,21 @@ function onNoteInput() {
                 v-for="tag in group.tags"
                 :key="tag.id"
                 @click="toggleTag(tag.id)"
-                class="para-chip-sm type-name-sm inline-flex items-center gap-1.5 px-2.5 py-1 transition-all duration-150"
+                class="para-chip-sm type-name inline-flex items-center gap-2 px-3.5 py-2 transition-all duration-150"
+                style="font-size: 16px;"
                 :class="selectedTagIds.has(tag.id)
                   ? 'text-accent border-[color:var(--accent-color)]'
                   : 'text-content-primary border-white/20 hover:border-white/40'"
                 :style="selectedTagIds.has(tag.id)
-                  ? { background: 'var(--accent-muted)', boxShadow: '0 0 8px var(--accent-muted)' }
-                  : {}"
+                  ? { background: 'var(--accent-muted)', boxShadow: '0 0 8px var(--accent-muted)', fontSize: '16px' }
+                  : { fontSize: '16px' }"
               >
-                <i v-if="selectedTagIds.has(tag.id)" class="pi pi-check" style="font-size: 10px;" />
+                <i v-if="selectedTagIds.has(tag.id)" class="pi pi-check" style="font-size: 13px;" />
                 {{ tag.label }}
                 <span
                   v-if="tag.scope === 'EVENT'"
                   class="type-label opacity-60 ml-1"
-                  style="font-size: 8px; letter-spacing: 0.18em;"
+                  style="font-size: 10px; letter-spacing: 0.18em;"
                 >
                   EVENT
                 </span>

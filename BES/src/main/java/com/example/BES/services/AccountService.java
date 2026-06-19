@@ -93,6 +93,39 @@ public class AccountService {
     }
 
     @Transactional
+    public Account resetOrganiserPassword(Long accountId, String newPassword) {
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
+        }
+        Account account = accountRepository.findById(accountId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        if (!"ORGANISER".equals(account.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not an organiser");
+        }
+        account.setPasswordHash(passwordEncoder.encode(newPassword));
+        return accountRepository.save(account);
+    }
+
+    @Transactional
+    public Account renameOrganiser(Long accountId, String newUsername) {
+        if (newUsername == null || newUsername.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username cannot be empty");
+        }
+        String trimmed = newUsername.trim();
+        Account account = accountRepository.findById(accountId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        if (!"ORGANISER".equals(account.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not an organiser");
+        }
+        if (!trimmed.equals(account.getUsername())
+            && accountRepository.findByUsername(trimmed).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username already exists");
+        }
+        account.setUsername(trimmed);
+        return accountRepository.save(account);
+    }
+
+    @Transactional
     public Account setOrganiserTier(Long accountId, String tier) {
         Account account = accountRepository.findById(accountId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));

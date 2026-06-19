@@ -12,6 +12,19 @@ const sessionReady = ref(false)
 const loading = ref(true)
 const linkCopied = ref(false)
 const categories = ref([])
+
+// Confirm dialog
+const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null })
+const askConfirm = (title, message, onConfirm) => {
+  confirmDialog.value = { show: true, title, message, onConfirm }
+}
+const confirmYes = () => {
+  confirmDialog.value.onConfirm?.()
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+}
+const confirmNo = () => {
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+}
 const copiedCategoryId = ref(null)
 
 onMounted(async () => {
@@ -79,10 +92,16 @@ function goToEventDetails() {
   }
 }
 
-async function handleLogout() {
-  await logout()
-  authStore.logout()
-  router.push('/login')
+function handleLogout() {
+  askConfirm(
+    'Leave Session?',
+    'You will be returned to the login screen.',
+    async () => {
+      await logout()
+      authStore.logout()
+      router.push('/login')
+    }
+  )
 }
 </script>
 
@@ -196,6 +215,25 @@ async function handleLogout() {
       </button>
 
     </div>
+
+    <!-- Confirm dialog overlay -->
+    <Teleport to="body">
+      <div
+        v-if="confirmDialog.show"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmNo" />
+        <div class="card-hover relative w-full sm:max-w-sm" style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);padding:24px 20px 20px;">
+          <div class="corner-bar-tl"></div>
+          <p class="type-label text-content-muted mb-1" style="font-size:10px;letter-spacing:0.22em;">{{ confirmDialog.title }}</p>
+          <p class="type-prose mb-6" style="white-space:pre-wrap;">{{ confirmDialog.message }}</p>
+          <div class="flex gap-2 justify-end">
+            <button @click="confirmNo" class="para-chip-sm px-5 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors min-h-[44px]">Cancel</button>
+            <button @click="confirmYes" class="para-chip-sm px-5 py-2.5 type-label text-red-400 border-[color:rgba(248,113,113,0.35)] hover:bg-[rgba(248,113,113,0.12)] transition-colors min-h-[44px]">Leave</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 

@@ -60,7 +60,7 @@ const routes = [
         path: '/event/update-event-details',
         name: 'Update Event Details',
         component: UpdateEventDetails,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN'], requiresEvent: true }
     },
     {
         path: '/event/audition-list',
@@ -147,7 +147,7 @@ const routes = [
         path: '/event/audition-adjust',
         name: 'Audition Adjust',
         component: AuditionAdjust,
-        meta: { allowedRoles: ['ROLE_ADMIN', 'ROLE_ORGANISER'], requiresEvent: true }
+        meta: { allowedRoles: ['ROLE_ADMIN'], requiresEvent: true }
     },
     {
         path: '/auth/token/:role?/:judgeName?',

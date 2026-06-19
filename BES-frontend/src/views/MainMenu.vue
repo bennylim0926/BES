@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/utils/auth'
 import { useTierAccess } from '@/utils/useTierAccess'
@@ -7,6 +7,7 @@ import { useTierAccess } from '@/utils/useTierAccess'
 const router = useRouter()
 const authStore = useAuthStore()
 const { battleEnabled } = useTierAccess()
+const requestEvent = inject('requestEvent', null)
 
 const role = computed(() =>
   authStore.user ? authStore.user['role'][0]['authority'] : ''
@@ -19,6 +20,24 @@ const roleDisplay = computed(() => {
   const label = labels[role.value]
   return label ? { label } : null
 })
+
+/** Navigate to a route that requires an active event — shows popup if none is set */
+function goRequireEvent(to) {
+  if (!activeEvent.value) {
+    requestEvent?.(to)
+    return
+  }
+  router.push(to)
+}
+
+function goAuditionEmcee() {
+  if (!activeEvent.value) {
+    requestEvent?.({ name: 'Audition List', query: { picker: '1' } })
+    return
+  }
+  localStorage.removeItem('selectedCategory')
+  router.push({ name: 'Audition List', query: { picker: '1' } })
+}
 </script>
 
 <template>
@@ -31,6 +50,22 @@ const roleDisplay = computed(() => {
       <div class="mb-8">
         <h1 class="type-page-title mb-1">Home</h1>
         <p class="type-label text-content-muted">{{ roleDisplay?.label ?? 'Welcome' }}</p>
+      </div>
+
+      <!-- No event selected hint -->
+      <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE' || role === 'ROLE_HELPER')"
+        class="mb-8 p-4 semantic-chip-warning flex items-start gap-3">
+        <div class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0" aria-hidden="true"></div>
+        <div>
+          <div class="type-body text-amber-400 mb-1">No Active Event</div>
+          <p class="type-label text-content-muted">
+            Select an event to access audition, scoring, and battle features.
+          </p>
+          <router-link :to="{ name: 'EventSelector' }"
+            class="para-chip-sm type-label text-accent mt-3 inline-flex items-center px-4 py-2.5">
+            Select Event →
+          </router-link>
+        </div>
       </div>
 
       <!-- Quick actions section -->
@@ -54,45 +89,33 @@ const roleDisplay = computed(() => {
         </router-link>
 
         <!-- Event Day (Helper) -->
-        <router-link
-          v-if="activeEvent && role === 'ROLE_HELPER'"
-          :to="{ name: 'Event Details', params: { eventName: activeEvent.name } }"
-          class="card-hover p-6 relative cursor-pointer group"
+        <button
+          v-if="role === 'ROLE_HELPER'"
+          @click="goRequireEvent({ name: 'Event Details', params: { eventName: activeEvent?.name } })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
           <i class="pi pi-calendar-clock text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Event Day</div>
           <p class="type-prose">Walk-ins, check-in, audition screen.</p>
-        </router-link>
+        </button>
 
         <!-- Event Details (Admin / Organiser) -->
-        <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
-          :to="{ name: 'Event Details', params: { eventName: activeEvent.name } }"
-          class="card-hover p-6 relative cursor-pointer group"
+        <button
+          v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER'"
+          @click="goRequireEvent({ name: 'Event Details', params: { eventName: activeEvent?.name } })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
           <i class="pi pi-cog text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Event Details</div>
           <p class="type-prose">Overview, categories, Google Drive setup.</p>
-        </router-link>
+        </button>
 
         <!-- Audition List -->
-        <router-link
-          v-if="activeEvent && role !== 'ROLE_HELPER' && role !== 'ROLE_EMCEE' && role !== 'ROLE_ORGANISER'"
-          :to="{ name: 'Audition List' }"
-          class="card-hover p-6 relative cursor-pointer group"
-        >
-          <div class="corner-bar-tl"></div>
-          <i class="pi pi-list text-2xl text-accent mb-3 block"></i>
-          <div class="type-body mb-1">Audition</div>
-          <p class="type-prose">Score and timer controls.</p>
-        </router-link>
-
-        <!-- Audition — emcee path: clear category so the inline picker appears -->
         <button
-          v-if="activeEvent && role === 'ROLE_EMCEE'"
-          @click="localStorage.removeItem('selectedCategory'); router.push({ name: 'Audition List', query: { picker: '1' } })"
+          v-if="role !== 'ROLE_HELPER' && role !== 'ROLE_EMCEE' && role !== 'ROLE_ORGANISER'"
+          @click="goRequireEvent({ name: 'Audition List' })"
           class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
@@ -101,41 +124,65 @@ const roleDisplay = computed(() => {
           <p class="type-prose">Score and timer controls.</p>
         </button>
 
-        <!-- Participants (Admin / Organiser) -->
-        <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
-          :to="{ name: 'Update Event Details' }"
-          class="card-hover p-6 relative cursor-pointer group"
+        <!-- Audition — emcee path: clear category so the inline picker appears -->
+        <button
+          v-if="role === 'ROLE_EMCEE'"
+          @click="goAuditionEmcee"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-list text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Audition</div>
+          <p class="type-prose">Score and timer controls.</p>
+        </button>
+
+        <!-- Participants (Admin only) -->
+        <button
+          v-if="role === 'ROLE_ADMIN'"
+          @click="goRequireEvent({ name: 'Update Event Details' })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
           <i class="pi pi-users text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Participants</div>
           <p class="type-prose">Manage registrations and judges.</p>
-        </router-link>
+        </button>
+
+        <!-- Edit Audition Numbers (Admin only) -->
+        <button
+          v-if="role === 'ROLE_ADMIN'"
+          @click="goRequireEvent({ name: 'Audition Adjust' })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
+        >
+          <div class="corner-bar-tl"></div>
+          <i class="pi pi-hashtag text-2xl text-accent mb-3 block"></i>
+          <div class="type-body mb-1">Edit Numbers</div>
+          <p class="type-prose">Adjust audition number assignments.</p>
+        </button>
 
         <!-- Scoreboard (Admin / Organiser / Emcee / Helper) -->
-        <router-link
-          v-if="activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_HELPER')"
-          :to="{ name: 'Score' }"
-          class="card-hover p-6 relative cursor-pointer group"
+        <button
+          v-if="role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_HELPER'"
+          @click="goRequireEvent({ name: 'Score' })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
           <i class="pi pi-chart-bar text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Scoreboard</div>
           <p class="type-prose">Live leaderboard.</p>
-        </router-link>
+        </button>
 
         <!-- Battle Control (Admin / Organiser) -->
-        <router-link
-          v-if="battleEnabled && activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
-          :to="{ name: 'Battle Control' }"
-          class="card-hover p-6 relative cursor-pointer group"
+        <button
+          v-if="battleEnabled && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER')"
+          @click="goRequireEvent({ name: 'Battle Control' })"
+          class="card-hover p-6 relative cursor-pointer group w-full text-left"
         >
           <div class="corner-bar-tl"></div>
           <i class="pi pi-bolt text-2xl text-accent mb-3 block"></i>
           <div class="type-body mb-1">Battle</div>
           <p class="type-prose">Bracket and match control.</p>
-        </router-link>
+        </button>
 
         <!-- Admin (Admin only) -->
         <router-link
@@ -149,24 +196,6 @@ const roleDisplay = computed(() => {
           <p class="type-prose">Categories, judges, theme config.</p>
         </router-link>
 
-      </div>
-
-      <!-- No event selected hint -->
-      <div v-if="!activeEvent && (role === 'ROLE_ADMIN' || role === 'ROLE_ORGANISER' || role === 'ROLE_EMCEE' || role === 'ROLE_JUDGE' || role === 'ROLE_HELPER')"
-        class="mt-8 p-4 semantic-chip-warning flex items-start gap-3">
-        <!-- fixed invalid box-shadow-[] class → shadow-[] so the glow dot actually renders -->
-        <div class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)] mt-0.5 flex-shrink-0" aria-hidden="true"></div>
-        <div>
-          <div class="type-body text-amber-400 mb-1">No Active Event</div>
-          <p class="type-label text-content-muted">
-            Select an event to access audition, scoring, and battle features.
-          </p>
-          <!-- chip-style link with padding: 44px tap target instead of a thin underlined text link -->
-          <router-link :to="{ name: 'EventSelector' }"
-            class="para-chip-sm type-label text-accent mt-3 inline-flex items-center px-4 py-2.5">
-            Select Event →
-          </router-link>
-        </div>
       </div>
 
     </div>

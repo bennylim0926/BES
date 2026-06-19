@@ -2,13 +2,19 @@
 const props = defineProps({
   cards: { type: Array, required: true },
   show:  { type: Boolean, default: false },
-  title: { type: String, default: 'Jump to Participant' },
+  title: { type: String, default: 'Find Participant' },
 })
 
 const emit = defineEmits(['moveTo', 'close'])
 
+// Snap stride = card width + gap. Cards are `width:100%` inside a
+// `px-2 gap-2` flex container, so each card is `clientWidth - 16` wide
+// and the per-card stride is `(clientWidth - 16) + 8 = clientWidth - 8`.
+// Using `clientWidth + 8` (the original bug) overshoots by 16px per card;
+// at higher indices the cumulative drift crosses half-a-card and snap
+// pulls to the next slide (#14 → #15 on a ~440px phone, etc.).
 const scrollTo = (container, elIndex) => {
-  const target = elIndex * (container.clientWidth + 8)
+  const target = elIndex * (container.clientWidth - 8)
   container.scrollTo({ left: target, behavior: 'smooth' })
 }
 

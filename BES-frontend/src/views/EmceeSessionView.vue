@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { whoami, getCategoriesByEvent, claimEmceeCategory, getActiveEmceeCategories, logout } from '@/utils/api'
+import { whoami, getCategoriesByEvent, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, logout } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 
 const router = useRouter()
@@ -16,6 +16,19 @@ const sessionError = ref(false)
 const showCategoryPicker = ref(false)
 const categories = ref([])
 const activeEmceeCategories = ref(new Set())
+
+// Confirm dialog (replaces browser confirm())
+const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null })
+const askConfirm = (title, message, onConfirm) => {
+  confirmDialog.value = { show: true, title, message, onConfirm }
+}
+const confirmYes = () => {
+  confirmDialog.value.onConfirm?.()
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+}
+const confirmNo = () => {
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+}
 
 let wsClient = null
 
@@ -37,13 +50,20 @@ onMounted(async () => {
   loading.value = false
   sessionReady.value = !!authStore.user && !!authStore.activeEvent
   if (authStore.activeEvent?.name) {
-    authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
-    categories.value = await getCategoriesByEvent(authStore.activeEvent.name) ?? []
-    const active = await getActiveEmceeCategories(authStore.activeEvent.name)
-    activeEmceeCategories.value = new Set(active)
+    const evt = authStore.activeEvent.name
+    // Fire-and-forget: not on critical render path.
+    authStore.fetchEventBattleEnabled(evt)
+
+    // Parallelize the two independent GETs — previously serial, ~2x latency.
+    const [cats, active] = await Promise.all([
+      getCategoriesByEvent(evt),
+      getActiveEmceeCategories(evt),
+    ])
+    categories.value = cats ?? []
+    activeEmceeCategories.value = new Set(active ?? [])
 
     wsClient = createClient()
-    subscribeToChannel(wsClient, `/topic/emcee/active-categories/${authStore.activeEvent.name}`, (msg) => {
+    subscribeToChannel(wsClient, `/topic/emcee/active-categories/${evt}`, (msg) => {
       activeEmceeCategories.value = new Set(msg.categories ?? [])
     })
   }
@@ -72,26 +92,40 @@ function handleNavClick(link) {
 }
 
 async function handleLogout() {
-  await logout()
-  authStore.logout()
-  router.push('/login')
+  askConfirm(
+    'Leave Session?',
+    'You will be returned to the login screen.',
+    async () => {
+      releaseEmceeCategory()
+      await logout()
+      authStore.logout()
+      router.push('/login')
+    }
+  )
 }
 
-async function selectCategory(categoryName) {
+function doSelectCategory(categoryName) {
+  localStorage.setItem('selectedCategory', categoryName)
+  localStorage.setItem('selectedRole', 'Emcee')
+  claimEmceeCategory(eventName.value, categoryName).then(() => {
+    router.push({ name: 'Audition List' })
+  })
+}
+
+function selectCategory(categoryName) {
   if (!sessionReady.value) {
     sessionError.value = true
     return
   }
   if (activeEmceeCategories.value.has(categoryName)) {
-    const ok = window.confirm(
-      `"${categoryName}" is already being run by another emcee right now.\n\nContinue anyway? Joining will not disrupt scores, but two emcees on the same category can confuse the flow.`
+    askConfirm(
+      'Category Already Active',
+      `"${categoryName}" is already being run by another emcee right now. Continue anyway? Joining will not disrupt scores, but two emcees on the same category can confuse the flow.`,
+      () => doSelectCategory(categoryName)
     )
-    if (!ok) return
+    return
   }
-  localStorage.setItem('selectedCategory', categoryName)
-  localStorage.setItem('selectedRole', 'Emcee')
-  await claimEmceeCategory(eventName.value, categoryName)
-  router.push({ name: 'Audition List' })
+  doSelectCategory(categoryName)
 }
 </script>
 
@@ -174,6 +208,25 @@ async function selectCategory(categoryName) {
       </template>
 
     </div>
+
+    <!-- Confirm dialog overlay -->
+    <Teleport to="body">
+      <div
+        v-if="confirmDialog.show"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmNo" />
+        <div class="card-hover relative w-full sm:max-w-sm" style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);padding:24px 20px 20px;">
+          <div class="corner-bar-tl"></div>
+          <p class="type-label text-content-muted mb-1" style="font-size:10px;letter-spacing:0.22em;">{{ confirmDialog.title }}</p>
+          <p class="type-prose mb-6" style="white-space:pre-wrap;">{{ confirmDialog.message }}</p>
+          <div class="flex gap-2 justify-end">
+            <button @click="confirmNo" class="para-chip-sm px-5 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors min-h-[44px]">Cancel</button>
+            <button @click="confirmYes" class="para-chip-sm px-5 py-2.5 type-label text-red-400 border-[color:rgba(248,113,113,0.35)] hover:bg-[rgba(248,113,113,0.12)] transition-colors min-h-[44px]">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 

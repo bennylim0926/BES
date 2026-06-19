@@ -17,6 +17,12 @@ public class AuditionDisplayStateDto {
     public Integer timerDuration; // seconds
     public Boolean timerRunning;
 
+    // Sticky baseline duration the emcee last picked (45/60/90).
+    // Persists across round changes, timer reset, and timer expiry so the
+    // OBS audition display can fall back to it instead of going blank.
+    // Per (event, category), like the rest of this state.
+    public Integer baselineDuration;
+
     // Display customisation (set per genre in EventDetails)
     public String roundLabel;   // e.g. "Preliminary Round"
     public String numberColor;  // hex color for audition number, e.g. "#f59e0b"

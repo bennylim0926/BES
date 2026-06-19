@@ -5,30 +5,26 @@ const props = defineProps({
   buttonName:    { type: String,  required: true, default: '' },
   expanded:      { type: Boolean, default: false },  // controlled by parent
   isAdmin:       { type: Boolean, default: false },
-  showAudition:  { type: Boolean, default: true },
-  showBattle:    { type: Boolean, default: true },
+  inDatabase:    { type: Boolean, default: true },
+  isActive:      { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['onDetails', 'onAudition', 'onParticipants', 'onScoreboard', 'onBattle', 'toggle', 'onDelete'])
+const emit = defineEmits(['onDetails', 'toggle', 'onSetup', 'onSetActive'])
 
 const isHovered = ref(false)  // desktop only
 
 const actions = computed(() => {
+  // Non-DB events only get a Setup action
+  if (!props.inDatabase) {
+    return [
+      { key: 'onSetup', icon: 'pi-plus-circle', label: 'Setup' },
+    ]
+  }
   const base = [
-    { key: 'onDetails',      icon: 'pi-cog',      label: 'Details'  },
+    { key: 'onDetails', icon: 'pi-cog', label: 'Details' },
   ]
-  if (props.showAudition) {
-    base.push({ key: 'onAudition', icon: 'pi-list', label: 'Audition' })
-  }
-  base.push(
-    { key: 'onParticipants', icon: 'pi-users',     label: 'Participants' },
-    { key: 'onScoreboard',   icon: 'pi-chart-bar', label: 'Score'    },
-  )
-  if (props.showBattle) {
-    base.push({ key: 'onBattle', icon: 'pi-bolt', label: 'Battle' })
-  }
-  if (props.isAdmin) {
-    base.push({ key: 'onDelete', icon: 'pi-trash', label: 'Delete' })
+  if (!props.isActive) {
+    base.push({ key: 'onSetActive', icon: 'pi-check-circle', label: 'Set Active' })
   }
   return base
 })
@@ -43,6 +39,7 @@ const actions = computed(() => {
     <!-- ── Header card (always visible) ── -->
     <div
       class="card-hover p-4 cursor-pointer relative"
+      :class="[!props.inDatabase ? 'opacity-50' : '', props.isActive ? 'border-[color:var(--accent-muted)]' : '']"
       @click.stop="emit('toggle')"
     >
       <div class="corner-bar-tl"></div>
@@ -50,6 +47,21 @@ const actions = computed(() => {
         <div class="type-name flex-1 line-clamp-2">
           {{ props.buttonName }}
         </div>
+
+        <!-- Active indicator -->
+        <span
+          v-if="props.isActive"
+          class="flex-shrink-0 w-2 h-2 rounded-full bg-accent"
+          style="box-shadow: 0 0 6px var(--accent-muted)"
+          title="Currently active event"
+        ></span>
+
+        <!-- Non-DB indicator -->
+        <span
+          v-if="!props.inDatabase"
+          class="badge-neutral type-label px-2 py-0.5 text-[9px] tracking-[0.16em] flex-shrink-0"
+          style="border-color: rgba(245,158,11,0.3); color: rgba(245,158,11,0.7)"
+        >Not in DB</span>
 
         <i class="pi pi-chevron-down text-xs text-surface-500 transition-all duration-200 flex-shrink-0"
            :class="isHovered || props.expanded ? 'text-accent rotate-180' : ''"></i>
@@ -76,12 +88,9 @@ const actions = computed(() => {
             v-for="action in actions"
             :key="action.key"
             @click.stop="emit(action.key)"
-            class="flex flex-col items-center gap-1.5 py-3.5 transition-all duration-150"
-            :class="action.key === 'onDelete'
-              ? 'text-content-muted hover:text-red-400 hover:bg-red-950/30'
-              : 'text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)]'"
+            class="flex flex-col items-center gap-1.5 py-3.5 transition-all duration-150 text-content-muted hover:text-accent hover:bg-[rgba(255,255,255,0.04)]"
           >
-            <i class="pi text-base" :class="[action.icon, action.key === 'onDelete' ? '' : 'text-accent']"></i>
+            <i class="pi text-base text-accent" :class="action.icon"></i>
             <span class="type-label">{{ action.label }}</span>
           </button>
         </div>

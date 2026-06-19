@@ -118,8 +118,13 @@ const askRemoveDivision = (div) => askConfirm(
 )
 const askRemoveJudgeGlobal = (j) => askConfirm(
   'Remove Judge from Event?',
-  `Remove ${j.judgeName} from all divisions?`,
+  `Remove ${j.judgeName} from all categories?`,
   () => submitRemoveJudgeGlobal(j.judgeId)
+)
+const askRemoveJudgeFromCategory = (cat, j) => askConfirm(
+  'Remove Judge from Category?',
+  `Remove ${j.judgeName} from "${cat.name}"?`,
+  () => submitRemoveJudge(cat.eventCategoryId, j.judgeId)
 )
 const askToggleSolo = (div) => askConfirm(
   div.soloAllowed ? 'Block Solo Entries?' : 'Allow Solo Entries?',
@@ -525,19 +530,29 @@ const onSaveTagEdit = async () => {
   }
 }
 
-const onDeleteTag = async (tag) => {
-  if (!confirm(`Delete the feedback tag "${tag.label}"?`)) return
+const doDeleteTag = async (tag) => {
   const updated = await deleteEventFeedbackTag(props.eventName, tag.id)
   if (updated) feedbackGroups.value = updated
   else openModal('Delete Failed', 'Could not delete feedback tag.', 'warning')
 }
 
-const onDeleteGroup = async (group) => {
-  if (!confirm(`Delete the feedback group "${group.name}" and all its event-scoped tags?`)) return
+const onDeleteTag = (tag) => askConfirm(
+  'Delete Tag?',
+  `Delete the feedback tag "${tag.label}"?`,
+  () => doDeleteTag(tag)
+)
+
+const doDeleteGroup = async (group) => {
   const updated = await deleteEventFeedbackGroup(props.eventName, group.id)
   if (updated) feedbackGroups.value = updated
   else openModal('Delete Failed', 'Could not delete feedback group.', 'warning')
 }
+
+const onDeleteGroup = (group) => askConfirm(
+  'Delete Group?',
+  `Delete the feedback group "${group.name}" and all its event-scoped tags?`,
+  () => doDeleteGroup(group)
+)
 
 const onFeedbackEnabledToggle = async (e) => {
   const next = e.target.checked
@@ -623,14 +638,14 @@ const toggleAdjustCategory = (category) => {
     if (adjustParticipantCategories.value.length <= 1) {
       askConfirm(
         'Cannot Remove',
-        `"${adjustParticipant.value}" must be in at least one division. Add another division first before removing this one.`,
+        `"${adjustParticipant.value}" must be in at least one category. Add another category first before removing this one.`,
         () => {},
         { confirmLabel: 'OK', destructive: false }
       )
       return
     }
     askConfirm(
-      'Remove Division',
+      'Remove Category',
       `Remove "${adjustParticipant.value}" from ${category.name}? This cannot be undone.`,
       () => doCategoryChange(category, 'remove'),
       { confirmLabel: 'Remove', destructive: true }
@@ -649,7 +664,7 @@ const toggleAdjustCategory = (category) => {
     // Non-team — simple confirm
     const fmtLabel = category.format ? ` · ${category.format}` : ''
     askConfirm(
-      'Add Division',
+      'Add Category',
       `Add "${adjustParticipant.value}" to ${category.name}${fmtLabel}?`,
       () => doCategoryChange(category, 'add'),
       { confirmLabel: 'Add', destructive: false }
@@ -691,11 +706,11 @@ const doCategoryChange = async (category, action, teamOpts = {}) => {
       fetchCheckinList()
     ])
     const verb = action === 'add' ? 'added to' : 'removed from'
-    openModal(`Division ${action === 'add' ? 'Added' : 'Removed'}`,
+    openModal(`Category ${action === 'add' ? 'Added' : 'Removed'}`,
       `"${adjustParticipant.value}" has been ${verb} ${category.name}.`, 'success')
   } catch (e) {
     console.error(e)
-    askConfirm('Update Failed', `Could not update division: ${e.message}`, () => {}, { confirmLabel: 'OK', destructive: false })
+    askConfirm('Update Failed', `Could not update category: ${e.message}`, () => {}, { confirmLabel: 'OK', destructive: false })
   }
   adjustLoading.value = false
 }
@@ -749,6 +764,8 @@ const unmatchedSheetValues = computed(() => {
 const allSheetSuggestions = computed(() => {
   return [...new Set(sheetCategories.value)]
 })
+
+const sheetCategoryNamesLower = computed(() => new Set(allSheetSuggestions.value.map(s => s.toLowerCase())))
 
 // True when any category has more sheet matches than imported participants
 const hasUnimportedParticipants = computed(() => {
@@ -1451,6 +1468,7 @@ onUnmounted(() => {
           <span class="type-label text-content-muted mb-1.5" style="font-size:10px;letter-spacing:0.22em;">Manage</span>
           <div class="flex flex-wrap gap-2">
             <button
+              v-if="eventCategories.length > 0"
               @click="showWalkInForm = true"
               class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
             >
@@ -1458,6 +1476,7 @@ onUnmounted(() => {
               Add Participant
             </button>
             <button
+              v-if="eventCategories.length > 0"
               @click="showAdjustModal = true"
               class="flex items-center gap-2 px-4 py-2 para-chip type-label border-accent"
             >
@@ -1465,7 +1484,7 @@ onUnmounted(() => {
               Edit Entries
             </button>
             <button
-              v-if="!isHelper"
+              v-if="!isHelper && eventCategories.length > 0"
               @click="refreshParticipant"
               :disabled="loading"
               class="flex items-center gap-2 px-4 py-2 para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -1519,21 +1538,21 @@ onUnmounted(() => {
               </button>
               <div
                 v-if="showDisplayMenu"
-                class="absolute right-0 mt-2 z-50 min-w-[280px] bg-surface-800 border border-surface-600 shadow-2xl"
-                style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);padding:10px"
+                class="absolute right-0 mt-2 z-50 min-w-[320px] bg-surface-800 border border-surface-600 shadow-2xl"
+                style="clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);padding:14px"
               >
-                <p class="type-label text-content-muted px-3 pt-1 pb-2" style="font-size:9px;letter-spacing:0.2em">
+                <p class="type-label text-content-muted px-3 pt-1 pb-2" style="font-size:10px;letter-spacing:0.2em">
                   Display URLs
                 </p>
                 <button
                   v-for="cat in eventCategories"
                   :key="cat.eventCategoryId"
                   @click="copyDisplayLinkForCategory(cat)"
-                  class="w-full flex items-center justify-between gap-3 px-3 py-2 type-label hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors"
+                  class="w-full flex items-center justify-between gap-3 px-4 py-3 type-label hover:text-accent hover:bg-[color:var(--accent-subtle)] transition-colors min-h-[44px]"
                   :class="copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'text-emerald-400' : 'text-content-secondary'"
                 >
-                  <span style="font-size:12px;letter-spacing:0.06em">{{ cat.name }}</span>
-                  <span class="inline-flex items-center gap-1" style="font-size:9px;letter-spacing:0.16em;opacity:0.7">
+                  <span style="font-size:13px;letter-spacing:0.06em">{{ cat.name }}</span>
+                  <span class="inline-flex items-center gap-1" style="font-size:10px;letter-spacing:0.16em;opacity:0.7">
                     <i class="pi text-[10px]" :class="copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'pi-check' : 'pi-copy'"></i>
                     {{ copiedDisplayCategoryId === cat.eventCategoryId && displayLinkCopied ? 'Copied' : 'Copy' }}
                   </span>
@@ -1796,7 +1815,7 @@ onUnmounted(() => {
         >
           <button
             @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
-            class="para-chip-sm px-3 py-1.5 type-name-sm text-content-secondary hover:text-accent transition-colors"
+            class="para-chip-sm px-4 py-2.5 type-name-sm text-content-secondary hover:text-accent transition-colors"
             style="border-style:dashed;"
           >+ {{ cat }}</button>
           <div
@@ -1807,7 +1826,7 @@ onUnmounted(() => {
             <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO CATEGORY:</p>
             <button
               @click="addSuggestionToCategory('all', 'Category')"
-              class="block w-full text-left px-3 py-2 type-name-sm text-content-secondary hover:text-accent transition-colors"
+              class="block w-full text-left px-4 py-3 type-name-sm text-content-secondary hover:text-accent transition-colors"
             >Add new category</button>
           </div>
         </span>
@@ -1818,7 +1837,7 @@ onUnmounted(() => {
 
     <button
       @click="addDivisionToGroup('all', 'Category')"
-      class="para-chip-sm px-4 py-2 type-label text-content-muted hover:text-accent transition-all"
+      class="para-chip-sm px-4 py-3 type-label text-content-muted hover:text-accent transition-all"
     >+ Add category</button>
   </div>
 
@@ -1857,7 +1876,7 @@ onUnmounted(() => {
           <button
             v-else
             @click="pendingSuggestionCat = pendingSuggestionCat === cat ? null : cat"
-            class="para-chip-sm px-3 py-1.5 type-name-sm text-content-secondary hover:text-accent transition-colors"
+            class="para-chip-sm px-4 py-2.5 type-name-sm text-content-secondary hover:text-accent transition-colors"
             style="border-style:dashed;"
           >+ {{ cat }}</button>
           <div
@@ -1868,7 +1887,7 @@ onUnmounted(() => {
             <p class="type-label text-content-muted px-3 pt-2 pb-1">ADD TO CATEGORY:</p>
             <button
               @click="addSuggestionToCategory('all', 'Category')"
-              class="block w-full text-left px-3 py-2 type-name-sm text-content-secondary hover:text-accent transition-colors"
+              class="block w-full text-left px-4 py-3 type-name-sm text-content-secondary hover:text-accent transition-colors"
             >Add new category</button>
           </div>
         </span>
@@ -1927,6 +1946,7 @@ onUnmounted(() => {
              :class="expandedDivisionId === div.eventCategoryId ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
           <span class="type-name text-content-secondary truncate min-w-0">{{ div.name }}</span>
           <button
+            v-if="!sheetCategoryNamesLower.has(div.name.toLowerCase())"
             @click.stop="divRenameActive = div.eventCategoryId; divRenameInput = div.name"
             class="text-content-muted hover:text-accent transition-colors p-1"
             aria-label="Rename category"
@@ -2085,7 +2105,7 @@ onUnmounted(() => {
       <!-- Add new category -->
       <button
         @click="addDivisionToGroup('all', 'Category')"
-        class="para-chip-sm px-4 sm:px-3 py-3 sm:py-1.5 type-label text-content-muted hover:text-accent transition-all w-full sm:w-auto"
+        class="para-chip-sm px-4 sm:px-3 py-3.5 sm:py-2 type-label text-content-muted hover:text-accent transition-all w-full sm:w-auto"
       >+ Add category</button>
     </div>
 
@@ -2166,7 +2186,7 @@ onUnmounted(() => {
             >
               {{ cat.name }}
               <button
-                @click="submitRemoveJudge(cat.eventCategoryId, j.judgeId)"
+                @click="askRemoveJudgeFromCategory(cat, j)"
                 class="hover:text-red-400 transition-colors leading-none"
               ><i class="pi pi-times text-sm"></i></button>
             </span>
@@ -2423,13 +2443,13 @@ onUnmounted(() => {
               <button
                 v-if="group.scope === 'EVENT'"
                 @click="startAddTag(group.id)"
-                class="para-chip-sm px-3 py-2 type-label min-h-[40px] min-w-[40px] flex items-center justify-center"
+                class="para-chip-sm px-4 py-2.5 type-label min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Add tag"
               ><i class="pi pi-plus text-sm"></i></button>
               <button
                 v-if="group.scope === 'EVENT'"
                 @click="onDeleteGroup(group)"
-                class="para-chip-sm px-3 py-2 type-label text-red-400 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                class="para-chip-sm px-4 py-2.5 type-label text-red-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Delete group"
               ><i class="pi pi-trash text-sm"></i></button>
               <span
@@ -2461,8 +2481,7 @@ onUnmounted(() => {
                   v-model="editingTagLabel"
                   @keyup.enter="onSaveTagEdit"
                   @keyup.escape="editingTagId = null"
-                  class="input-base py-2 px-2.5 min-h-[40px]"
-                  style="width: 12rem;"
+                  class="input-base py-2 px-2.5 min-h-[44px]"
                 />
                 <button @click="onSaveTagEdit" class="para-chip-sm px-3 py-2 type-name-sm text-accent min-h-[40px]">Save</button>
                 <button @click="editingTagId = null" class="para-chip-sm px-3 py-2 type-name-sm text-content-muted min-h-[40px]">×</button>
@@ -2470,15 +2489,15 @@ onUnmounted(() => {
               <!-- Display mode -->
               <span
                 v-else
-                class="para-chip-sm type-name-sm px-3 py-2 inline-flex items-center gap-2 min-h-[40px]"
+                class="para-chip-sm type-name-sm px-3 py-2.5 inline-flex items-center gap-2 min-h-[44px]"
                 :class="tag.scope === 'EVENT' ? 'text-content-primary' : 'text-content-muted'"
               >
                 {{ tag.label }}
                 <template v-if="tag.scope === 'EVENT'">
-                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100 px-1 py-1" title="Edit">
+                  <button @click="startEditTag(tag)" class="opacity-70 hover:opacity-100 px-1.5 py-1.5" title="Edit">
                     <i class="pi pi-pencil text-sm"></i>
                   </button>
-                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400 px-1 py-1" title="Delete">
+                  <button @click="onDeleteTag(tag)" class="opacity-70 hover:opacity-100 text-red-400 px-1.5 py-1.5" title="Delete">
                     <i class="pi pi-times text-sm"></i>
                   </button>
                 </template>

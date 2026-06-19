@@ -4,7 +4,6 @@ import { ref, onMounted, nextTick } from 'vue'
 import ActionDoneModal from './ActionDoneModal.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import DemoRolePicker from '@/components/DemoRolePicker.vue'
 import { APP_NAME, APP_TAGLINE } from '../utils/branding.js'
 
 const router    = useRouter()
@@ -26,7 +25,6 @@ const touched = ref({ username: false, password: false })
 /* Demo mode */
 const demoEnabled = ref(false)
 const showPasscodeModal = ref(false)
-const showRolePicker = ref(false)
 const passcode = ref('')
 const passcodeError = ref('')
 
@@ -40,14 +38,12 @@ onMounted(async () => {
   }
 })
 
-function submitPasscode() {
-  if (!passcode.value.trim()) return
-  passcodeError.value = ''
-  showPasscodeModal.value = false
-  showRolePicker.value = true
-}
+const passcodeLoading = ref(false)
 
-async function startDemoSession(role) {
+async function startDemoWithPasscode(role) {
+  if (!passcode.value.trim() || passcodeLoading.value) return
+  passcodeLoading.value = true
+  passcodeError.value = ''
   try {
     const result = await startDemo(passcode.value, role)
     // Populate auth store via setActiveEvent (writes to sessionStorage + Pinia)
@@ -67,8 +63,8 @@ async function startDemoSession(role) {
     router.push(roleRoutes[role] || '/')
   } catch (e) {
     passcodeError.value = e.message || 'Failed to start demo'
-    showRolePicker.value = false
-    showPasscodeModal.value = true
+  } finally {
+    passcodeLoading.value = false
   }
 }
 
@@ -118,15 +114,15 @@ const submitLogin = async () => {
       <div class="corner-bar-tl" style="height: 40%"></div>
       <div class="corner-bar-bl" style="width: 40%"></div>
 
-      <!-- Wordmark -->
-      <div class="relative z-10 flex items-center gap-2.5">
-        <div class="glow-dot"></div>
-        <span class="type-body tracking-[0.12em]">{{ APP_NAME }}</span>
-      </div>
+      <!-- Spacer — balances the footer so hero stays vertically centered -->
+      <div class="relative z-10"></div>
 
       <!-- Hero -->
       <div class="relative z-10">
-        <div class="type-display mb-6">{{ APP_NAME }}</div>
+        <div class="flex items-center gap-5 mb-6">
+          <img src="/kyrove-icon-512.png" alt="Kyrove" class="w-20 h-20 flex-shrink-0">
+          <div class="type-display">{{ APP_NAME }}</div>
+        </div>
         <div class="section-rule mb-6">
           <div class="section-rule-line"></div>
         </div>
@@ -141,7 +137,7 @@ const submitLogin = async () => {
       </div>
 
       <!-- Footer -->
-      <div class="relative z-10 type-label text-content-muted">
+      <div class="relative z-10 type-label text-content-muted pt-8">
         &copy; {{ new Date().getFullYear() }} {{ APP_NAME }} Platform
       </div>
     </div>
@@ -152,10 +148,11 @@ const submitLogin = async () => {
         <!-- Mobile-only wordmark + tagline (hero panel is hidden < lg). Plain centered text —
              corner bars + glow dot live with the hero panel; on mobile a clean
              wordmark reads better than a fragment of that chrome. -->
-        <div class="lg:hidden mb-8 text-center">
-          <span class="type-display block" style="font-size: clamp(32px, 9vw, 44px)">{{ APP_NAME }}</span>
-          <p class="type-label text-content-muted mt-3">{{ APP_TAGLINE }}</p>
+        <div class="lg:hidden mb-8 flex items-center justify-center gap-4">
+          <img src="/kyrove-icon-512.png" alt="Kyrove" class="w-14 h-14 flex-shrink-0">
+          <span class="type-display" style="font-size: clamp(32px, 9vw, 44px)">{{ APP_NAME }}</span>
         </div>
+        <p class="lg:hidden type-label text-content-muted text-center -mt-4 mb-8">{{ APP_TAGLINE }}</p>
 
         <div class="relative">
           <!-- Corner bars belong to the form panel, not the wordmark -->
@@ -264,23 +261,43 @@ const submitLogin = async () => {
             class="input-passcode"
             placeholder="Enter passcode"
             autocomplete="off"
-            @keyup.enter="submitPasscode"
+            :disabled="passcodeLoading"
           />
           <p v-if="passcodeError" class="error-text">{{ passcodeError }}</p>
-          <button class="btn-primary" @click="submitPasscode" :disabled="!passcode.trim()">
-            Continue
-          </button>
+          <p v-if="!passcodeError" class="type-prose-sm modal-hint" style="margin-bottom:0.75rem;">Choose a role to start the demo</p>
+          <div class="role-buttons">
+            <button
+              class="role-btn"
+              :disabled="!passcode.trim() || passcodeLoading"
+              @click="startDemoWithPasscode('EMCEE')"
+            >
+              <span class="role-btn-icon">🎤</span>
+              <span class="role-btn-label">Emcee</span>
+              <span class="role-btn-desc">Run audition rounds, view scoreboard</span>
+            </button>
+            <button
+              class="role-btn"
+              :disabled="!passcode.trim() || passcodeLoading"
+              @click="startDemoWithPasscode('JUDGE')"
+            >
+              <span class="role-btn-icon">⚖️</span>
+              <span class="role-btn-label">Judge</span>
+              <span class="role-btn-desc">Score participants, submit feedback</span>
+            </button>
+            <button
+              class="role-btn"
+              :disabled="!passcode.trim() || passcodeLoading"
+              @click="startDemoWithPasscode('HELPER')"
+            >
+              <span class="role-btn-icon">🛎️</span>
+              <span class="role-btn-label">Helper</span>
+              <span class="role-btn-desc">Check-in participants, verify details</span>
+            </button>
+          </div>
           <p class="type-prose-sm modal-hint">Tap outside to close</p>
         </div>
       </div>
     </Teleport>
-
-    <!-- Role picker -->
-    <DemoRolePicker
-      v-if="showRolePicker"
-      @select="startDemoSession"
-      @back="showRolePicker = false; showPasscodeModal = true"
-    />
 
     <!-- Error modal -->
     <ActionDoneModal
@@ -372,7 +389,63 @@ const submitLogin = async () => {
 }
 
 .passcode-modal {
-  max-width: 360px;
+  max-width: 480px;
+}
+
+.role-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+}
+
+.role-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  text-align: left;
+}
+
+.role-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--accent-muted);
+}
+
+.role-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.role-btn-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  width: 2.5rem;
+  text-align: center;
+}
+
+.role-btn-label {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  flex-shrink: 0;
+  min-width: 4rem;
+}
+
+.role-btn-desc {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.3;
 }
 
 .modal-title {
@@ -394,7 +467,6 @@ const submitLogin = async () => {
   font-size: 18px;
   letter-spacing: 0.3em;
   text-align: center;
-  text-transform: uppercase;
   margin: 1rem 0;
 }
 
