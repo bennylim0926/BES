@@ -51,8 +51,22 @@ public class DemoDataSeeder {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {
-        if (eventRepo.findByEventName(TEMPLATE_NAME).isPresent()) {
-            log.info("Demo template event already exists, skipping seed");
+        var existing = eventRepo.findByEventName(TEMPLATE_NAME);
+        if (existing.isPresent()) {
+            // Upgrade template-level flags so existing demo templates pick up
+            // changes made in newer versions (e.g. enabling feedback + results
+            // release for demo sessions) without requiring a full re-seed.
+            Event tmpl = existing.get();
+            boolean changed = false;
+            if (!tmpl.isFeedbackEnabled()) { tmpl.setFeedbackEnabled(true); changed = true; }
+            if (!tmpl.isResultsReleased()) { tmpl.setResultsReleased(true); changed = true; }
+            if (!tmpl.isReleaseScore())   { tmpl.setReleaseScore(true);   changed = true; }
+            if (changed) {
+                eventRepo.save(tmpl);
+                log.info("Demo template '{}' flags upgraded (feedback/results/release)", TEMPLATE_NAME);
+            } else {
+                log.info("Demo template event already exists, skipping seed");
+            }
             return;
         }
         log.info("Seeding demo template event '{}'...", TEMPLATE_NAME);
@@ -63,8 +77,8 @@ public class DemoDataSeeder {
         event.setPaymentRequired(false);
         event.setJudgingMode("SOLO");
         event.setFeedbackEnabled(true);
-        event.setResultsReleased(false);
-        event.setReleaseScore(false);
+        event.setResultsReleased(true);
+        event.setReleaseScore(true);
         event.setAnimTheme("impact");
         event = eventRepo.save(event);
 
