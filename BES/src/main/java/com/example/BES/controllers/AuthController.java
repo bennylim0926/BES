@@ -186,6 +186,7 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         if (session != null) {
             activeSessionStore.deregisterBySessionId(session.getId());
+            judgeActiveStore.release(session.getId());
             session.invalidate();
         }
         SecurityContextHolder.clearContext();
@@ -333,7 +334,7 @@ public class AuthController {
     @PostMapping("/judge/claim")
     public ResponseEntity<?> claimJudgeActive(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null) return ResponseEntity.status(401).build();
+        if (session == null) return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
         Long judgeId = (Long) session.getAttribute("judgeId");
         String eventName = (String) session.getAttribute("eventName");
         if (judgeId == null || eventName == null) {

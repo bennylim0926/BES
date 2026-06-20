@@ -99,4 +99,19 @@ class AuthControllerJudgeActiveTest {
         mockMvc.perform(post("/api/v1/auth/judge/claim").session(session))
             .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser(roles = "JUDGE")
+    void activeElsewhereFalseForCallerOwnSession() throws Exception {
+        MockHttpSession sessionA = judgeSession(42L, "Battle 2026");
+        mockMvc.perform(post("/api/v1/auth/judge/claim").session(sessionA))
+            .andExpect(status().isOk());
+
+        // Same session checks active-elsewhere — must exclude itself
+        mockMvc.perform(get("/api/v1/auth/judge/active-elsewhere")
+                .param("judgeId", "42")
+                .session(sessionA))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activeElsewhere").value(false));
+    }
 }
