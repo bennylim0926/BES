@@ -400,6 +400,7 @@ public class EventController {
 
     @Operation(summary = "Add List of Participants", description = "Adds participants to an event, typically read from a Google Sheet")
     @PostMapping("/participants/")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<?> addParticipantsToSystem(@Valid @RequestBody AddParticipantToEventDto dto)
             throws IOException, MessagingException, WriterException {
         try {
