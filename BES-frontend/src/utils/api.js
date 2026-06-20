@@ -1734,6 +1734,39 @@ export const getActiveEmceeCategories = async (eventName) => {
   } catch (e) { console.error(e); return [] }
 }
 
+export const judgeActiveElsewhere = async (judgeId) => {
+  try {
+    const res = await fetch(
+      `${domain}/api/v1/auth/judge/active-elsewhere?judgeId=${judgeId}`,
+      { credentials: 'include', headers: { 'Accept': 'application/json' } }
+    )
+    if (!res.ok) return false
+    const body = await res.json()
+    return !!body.activeElsewhere
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+export const claimJudgeActive = async () => {
+  try {
+    await fetch(`${domain}/api/v1/auth/judge/claim`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const releaseJudgeActive = async () => {
+  try {
+    await fetch(`${domain}/api/v1/auth/judge/release`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.error(e) }
+}
+
 // Event-scoped feedback taxonomy (#157). Returns merged groups: global +
 // event-scoped, with event-scoped overriding global by group name. Each group
 // and tag carries a `scope` field of "GLOBAL" or "EVENT".
