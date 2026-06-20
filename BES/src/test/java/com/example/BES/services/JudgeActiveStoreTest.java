@@ -57,4 +57,13 @@ class JudgeActiveStoreTest {
 
         assertEquals(Set.of("session-A", "session-B"), active);
     }
+
+    @Test
+    void getActiveSessionsMatchesEventNameCaseInsensitively() {
+        JudgeActiveStore store = new JudgeActiveStore();
+        store.claim("session-A", 42L, "Battle 2026");
+
+        assertEquals(Set.of("session-A"), store.getActiveSessions(42L, "BATTLE 2026"));
+        assertEquals(Set.of("session-A"), store.getActiveSessions(42L, "battle 2026"));
+    }
 }
