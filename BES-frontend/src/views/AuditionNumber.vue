@@ -16,7 +16,7 @@ const revealingRef = ref({})        // { [slotId | historyKey]: boolean }
 // Per-slot rolling animation state — keyed by "${slotId}-${categoryName}"
 const fakeNums = ref({})
 const rollingIntervals = {}         // { "${slotId}-${categoryName}": intervalId }
-const rollingCounters = {}          // { "${slotId}-${categoryName}": currentIndex } — sequential rotation
+const rollingCounters = {}          // { "${slotId}-${categoryName}": lastShownIndex } — used to avoid consecutive repeats during random rotation
 
 const modalTitle = ref('')
 const modalMessage = ref('')
@@ -95,10 +95,15 @@ function animateSlot(slotId, msg) {
   cat.rolling = true
   const intervalKey = `${slotId}-${msg.category}`
   clearInterval(rollingIntervals[intervalKey])
-  rollingCounters[intervalKey] = 0
+  // -1 = no previous index, so the first tick is free to pick any value
+  rollingCounters[intervalKey] = -1
   rollingIntervals[intervalKey] = setInterval(() => {
-    rollingCounters[intervalKey] = (rollingCounters[intervalKey] + 1) % poolSize
-    fakeNums.value = { ...fakeNums.value, [intervalKey]: pool[rollingCounters[intervalKey]] }
+    // Random pick from the pool. If we land on the same index as last tick
+    // it would look like the reel froze, so nudge by one to guarantee motion.
+    let next = Math.floor(Math.random() * poolSize)
+    if (next === rollingCounters[intervalKey]) next = (next + 1) % poolSize
+    rollingCounters[intervalKey] = next
+    fakeNums.value = { ...fakeNums.value, [intervalKey]: pool[next] }
   }, 80)
 
   setTimeout(() => {
