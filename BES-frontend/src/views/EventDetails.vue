@@ -1484,7 +1484,7 @@ onUnmounted(() => {
               Edit Entries
             </button>
             <button
-              v-if="!isHelper && eventCategories.length > 0"
+              v-if="eventCategories.length > 0"
               @click="refreshParticipant"
               :disabled="loading"
               class="flex items-center gap-2 px-4 py-2 para-chip type-label disabled:opacity-50 disabled:cursor-not-allowed transition-all"

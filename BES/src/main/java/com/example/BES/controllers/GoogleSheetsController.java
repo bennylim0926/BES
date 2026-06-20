@@ -33,19 +33,19 @@ public class GoogleSheetsController {
 
     // Get a breakdown by genre/categories of selected sheet
     @GetMapping("/participants/breakdown/{fileId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<Map<String, Integer>> getSheetInformationById(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getParticipantsBreakDown(fileId));
     }
 
     @GetMapping("/participants/size/{fileId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<Integer> getSheetSize(@PathVariable String fileId) throws IOException{
         return ResponseEntity.ok(service.getSheetSizeService(fileId));
     }
 
     @GetMapping("/categories/{fileId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<Map<String, List<String>>> getCategories(@PathVariable String fileId) {
         try {
             List<String> values = service.getAllCategoryValues(fileId);

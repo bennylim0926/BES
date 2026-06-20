@@ -24,7 +24,7 @@ public class GoogleDriveFileController {
     private GoogleDriveFileService service;
     
     @GetMapping("/{folderId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<List<GoogleDriveFileDto>> findSheetInFolder(@PathVariable String folderId) {
         return ResponseEntity.ok(service.findAllSheetsInFolder(folderId));
     }

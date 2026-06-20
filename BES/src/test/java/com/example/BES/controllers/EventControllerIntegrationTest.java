@@ -149,7 +149,7 @@ public class EventControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = {"ADMIN"})
     public void testAddParticipantsList() throws Exception {
         String json = objectMapper.writeValueAsString(Map.of());
 

@@ -22,7 +22,7 @@ public class GoogleDriveFolderController {
     GoogleDriveFolderService service;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'HELPER')")
     public ResponseEntity<List<GoogleDriveFolderDto>> findAll() {
         return ResponseEntity.ok(service.findAll());
     }
