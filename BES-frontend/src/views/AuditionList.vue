@@ -153,7 +153,13 @@ const confirmReset = () => {
     if (resetConfirmText.value.trim().toUpperCase() !== 'RESET') return
     resetSaving.value = true
     await resetJudgeScores(selectedEvent.value, selectedCategory.value, currentJudge.value)
-    await loadScoresFromDb(selectedEvent.value, selectedCategory.value, currentJudge.value)
+    // loadScoresFromDb early-returns when the backend has no rows (post-reset state),
+    // so it can't clear stale in-memory scores. Wipe locally to match the DB.
+    participants.value = participants.value.map(p => {
+      if (p.categoryName !== selectedCategory.value) return p
+      if (hasJudge.value && p.judgeName !== currentJudge.value) return p
+      return { ...p, score: 0, criteriaScores: {}, submitted: false }
+    })
     resetSaving.value = false
     isResetModal.value = false
     showModal.value = false
@@ -1146,18 +1152,22 @@ onMounted(async () => {
     @accept="() => { dynamicCallBack() }"
     @close="() => { showModal = false; isResetModal = false }"
   >
-    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
-    <div v-if="isResetModal" class="mt-4">
-      <p class="type-label text-content-muted mb-2">Type <span class="type-name text-red-400" style="letter-spacing:0.12em">RESET</span> to confirm:</p>
-      <input
-        v-model="resetConfirmText"
-        type="text"
-        class="w-full px-3 py-2 bg-surface-900 border border-surface-600 text-content-primary type-name focus:outline-none focus:border-red-400"
-        style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);letter-spacing:0.1em"
-        placeholder="RESET"
-        autocomplete="off"
-        spellcheck="false"
-      />
+    <!-- Wrap in a single flex-1 block so the warning chip's flex row doesn't lay
+         the body text and the typed-confirm input side-by-side on narrow screens. -->
+    <div class="flex-1 min-w-0">
+      <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+      <div v-if="isResetModal" class="mt-4">
+        <p class="type-label text-content-muted mb-2">Type <span class="type-name text-red-400" style="letter-spacing:0.12em">RESET</span> to confirm:</p>
+        <input
+          v-model="resetConfirmText"
+          type="text"
+          class="w-full px-3 py-2 bg-surface-900 border border-surface-600 text-content-primary type-name focus:outline-none focus:border-red-400"
+          style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);letter-spacing:0.1em"
+          placeholder="RESET"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
     </div>
   </ActionDoneModal>
 
