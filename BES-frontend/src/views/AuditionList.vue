@@ -1,7 +1,7 @@
 <script setup>
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags, resetJudgeScores } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -134,6 +134,35 @@ const confirmSubmit = async (title, message) => {
     showModal.value = false;
     await submitScore(selectedEvent.value, selectedCategory.value,
       currentJudge.value, filteredParticipantsForJudge.value);
+  }
+}
+
+const isResetModal = ref(false)
+const resetConfirmText = ref('')
+const resetSaving = ref(false)
+
+const confirmReset = () => {
+  resetConfirmText.value = ''
+  resetSaving.value = false
+  isResetModal.value = true
+  modalTitle.value = 'Reset Scores'
+  modalMessage.value = `This wipes all of your scores for "${selectedCategory.value}". Submitted scores will also be cleared. This cannot be undone.`
+  modalVariant.value = 'warning'
+  showModal.value = true
+  dynamicCallBack.value = async () => {
+    if (resetConfirmText.value.trim().toUpperCase() !== 'RESET') return
+    resetSaving.value = true
+    await resetJudgeScores(selectedEvent.value, selectedCategory.value, currentJudge.value)
+    // loadScoresFromDb early-returns when the backend has no rows (post-reset state),
+    // so it can't clear stale in-memory scores. Wipe locally to match the DB.
+    participants.value = participants.value.map(p => {
+      if (p.categoryName !== selectedCategory.value) return p
+      if (hasJudge.value && p.judgeName !== currentJudge.value) return p
+      return { ...p, score: 0, criteriaScores: {}, submitted: false }
+    })
+    resetSaving.value = false
+    isResetModal.value = false
+    showModal.value = false
   }
 }
 
@@ -744,6 +773,14 @@ onMounted(async () => {
             title="Find participant"
             aria-label="Find participant"
           ><i class="pi pi-search text-sm sm:text-xs" aria-hidden="true"></i></button>
+          <button
+            v-if="currentJudge && selectedCategory"
+            @click="confirmReset"
+            class="para-chip-sm px-3 py-2.5 sm:px-2 sm:py-1 type-label text-content-muted hover:text-red-400 transition-all"
+            style="min-width:44px"
+            title="Reset my scores in this category"
+            aria-label="Reset my scores in this category"
+          ><i class="pi pi-undo text-sm sm:text-xs" aria-hidden="true"></i></button>
         </template>
         <button
           v-if="isAdmin || isOrganiser"
@@ -1110,10 +1147,28 @@ onMounted(async () => {
     :show="showModal"
     :title="modalTitle"
     :variant="modalVariant"
+    :accept-label="isResetModal ? (resetSaving ? 'Resetting…' : 'Reset Scores') : 'OK'"
+    :disable-accept="isResetModal && (resetSaving || resetConfirmText.trim().toUpperCase() !== 'RESET')"
     @accept="() => { dynamicCallBack() }"
-    @close="() => { showModal = false }"
+    @close="() => { showModal = false; isResetModal = false }"
   >
-    <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+    <!-- Wrap in a single flex-1 block so the warning chip's flex row doesn't lay
+         the body text and the typed-confirm input side-by-side on narrow screens. -->
+    <div class="flex-1 min-w-0">
+      <p class="type-body text-content-secondary">{{ modalMessage }}</p>
+      <div v-if="isResetModal" class="mt-4">
+        <p class="type-label text-content-muted mb-2">Type <span class="type-name text-red-400" style="letter-spacing:0.12em">RESET</span> to confirm:</p>
+        <input
+          v-model="resetConfirmText"
+          type="text"
+          class="w-full px-3 py-2 bg-surface-900 border border-surface-600 text-content-primary type-name focus:outline-none focus:border-red-400"
+          style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);letter-spacing:0.1em"
+          placeholder="RESET"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+    </div>
   </ActionDoneModal>
 
   <FeedbackPopout

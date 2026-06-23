@@ -37,4 +37,20 @@ public interface AuditionFeedbackRepository extends JpaRepository<AuditionFeedba
         @Param("eventName") String eventName,
         @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName);
+
+    // Use an IN (SELECT ...) subquery rather than f.eventCategoryParticipant.event.eventId.
+    // Hibernate emits a separate cleanup query for the audition_feedback_tag join table,
+    // and the multi-hop nested path loses its alias binding in that cleanup ("missing
+    // FROM-clause entry for table ecp1_0"). The subquery form keeps the inner alias
+    // scoped correctly, matching the deleteByEventNameAndCategoryNameAndJudgeName pattern
+    // above which works for the same reason.
+    @Modifying
+    @Transactional
+    @Query("""
+        DELETE FROM AuditionFeedback f
+        WHERE f.eventCategoryParticipant IN (
+            SELECT e FROM EventCategoryParticipant e WHERE e.event.eventId = :eventId
+        )
+        """)
+    int deleteByEventId(@Param("eventId") Long eventId);
 }

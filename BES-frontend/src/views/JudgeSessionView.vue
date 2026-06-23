@@ -2,7 +2,14 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore, setActiveEvent } from '@/utils/auth'
-import { getJudgeDivisions, whoami, logout } from '@/utils/api'
+import {
+  getJudgeDivisions,
+  whoami,
+  logout,
+  judgeActiveElsewhere,
+  claimJudgeActive,
+  releaseJudgeActive
+} from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -15,16 +22,17 @@ const loading = ref(true)
 const error = ref(null)
 
 // Confirm dialog
-const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null })
-const askConfirm = (title, message, onConfirm) => {
-  confirmDialog.value = { show: true, title, message, onConfirm }
+const confirmDialog = ref({ show: false, title: '', message: '', onConfirm: null, onCancel: null, confirmLabel: 'Leave' })
+const askConfirm = (title, message, onConfirm, onCancel = null, options = {}) => {
+  confirmDialog.value = { show: true, title, message, onConfirm, onCancel, confirmLabel: options.confirmLabel ?? 'Leave' }
 }
 const confirmYes = () => {
   confirmDialog.value.onConfirm?.()
-  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, onCancel: null, confirmLabel: 'Leave' }
 }
 const confirmNo = () => {
-  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null }
+  confirmDialog.value.onCancel?.()
+  confirmDialog.value = { show: false, title: '', message: '', onConfirm: null, onCancel: null, confirmLabel: 'Leave' }
 }
 const sessionReady = ref(false)
 
@@ -38,6 +46,31 @@ async function loadDivisions() {
     error.value = 'Failed to load divisions.'
   } finally {
     loading.value = false
+  }
+}
+
+async function checkAndClaimActive() {
+  const elsewhere = await judgeActiveElsewhere(authStore.judgeId)
+  if (elsewhere) {
+    loading.value = false
+    askConfirm(
+      'Judge Already Active',
+      `"${judgeName.value}" is already signed in on another device. Continue anyway? Scores from both sessions will be saved, but two devices on the same judge can confuse the flow.`,
+      async () => {
+        await claimJudgeActive()
+        await loadDivisions()
+      },
+      async () => {
+        await releaseJudgeActive()
+        await logout()
+        authStore.logout()
+        router.push('/login')
+      },
+      { confirmLabel: 'Continue' }
+    )
+  } else {
+    await claimJudgeActive()
+    await loadDivisions()
   }
 }
 
@@ -61,7 +94,7 @@ onMounted(async () => {
   }
   sessionReady.value = true
   authStore.fetchEventBattleEnabled(authStore.activeEvent.name)
-  await loadDivisions()
+  await checkAndClaimActive()
 })
 
 function navigateToAudition(divisionName) {
@@ -82,6 +115,7 @@ function handleLogout() {
     'Leave Session?',
     'You will be returned to the login screen.',
     async () => {
+      await releaseJudgeActive()
       await logout()
       authStore.logout()
       router.push('/login')
@@ -196,7 +230,7 @@ function handleLogout() {
           <p class="type-prose mb-6" style="white-space:pre-wrap;">{{ confirmDialog.message }}</p>
           <div class="flex gap-2 justify-end">
             <button @click="confirmNo" class="para-chip-sm px-5 py-2.5 type-label text-content-muted hover:text-content-primary transition-colors min-h-[44px]">Cancel</button>
-            <button @click="confirmYes" class="para-chip-sm px-5 py-2.5 type-label text-red-400 border-[color:rgba(248,113,113,0.35)] hover:bg-[rgba(248,113,113,0.12)] transition-colors min-h-[44px]">Leave</button>
+            <button @click="confirmYes" class="para-chip-sm px-5 py-2.5 type-label text-red-400 border-[color:rgba(248,113,113,0.35)] hover:bg-[rgba(248,113,113,0.12)] transition-colors min-h-[44px]">{{ confirmDialog.confirmLabel }}</button>
           </div>
         </div>
       </div>

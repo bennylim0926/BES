@@ -31,6 +31,7 @@ import com.example.BES.config.SecurityConfig;
 import com.example.BES.services.AccountService;
 import com.example.BES.services.ActiveSessionStore;
 import com.example.BES.services.EmceeCategoryStore;
+import com.example.BES.services.JudgeActiveStore;
 import com.example.BES.dtos.GetSessionTokenDto;
 import com.example.BES.dtos.LoginDto;
 import com.example.BES.dtos.RedeemTokenDto;
@@ -68,13 +69,16 @@ public class AuthController {
     private EmceeCategoryStore emceeCategoryStore;
 
     @Autowired
+    private JudgeActiveStore judgeActiveStore;
+
+    @Autowired
     private AccountService accountService;
 
     @Autowired
     private JudgeRepo judgeRepo;
 
     private static final java.util.Set<String> UNLIMITED_ROLES =
-        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE", "ROLE_ORGANISER");
+        java.util.Set.of("ROLE_ADMIN", "ROLE_HELPER", "ROLE_EMCEE", "ROLE_ORGANISER", "ROLE_JUDGE");
 
     @Operation(summary = "Debug Session", description = "Returns current session ID and authentication context for debugging")
     @GetMapping("/debug-session")
@@ -171,6 +175,7 @@ public class AuthController {
         if (session != null) {
             activeSessionStore.heartbeat(session.getId());
             emceeCategoryStore.heartbeat(session.getId());
+            judgeActiveStore.heartbeat(session.getId());
         }
         return ResponseEntity.ok().build();
     }
@@ -181,6 +186,7 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         if (session != null) {
             activeSessionStore.deregisterBySessionId(session.getId());
+            judgeActiveStore.release(session.getId());
             session.invalidate();
         }
         SecurityContextHolder.clearContext();
@@ -305,5 +311,46 @@ public class AuthController {
     public ResponseEntity<?> revokeToken(@PathVariable String tokenId) {
         sessionTokenService.revoke(tokenId);
         return ResponseEntity.ok(Map.of("message", "Token revoked"));
+    }
+
+    @Operation(summary = "Check Judge Active Elsewhere",
+        description = "Returns true if another active session exists for the given judge (excluding caller)")
+    @PreAuthorize("hasRole('JUDGE')")
+    @GetMapping("/judge/active-elsewhere")
+    public ResponseEntity<Map<String, Boolean>> judgeActiveElsewhere(
+            @RequestParam Long judgeId,
+            HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        String mySessionId = session != null ? session.getId() : null;
+        String eventName = session != null ? (String) session.getAttribute("eventName") : null;
+        java.util.Set<String> active = judgeActiveStore.getActiveSessions(judgeId, eventName);
+        boolean elsewhere = active.stream().anyMatch(s -> !s.equals(mySessionId));
+        return ResponseEntity.ok(Map.of("activeElsewhere", elsewhere));
+    }
+
+    @Operation(summary = "Claim Judge Active",
+        description = "Registers caller's session in the judge active-store")
+    @PreAuthorize("hasRole('JUDGE')")
+    @PostMapping("/judge/claim")
+    public ResponseEntity<?> claimJudgeActive(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        Long judgeId = (Long) session.getAttribute("judgeId");
+        String eventName = (String) session.getAttribute("eventName");
+        if (judgeId == null || eventName == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Judge or event missing on session"));
+        }
+        judgeActiveStore.claim(session.getId(), judgeId, eventName);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Release Judge Active",
+        description = "Removes caller's session from the judge active-store")
+    @PreAuthorize("hasRole('JUDGE')")
+    @DeleteMapping("/judge/release")
+    public ResponseEntity<?> releaseJudgeActive(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) judgeActiveStore.release(session.getId());
+        return ResponseEntity.ok().build();
     }
 }
