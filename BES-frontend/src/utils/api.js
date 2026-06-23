@@ -424,6 +424,23 @@ export const resetJudgeFeedback = async (eventName, categoryName, judgeName) => 
   } catch (e) { console.log(e) }
 }
 
+// Admin-only. Returns the parsed response: { message } on success or
+// { error, status } on failure. Caller surfaces failures to the user.
+export const resetAuditionNumbers = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/audition-numbers`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, status: res.status, error: body.error || 'Reset failed' }
+    return { ok: true, message: body.message }
+  } catch (e) {
+    console.error(e)
+    return { ok: false, error: 'Unable to reach server. Check your connection and try again.' }
+  }
+}
+
 export const getBattleJudges = async(eventName = '') =>{
   try{
     const url = eventName

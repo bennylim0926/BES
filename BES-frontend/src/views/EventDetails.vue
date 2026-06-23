@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup, resetAuditionNumbers } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -957,7 +957,46 @@ const isAdminOrOrganiser = computed(() => {
   return auth === 'ROLE_ADMIN' || auth === 'ROLE_ORGANISER'
 })
 
+const isAdmin = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_ADMIN')
+
 const isHelper = computed(() => authStore.user?.role?.[0]?.authority === 'ROLE_HELPER')
+
+// ── Danger Zone: Reset Audition Numbers ───────────────────────────────────
+const showResetAuditionModal = ref(false)
+const resetAuditionConfirmText = ref('')
+const resetAuditionSaving = ref(false)
+const resetAuditionError = ref('')
+
+const openResetAuditionModal = () => {
+  resetAuditionConfirmText.value = ''
+  resetAuditionError.value = ''
+  resetAuditionSaving.value = false
+  showResetAuditionModal.value = true
+}
+
+const closeResetAuditionModal = () => {
+  if (resetAuditionSaving.value) return
+  showResetAuditionModal.value = false
+}
+
+const doResetAuditionNumbers = async () => {
+  if (resetAuditionConfirmText.value.trim() !== props.eventName) return
+  resetAuditionSaving.value = true
+  resetAuditionError.value = ''
+  const result = await resetAuditionNumbers(props.eventName)
+  if (!result?.ok) {
+    resetAuditionError.value = result?.error || 'Reset failed'
+    resetAuditionSaving.value = false
+    return
+  }
+  // Reload the data that exposes audition_number so the UI reflects the wipe
+  // without a manual refresh. Scores/feedback/battle state are not surfaced
+  // on this page so no extra reload is needed for those.
+  verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
+  verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
+  resetAuditionSaving.value = false
+  showResetAuditionModal.value = false
+}
 
 const loadSessionTokens = async () => {
   if (!dbEventId.value) return
@@ -1357,7 +1396,7 @@ onMounted(async () => {
       await Promise.all(eventCategories.value.map(loadJudgesForDivision))
       // Restore per-event setup sub-tab + auto-expand the first division.
       const savedSub = localStorage.getItem(`setupSubTab_${props.eventName}`)
-      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links' || savedSub === 'feedback' || savedSub === 'scoring') {
+      if (savedSub === 'categories' || savedSub === 'genres' || savedSub === 'judges' || savedSub === 'links' || savedSub === 'feedback' || savedSub === 'scoring' || savedSub === 'danger') {
         setupSubTab.value = savedSub
       } else if (savedSub === 'judging-mode') {
         // Legacy key renamed to 'scoring' — migrate transparently.
@@ -1782,13 +1821,17 @@ onUnmounted(() => {
         { key: 'scoring', label: 'Scoring Settings' },
         { key: 'feedback', label: 'Feedback Tags' },
         { key: 'links',  label: 'Share Links' },
+        ...(isAdmin ? [{ key: 'danger', label: 'Danger Zone' }] : []),
       ]"
       :key="sub.key"
       role="tab"
       :aria-selected="setupSubTab === sub.key"
       @click="setupSubTab = sub.key; localStorage.setItem(`setupSubTab_${props.eventName}`, sub.key)"
       class="tab-item"
-      :class="{ 'is-active': setupSubTab === sub.key }"
+      :class="[
+        { 'is-active': setupSubTab === sub.key },
+        sub.key === 'danger' ? 'tab-item-danger' : ''
+      ]"
     >{{ sub.label }}</button>
   </div>
 
@@ -2519,6 +2562,39 @@ onUnmounted(() => {
   </template>
   <!-- ── END Feedback Tags sub-tab ────────────────────────────────────────── -->
 
+  <!-- ── Sub-tab: Danger Zone (admin only) ────────────────────────────────── -->
+  <template v-if="setupSubTab === 'danger' && isAdmin">
+    <div class="card-hover p-5 relative mt-6" style="border-color:rgba(248,113,113,0.25);background:rgba(248,113,113,0.04)">
+      <div class="corner-bar-tl" style="background:#f87171"></div>
+      <div class="section-rule mb-3">
+        <span class="section-rule-label" style="color:#f87171">Reset audition numbers</span>
+        <div class="section-rule-line" style="background:rgba(248,113,113,0.2)"></div>
+      </div>
+      <p class="type-prose mb-4">
+        Clears every audition number across <span class="type-name text-content-primary">{{ props.eventName }}</span> and wipes everything tied to those numbers:
+      </p>
+      <ul class="type-prose-sm text-content-muted mb-4 space-y-1 pl-4" style="list-style:disc">
+        <li>All judge scores across every category</li>
+        <li>All audition feedback (notes + tags)</li>
+        <li>Battle bracket / 7-to-smoke state and the active battle category</li>
+      </ul>
+      <p class="type-prose-sm text-content-muted mb-5">
+        Participant registrations, team rosters, judge assignments, payment status, and verification flags are preserved. This action cannot be undone.
+      </p>
+      <button
+        @click="openResetAuditionModal"
+        class="para-chip px-5 py-3 type-label transition-colors"
+        style="border:1px solid rgba(248,113,113,0.5);color:#f87171;background:rgba(248,113,113,0.06)"
+        @mouseenter="$event.currentTarget.style.background='rgba(248,113,113,0.14)'"
+        @mouseleave="$event.currentTarget.style.background='rgba(248,113,113,0.06)'"
+      >
+        <i class="pi pi-undo text-xs mr-2" aria-hidden="true"></i>
+        Reset Audition Numbers
+      </button>
+    </div>
+  </template>
+  <!-- ── END Danger Zone sub-tab ──────────────────────────────────────────── -->
+
   </template>
   <!-- ── END SETUP TAB ─────────────────────────────────────────────────────── -->
 
@@ -2893,6 +2969,41 @@ onUnmounted(() => {
           + {{ modalWarnings.length - 20 }} more
         </div>
       </div>
+    </div>
+  </ActionDoneModal>
+
+  <!-- Reset Audition Numbers — dedicated modal so the typed-confirm gate
+       doesn't collide with the slot content of the main ActionDoneModal -->
+  <ActionDoneModal
+    :show="showResetAuditionModal"
+    title="Reset Audition Numbers"
+    variant="warning"
+    :accept-label="resetAuditionSaving ? 'Resetting…' : 'Reset Audition Numbers'"
+    :disable-accept="resetAuditionSaving || resetAuditionConfirmText.trim() !== props.eventName"
+    @accept="doResetAuditionNumbers"
+    @close="closeResetAuditionModal"
+  >
+    <div class="flex-1 min-w-0">
+      <p class="type-body text-content-secondary">
+        This will wipe all scores, audition feedback, and battle state for
+        <span class="type-name text-content-primary">{{ props.eventName }}</span>, then clear every audition number. This cannot be undone.
+      </p>
+      <div class="mt-4">
+        <p class="type-label text-content-muted mb-2">
+          Type the event name (<span class="type-name text-red-400" style="letter-spacing:0.08em">{{ props.eventName }}</span>) to confirm:
+        </p>
+        <input
+          v-model="resetAuditionConfirmText"
+          type="text"
+          class="w-full px-3 py-2 bg-surface-900 border border-surface-600 text-content-primary type-name focus:outline-none focus:border-red-400"
+          style="clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);letter-spacing:0.05em"
+          :placeholder="props.eventName"
+          autocomplete="off"
+          spellcheck="false"
+          :disabled="resetAuditionSaving"
+        />
+      </div>
+      <p v-if="resetAuditionError" class="type-prose-sm text-red-400 mt-3">{{ resetAuditionError }}</p>
     </div>
   </ActionDoneModal>
 

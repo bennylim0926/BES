@@ -37,4 +37,9 @@ public interface AuditionFeedbackRepository extends JpaRepository<AuditionFeedba
         @Param("eventName") String eventName,
         @Param("categoryName") String categoryName,
         @Param("judgeName") String judgeName);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM AuditionFeedback f WHERE f.eventCategoryParticipant.event.eventId = :eventId")
+    int deleteByEventId(@Param("eventId") Long eventId);
 }
