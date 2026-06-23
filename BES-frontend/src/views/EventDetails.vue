@@ -984,18 +984,29 @@ const doResetAuditionNumbers = async () => {
   resetAuditionSaving.value = true
   resetAuditionError.value = ''
   const result = await resetAuditionNumbers(props.eventName)
+  resetAuditionSaving.value = false
+  showResetAuditionModal.value = false
+
   if (!result?.ok) {
-    resetAuditionError.value = result?.error || 'Reset failed'
-    resetAuditionSaving.value = false
+    // Surface failure in the shared result popup so it's hard to miss even
+    // after the confirmation dialog closes.
+    modalTitle.value = 'Reset Failed'
+    modalMessage.value = result?.error || 'Reset failed. Please try again.'
+    modalVariant.value = 'warning'
+    showModal.value = true
     return
   }
+
   // Reload the data that exposes audition_number so the UI reflects the wipe
   // without a manual refresh. Scores/feedback/battle state are not surfaced
   // on this page so no extra reload is needed for those.
   verifiedDbParticipants.value = await getRegisteredParticipantsByEvent(eventName.value)
   verifiedFormParticipants.value = await getVerifiedParticipantsByEvent(eventName.value)
-  resetAuditionSaving.value = false
-  showResetAuditionModal.value = false
+
+  modalTitle.value = 'Audition Numbers Reset'
+  modalMessage.value = result.message || `All audition numbers, scores, feedback, and battle state for "${props.eventName}" have been cleared.`
+  modalVariant.value = 'success'
+  showModal.value = true
 }
 
 const loadSessionTokens = async () => {
@@ -3003,7 +3014,6 @@ onUnmounted(() => {
           :disabled="resetAuditionSaving"
         />
       </div>
-      <p v-if="resetAuditionError" class="type-prose-sm text-red-400 mt-3">{{ resetAuditionError }}</p>
     </div>
   </ActionDoneModal>
 
