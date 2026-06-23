@@ -968,6 +968,21 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Reset Audition Numbers", description = "Admin reset: wipes scores, audition feedback, battle bracket state, and clears all audition numbers for the event. Registrations and judge assignments are preserved.")
+    @DeleteMapping("/{eventName}/audition-numbers")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> resetAuditionNumbers(@PathVariable String eventName) {
+        try {
+            eventService.resetAuditionNumbers(eventName);
+            return ResponseEntity.ok(Map.of("message", "Audition numbers reset for '" + eventName + "'"));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        } catch (Exception e) {
+            log.error("Error resetting audition numbers for event: {}", eventName, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to reset audition numbers: " + e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Delete Event", description = "Permanently deletes an event and ALL associated data — participants, categories, scores, feedback, battle state, session tokens. Admin only.")
     @DeleteMapping("/{eventName}")
     @PreAuthorize("hasRole('ADMIN')")

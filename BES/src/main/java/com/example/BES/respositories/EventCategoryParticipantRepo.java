@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.BES.models.Event;
 import com.example.BES.models.EventCategory;
@@ -17,6 +19,11 @@ import com.example.BES.models.EventCategoryParticipantId;
 public interface EventCategoryParticipantRepo extends JpaRepository<EventCategoryParticipant, EventCategoryParticipantId> {
     List<EventCategoryParticipant> findByEvent(Event event);
     List<EventCategoryParticipant> findByEventCategory(EventCategory eventCategory);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE EventCategoryParticipant e SET e.auditionNumber = NULL WHERE e.event.eventId = :eventId")
+    int clearAuditionNumbersByEventId(@Param("eventId") Long eventId);
 
     @Query("SELECT DISTINCT e FROM EventCategoryParticipant e LEFT JOIN FETCH e.judge WHERE e.event = :event")
     List<EventCategoryParticipant> findByEventWithJudge(@Param("event") Event event);

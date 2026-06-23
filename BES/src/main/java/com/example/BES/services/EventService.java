@@ -316,4 +316,24 @@ public class EventService {
         // 13. Finally
         repo.delete(event);
     }
+
+    /**
+     * Admin reset: wipe everything tied to audition numbers for this event.
+     * Clears scores, audition feedback, battle bracket/active-category state,
+     * then nulls every audition_number on event_category_participant.
+     * Participant registrations, team rosters, per-participant judge assignments,
+     * walk-ins, payment/verification flags, and pickup crews are preserved.
+     */
+    @Transactional
+    public void resetAuditionNumbers(String eventName) {
+        Event event = repo.findByEventName(eventName)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        Long eventId = event.getEventId();
+
+        scoreRepo.deleteByEventId(eventId);
+        auditionFeedbackRepository.deleteByEventId(eventId);
+        battleCategoryStateRepository.deleteAll(battleCategoryStateRepository.findByEventName(eventName));
+        battleActiveCategoryRepository.deleteByEventName(eventName);
+        eventCategoryParticipantRepo.clearAuditionNumbersByEventId(eventId);
+    }
 }

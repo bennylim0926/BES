@@ -424,6 +424,23 @@ export const resetJudgeFeedback = async (eventName, categoryName, judgeName) => 
   } catch (e) { console.log(e) }
 }
 
+// Admin-only. Returns the parsed response: { message } on success or
+// { error, status } on failure. Caller surfaces failures to the user.
+export const resetAuditionNumbers = async (eventName) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/audition-numbers`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, status: res.status, error: body.error || 'Reset failed' }
+    return { ok: true, message: body.message }
+  } catch (e) {
+    console.error(e)
+    return { ok: false, error: 'Unable to reach server. Check your connection and try again.' }
+  }
+}
+
 export const getBattleJudges = async(eventName = '') =>{
   try{
     const url = eventName
@@ -1732,6 +1749,39 @@ export const getActiveEmceeCategories = async (eventName) => {
     const data = await res.json()
     return Array.from(data.categories ?? [])
   } catch (e) { console.error(e); return [] }
+}
+
+export const judgeActiveElsewhere = async (judgeId) => {
+  try {
+    const res = await fetch(
+      `${domain}/api/v1/auth/judge/active-elsewhere?judgeId=${judgeId}`,
+      { credentials: 'include', headers: { 'Accept': 'application/json' } }
+    )
+    if (!res.ok) return false
+    const body = await res.json()
+    return !!body.activeElsewhere
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+export const claimJudgeActive = async () => {
+  try {
+    await fetch(`${domain}/api/v1/auth/judge/claim`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+  } catch (e) { console.error(e) }
+}
+
+export const releaseJudgeActive = async () => {
+  try {
+    await fetch(`${domain}/api/v1/auth/judge/release`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+  } catch (e) { console.error(e) }
 }
 
 // Event-scoped feedback taxonomy (#157). Returns merged groups: global +
