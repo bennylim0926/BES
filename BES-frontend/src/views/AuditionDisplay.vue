@@ -179,7 +179,7 @@ onUnmounted(() => {
     <div v-else class="active-container">
 
       <!-- Main area: event/category header, round counter, number+name+timer -->
-      <div class="main-area">
+      <div class="main-area" :style="currentSlots.length >= 3 ? { marginTop: '22vh' } : {}">
         <!-- Event name + category stacked above everything -->
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
