@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { getAuditionDisplayState, getCategoriesByEvent, updateCategoryNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { useAuthStore } from '@/utils/auth'
+import { getPositionLabel } from '@/utils/auditionPairs'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -83,6 +84,7 @@ const roundLabel    = computed(() => {
 })
 const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor   = computed(() => state.value?.numberColor ?? null)
+const pairSubMode   = computed(() => state.value?.pairSubMode ?? 'SHOWCASE')
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
@@ -196,11 +198,22 @@ onUnmounted(() => {
           <div class="pair-names">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
+                <!-- Position label (BATTLE mode only) -->
+                <span
+                  v-if="pairSubMode === 'BATTLE'"
+                  class="position-label"
+                  :class="{
+                    'position-left':   getPositionLabel(sIdx, currentSlots.length) === 'LEFT',
+                    'position-middle': getPositionLabel(sIdx, currentSlots.length) === 'MIDDLE',
+                    'position-right':  getPositionLabel(sIdx, currentSlots.length) === 'RIGHT',
+                  }"
+                >{{ getPositionLabel(sIdx, currentSlots.length) }}</span>
                 <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
                 <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
                 <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
               </div>
-              <div v-if="sIdx === 0 && currentSlots.length > 1" class="pair-divider" aria-hidden="true"></div>
+              <!-- Divider between entries (including 3-way) -->
+              <div v-if="sIdx < currentSlots.length - 1" class="pair-divider" aria-hidden="true"></div>
             </template>
           </div>
 
@@ -454,6 +467,20 @@ onUnmounted(() => {
   background: rgba(255,255,255,0.1);
   margin: 4px 0;
 }
+
+/* ── Battle position labels ──────────────────────────────────────────────── */
+.position-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(11px, 1.2vw, 16px);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  align-self: center;
+  flex-shrink: 0;
+}
+.position-left   { color: rgb(251, 191, 36); } /* amber-400 */
+.position-middle { color: var(--accent-color); }
+.position-right  { color: rgba(255, 255, 255, 0.6); }
 
 /* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
