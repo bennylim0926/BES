@@ -195,14 +195,18 @@ onUnmounted(() => {
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
           <!-- Left: both names stacked -->
-          <div class="pair-names">
+          <div class="pair-names" :class="{ 'pair-names-threeway': currentSlots.length >= 3 }">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
-                <!-- Number + name (left side) -->
+                <!-- Number + name stacked (left side) -->
                 <div class="pair-entry-content">
-                  <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
-                  <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
-                  <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
+                  <!-- Number + name on one row -->
+                  <div class="pair-name-row">
+                    <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
+                    <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
+                    <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
+                  </div>
+                  <!-- Member names below -->
                   <div v-if="!slot.placeholder && slot.memberNames?.length" class="pair-member-names">
                     {{ slot.memberNames.join(' · ') }}
                   </div>
@@ -473,6 +477,12 @@ onUnmounted(() => {
   align-items: flex-start;
   min-width: 0;
 }
+.pair-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
 .pair-member-names {
   font-family: 'Oswald', sans-serif;
   font-size: clamp(14px, 1.8vw, 22px);
@@ -481,6 +491,10 @@ onUnmounted(() => {
   text-transform: none;
   margin-top: 2px;
 }
+/* 3-way: shrink name + number to fit 3 entries on screen */
+.pair-names-threeway .audition-number { font-size: clamp(28px, 4vw, 52px) !important; }
+.pair-names-threeway .participant-name { font-size: clamp(34px, 5.5vw, 80px) !important; }
+.pair-names-threeway .pair-member-names { font-size: clamp(12px, 1.4vw, 18px); }
 /* Thin divider between the two entries */
 .pair-divider {
   height: 2px;

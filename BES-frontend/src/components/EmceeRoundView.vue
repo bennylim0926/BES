@@ -248,11 +248,16 @@ const swipeHint = computed(() => {
               <div v-if="slot._placeholder" class="text-xs text-amber-400/40 italic">
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
-              <div v-else class="flex items-start gap-2 flex-wrap">
-                <!-- Position badge in queue (BATTLE mode, reduced opacity) -->
+              <div v-else class="flex items-start gap-2">
+                <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
+                <div class="min-w-0 flex-1">
+                  <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
+                  <span v-if="slot.memberNames?.length" class="type-prose text-content-muted block" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</span>
+                </div>
+                <!-- Position badge right-aligned (BATTLE mode only) -->
                 <span
                   v-if="pairSubMode === 'BATTLE'"
-                  class="type-label px-1 py-0.5 flex-shrink-0"
+                  class="type-label px-1 py-0.5 flex-shrink-0 ml-auto self-center"
                   style="clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%); font-size: 9px; border: 1px solid currentColor; opacity: 0.5;"
                   :class="{
                     'text-amber-400':     getPositionLabel(sIdx, slots.length) === 'LEFT',
@@ -260,12 +265,7 @@ const swipeHint = computed(() => {
                     'text-content-muted': getPositionLabel(sIdx, slots.length) === 'RIGHT',
                   }"
                 >{{ getPositionLabel(sIdx, slots.length) }}</span>
-                <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
-                <div class="min-w-0">
-                  <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
-                  <span v-if="slot.memberNames?.length" class="type-prose text-content-muted block" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</span>
-                </div>
-                <span v-if="mode === 'PAIR' && sIdx === 0" class="text-white/20 text-xs">&amp;</span>
+                <span v-if="mode === 'PAIR' && sIdx === 0 && pairSubMode !== 'BATTLE'" class="text-white/20 text-xs">&amp;</span>
               </div>
             </template>
           </div>
