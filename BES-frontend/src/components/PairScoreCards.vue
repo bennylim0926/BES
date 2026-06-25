@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
+import { buildPairs, getPositionLabel } from '@/utils/auditionPairs'
 
 const props = defineProps({
   cards:           { type: Array,   required: true },
   feedbackData:    { type: Object,  default: () => new Map() },
   criteria:        { type: Array,   default: () => [] },
   feedbackEnabled: { type: Boolean, default: true },
+  pairSubMode:     { type: String,  default: 'SHOWCASE' },
 });
 
 const emit = defineEmits(['open-feedback', 'remove-tag', 'submit', 'jump', 'score-change']);
@@ -68,19 +70,7 @@ function computeAggregate(card) {
   return Number((weighted / totalWeight.value).toFixed(2))
 }
 
-const pairs = computed(() => {
-  const sorted = [...props.cards].sort((a, b) => a.auditionNumber - b.auditionNumber)
-  if (!sorted.length) return []
-  const maxNum = sorted[sorted.length - 1].auditionNumber
-  const result = []
-  for (let i = 1; i <= maxNum; i += 2) {
-    result.push([
-      sorted.find(p => p.auditionNumber === i) ?? { _placeholder: true, auditionNumber: i },
-      sorted.find(p => p.auditionNumber === i + 1) ?? { _placeholder: true, auditionNumber: i + 1 },
-    ])
-  }
-  return result
-})
+const pairs = computed(() => buildPairs(props.cards, props.pairSubMode))
 
 // Snap stride matches SwipeableCardsV2 / MiniScoreMenu: cards are
 // `width:100%` inside a `px-2 gap-2` flex container, so each pair takes
@@ -250,7 +240,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <span class="type-stat flex-shrink-0 leading-none text-accent" style="font-size: 2rem">#{{ activeCard.auditionNumber }}</span>
                 <div class="flex-1 min-w-0">
                   <div class="type-name text-content-primary leading-tight" style="font-size: 1.9rem; overflow-wrap: break-word">{{ activeCard.participantName }}</div>
-                  <div v-if="activeCard.memberNames?.length" class="type-prose text-content-muted truncate mt-0.5" style="font-size: 15px;">{{ activeCard.memberNames.join(' · ') }}</div>
+                  <div v-if="activeCard.memberNames?.length" class="type-prose text-content-muted mt-0.5" style="font-size: 15px;">{{ activeCard.memberNames.join(' · ') }}</div>
                   <div v-if="activeCard.saving" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-accent/60 normal-case" style="background:rgba(255,255,255,0.05);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
                     <i class="pi pi-spin pi-spinner text-[10px]"></i> Saving…
                   </div>
@@ -288,14 +278,22 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                     : !card._placeholder && card.saving
                       ? 'text-amber-300 border-amber-400/50'
                       : 'text-white/70 border-white/30'"
-                :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
-                  ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
-                  : !card._placeholder && card.submitted
-                    ? 'font-size: 1.6rem; background: rgba(52,211,153,0.12); box-shadow: 0 0 8px rgba(52,211,153,0.2)'
-                    : !card._placeholder && card.saving
-                      ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
-                      : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
+                :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) && card.submitted
+                  ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: rgb(52,211,153)'
+                  : !card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
+                    ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
+                    : !card._placeholder && card.submitted
+                      ? 'font-size: 1.6rem; background: rgba(52,211,153,0.12); box-shadow: 0 0 8px rgba(52,211,153,0.2)'
+                      : !card._placeholder && card.saving
+                        ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
+                        : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
               >
+                <!-- Position label (BATTLE mode only) -->
+                <span
+                  v-if="pairSubMode === 'BATTLE' && !card._placeholder"
+                  class="type-label leading-none mb-1"
+                  style="font-size: 9px; letter-spacing: 0.18em; opacity: 0.75; color: inherit;"
+                >{{ getPositionLabel(slotIdx, pair.length) }}</span>
                 <span class="type-stat leading-none" style="font-size: 1.6rem; color: inherit">#{{ card.auditionNumber }}</span>
               </button>
             </div>

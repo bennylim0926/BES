@@ -274,6 +274,21 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Update Category Pair Sub-Mode", description = "Sets whether PAIR mode uses SHOWCASE or BATTLE audition rules")
+    @PostMapping("/{eventName}/categories/{categoryId}/pair-sub-mode")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> updateCategoryPairSubMode(
+            @PathVariable String eventName,
+            @PathVariable Long categoryId,
+            @RequestBody Map<String, String> body) {
+        try {
+            eventCategoryService.updatePairSubMode(categoryId, body.get("pairSubMode"));
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
     public ResponseEntity<String> createNewEvent(@Valid @RequestBody AddEventDto dto) {

@@ -1362,6 +1362,21 @@ export const updateCategoryNumberColor = async (eventName, eventCategoryId, numb
   }
 }
 
+export const updateCategoryPairSubMode = async (eventName, eventCategoryId, pairSubMode) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/categories/${eventCategoryId}/pair-sub-mode`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pairSubMode })
+    })
+    return res.ok
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
 export const getOverlayConfig = async (eventName = '') => {
   try {
     const url = eventName

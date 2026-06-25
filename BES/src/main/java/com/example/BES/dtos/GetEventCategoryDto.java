@@ -6,6 +6,7 @@ public class GetEventCategoryDto {
     public String format;
     public String roundLabel;
     public String numberColor;
+    public String pairSubMode;
     public String sheetAliases;
     public boolean soloAllowed = true;
     public long participantCount;

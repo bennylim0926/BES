@@ -45,6 +45,9 @@ public class EventCategory {
     @Column(name = "number_color")
     private String numberColor;
 
+    @Column(name = "pair_sub_mode")
+    private String pairSubMode = "SHOWCASE";
+
     @Column(name = "sheet_aliases")
     private String sheetAliases;
 

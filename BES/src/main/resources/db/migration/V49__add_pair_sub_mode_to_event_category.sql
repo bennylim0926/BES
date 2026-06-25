@@ -1,0 +1,1 @@
+ALTER TABLE event_category ADD COLUMN pair_sub_mode VARCHAR(20) NOT NULL DEFAULT 'SHOWCASE';

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { getAuditionDisplayState, getCategoriesByEvent, updateCategoryNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { useAuthStore } from '@/utils/auth'
+import { getPositionLabel } from '@/utils/auditionPairs'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -83,6 +84,7 @@ const roundLabel    = computed(() => {
 })
 const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor   = computed(() => state.value?.numberColor ?? null)
+const pairSubMode   = computed(() => state.value?.pairSubMode ?? 'SHOWCASE')
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
@@ -174,7 +176,7 @@ onUnmounted(() => {
     </div>
 
     <!-- ACTIVE display -->
-    <div v-else class="active-container">
+    <div v-else class="active-container" :style="currentSlots.length >= 3 ? { paddingTop: '18vh' } : {}">
 
       <!-- Main area: event/category header, round counter, number+name+timer -->
       <div class="main-area">
@@ -182,25 +184,47 @@ onUnmounted(() => {
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
           <span class="event-header-category">{{ categoryName }}</span>
-          <span class="event-header-round-label">{{ categoryRoundLabel }}</span>
         </div>
 
-        <!-- Round counter -->
-        <div class="section-rule mb-3">
-          <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
+        <!-- Round counter + category round label combined -->
+        <div class="round-rule mb-3">
+          <span class="round-rule-left type-label text-content-muted">{{ roundLabel }}</span>
+          <span class="round-rule-line"></span>
+          <span v-if="categoryRoundLabel" class="round-rule-right type-label text-content-muted">{{ categoryRoundLabel }}</span>
         </div>
 
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
           <!-- Left: both names stacked -->
-          <div class="pair-names">
+          <div class="pair-names" :class="{ 'pair-names-threeway': currentSlots.length >= 3 }">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
-                <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
-                <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
-                <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
+                <!-- Number + name stacked (left side) -->
+                <div class="pair-entry-content">
+                  <!-- Number + name on one row -->
+                  <div class="pair-name-row">
+                    <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
+                    <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
+                    <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
+                  </div>
+                  <!-- Member names below -->
+                  <div v-if="!slot.placeholder && slot.memberNames?.length" class="pair-member-names">
+                    {{ slot.memberNames.join(' · ') }}
+                  </div>
+                </div>
+                <!-- Position label (BATTLE mode only) — right-aligned -->
+                <span
+                  v-if="pairSubMode === 'BATTLE'"
+                  class="position-label"
+                  :class="{
+                    'position-left':   getPositionLabel(sIdx, currentSlots.length) === 'LEFT',
+                    'position-middle': getPositionLabel(sIdx, currentSlots.length) === 'MIDDLE',
+                    'position-right':  getPositionLabel(sIdx, currentSlots.length) === 'RIGHT',
+                  }"
+                >{{ getPositionLabel(sIdx, currentSlots.length) }}</span>
               </div>
-              <div v-if="sIdx === 0 && currentSlots.length > 1" class="pair-divider" aria-hidden="true"></div>
+              <!-- Divider between entries (including 3-way) -->
+              <div v-if="sIdx < currentSlots.length - 1" class="pair-divider" aria-hidden="true"></div>
             </template>
           </div>
 
@@ -415,13 +439,27 @@ onUnmounted(() => {
   text-transform: none;
   color: rgba(255,255,255,0.45);
 }
-.event-header-round-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: clamp(14px, 2vw, 28px);
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: rgba(255,255,255,0.55);
-  margin-top: 4px;
+/* ── Round rule: ROUND X / Y ———————— Preliminary Round ─────────────────── */
+.round-rule {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 90vw;
+}
+.round-rule-left,
+.round-rule-right {
+  flex-shrink: 0;
+  font-size: clamp(10px, 1.1vw, 14px);
+  letter-spacing: 0.22em;
+}
+.round-rule-right {
+  color: rgba(255,255,255,0.45);
+}
+.round-rule-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
 }
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
@@ -444,9 +482,34 @@ onUnmounted(() => {
 }
 .pair-name-entry {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pair-entry-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.pair-name-row {
+  display: flex;
   align-items: baseline;
   gap: 12px;
+  flex-wrap: nowrap;
 }
+.pair-member-names {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(14px, 1.8vw, 22px);
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.45);
+  text-transform: none;
+  margin-top: 2px;
+}
+/* 3-way: shrink name + number to fit 3 entries on screen */
+.pair-names-threeway .audition-number { font-size: clamp(28px, 4vw, 52px) !important; }
+.pair-names-threeway .participant-name { font-size: clamp(34px, 5.5vw, 80px) !important; }
+.pair-names-threeway .pair-member-names { font-size: clamp(12px, 1.4vw, 18px); }
 /* Thin divider between the two entries */
 .pair-divider {
   height: 2px;
@@ -454,6 +517,20 @@ onUnmounted(() => {
   background: rgba(255,255,255,0.1);
   margin: 4px 0;
 }
+
+/* ── Battle position labels ──────────────────────────────────────────────── */
+.position-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(11px, 1.2vw, 16px);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  flex-shrink: 0;
+  align-self: center;
+}
+.position-left   { color: rgb(251, 191, 36); } /* amber-400 */
+.position-middle { color: var(--accent-color); }
+.position-right  { color: rgba(255, 255, 255, 0.6); }
 
 /* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
