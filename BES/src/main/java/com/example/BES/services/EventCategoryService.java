@@ -37,6 +37,7 @@ public class EventCategoryService {
             dto.format = ec.getFormat();
             dto.roundLabel = ec.getRoundLabel();
             dto.numberColor = ec.getNumberColor();
+            dto.pairSubMode = ec.getPairSubMode() != null ? ec.getPairSubMode() : "SHOWCASE";
             dto.sheetAliases = ec.getSheetAliases();
             dto.soloAllowed = ec.isSoloAllowed();
             dto.participantCount = eventCategoryParticipantRepo.countByEventIdAndEventCategoryId(e.getEventId(), ec.getId());
@@ -96,6 +97,12 @@ public class EventCategoryService {
     public void updateNumberColor(Long id, String color) {
         EventCategory ec = eventCategoryRepo.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
         ec.setNumberColor(color == null || color.isBlank() ? null : color.trim());
+        eventCategoryRepo.save(ec);
+    }
+
+    public void updatePairSubMode(Long id, String pairSubMode) {
+        EventCategory ec = eventCategoryRepo.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
+        ec.setPairSubMode("BATTLE".equals(pairSubMode) ? "BATTLE" : "SHOWCASE");
         eventCategoryRepo.save(ec);
     }
 
