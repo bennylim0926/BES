@@ -184,12 +184,13 @@ onUnmounted(() => {
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
           <span class="event-header-category">{{ categoryName }}</span>
-          <span class="event-header-round-label">{{ categoryRoundLabel }}</span>
         </div>
 
-        <!-- Round counter -->
-        <div class="section-rule mb-3">
-          <span class="section-rule-label type-label text-content-muted">{{ roundLabel }}</span>
+        <!-- Round counter + category round label combined -->
+        <div class="round-rule mb-3">
+          <span class="round-rule-left type-label text-content-muted">{{ roundLabel }}</span>
+          <span class="round-rule-line"></span>
+          <span v-if="categoryRoundLabel" class="round-rule-right type-label text-content-muted">{{ categoryRoundLabel }}</span>
         </div>
 
         <!-- PAIR mode: stacked names left | timer right -->
@@ -438,13 +439,27 @@ onUnmounted(() => {
   text-transform: none;
   color: rgba(255,255,255,0.45);
 }
-.event-header-round-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: clamp(14px, 2vw, 28px);
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: rgba(255,255,255,0.55);
-  margin-top: 4px;
+/* ── Round rule: ROUND X / Y ———————— Preliminary Round ─────────────────── */
+.round-rule {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 90vw;
+}
+.round-rule-left,
+.round-rule-right {
+  flex-shrink: 0;
+  font-size: clamp(10px, 1.1vw, 14px);
+  letter-spacing: 0.22em;
+}
+.round-rule-right {
+  color: rgba(255,255,255,0.45);
+}
+.round-rule-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
 }
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
