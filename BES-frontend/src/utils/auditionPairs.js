@@ -30,19 +30,10 @@ export function buildPairs(participants, pairSubMode) {
   for (let i = 0; i < sorted.length; i += 2) {
     rounds.push([sorted[i], sorted[i + 1]].filter(Boolean))
   }
-  // Odd count ≥ 3:
-  //   N == 3  → rounds is [[a,b],[c]]. Reshape to [[a],[b,c]]:
-  //             split the first pair so b joins the lone c, leaving a solo.
-  //   N ≥ 5  → fold the last lone into the previous pair → 3-way.
+  // Odd count ≥ 3: fold last lone participant into previous pair → 3-way
   if (sorted.length % 2 !== 0 && rounds.length >= 2) {
-    if (sorted.length === 3) {
-      const [a, b] = rounds[0]
-      const [c] = rounds[1]
-      rounds.splice(0, 2, [a], [b, c])
-    } else {
-      const lone = rounds.pop()[0]
-      rounds[rounds.length - 1].push(lone)
-    }
+    const lone = rounds.pop()[0]
+    rounds[rounds.length - 1].push(lone)
   }
   return rounds
 }

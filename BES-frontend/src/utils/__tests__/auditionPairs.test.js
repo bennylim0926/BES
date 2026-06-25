@@ -62,8 +62,10 @@ describe('buildPairs — BATTLE', () => {
   })
 
   it('sorts by auditionNumber before pairing even if input is unsorted', () => {
-    const result = buildPairs([p(5), p(1), p(3)], 'BATTLE')
-    expect(result[1].map(s => s.auditionNumber)).toEqual([3, 5])
+    const result = buildPairs([p(5), p(1), p(4), p(2)], 'BATTLE')
+    expect(result).toHaveLength(2)
+    expect(result[0].map(s => s.auditionNumber)).toEqual([1, 2])
+    expect(result[1].map(s => s.auditionNumber)).toEqual([4, 5])
   })
 })
 
