@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup, resetAuditionNumbers } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup, resetAuditionNumbers, updateCategoryPairSubMode } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -616,6 +616,19 @@ const onJudgingModeChange = async (mode) => {
   } finally {
     judgingModeSaving.value = false
   }
+}
+
+const pairSubModeSaving = ref({}) // keyed by eventCategoryId
+
+async function onPairSubModeChange(categoryId, mode) {
+  pairSubModeSaving.value = { ...pairSubModeSaving.value, [categoryId]: true }
+  const div = eventCategories.value.find(d => d.eventCategoryId === categoryId)
+  if (!div) return
+  const prev = div.pairSubMode ?? 'SHOWCASE'
+  div.pairSubMode = mode
+  const ok = await updateCategoryPairSubMode(props.eventName, categoryId, mode)
+  if (!ok) div.pairSubMode = prev
+  pairSubModeSaving.value = { ...pairSubModeSaving.value, [categoryId]: false }
 }
 
 const handleWalkInCreated = async () => {
@@ -2379,6 +2392,36 @@ onUnmounted(() => {
           Judges compare and score both dancers simultaneously.
         </template>
       </p>
+
+      <!-- Per-category pair sub-mode when PAIR is active -->
+      <template v-if="judgingMode === 'PAIR' && eventCategories.length > 0">
+        <div class="section-rule mt-5 mb-3">
+          <span class="section-rule-label">Audition Style Per Category</span>
+          <div class="section-rule-line"></div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div
+            v-for="div in eventCategories"
+            :key="div.eventCategoryId"
+            class="flex items-center justify-between gap-3 para-chip-sm px-3 py-2"
+          >
+            <span class="type-name text-content-primary">{{ div.name }}</span>
+            <div class="flex items-center gap-1.5">
+              <button
+                v-for="mode in ['SHOWCASE', 'BATTLE']"
+                :key="mode"
+                @click="onPairSubModeChange(div.eventCategoryId, mode)"
+                :disabled="pairSubModeSaving[div.eventCategoryId]"
+                class="para-chip-sm px-3 py-1.5 type-label transition-all duration-150"
+                :class="(div.pairSubMode ?? 'SHOWCASE') === mode
+                  ? 'text-accent border-[color:var(--accent-muted)] bg-[var(--accent-subtle)]'
+                  : 'text-content-muted hover:text-content-primary'"
+              >{{ mode }}</button>
+              <span v-if="pairSubModeSaving[div.eventCategoryId]" class="type-label text-content-muted text-[10px]">Saving…</span>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </template>
   <!-- ── END Scoring Settings sub-tab ─────────────────────────────────────── -->
