@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import Timer from './Timer.vue';
 import { postAuditionDisplayState, getAuditionDisplayState } from '@/utils/api';
+import { buildPairs, getPositionLabel } from '@/utils/auditionPairs'
 
 const props = defineProps({
   participants: { type: Array, required: true },
@@ -10,6 +11,7 @@ const props = defineProps({
   categoryName: { type: String, default: '' },
   roundLabel:   { type: String, default: null },
   numberColor:  { type: String, default: null },
+  pairSubMode:  { type: String, default: 'SHOWCASE' },
 });
 
 const timerRef = ref(null)
@@ -35,20 +37,12 @@ defineExpose({ resetTimer })
 const currentRound = ref(1)
 
 const rounds = computed(() => {
-  const sorted = [...props.participants].sort((a, b) => a.auditionNumber - b.auditionNumber)
-  if (!sorted.length) return []
-  if (props.mode === 'PAIR') {
-    const maxNum = sorted[sorted.length - 1].auditionNumber
-    const result = []
-    for (let i = 1; i <= maxNum; i += 2) {
-      result.push([
-        sorted.find(p => p.auditionNumber === i) ?? { _placeholder: true, auditionNumber: i },
-        sorted.find(p => p.auditionNumber === i + 1) ?? { _placeholder: true, auditionNumber: i + 1 },
-      ])
-    }
-    return result
+  if (props.mode !== 'PAIR') {
+    return [...props.participants]
+      .sort((a, b) => a.auditionNumber - b.auditionNumber)
+      .map(p => [p])
   }
-  return sorted.map(p => [p])
+  return buildPairs(props.participants, props.pairSubMode)
 })
 
 // Missing numbers between the current round and the next round.
@@ -58,6 +52,7 @@ const rounds = computed(() => {
 // and freeze the tab. Easy to trigger in PAIR mode when both slots of a
 // round are unregistered (e.g. #51 + #52 both "Not Registered").
 const gapAfterCurrent = computed(() => {
+  if (props.pairSubMode === 'BATTLE') return []
   const current = currentRoundSlots.value
   if (!current.length) return []
   const nextRound = rounds.value[currentRound.value] // next round (0-indexed = currentRound)
@@ -109,6 +104,7 @@ function buildStatePayload(timerState = {}) {
     baselineDuration: baselineDuration.value,
     roundLabel: props.roundLabel ?? null,
     numberColor: props.numberColor ?? null,
+    pairSubMode: props.pairSubMode,
   }
 }
 
@@ -253,6 +249,17 @@ const swipeHint = computed(() => {
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
               <div v-else class="flex items-start gap-2 flex-wrap">
+                <!-- Position badge in queue (BATTLE mode, reduced opacity) -->
+                <span
+                  v-if="pairSubMode === 'BATTLE'"
+                  class="type-label px-1 py-0.5 flex-shrink-0"
+                  style="clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%); font-size: 9px; border: 1px solid currentColor; opacity: 0.5;"
+                  :class="{
+                    'text-amber-400':     getPositionLabel(sIdx, slots.length) === 'LEFT',
+                    'text-accent':        getPositionLabel(sIdx, slots.length) === 'MIDDLE',
+                    'text-content-muted': getPositionLabel(sIdx, slots.length) === 'RIGHT',
+                  }"
+                >{{ getPositionLabel(sIdx, slots.length) }}</span>
                 <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
                 <div class="min-w-0">
                   <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
@@ -310,7 +317,18 @@ const swipeHint = computed(() => {
                 </div>
                 <div v-else>
                   <div v-if="mode === 'PAIR' && sIdx > 0" class="text-white/20 text-sm my-1 pl-1">&amp;</div>
-                  <div class="flex items-baseline gap-2">
+                  <div class="flex items-baseline gap-2 flex-wrap">
+                    <!-- Position badge (BATTLE mode only) -->
+                    <span
+                      v-if="pairSubMode === 'BATTLE'"
+                      class="type-label px-1.5 py-0.5 flex-shrink-0"
+                      style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%); font-size: 10px; border: 1px solid currentColor; opacity: 0.85;"
+                      :class="{
+                        'text-amber-400':       getPositionLabel(sIdx, currentRoundSlots.length) === 'LEFT',
+                        'text-accent':          getPositionLabel(sIdx, currentRoundSlots.length) === 'MIDDLE',
+                        'text-content-muted':   getPositionLabel(sIdx, currentRoundSlots.length) === 'RIGHT',
+                      }"
+                    >{{ getPositionLabel(sIdx, currentRoundSlots.length) }}</span>
                     <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
                     <span class="type-name text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
                   </div>
