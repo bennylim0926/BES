@@ -198,7 +198,16 @@ onUnmounted(() => {
           <div class="pair-names">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
-                <!-- Position label (BATTLE mode only) -->
+                <!-- Number + name (left side) -->
+                <div class="pair-entry-content">
+                  <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
+                  <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
+                  <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
+                  <div v-if="!slot.placeholder && slot.memberNames?.length" class="pair-member-names">
+                    {{ slot.memberNames.join(' · ') }}
+                  </div>
+                </div>
+                <!-- Position label (BATTLE mode only) — right-aligned -->
                 <span
                   v-if="pairSubMode === 'BATTLE'"
                   class="position-label"
@@ -208,9 +217,6 @@ onUnmounted(() => {
                     'position-right':  getPositionLabel(sIdx, currentSlots.length) === 'RIGHT',
                   }"
                 >{{ getPositionLabel(sIdx, currentSlots.length) }}</span>
-                <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
-                <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
-                <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
               </div>
               <!-- Divider between entries (including 3-way) -->
               <div v-if="sIdx < currentSlots.length - 1" class="pair-divider" aria-hidden="true"></div>
@@ -457,8 +463,23 @@ onUnmounted(() => {
 }
 .pair-name-entry {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pair-entry-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.pair-member-names {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(14px, 1.8vw, 22px);
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.45);
+  text-transform: none;
+  margin-top: 2px;
 }
 /* Thin divider between the two entries */
 .pair-divider {
@@ -475,8 +496,8 @@ onUnmounted(() => {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   opacity: 0.55;
-  align-self: center;
   flex-shrink: 0;
+  align-self: center;
 }
 .position-left   { color: rgb(251, 191, 36); } /* amber-400 */
 .position-middle { color: var(--accent-color); }

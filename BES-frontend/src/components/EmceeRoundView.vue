@@ -317,11 +317,13 @@ const swipeHint = computed(() => {
                 </div>
                 <div v-else>
                   <div v-if="mode === 'PAIR' && sIdx > 0" class="text-white/20 text-sm my-1 pl-1">&amp;</div>
-                  <div class="flex items-baseline gap-2 flex-wrap">
-                    <!-- Position badge (BATTLE mode only) -->
+                  <div class="flex items-baseline gap-2">
+                    <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
+                    <span class="type-name text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
+                    <!-- Position badge (BATTLE mode only) — right-aligned -->
                     <span
                       v-if="pairSubMode === 'BATTLE'"
-                      class="type-label px-1.5 py-0.5 flex-shrink-0"
+                      class="type-label px-1.5 py-0.5 flex-shrink-0 ml-auto"
                       style="clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%); font-size: 10px; border: 1px solid currentColor; opacity: 0.85;"
                       :class="{
                         'text-amber-400':       getPositionLabel(sIdx, currentRoundSlots.length) === 'LEFT',
@@ -329,8 +331,6 @@ const swipeHint = computed(() => {
                         'text-content-muted':   getPositionLabel(sIdx, currentRoundSlots.length) === 'RIGHT',
                       }"
                     >{{ getPositionLabel(sIdx, currentRoundSlots.length) }}</span>
-                    <span class="type-stat" style="font-size: 2rem;">#{{ slot.auditionNumber }}</span>
-                    <span class="type-name text-content-primary" style="font-size: clamp(1.5rem, 6vw, 2.8rem);">{{ slot.participantName }}</span>
                   </div>
                   <div v-if="slot.memberNames?.length" class="type-prose text-content-muted mt-0.5 pl-1" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</div>
                   <div v-if="slot.judgeName" class="text-xs text-white/25 mt-0.5 pl-1">{{ slot.judgeName }}</div>
