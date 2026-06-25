@@ -996,6 +996,7 @@ onMounted(async () => {
         :categoryName="selectedCategory"
         :roundLabel="currentDivision?.roundLabel ?? null"
         :numberColor="currentDivision?.numberColor ?? null"
+        :pairSubMode="currentDivision?.pairSubMode ?? 'SHOWCASE'"
       />
     </template>
 
@@ -1070,6 +1071,7 @@ onMounted(async () => {
         :feedbackData="feedbackGiven"
         :criteria="criteria"
         :feedbackEnabled="feedbackEnabled"
+        :pairSubMode="currentDivision?.pairSubMode ?? 'SHOWCASE'"
         @open-feedback="openFeedbackPopout"
         @remove-tag="removeTag"
         @score-change="autoSave"
