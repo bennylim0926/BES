@@ -26,6 +26,7 @@ public class AuditionDisplayStateDto {
     // Display customisation (set per genre in EventDetails)
     public String roundLabel;   // e.g. "Preliminary Round"
     public String numberColor;  // hex color for audition number, e.g. "#f59e0b"
+    public String pairSubMode;  // "SHOWCASE" or "BATTLE"
 
     // Default constructor for Jackson
     public AuditionDisplayStateDto() {}
