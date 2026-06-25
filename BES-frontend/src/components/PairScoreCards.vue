@@ -240,7 +240,7 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                 <span class="type-stat flex-shrink-0 leading-none text-accent" style="font-size: 2rem">#{{ activeCard.auditionNumber }}</span>
                 <div class="flex-1 min-w-0">
                   <div class="type-name text-content-primary leading-tight" style="font-size: 1.9rem; overflow-wrap: break-word">{{ activeCard.participantName }}</div>
-                  <div v-if="activeCard.memberNames?.length" class="type-prose text-content-muted truncate mt-0.5" style="font-size: 15px;">{{ activeCard.memberNames.join(' · ') }}</div>
+                  <div v-if="activeCard.memberNames?.length" class="type-prose text-content-muted mt-0.5" style="font-size: 15px;">{{ activeCard.memberNames.join(' · ') }}</div>
                   <div v-if="activeCard.saving" class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 type-label text-xs text-accent/60 normal-case" style="background:rgba(255,255,255,0.05);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)">
                     <i class="pi pi-spin pi-spinner text-[10px]"></i> Saving…
                   </div>
