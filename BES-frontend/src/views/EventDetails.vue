@@ -621,9 +621,9 @@ const onJudgingModeChange = async (mode) => {
 const pairSubModeSaving = ref({}) // keyed by eventCategoryId
 
 async function onPairSubModeChange(categoryId, mode) {
-  pairSubModeSaving.value = { ...pairSubModeSaving.value, [categoryId]: true }
   const div = eventCategories.value.find(d => d.eventCategoryId === categoryId)
   if (!div) return
+  pairSubModeSaving.value = { ...pairSubModeSaving.value, [categoryId]: true }
   const prev = div.pairSubMode ?? 'SHOWCASE'
   div.pairSubMode = mode
   const ok = await updateCategoryPairSubMode(props.eventName, categoryId, mode)
