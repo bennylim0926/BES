@@ -278,13 +278,15 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                     : !card._placeholder && card.saving
                       ? 'text-amber-300 border-amber-400/50'
                       : 'text-white/70 border-white/30'"
-                :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
-                  ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
-                  : !card._placeholder && card.submitted
-                    ? 'font-size: 1.6rem; background: rgba(52,211,153,0.12); box-shadow: 0 0 8px rgba(52,211,153,0.2)'
-                    : !card._placeholder && card.saving
-                      ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
-                      : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
+                :style="!card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) && card.submitted
+                  ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: rgb(52,211,153)'
+                  : !card._placeholder && activeParticipantNum === card.auditionNumber && isActivePair(pairIdx)
+                    ? 'font-size: 1.6rem; background: var(--accent-color); border-color: var(--accent-color); box-shadow: 0 0 14px var(--accent-muted); color: #111111'
+                    : !card._placeholder && card.submitted
+                      ? 'font-size: 1.6rem; background: rgba(52,211,153,0.12); box-shadow: 0 0 8px rgba(52,211,153,0.2)'
+                      : !card._placeholder && card.saving
+                        ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
+                        : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
               >
                 <!-- Position label (BATTLE mode only) -->
                 <span
