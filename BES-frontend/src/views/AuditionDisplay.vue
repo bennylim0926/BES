@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { getAuditionDisplayState, getCategoriesByEvent, updateCategoryNumberColor } from '@/utils/api'
 import { createClient, deactivateClient, subscribeToChannel } from '@/utils/websocket'
 import { useAuthStore } from '@/utils/auth'
-import { getPositionLabel } from '@/utils/auditionPairs'
+import { getPositionLabel, getPositionDisplay } from '@/utils/auditionPairs'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -84,7 +84,7 @@ const roundLabel    = computed(() => {
 })
 const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor   = computed(() => state.value?.numberColor ?? null)
-const pairSubMode   = computed(() => state.value?.pairSubMode ?? 'SHOWCASE')
+
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
@@ -207,21 +207,20 @@ onUnmounted(() => {
                     <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
                     <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
                   </div>
-                  <!-- Member names below -->
-                  <div v-if="!slot.placeholder && slot.memberNames?.length" class="pair-member-names">
-                    {{ slot.memberNames.join(' · ') }}
+                  <!-- Member names + position label on same row -->
+                  <div v-if="!slot.placeholder" class="pair-member-names" style="display:flex;align-items:center;gap:8px;">
+                    <span v-if="slot.memberNames?.length">{{ slot.memberNames.join(' · ') }}</span>
+                    <span v-if="slot.memberNames?.length" style="opacity:0.2;font-size:0.9em;">|</span>
+                    <span
+                      class="position-label"
+                      :class="{
+                        'position-left':   getPositionLabel(sIdx, currentSlots.length) === 'LEFT',
+                        'position-middle': getPositionLabel(sIdx, currentSlots.length) === 'MIDDLE',
+                        'position-right':  getPositionLabel(sIdx, currentSlots.length) === 'RIGHT',
+                      }"
+                    >{{ getPositionDisplay(sIdx, currentSlots.length) }}</span>
                   </div>
                 </div>
-                <!-- Position label (BATTLE mode only) — right-aligned -->
-                <span
-                  v-if="pairSubMode === 'BATTLE'"
-                  class="position-label"
-                  :class="{
-                    'position-left':   getPositionLabel(sIdx, currentSlots.length) === 'LEFT',
-                    'position-middle': getPositionLabel(sIdx, currentSlots.length) === 'MIDDLE',
-                    'position-right':  getPositionLabel(sIdx, currentSlots.length) === 'RIGHT',
-                  }"
-                >{{ getPositionLabel(sIdx, currentSlots.length) }}</span>
               </div>
               <!-- Divider between entries (including 3-way) -->
               <div v-if="sIdx < currentSlots.length - 1" class="pair-divider" aria-hidden="true"></div>
@@ -275,7 +274,7 @@ onUnmounted(() => {
               <span class="next-slot-name" style="margin-left:8px">{{ slot.participantName }}</span>
               <span v-if="slot.memberNames?.length" class="next-slot-members" style="margin-left:8px">{{ slot.memberNames.join(' · ') }}</span>
             </div>
-            <span v-if="mode === 'PAIR' && sIdx === 0 && nextSlots.length > 1" style="opacity:0.2;margin:0 8px">&amp;</span>
+            <span v-if="mode === 'PAIR' && sIdx < nextSlots.length - 1" style="opacity:0.2;margin:0 8px">&amp;</span>
           </template>
         </div>
       </div>
@@ -521,16 +520,16 @@ onUnmounted(() => {
 /* ── Battle position labels ──────────────────────────────────────────────── */
 .position-label {
   font-family: 'Oswald', sans-serif;
-  font-size: clamp(11px, 1.2vw, 16px);
+  font-size: clamp(13px, 1.5vw, 20px);
   letter-spacing: 0.22em;
-  text-transform: uppercase;
-  opacity: 0.55;
+  text-transform: none;
+  opacity: 0.85;
   flex-shrink: 0;
   align-self: center;
 }
-.position-left   { color: rgb(251, 191, 36); } /* amber-400 */
-.position-middle { color: var(--accent-color); }
-.position-right  { color: rgba(255, 255, 255, 0.6); }
+.position-left   { color: rgb(252, 211, 77); text-transform: none; }  /* amber-300 */
+.position-middle { color: rgb(252, 211, 77); text-transform: none; }  /* amber-300 */
+.position-right  { color: rgb(252, 211, 77); text-transform: none; }  /* amber-300 */
 
 /* ── SOLO layout: slot | timer ────────────────────────────────────────────── */
 .slot-timer-row {
