@@ -59,11 +59,6 @@ const progressPct = computed(() => {
 })
 
 function startTimer(seconds) {
-  // Clicking the active preset while running resets the timer
-  if (selectedTime.value === seconds && timer) {
-    reset()
-    return
-  }
   if (timer) clearInterval(timer)
   selectedTime.value = seconds
   timeLeft.value = 0
