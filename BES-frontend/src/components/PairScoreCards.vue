@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
-import { buildPairs, getPositionLabel } from '@/utils/auditionPairs'
+import { buildPairs, getPositionDisplay } from '@/utils/auditionPairs'
 
 const props = defineProps({
   cards:           { type: Array,   required: true },
@@ -288,12 +288,13 @@ const isActivePair = (pairIdx) => pairIdx === currentIndex.value
                         ? 'font-size: 1.6rem; background: rgba(245,158,11,0.08)'
                         : 'font-size: 1.6rem; background: rgba(255,255,255,0.06)'"
               >
-                <!-- Position label (BATTLE mode only) -->
+                <!-- Position label (PAIR mode) -->
                 <span
-                  v-if="pairSubMode === 'BATTLE' && !card._placeholder"
+                  v-if="!card._placeholder"
                   class="type-label leading-none mb-1"
-                  style="font-size: 9px; letter-spacing: 0.18em; opacity: 0.75; color: inherit;"
-                >{{ getPositionLabel(slotIdx, pair.length) }}</span>
+                  :class="activeParticipantNum === card.auditionNumber && isActivePair(pairIdx) ? 'text-black/50' : 'text-amber-300'"
+                  style="font-size: 9px; letter-spacing: 0.18em; opacity: 0.9; text-transform: none;"
+                >{{ getPositionDisplay(slotIdx, pair.length) }}</span>
                 <span class="type-stat leading-none" style="font-size: 1.6rem; color: inherit">#{{ card.auditionNumber }}</span>
               </button>
             </div>

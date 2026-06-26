@@ -55,3 +55,8 @@ export function getPositionLabel(slotIndex, roundLength) {
   }
   return slotIndex === 0 ? 'LEFT' : 'RIGHT'
 }
+
+const POSITION_DISPLAY = { LEFT: "Judge's Left", MIDDLE: 'Middle', RIGHT: "Judge's Right" }
+export function getPositionDisplay(slotIndex, roundLength) {
+  return POSITION_DISPLAY[getPositionLabel(slotIndex, roundLength)]
+}
