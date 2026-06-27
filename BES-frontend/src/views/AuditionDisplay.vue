@@ -169,7 +169,7 @@ onUnmounted(() => {
     </div>
 
     <!-- ACTIVE display -->
-    <div v-else class="active-container" :style="currentSlots.length >= 3 ? { paddingTop: '18vh' } : {}">
+    <div v-else class="active-container">
 
       <!-- Main area: event/category header, round counter, number+name+timer -->
       <div class="main-area">
@@ -373,7 +373,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   height: 100%;
   padding: 40px;
@@ -385,7 +385,7 @@ onUnmounted(() => {
   align-items: center;
   width: 100%;
   gap: 10px;
-  margin-top: 12vh;
+  margin-top: 20vh;
 }
 
 /* Event name + category — pinned to top, independent of the centred content */
