@@ -78,10 +78,6 @@ const isStandby     = computed(() => !selectedCategory.value || !state.value || 
 const mode          = computed(() => state.value?.mode ?? 'SOLO')
 const categoryName  = computed(() => state.value?.categoryName ?? '')
 const eventLabel    = computed(() => state.value?.eventName ?? eventName.value ?? '')
-const roundLabel    = computed(() => {
-  if (!state.value || !state.value.totalRounds) return ''
-  return `ROUND ${state.value.currentRound} / ${state.value.totalRounds}`
-})
 const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminary Round')
 const numberColor   = computed(() => state.value?.numberColor ?? null)
 
@@ -160,9 +156,6 @@ onUnmounted(() => {
     <!-- Scanlines overlay -->
     <div class="scanlines"></div>
 
-    <!-- Color bleed -->
-    <div class="color-bleed"></div>
-
     <!-- STANDBY: no state published yet -->
     <div v-if="isStandby" class="standby-container">
       <div class="corner-bar-tl"></div>
@@ -183,14 +176,7 @@ onUnmounted(() => {
         <!-- Event name + category stacked above everything -->
         <div class="event-header">
           <span class="event-header-name">{{ eventLabel }}</span>
-          <span class="event-header-category">{{ categoryName }}</span>
-        </div>
-
-        <!-- Round counter + category round label combined -->
-        <div class="round-rule mb-3">
-          <span class="round-rule-left type-label text-content-muted">{{ roundLabel }}</span>
-          <span class="round-rule-line"></span>
-          <span v-if="categoryRoundLabel" class="round-rule-right type-label text-content-muted">{{ categoryRoundLabel }}</span>
+          <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
         </div>
 
         <!-- PAIR mode: stacked names left | timer right -->
@@ -368,17 +354,6 @@ onUnmounted(() => {
   z-index: 10;
 }
 
-/* ── Color bleed ──────────────────────────────────────────────────────────── */
-.color-bleed {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 0% 100%, var(--accent-subtle, rgba(255,255,255,0.015)) 0%, transparent 60%),
-    radial-gradient(ellipse at 100% 100%, var(--accent-subtle, rgba(255,255,255,0.015)) 0%, transparent 60%);
-  z-index: 0;
-}
-
 /* ── Standby ──────────────────────────────────────────────────────────────── */
 .standby-container {
   position: relative;
@@ -437,28 +412,6 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   text-transform: none;
   color: rgba(255,255,255,0.45);
-}
-/* ── Round rule: ROUND X / Y ———————— Preliminary Round ─────────────────── */
-.round-rule {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  max-width: 90vw;
-}
-.round-rule-left,
-.round-rule-right {
-  flex-shrink: 0;
-  font-size: clamp(10px, 1.1vw, 14px);
-  letter-spacing: 0.22em;
-}
-.round-rule-right {
-  color: rgba(255,255,255,0.45);
-}
-.round-rule-line {
-  flex: 1;
-  height: 1px;
-  background: rgba(255,255,255,0.08);
 }
 
 /* ── PAIR layout: stacked names left | timer right ───────────────────────── */
