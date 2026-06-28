@@ -586,24 +586,7 @@ const isJudgeSession = computed(() => !!authStore.judgeName && !!authStore.judge
 const wsClients = []
 
 watch(hasActiveSession, (active) => {
-  if (active) {
-    document.documentElement.style.overflow = 'hidden'
-    document.documentElement.style.height = '100dvh'
-    document.documentElement.style.touchAction = 'manipulation'
-    document.body.style.position = 'fixed'
-    document.body.style.overflow = 'hidden'
-    document.body.style.width = '100%'
-    document.body.style.height = '100dvh'
-    window.scrollTo(0, 0)
-  } else {
-    document.documentElement.style.overflow = ''
-    document.documentElement.style.height = ''
-    document.documentElement.style.touchAction = ''
-    document.body.style.position = ''
-    document.body.style.overflow = ''
-    document.body.style.width = ''
-    document.body.style.height = ''
-  }
+  document.documentElement.style.touchAction = active ? 'manipulation' : ''
 }, { immediate: true })
 
 // Reset the audition timer when navigating away (e.g., to Score page).
@@ -739,7 +722,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container relative" :style="hasActiveSession ? { display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 64px)', overflow: 'hidden', padding: '8px 16px' } : {}">
+  <div class="page-container relative" :style="hasActiveSession ? { display: 'flex', flexDirection: 'column', minHeight: 'calc(100dvh - 64px)', padding: '8px 16px' } : {}">
     <div class="color-bleed"></div>
 
     <!-- Context bar (active session: category + role both selected) -->
@@ -981,7 +964,7 @@ onMounted(async () => {
     </div>
 
     <!-- Emcee view: Timer + round view -->
-    <div class="flex-1 min-h-0" style="overflow: hidden;">
+    <div class="flex-1 min-h-0">
 
     <!-- Loading state — full-viewport overlay so nothing bleeds through -->
     <LoadingOverlay v-if="loading">Loading audition data…</LoadingOverlay>

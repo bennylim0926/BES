@@ -237,7 +237,7 @@ const swipeHint = computed(() => {
 </script>
 
 <template>
-  <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #111111; overflow: hidden;">
+  <div class="emcee-root w-full flex flex-col touch-manipulation" style="background: #111111;">
 
     <!-- ── Queue ──────────────────────────────────────────────────────────────
          flex-col-reverse: stack from bottom (near NOW) upward.
@@ -246,8 +246,8 @@ const swipeHint = computed(() => {
          the "Up Next" emphasis is preserved; deeper rounds stay readable.
     ──────────────────────────────────────────────────────────────────────── -->
     <div
-      class="emcee-queue flex-1 px-3 pt-2 pb-1"
-      style="display: flex; flex-direction: column-reverse; justify-content: flex-start; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;"
+      class="emcee-queue px-3 pt-2 pb-1"
+      style="display: flex; flex-direction: column-reverse; justify-content: flex-start; min-height: 30vh; scrollbar-width: none;"
     >
       <div class="flex flex-col gap-1.5">
         <div
