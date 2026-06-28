@@ -29,6 +29,7 @@ function resetTimer() {
   // running timer and the sticky baseline so the next category starts clean.
   timerRef.value?.clearAll?.()
   baselineDuration.value = null
+  timerRemaining.value = null
   timerVisible.value = false
 }
 
@@ -73,6 +74,26 @@ const currentRoundSlots  = computed(() => rounds.value[currentRound.value - 1] ?
 
 const lastTimerState = ref({})
 
+// ── Timer display state (drives NOW card header progress bar) ─────────────────
+const timerRemaining = ref(null)
+
+const headerDisplayTime = computed(() => {
+  if (lastTimerState.value.running && timerRemaining.value !== null) return String(timerRemaining.value)
+  if (baselineDuration.value) return String(baselineDuration.value)
+  return null
+})
+
+const headerProgressPct = computed(() => {
+  if (lastTimerState.value.running && lastTimerState.value.duration) {
+    return Math.max(0, ((timerRemaining.value ?? 0) / lastTimerState.value.duration) * 100)
+  }
+  return baselineDuration.value ? 100 : 0
+})
+
+const headerTimerNearEnd = computed(() =>
+  lastTimerState.value.running && timerRemaining.value !== null && timerRemaining.value <= 10 && timerRemaining.value > 0
+)
+
 function buildStatePayload(timerState = {}) {
   const current = currentRoundSlots.value.map(slot => ({
     auditionNumber: slot.auditionNumber,
@@ -114,19 +135,20 @@ function publishState(timerState = {}) {
 }
 
 function onTimerStarted(detail) {
-  // Picking a preset implicitly establishes the baseline for this category.
   baselineDuration.value = detail.duration
+  timerRemaining.value = detail.duration
   lastTimerState.value = { startedAt: detail.startedAt, duration: detail.duration, running: true }
   publishState(lastTimerState.value)
 }
 
 function onTimerStopped() {
+  timerRemaining.value = null
   lastTimerState.value = { startedAt: null, duration: null, running: false }
   publishState(lastTimerState.value)
 }
 
 function onTimerTick(detail) {
-  // Preserve startedAt from the started event so round-change publishes keep the timer alive
+  timerRemaining.value = detail.remaining
   lastTimerState.value = {
     startedAt: detail.running ? (lastTimerState.value.startedAt ?? null) : null,
     duration: detail.total,
@@ -154,6 +176,7 @@ onMounted(async () => {
     if (remaining > 0) {
       await new Promise(r => setTimeout(r, 100))
       timerRef.value?.resumeTimer(remaining, state.timerDuration)
+      timerRemaining.value = remaining
       lastTimerState.value = { startedAt: state.timerStartedAt, duration: state.timerDuration, running: true }
     }
   }
@@ -296,12 +319,19 @@ const swipeHint = computed(() => {
             style="box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.6); touch-action: none;"
           >
             <div class="corner-bar-tl"></div>
-            <div class="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-white/8">
-              <div class="flex items-center gap-2">
+            <div
+              class="now-card-header"
+              :class="{ 'now-card-header--near-end': headerTimerNearEnd, 'now-card-header--running': lastTimerState.running }"
+              :style="{ '--progress': headerProgressPct + '%' }"
+            >
+              <div class="flex items-center gap-2 z-10 relative">
                 <span class="glow-dot"></span>
                 <span class="type-label text-content-muted">Now on Stage</span>
               </div>
-              <span class="type-label text-content-muted">
+              <span v-if="headerDisplayTime" class="now-card-timer z-10 relative" :class="{ 'now-card-timer--near-end': headerTimerNearEnd }">
+                {{ headerDisplayTime }}
+              </span>
+              <span class="type-label text-content-muted z-10 relative">
                 Rd {{ currentRound }} / {{ totalRounds }}
               </span>
             </div>
@@ -431,6 +461,44 @@ const swipeHint = computed(() => {
   .emcee-now {
     flex: none;
   }
+}
+
+/* ── NOW card header — doubles as a progress bar ────────────────────── */
+.now-card-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+/* fill layer — drains left to right as time runs out */
+.now-card-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.07);
+  width: var(--progress, 0%);
+  transition: width 0.25s linear, background 0.3s ease;
+  pointer-events: none;
+}
+.now-card-header--near-end::before {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+/* Timer number inside the header */
+.now-card-timer {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.85);
+  transition: color 0.3s ease;
+}
+.now-card-timer--near-end {
+  color: #ef4444;
 }
 
 /* ── Nav buttons ────────────────────────────────────────────────────── */

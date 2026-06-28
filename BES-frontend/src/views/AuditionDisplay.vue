@@ -171,13 +171,14 @@ onUnmounted(() => {
     <!-- ACTIVE display -->
     <div v-else class="active-container">
 
-      <!-- Main area: event/category header, round counter, number+name+timer -->
+      <!-- Event name + category — flows in column, always above content -->
+      <div class="event-header">
+        <span class="event-header-name">{{ eventLabel }}</span>
+        <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
+      </div>
+
+      <!-- Main area: number+name+timer — centres in remaining space -->
       <div class="main-area">
-        <!-- Event name + category stacked above everything -->
-        <div class="event-header">
-          <span class="event-header-name">{{ eventLabel }}</span>
-          <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
-        </div>
 
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
@@ -380,24 +381,24 @@ onUnmounted(() => {
 }
 
 .main-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   width: 100%;
   gap: 10px;
-  margin-top: 20vh;
 }
 
-/* Event name + category — pinned to top, independent of the centred content */
+/* Event name + category — flows in the column, always above participant content */
 .event-header {
-  position: absolute;
-  top: 5vh;
-  left: 0;
-  right: 0;
+  width: 100%;
+  padding-top: 5vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 .event-header-name {
   font-family: 'Oswald', sans-serif;
