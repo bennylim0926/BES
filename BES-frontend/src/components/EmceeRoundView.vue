@@ -329,10 +329,7 @@ const swipeHint = computed(() => {
                 <span class="type-label text-content-muted">Now on Stage</span>
               </div>
               <span v-if="headerDisplayTime" class="now-card-timer z-10 relative" :class="{ 'now-card-timer--near-end': headerTimerNearEnd }">
-                {{ headerDisplayTime }}
-              </span>
-              <span class="type-label text-content-muted z-10 relative">
-                Rd {{ currentRound }} / {{ totalRounds }}
+                <i class="pi pi-clock mr-1" style="font-size:0.75em;opacity:0.7;"></i>{{ headerDisplayTime }}
               </span>
             </div>
             <div class="p-3">
