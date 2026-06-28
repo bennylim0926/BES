@@ -82,7 +82,6 @@ const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminar
 const numberColor   = computed(() => state.value?.numberColor ?? null)
 
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
-const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
 const isFinished    = computed(() => state.value?.timerRunning && displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
 // Show the live countdown when running, otherwise the sticky baseline
@@ -246,25 +245,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- UP NEXT (secondary area) -->
-      <div v-if="nextSlots.length > 0" class="up-next-area">
-        <div class="section-rule mb-2">
-          <span class="section-rule-label type-label text-content-muted">UP NEXT</span>
-        </div>
-        <div class="next-slots">
-          <template v-for="(slot, sIdx) in nextSlots" :key="sIdx">
-            <div v-if="slot.placeholder" class="type-label" style="opacity:0.3;font-size:16px">
-              #{{ slot.auditionNumber }} — TBD
-            </div>
-            <div v-else class="next-slot-entry">
-              <span class="type-stat" style="font-size:24px;opacity:0.5">#{{ slot.auditionNumber }}</span>
-              <span class="next-slot-name" style="margin-left:8px">{{ slot.participantName }}</span>
-              <span v-if="slot.memberNames?.length" class="next-slot-members" style="margin-left:8px">{{ slot.memberNames.join(' · ') }}</span>
-            </div>
-            <span v-if="mode === 'PAIR' && sIdx < nextSlots.length - 1" style="opacity:0.2;margin:0 8px">&amp;</span>
-          </template>
-        </div>
-      </div>
     </div>
 
     <!-- Operator overlay — always visible to logged-in operators, even in standby -->
@@ -583,43 +563,6 @@ onUnmounted(() => {
 @keyframes pulse {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0.7; transform: scale(1.03); }
-}
-
-/* ── UP NEXT ─────────────────────────────────────────────────────────────── */
-.up-next-area {
-  position: absolute;
-  bottom: 60px;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.next-slots {
-  display: flex;
-  align-items: center;
-}
-
-.next-slot-entry {
-  display: flex;
-  align-items: baseline;
-}
-
-/* Up Next: name + members shown as typed (sentence case) */
-.next-slot-name {
-  font-family: 'Oswald', sans-serif;
-  font-size: 22px;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: rgba(255,255,255,0.55);
-}
-.next-slot-members {
-  font-family: 'Oswald', sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: rgba(255,255,255,0.30);
 }
 
 /* ── Section rule (defined locally since this is a standalone page) ───────── */
