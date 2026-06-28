@@ -130,6 +130,7 @@ public class EventCategoryParticipantService {
         return result;
     }
 
+    @Transactional
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
         List<EventCategoryParticipant> entries =
             repo.findByEventIdAndParticipantId(eventId, participantId);

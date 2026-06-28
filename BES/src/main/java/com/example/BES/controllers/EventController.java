@@ -291,9 +291,10 @@ public class EventController {
     }
 
     @Operation(summary = "Set Judge Assignment Mode", description = "Enables or disables per-judge audition pools for a category")
-    @PostMapping("/categories/{categoryId}/judge-assignment-mode")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANISER')")
+    @PostMapping("/{eventName}/categories/{categoryId}/judge-assignment-mode")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
     public ResponseEntity<?> setJudgeAssignmentMode(
+            @PathVariable String eventName,
             @PathVariable Long categoryId,
             @RequestBody Map<String, Boolean> body) {
         try {
@@ -307,7 +308,7 @@ public class EventController {
 
     @Operation(summary = "Get Participants By Judge", description = "Returns participants grouped by assigned judge, sorted by audition number per judge. Unassigned participants keyed as __unassigned__.")
     @GetMapping("/{eventName}/categories/{categoryId}/participants-by-judge")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
     public ResponseEntity<Map<String, List<JudgeParticipantSlotDto>>> getParticipantsByJudge(
             @PathVariable String eventName,
             @PathVariable Long categoryId) {

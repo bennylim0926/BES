@@ -49,7 +49,7 @@ class JudgeAssignmentModeToggleTest {
     @Test
     @WithMockUser(authorities = "ROLE_ADMIN")
     void toggleOn_sets_judgeAssignmentMode_true() throws Exception {
-        mockMvc.perform(post("/api/v1/event/categories/" + categoryId + "/judge-assignment-mode")
+        mockMvc.perform(post("/api/v1/event/ToggleTestEvent/categories/" + categoryId + "/judge-assignment-mode")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("enabled", true))))
                 .andExpect(status().isOk());
@@ -64,7 +64,7 @@ class JudgeAssignmentModeToggleTest {
         cat.setJudgeAssignmentMode(true);
         categoryRepo.save(cat);
 
-        mockMvc.perform(post("/api/v1/event/categories/" + categoryId + "/judge-assignment-mode")
+        mockMvc.perform(post("/api/v1/event/ToggleTestEvent/categories/" + categoryId + "/judge-assignment-mode")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("enabled", false))))
                 .andExpect(status().isOk());
