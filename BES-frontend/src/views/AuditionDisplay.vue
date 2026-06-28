@@ -84,6 +84,15 @@ const numberColor   = computed(() => state.value?.numberColor ?? null)
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
 const isFinished    = computed(() => state.value?.timerRunning && displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
+
+// ── Circular ring progress ────────────────────────────────────────────────────
+const RING_R = 96
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R  // ~603.2
+const timerProgressPct = computed(() => {
+  if (!state.value?.timerRunning || !state.value?.timerDuration) return 1
+  return Math.max(0, displayTimeLeft.value / state.value.timerDuration)
+})
+const ringDashoffset = computed(() => RING_CIRCUMFERENCE * (1 - timerProgressPct.value))
 // Show the live countdown when running, otherwise the sticky baseline
 // the emcee picked for this category. Only blank when neither is set.
 const timerLabel    = computed(() => {
@@ -213,8 +222,12 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- Right: timer -->
-          <div class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+          <!-- Right: timer with circular progress ring -->
+          <div class="timer-ring-wrap" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
+              <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
+              <circle cx="110" cy="110" :r="RING_R" class="ring-fill" :style="{ strokeDashoffset: ringDashoffset }" />
+            </svg>
             <div class="type-stat timer-number">{{ timerLabel || '0' }}</div>
           </div>
         </div>
@@ -239,7 +252,11 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <div v-if="timerLabel" class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+          <div v-if="timerLabel" class="timer-ring-wrap" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
+              <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
+              <circle cx="110" cy="110" :r="RING_R" class="ring-fill" :style="{ strokeDashoffset: ringDashoffset }" />
+            </svg>
             <div class="type-stat timer-number">{{ timerLabel }}</div>
           </div>
         </div>
@@ -531,19 +548,45 @@ onUnmounted(() => {
   opacity: 0.4;
 }
 
-/* ── Timer ────────────────────────────────────────────────────────────────── */
-.timer-display {
+/* ── Timer ring ───────────────────────────────────────────────────────────── */
+.timer-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(180px, 24vw, 300px);
+  height: clamp(180px, 24vw, 300px);
   flex-shrink: 0;
-  /* Inherit timer font-size so min-width in ch scales with the digits.
-     2.5ch covers typical 2-digit timers (30-90s); tabular-nums
-     prevents intra-digit jitter without reserving excess space. */
-  font-size: clamp(100px, 18vw, 220px);
-  min-width: 2.5ch;
-  text-align: center;
 }
 
+.timer-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  stroke: rgba(255,255,255,0.07);
+  stroke-width: 4;
+}
+
+.ring-fill {
+  stroke: rgba(255,255,255,0.55);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 603.2;
+  transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
+}
+
+.timer-near-end .ring-fill  { stroke: #ef4444; }
+.timer-finished .ring-fill  { stroke: rgba(255,255,255,0.1); stroke-dashoffset: 603.2; }
+
 .timer-number {
-  font-size: inherit;
+  position: relative;
+  z-index: 1;
+  font-size: clamp(80px, 15vw, 180px);
   line-height: 1;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
