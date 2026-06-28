@@ -91,6 +91,7 @@ import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.example.BES.dtos.CheckinPreviewDto;
+import com.example.BES.dtos.JudgeParticipantSlotDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
@@ -302,6 +303,15 @@ public class EventController {
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @Operation(summary = "Get Participants By Judge", description = "Returns participants grouped by assigned judge, sorted by audition number per judge. Unassigned participants keyed as __unassigned__.")
+    @GetMapping("/{eventName}/categories/{categoryId}/participants-by-judge")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANISER', 'ROLE_EMCEE')")
+    public ResponseEntity<Map<String, List<JudgeParticipantSlotDto>>> getParticipantsByJudge(
+            @PathVariable String eventName,
+            @PathVariable Long categoryId) {
+        return ResponseEntity.ok(eventCategoryParticipantService.getParticipantsByJudge(eventName, categoryId));
     }
 
     @Operation(summary = "Create Event", description = "Creates a new event")
