@@ -40,6 +40,7 @@ public class EventCategoryService {
             dto.pairSubMode = ec.getPairSubMode() != null ? ec.getPairSubMode() : "SHOWCASE";
             dto.sheetAliases = ec.getSheetAliases();
             dto.soloAllowed = ec.isSoloAllowed();
+            dto.judgeAssignmentMode = ec.isJudgeAssignmentMode();
             dto.participantCount = eventCategoryParticipantRepo.countByEventIdAndEventCategoryId(e.getEventId(), ec.getId());
             dtos.add(dto);
         }
