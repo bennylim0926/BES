@@ -237,7 +237,7 @@ const swipeHint = computed(() => {
 </script>
 
 <template>
-  <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #111111; overflow: hidden;">
+  <div class="emcee-root w-full flex flex-col h-full touch-manipulation" style="background: #111111; overflow-y: auto;">
 
     <!-- ── Queue ──────────────────────────────────────────────────────────────
          flex-col-reverse: stack from bottom (near NOW) upward.
