@@ -135,6 +135,12 @@ public class EventCategoryParticipantService {
         if (!entries.isEmpty() && entries.stream().allMatch(e -> e.getAuditionNumber() != null)) {
             throw new IllegalStateException("already_checked_in");
         }
+        // Validate: if any category has judgeAssignmentMode on, participant must have a judge assigned
+        for (EventCategoryParticipant entry : entries) {
+            if (entry.getEventCategory().isJudgeAssignmentMode() && entry.getJudge() == null) {
+                throw new IllegalStateException("no_judge_assigned");
+            }
+        }
         for (EventCategoryParticipant entry : entries) {
             AddParticipantToEventCategoryDto dto = new AddParticipantToEventCategoryDto();
             dto.participantId = participantId;

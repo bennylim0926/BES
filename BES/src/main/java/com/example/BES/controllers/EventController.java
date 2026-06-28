@@ -561,6 +561,9 @@ public class EventController {
             if ("already_checked_in".equals(e.getMessage())) {
                 return new ResponseEntity<>("already_checked_in", HttpStatus.CONFLICT);
             }
+            if ("no_judge_assigned".equals(e.getMessage())) {
+                return new ResponseEntity<>("no_judge_assigned", HttpStatus.UNPROCESSABLE_ENTITY);
+            }
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             return new ResponseEntity<>("Something is null", HttpStatus.BAD_REQUEST);
