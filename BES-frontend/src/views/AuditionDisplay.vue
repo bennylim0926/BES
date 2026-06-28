@@ -82,9 +82,17 @@ const categoryRoundLabel = computed(() => state.value?.roundLabel || 'Preliminar
 const numberColor   = computed(() => state.value?.numberColor ?? null)
 
 const currentSlots  = computed(() => state.value?.currentSlots ?? [])
-const nextSlots     = computed(() => state.value?.nextSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
 const isFinished    = computed(() => state.value?.timerRunning && displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
+
+// ── Circular ring progress ────────────────────────────────────────────────────
+const RING_R = 96
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R  // ~603.2
+const timerProgressPct = computed(() => {
+  if (!state.value?.timerRunning || !state.value?.timerDuration) return 1
+  return Math.max(0, displayTimeLeft.value / state.value.timerDuration)
+})
+const ringDashoffset = computed(() => -(RING_CIRCUMFERENCE * (1 - timerProgressPct.value)))
 // Show the live countdown when running, otherwise the sticky baseline
 // the emcee picked for this category. Only blank when neither is set.
 const timerLabel    = computed(() => {
@@ -171,13 +179,14 @@ onUnmounted(() => {
     <!-- ACTIVE display -->
     <div v-else class="active-container">
 
-      <!-- Main area: event/category header, round counter, number+name+timer -->
+      <!-- Event name + category — flows in column, always above content -->
+      <div class="event-header">
+        <span class="event-header-name">{{ eventLabel }}</span>
+        <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
+      </div>
+
+      <!-- Main area: number+name+timer — centres in remaining space -->
       <div class="main-area">
-        <!-- Event name + category stacked above everything -->
-        <div class="event-header">
-          <span class="event-header-name">{{ eventLabel }}</span>
-          <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
-        </div>
 
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
@@ -213,8 +222,12 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- Right: timer -->
-          <div class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+          <!-- Right: timer with circular progress ring -->
+          <div class="timer-ring-wrap" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
+              <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
+              <circle cx="110" cy="110" :r="RING_R" class="ring-fill" :style="{ strokeDashoffset: ringDashoffset }" />
+            </svg>
             <div class="type-stat timer-number">{{ timerLabel || '0' }}</div>
           </div>
         </div>
@@ -239,31 +252,16 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <div v-if="timerLabel" class="timer-display" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+          <div v-if="timerLabel" class="timer-ring-wrap" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
+              <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
+              <circle cx="110" cy="110" :r="RING_R" class="ring-fill" :style="{ strokeDashoffset: ringDashoffset }" />
+            </svg>
             <div class="type-stat timer-number">{{ timerLabel }}</div>
           </div>
         </div>
       </div>
 
-      <!-- UP NEXT (secondary area) -->
-      <div v-if="nextSlots.length > 0" class="up-next-area">
-        <div class="section-rule mb-2">
-          <span class="section-rule-label type-label text-content-muted">UP NEXT</span>
-        </div>
-        <div class="next-slots">
-          <template v-for="(slot, sIdx) in nextSlots" :key="sIdx">
-            <div v-if="slot.placeholder" class="type-label" style="opacity:0.3;font-size:16px">
-              #{{ slot.auditionNumber }} — TBD
-            </div>
-            <div v-else class="next-slot-entry">
-              <span class="type-stat" style="font-size:24px;opacity:0.5">#{{ slot.auditionNumber }}</span>
-              <span class="next-slot-name" style="margin-left:8px">{{ slot.participantName }}</span>
-              <span v-if="slot.memberNames?.length" class="next-slot-members" style="margin-left:8px">{{ slot.memberNames.join(' · ') }}</span>
-            </div>
-            <span v-if="mode === 'PAIR' && sIdx < nextSlots.length - 1" style="opacity:0.2;margin:0 8px">&amp;</span>
-          </template>
-        </div>
-      </div>
     </div>
 
     <!-- Operator overlay — always visible to logged-in operators, even in standby -->
@@ -380,24 +378,24 @@ onUnmounted(() => {
 }
 
 .main-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   width: 100%;
   gap: 10px;
-  margin-top: 20vh;
 }
 
-/* Event name + category — pinned to top, independent of the centred content */
+/* Event name + category — flows in the column, always above participant content */
 .event-header {
-  position: absolute;
-  top: 5vh;
-  left: 0;
-  right: 0;
+  width: 100%;
+  padding-top: 5vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 .event-header-name {
   font-family: 'Oswald', sans-serif;
@@ -550,19 +548,45 @@ onUnmounted(() => {
   opacity: 0.4;
 }
 
-/* ── Timer ────────────────────────────────────────────────────────────────── */
-.timer-display {
+/* ── Timer ring ───────────────────────────────────────────────────────────── */
+.timer-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(180px, 24vw, 300px);
+  height: clamp(180px, 24vw, 300px);
   flex-shrink: 0;
-  /* Inherit timer font-size so min-width in ch scales with the digits.
-     2.5ch covers typical 2-digit timers (30-90s); tabular-nums
-     prevents intra-digit jitter without reserving excess space. */
-  font-size: clamp(100px, 18vw, 220px);
-  min-width: 2.5ch;
-  text-align: center;
 }
 
+.timer-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  stroke: rgba(255,255,255,0.07);
+  stroke-width: 4;
+}
+
+.ring-fill {
+  stroke: rgba(255,255,255,0.55);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 603.2 603.2;
+  transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
+}
+
+.timer-near-end .ring-fill  { stroke: #ef4444; }
+.timer-finished .ring-fill  { stroke: rgba(255,255,255,0.1); stroke-dashoffset: -603.2; }
+
 .timer-number {
-  font-size: inherit;
+  position: relative;
+  z-index: 1;
+  font-size: clamp(80px, 15vw, 180px);
   line-height: 1;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -582,43 +606,6 @@ onUnmounted(() => {
 @keyframes pulse {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0.7; transform: scale(1.03); }
-}
-
-/* ── UP NEXT ─────────────────────────────────────────────────────────────── */
-.up-next-area {
-  position: absolute;
-  bottom: 60px;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.next-slots {
-  display: flex;
-  align-items: center;
-}
-
-.next-slot-entry {
-  display: flex;
-  align-items: baseline;
-}
-
-/* Up Next: name + members shown as typed (sentence case) */
-.next-slot-name {
-  font-family: 'Oswald', sans-serif;
-  font-size: 22px;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: rgba(255,255,255,0.55);
-}
-.next-slot-members {
-  font-family: 'Oswald', sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: rgba(255,255,255,0.30);
 }
 
 /* ── Section rule (defined locally since this is a standalone page) ───────── */
