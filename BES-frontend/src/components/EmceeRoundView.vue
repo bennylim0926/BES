@@ -272,9 +272,9 @@ const swipeHint = computed(() => {
                 #{{ slot.auditionNumber }} — Not Registered
               </div>
               <div v-else class="flex items-start gap-2">
-                <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
+                <span class="type-stat text-[18px] flex-shrink-0" :class="uIdx === visibleRounds.length - 1 ? 'text-content-secondary' : 'text-content-muted'">#{{ slot.auditionNumber }}</span>
                 <div class="min-w-0 flex-1">
-                  <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-primary' : 'text-content-muted'">{{ slot.participantName }}</span>
+                  <span class="type-name block" style="font-size:18px" :class="uIdx === visibleRounds.length - 1 ? 'text-content-secondary' : 'text-content-muted'">{{ slot.participantName }}</span>
                   <span v-if="slot.memberNames?.length" class="type-prose text-content-muted block" style="font-size:14px;">{{ slot.memberNames.join(' · ') }}</span>
                 </div>
                 <!-- Position badge right-aligned (PAIR mode only) -->
