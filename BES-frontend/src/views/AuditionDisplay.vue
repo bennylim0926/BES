@@ -92,7 +92,7 @@ const timerProgressPct = computed(() => {
   if (!state.value?.timerRunning || !state.value?.timerDuration) return 1
   return Math.max(0, displayTimeLeft.value / state.value.timerDuration)
 })
-const ringDashoffset = computed(() => RING_CIRCUMFERENCE * (1 - timerProgressPct.value))
+const ringDashoffset = computed(() => -(RING_CIRCUMFERENCE * (1 - timerProgressPct.value)))
 // Show the live countdown when running, otherwise the sticky baseline
 // the emcee picked for this category. Only blank when neither is set.
 const timerLabel    = computed(() => {
@@ -576,12 +576,12 @@ onUnmounted(() => {
   stroke: rgba(255,255,255,0.55);
   stroke-width: 4;
   stroke-linecap: round;
-  stroke-dasharray: 603.2;
+  stroke-dasharray: 603.2 603.2;
   transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease;
 }
 
 .timer-near-end .ring-fill  { stroke: #ef4444; }
-.timer-finished .ring-fill  { stroke: rgba(255,255,255,0.1); stroke-dashoffset: 603.2; }
+.timer-finished .ring-fill  { stroke: rgba(255,255,255,0.1); stroke-dashoffset: -603.2; }
 
 .timer-number {
   position: relative;
