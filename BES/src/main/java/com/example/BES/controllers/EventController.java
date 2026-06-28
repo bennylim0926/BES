@@ -289,6 +289,21 @@ public class EventController {
         }
     }
 
+    @Operation(summary = "Set Judge Assignment Mode", description = "Enables or disables per-judge audition pools for a category")
+    @PostMapping("/categories/{categoryId}/judge-assignment-mode")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANISER')")
+    public ResponseEntity<?> setJudgeAssignmentMode(
+            @PathVariable Long categoryId,
+            @RequestBody Map<String, Boolean> body) {
+        try {
+            boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
+            eventCategoryService.setJudgeAssignmentMode(categoryId, enabled);
+            return ResponseEntity.ok(Map.of("message", "ok", "enabled", enabled));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @Operation(summary = "Create Event", description = "Creates a new event")
     @PostMapping
     public ResponseEntity<String> createNewEvent(@Valid @RequestBody AddEventDto dto) {

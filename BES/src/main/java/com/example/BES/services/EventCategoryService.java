@@ -111,4 +111,11 @@ public class EventCategoryService {
         EventCategory ec = eventCategoryRepo.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
         eventCategoryRepo.deleteById(ec.getId());
     }
+
+    public void setJudgeAssignmentMode(Long categoryId, boolean enabled) {
+        EventCategory ec = eventCategoryRepo.findById(categoryId)
+            .orElseThrow(() -> new RuntimeException("Category not found: " + categoryId));
+        ec.setJudgeAssignmentMode(enabled);
+        eventCategoryRepo.save(ec);
+    }
 }
