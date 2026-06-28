@@ -255,7 +255,7 @@ const swipeHint = computed(() => {
           :key="roundNumber"
           class="queue-item para-chip-sm overflow-hidden flex-shrink-0"
           :class="uIdx === visibleRounds.length - 1 ? 'border-white/15 bg-white/5' : 'border-white/5 bg-transparent'"
-          style="opacity: 0.65"
+          style="opacity: 0.45"
         >
           <div class="flex items-center justify-between px-2 py-1">
             <span class="type-label text-content-muted">
