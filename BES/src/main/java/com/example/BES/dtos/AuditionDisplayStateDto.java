@@ -1,6 +1,7 @@
 package com.example.BES.dtos;
 
 import java.util.List;
+import java.util.Map;
 
 public class AuditionDisplayStateDto {
 
@@ -22,6 +23,12 @@ public class AuditionDisplayStateDto {
     // OBS audition display can fall back to it instead of going blank.
     // Per (event, category), like the rest of this state.
     public Integer baselineDuration;
+
+    // Judge assignment mode fields — only populated when judgeMode = true
+    public boolean judgeMode;
+    public int judgeCurrentRound;
+    // Key = judge name, Value = the slot this judge is currently on (null if judge has no participant at this round)
+    public Map<String, Slot> judgeSlots;
 
     // Display customisation (set per genre in EventDetails)
     public String roundLabel;   // e.g. "Preliminary Round"
