@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/utils/auth'
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -10,7 +10,8 @@ import {
   removeParticipantCategory,
   updateParticipant,
   updateParticipantsJudge,
-  getCategoriesByEvent
+  getCategoriesByEvent,
+  getJudgesByDivision
 } from '@/utils/api'
 
 const authStore   = useAuthStore()
@@ -240,23 +241,26 @@ const reload = async () => {
   eventDivisions.value = Array.isArray(divisionsRes) ? divisionsRes : []
 }
 
-const fetchJudges = async () => {
-  try {
-    const res = await fetch('/api/v1/event/judges', { credentials: 'include' })
-    if (!res.ok) return
-    const data = await res.json()
-    allJudges.value = Object.values(data).map(j => j.judgeName)
-  } catch { /* silent */ }
+const fetchJudgesForCategory = async () => {
+  const cat = selectedCategoryData.value
+  if (!cat || !cat.eventCategoryId || !selectedEvent.value) {
+    allJudges.value = []
+    return
+  }
+  const judges = await getJudgesByDivision(selectedEvent.value, cat.eventCategoryId)
+  allJudges.value = Array.isArray(judges) ? judges.map(j => j.judgeName) : []
 }
 
 onMounted(async () => {
   try {
     await reload()
-    await fetchJudges()
+    await fetchJudgesForCategory()
   } finally {
     loading.value = false
   }
 })
+
+watch(activeCategory, () => fetchJudgesForCategory())
 </script>
 
 <template>
@@ -572,6 +576,7 @@ onMounted(async () => {
   <CreateParticipantForm
     :event="selectedEvent"
     :show="showCreate"
+    :eventCategories="eventDivisions"
     title="New participant entry"
     @createNewEntry="showCreate = false; reload()"
     @close="showCreate = false"

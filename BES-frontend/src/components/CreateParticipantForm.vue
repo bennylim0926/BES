@@ -1,7 +1,7 @@
 <script setup>
 import ActionDoneModal from '@/views/ActionDoneModal.vue';
 import { onMounted, ref, reactive, watch, computed } from 'vue';
-import { addWalkinToSystem, getAllJudges } from '@/utils/api';
+import { addWalkinToSystem, getJudgesByDivision } from '@/utils/api';
 
 const props = defineProps({
   show:  { type: Boolean, default: false },
@@ -16,6 +16,7 @@ const name = ref("")
 const selectedJudge = ref("")
 const categoryOptions = ref([])
 const allJudges = ref([])
+const categoryJudges = ref([])
 const adminCategoryMap = ref({})
 const createTable = reactive({ categories: [] })
 const showError = ref(false)
@@ -85,8 +86,14 @@ watch(() => createTable.categories.slice(), (selected) => {
   }
 }, { deep: true })
 
-watch(() => createTable.categories[0], () => {
+watch(() => createTable.categories[0], async (categoryName) => {
   selectedJudge.value = ""
+  categoryJudges.value = []
+  if (!categoryName || !props.eventCategories) return
+  const cat = props.eventCategories.find(c => c.name === categoryName)
+  if (!cat?.judgeAssignmentMode || !cat.eventCategoryId) return
+  const judges = await getJudgesByDivision(props.event, cat.eventCategoryId)
+  categoryJudges.value = Array.isArray(judges) ? judges.map(j => j.judgeName) : []
 })
 
 const selectedCategoryHasJudgeMode = computed(() => {
@@ -272,7 +279,7 @@ onMounted(async () => {
                 style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
               >
                 <option value="">No preference</option>
-                <option v-for="j in allJudges.filter(j => j !== '')" :key="j" :value="j">{{ j }}</option>
+                <option v-for="j in categoryJudges" :key="j" :value="j">{{ j }}</option>
               </select>
               <p v-if="createTable.categories.length > 1" class="type-prose text-amber-400/80 mt-1">
                 Judge assignment only applies to the first selected category in judge assignment mode.
