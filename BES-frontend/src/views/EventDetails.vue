@@ -1223,6 +1223,12 @@ const checkIn = async (p) => {
       checkingInId.value = null
       return
     }
+    if (res?.status === 422) {
+      checkinConfirm.value.phase = 'error'
+      checkinConfirm.value.errorMessage = 'Assign a judge to this participant before checking in.'
+      checkingInId.value = null
+      return
+    }
     await Promise.all([fetchCheckinList(), refreshFromDb()])
   } catch (e) {
     console.error(e)
