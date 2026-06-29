@@ -85,6 +85,18 @@ watch(() => createTable.categories.slice(), (selected) => {
   }
 }, { deep: true })
 
+watch(() => createTable.categories[0], () => {
+  selectedJudge.value = ""
+})
+
+const selectedCategoryHasJudgeMode = computed(() => {
+  const selected = createTable.categories[0]
+  if (!selected) return false
+  if (!props.eventCategories) return false
+  const cat = props.eventCategories.find(c => c.name === selected)
+  return cat?.judgeAssignmentMode ?? false
+})
+
 const groupedCategories = computed(() => {
   const groups = {}
   for (const opt of categoryOptions.value) {
@@ -249,6 +261,19 @@ onMounted(async () => {
                   </button>
                 </template>
               </div>
+            </div>
+
+            <!-- Judge assignment (shown only when selected category has judgeAssignmentMode) -->
+            <div v-if="selectedCategoryHasJudgeMode" class="flex flex-col gap-1">
+              <span class="type-label text-content-muted">ASSIGN JUDGE <span class="text-white/30">(OPTIONAL)</span></span>
+              <select
+                v-model="selectedJudge"
+                class="bg-surface-800 border border-white/10 text-content px-3 py-2 type-name w-full"
+                style="clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)"
+              >
+                <option value="">No preference</option>
+                <option v-for="j in allJudges.filter(j => j !== '')" :key="j" :value="j">{{ j }}</option>
+              </select>
             </div>
 
             <!-- Per-category team details (inline expansion) -->
