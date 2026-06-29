@@ -27,10 +27,27 @@ const upcomingRounds = computed(() => {
   return rounds.reverse()
 })
 
-// ── Timer ──────────────────────────────────────────────────────────────────
-const timerRef = ref(null)
+// ── Timer state (mirrors EmceeRoundView pattern) ───────────────────────────
+const timerRef        = ref(null)
 const baselineDuration = ref(null)
-const lastTimerState = ref({})
+const timerRemaining  = ref(null)
+const lastTimerState  = ref({})
+
+const headerDisplayTime = computed(() => {
+  if (lastTimerState.value.running && timerRemaining.value !== null) return String(timerRemaining.value)
+  if (baselineDuration.value) return String(baselineDuration.value)
+  return null
+})
+
+const headerProgressPct = computed(() => {
+  if (lastTimerState.value.running && lastTimerState.value.duration)
+    return Math.max(0, ((timerRemaining.value ?? 0) / lastTimerState.value.duration) * 100)
+  return baselineDuration.value ? 100 : 0
+})
+
+const headerTimerNearEnd = computed(() =>
+  lastTimerState.value.running && timerRemaining.value !== null && timerRemaining.value <= 10 && timerRemaining.value > 0
+)
 
 function buildJudgeSlotMap(round) {
   const slots = {}
@@ -60,16 +77,20 @@ async function publishState(timerState = {}) {
 
 function onTimerStarted(detail) {
   baselineDuration.value = detail.duration
-  lastTimerState.value = { startedAt: detail.startedAt, duration: detail.duration, running: true }
+  timerRemaining.value   = detail.duration
+  lastTimerState.value   = { startedAt: detail.startedAt, duration: detail.duration, running: true }
   publishState(lastTimerState.value)
 }
 
 function onTimerStopped() {
+  timerRemaining.value = null
   lastTimerState.value = { startedAt: null, duration: null, running: false }
   publishState(lastTimerState.value)
 }
 
-function onTimerTick() { /* OBS reconstructs from timerStartedAt */ }
+function onTimerTick(detail) {
+  timerRemaining.value = detail.remaining
+}
 
 function onAdvance() { timerRef.value?.reset?.(); emit('advance') }
 function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
@@ -114,7 +135,6 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
               {{ idx === upcomingRounds.length - 1 ? 'UP NEXT' : `RND ${r}` }}
             </span>
           </div>
-          <!-- Per-judge mini slots for this round -->
           <div class="grid gap-1.5 px-2 pb-1.5" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
             <div v-for="j in judgeNames" :key="j" class="flex flex-col min-w-0">
               <template v-if="slotAt(j, r)">
@@ -130,8 +150,27 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
 
     <!-- NOW: current round grid -->
     <div class="shrink-0 px-3 pb-1">
-      <div class="type-label text-content-muted mb-1.5" style="font-size:10px;letter-spacing:0.18em">NOW</div>
-      <div class="grid gap-2" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
+      <!-- NOW header — doubles as progress bar (mirrors EmceeRoundView .now-card-header) -->
+      <div
+        class="now-header"
+        :class="{ 'now-header--near-end': headerTimerNearEnd, 'now-header--running': lastTimerState.running }"
+        :style="{ '--progress': headerProgressPct + '%' }"
+      >
+        <div class="flex items-center gap-2 z-10 relative">
+          <span class="glow-dot"></span>
+          <span class="type-label text-content-muted">Now on Stage</span>
+        </div>
+        <span
+          v-if="headerDisplayTime"
+          class="now-timer z-10 relative"
+          :class="{ 'now-timer--near-end': headerTimerNearEnd }"
+        >
+          <i class="pi pi-clock mr-1" style="font-size:0.75em;opacity:0.7;"></i>{{ headerDisplayTime }}
+        </span>
+      </div>
+
+      <!-- Judge grid -->
+      <div class="grid gap-2 mt-2" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
         <div
           v-for="j in judgeNames"
           :key="j"
@@ -147,11 +186,7 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
               {{ slotAt(j, currentRound).participantName }}
             </span>
             <div v-if="slotAt(j, currentRound).memberNames?.length" class="flex flex-wrap gap-1 justify-center mt-0.5">
-              <span
-                v-for="m in slotAt(j, currentRound).memberNames"
-                :key="m"
-                class="para-chip-sm type-label px-1.5 py-0.5"
-              >{{ m }}</span>
+              <span v-for="m in slotAt(j, currentRound).memberNames" :key="m" class="para-chip-sm type-label px-1.5 py-0.5">{{ m }}</span>
             </div>
           </template>
           <template v-else>
@@ -164,31 +199,18 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
 
     <!-- Navigation -->
     <div class="shrink-0 flex gap-3 px-3 py-2">
-      <button
-        data-testid="prev-round"
-        class="flex-1 card py-3 type-label transition-opacity"
-        :disabled="currentRound <= 1"
-        :class="currentRound <= 1 ? 'opacity-30' : ''"
-        @click="onRetreat"
+      <button data-testid="prev-round" class="flex-1 card py-3 type-label transition-opacity"
+        :disabled="currentRound <= 1" :class="currentRound <= 1 ? 'opacity-30' : ''" @click="onRetreat"
       >‹ PREV</button>
-      <button
-        data-testid="next-round"
-        class="flex-1 card py-3 type-label transition-opacity text-accent"
-        :disabled="currentRound >= maxRound"
-        :class="currentRound >= maxRound ? 'opacity-30' : ''"
-        @click="onAdvance"
+      <button data-testid="next-round" class="flex-1 card py-3 type-label transition-opacity text-accent"
+        :disabled="currentRound >= maxRound" :class="currentRound >= maxRound ? 'opacity-30' : ''" @click="onAdvance"
       >NEXT ›</button>
     </div>
 
     <!-- Timer -->
     <div class="shrink-0 px-3 pb-3 pt-1">
-      <Timer
-        ref="timerRef"
-        :baseline-duration="baselineDuration"
-        @started="onTimerStarted"
-        @stopped="onTimerStopped"
-        @tick="onTimerTick"
-      />
+      <Timer ref="timerRef" :baseline-duration="baselineDuration"
+        @started="onTimerStarted" @stopped="onTimerStopped" @tick="onTimerTick" />
     </div>
 
   </div>
@@ -197,4 +219,37 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
 <style scoped>
 .judge-root { overflow-y: auto; }
 .judge-queue::-webkit-scrollbar { display: none; }
+
+/* NOW header — progress bar (mirrors EmceeRoundView .now-card-header) */
+.now-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  overflow: hidden;
+}
+.now-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.07);
+  width: var(--progress, 0%);
+  transition: width 0.25s linear, background 0.3s ease;
+  pointer-events: none;
+}
+.now-header--near-end::before { background: rgba(239,68,68,0.18); }
+
+.now-timer {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(1.2rem, 4vw, 1.8rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.85);
+  transition: color 0.3s ease;
+}
+.now-timer--near-end { color: #ef4444; }
 </style>
