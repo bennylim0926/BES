@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onBeforeUnmount, watch, computed } from 'vue';
 import ActionDoneModal from './ActionDoneModal.vue';
-import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup, resetAuditionNumbers, updateCategoryPairSubMode } from '@/utils/api';
+import { checkTableExist, getFileId, getResponseDetails, getCategoriesByEvent, getVerifiedParticipantsByEvent, addParticipantToSystem, getSheetSize, getRegisteredParticipantsByEvent, removeParticipantCategory, addCategoryToParticipant, getUnverifiedParticipantsDB, verifyPayment, verifyPaymentBatch, updateEventCategoryFormat, getJudgesByEvent, getJudgesByDivision, addJudgeToEvent, assignJudgeToDivision, removeJudgeFromDivision, removeEventJudge, getScoringCriteria, fetchAllFolderEvents, fetchAllEvents, getCheckinList, checkInParticipant, sendCheckinPreview, getCheckinPreviews, addDivision, renameDivision, updateDivisionSoloAllowed, deleteDivision, getSheetCategories, getSessionTokens, revokeSessionToken, generateToken, getFeedbackEnabled, setFeedbackEnabled, getJudgingMode, setJudgingMode, getReleaseScore, setReleaseScore, getParticipantRefs, insertEventInTable, getEventFeedbackTags, createEventFeedbackGroup, createEventFeedbackTag, updateEventFeedbackTag, deleteEventFeedbackTag, deleteEventFeedbackGroup, resetAuditionNumbers, updateCategoryPairSubMode, toggleJudgeAssignmentMode } from '@/utils/api';
 import { setActiveEvent, useAuthStore } from '@/utils/auth';
 import { useDelay } from '@/utils/utils';
 
@@ -830,6 +830,13 @@ const toggleSoloAllowed = async (div) => {
   const newVal = !div.soloAllowed
   await updateDivisionSoloAllowed(props.eventName, div.eventCategoryId, newVal)
   div.soloAllowed = newVal
+}
+
+const setJudgeAssignmentMode = async (category, enabled) => {
+  const res = await toggleJudgeAssignmentMode(props.eventName, category.eventCategoryId, enabled)
+  if (res && res.ok) {
+    category.judgeAssignmentMode = enabled
+  }
 }
 
 const addSuggestionToCategory = async (categoryId, _categoryLabel) => {
@@ -2154,6 +2161,22 @@ onUnmounted(() => {
               </span>
             </div>
             <p v-else class="type-prose">No judges assigned. Add them in the Judges tab, then assign to this category.</p>
+            <!-- Judge assignment mode toggle — only shown when ≥2 judges are assigned -->
+            <div v-if="(divisionJudges[div.name] || []).length >= 2" class="flex items-center gap-3 mt-3">
+              <div class="flex-1">
+                <span class="section-rule-label">JUDGE ASSIGNMENT MODE</span>
+                <p class="type-prose text-content-muted mt-0.5">Each judge runs their own audition pool concurrently</p>
+              </div>
+              <button
+                class="badge-sm px-3 py-1.5 transition-colors"
+                :class="div.judgeAssignmentMode
+                  ? 'bg-green-500/15 border border-green-500/30 text-green-400'
+                  : 'bg-white/5 border border-white/10 text-content-muted'"
+                @click="setJudgeAssignmentMode(div, !div.judgeAssignmentMode)"
+              >
+                <span class="type-label">{{ div.judgeAssignmentMode ? 'ON' : 'OFF' }}</span>
+              </button>
+            </div>
           </section>
 
           <!-- Danger zone — destructive action lives at the bottom so it isn't
