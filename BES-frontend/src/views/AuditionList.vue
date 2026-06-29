@@ -1045,6 +1045,8 @@ onMounted(async () => {
         :judgeSlots="judgeSlots"
         :currentRound="judgeCurrentRound"
         :maxRound="judgeMaxRound"
+        :eventName="selectedEvent"
+        :categoryName="selectedCategory"
         @advance="judgeCurrentRound = Math.min(judgeCurrentRound + 1, judgeMaxRound); broadcastJudgeRound(judgeCurrentRound)"
         @retreat="judgeCurrentRound = Math.max(judgeCurrentRound - 1, 1); broadcastJudgeRound(judgeCurrentRound)"
       />
