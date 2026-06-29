@@ -2168,7 +2168,7 @@ onUnmounted(() => {
                 <p class="type-prose text-content-muted mt-0.5">Each judge runs their own audition pool concurrently</p>
               </div>
               <button
-                class="badge-sm px-3 py-1.5 transition-colors"
+                class="para-chip-sm px-3 py-1.5 transition-colors"
                 :class="div.judgeAssignmentMode
                   ? 'bg-green-500/15 border border-green-500/30 text-green-400'
                   : 'bg-white/5 border border-white/10 text-content-muted'"
