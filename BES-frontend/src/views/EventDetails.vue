@@ -151,6 +151,7 @@ const toggleDivision = (id) => {
 }
 const activeCategoryTab = ref(null)
 const poolTab = ref(null) // active division tab in number pool
+const poolJudgeTab = ref(null) // active judge sub-tab within a judge-mode category
 let refreshInterval = null
 let wsClient = null
 
@@ -274,15 +275,36 @@ const divisionAuditionStats = computed(() => {
   const map = {}
   for (const p of checkinList.value) {
     for (const g of p.categories) {
-      if (!map[g.categoryName]) map[g.categoryName] = { total: 0, drawn: [] }
-      map[g.categoryName].total++
-      if (g.auditionNumber !== null) map[g.categoryName].drawn.push(g.auditionNumber)
+      if (!map[g.categoryName]) map[g.categoryName] = { judgeMode: false, total: 0, drawn: [], judgepools: {} }
+      const cat = eventCategories.value.find(c => c.name === g.categoryName)
+      if (cat?.judgeAssignmentMode) {
+        map[g.categoryName].judgeMode = true
+        const jKey = g.judgeName || '__unassigned__'
+        if (!map[g.categoryName].judgepool) map[g.categoryName].judgepool = {}
+        if (!map[g.categoryName].judgepool[jKey]) map[g.categoryName].judgepool[jKey] = { total: 0, drawn: [] }
+        map[g.categoryName].judgepool[jKey].total++
+        if (g.auditionNumber !== null) map[g.categoryName].judgepool[jKey].drawn.push(g.auditionNumber)
+      } else {
+        map[g.categoryName].total++
+        if (g.auditionNumber !== null) map[g.categoryName].drawn.push(g.auditionNumber)
+      }
     }
   }
   return Object.entries(map).map(([name, data]) => {
+    if (data.judgeMode && data.judgepool) {
+      const judgepools = Object.entries(data.judgepool).map(([judge, d]) => {
+        const maxNum = Math.max(0, ...d.drawn, d.total)
+        const drawnSet = new Set(d.drawn)
+        const remaining = Array.from({ length: maxNum }, (_, i) => i + 1).filter(n => !drawnSet.has(n))
+        return { judge, total: maxNum, drawn: d.drawn.sort((a, b) => a - b), remaining }
+      }).filter(j => j.judge !== '__unassigned__').sort((a, b) => a.judge.localeCompare(b.judge))
+      const totalDrawn = judgepools.reduce((s, j) => s + j.drawn.length, 0)
+      const totalAll = judgepools.reduce((s, j) => s + j.total, 0)
+      return { name, judgeMode: true, total: totalAll, drawn: totalDrawn, judgepools }
+    }
     const drawnSet = new Set(data.drawn)
     const remaining = Array.from({ length: data.total }, (_, i) => i + 1).filter(n => !drawnSet.has(n))
-    return { name, total: data.total, drawn: data.drawn.sort((a, b) => a - b), remaining }
+    return { name, judgeMode: false, total: data.total, drawn: data.drawn.sort((a, b) => a - b), remaining }
   }).sort((a, b) => a.name.localeCompare(b.name))
 })
 
@@ -301,7 +323,7 @@ const registeredList = computed(() => {
       memberNames: rows.find(r => r.memberNames?.length)?.memberNames || [],
       entries: rows
         .filter(r => r.auditionNumber !== null)
-        .map(r => ({ category: r.categoryName, auditionNumber: r.auditionNumber }))
+        .map(r => ({ category: r.categoryName, auditionNumber: r.auditionNumber, judgeName: r.judgeName || null }))
         .sort((a, b) => a.category.localeCompare(b.category))
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -2759,38 +2781,81 @@ onUnmounted(() => {
         <!-- Active division panel -->
         <template v-for="div in divisionAuditionStats" :key="div.name">
           <div v-if="(poolTab ?? divisionAuditionStats[0]?.name) === div.name">
-            <!-- Stats row -->
-            <div class="flex items-center gap-4 mb-3 flex-wrap">
-              <span class="flex items-center gap-1.5 type-label">
-                <span class="inline-block w-2 h-2 rounded-full" style="background:var(--accent-color);box-shadow:0 0 6px var(--accent-muted)"></span>
-                <span class="text-accent">{{ div.drawn.length }} drawn</span>
-              </span>
-              <span class="flex items-center gap-1.5 type-label text-content-muted">
-                <span class="inline-block w-2 h-2 rounded-full bg-white/15"></span>
-                {{ div.remaining.length }} remaining
-              </span>
-              <!-- Progress bar -->
-              <div class="flex-1 min-w-[6rem] h-1 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  class="h-full rounded-full transition-all duration-500"
-                  style="background:var(--accent-color)"
-                  :style="{ width: div.total > 0 ? (div.drawn.length / div.total * 100) + '%' : '0%' }"
-                ></div>
-              </div>
-            </div>
 
-            <!-- Number grid: accent = drawn, dim = remaining -->
-            <div class="flex flex-wrap gap-1.5">
-              <span
-                v-for="n in div.total"
-                :key="n"
-                class="inline-flex items-center justify-center type-label tabular-nums"
-                style="width:2.1rem;height:1.7rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
-                :style="div.drawn.includes(n)
-                  ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
-                  : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.2)'"
-              >{{ n }}</span>
-            </div>
+            <!-- Judge mode: per-judge sub-pools -->
+            <template v-if="div.judgeMode">
+              <!-- Judge sub-tabs -->
+              <div class="flex flex-wrap gap-1.5 mb-3">
+                <button
+                  v-for="jp in div.judgepools"
+                  :key="jp.judge"
+                  @click="poolJudgeTab = jp.judge"
+                  class="para-chip-sm px-2.5 py-1 type-label transition-colors"
+                  :class="(poolJudgeTab ?? div.judgepools[0]?.judge) === jp.judge
+                    ? 'bg-accent/15 border border-accent/40 text-accent'
+                    : 'bg-white/5 border border-white/10 text-content-muted'"
+                >
+                  {{ jp.judge }}
+                  <span class="tabular-nums opacity-60 ml-1">{{ jp.drawn.length }}/{{ jp.total }}</span>
+                </button>
+              </div>
+              <!-- Active judge pool -->
+              <template v-for="jp in div.judgepools" :key="jp.judge">
+                <div v-if="(poolJudgeTab ?? div.judgepools[0]?.judge) === jp.judge">
+                  <div class="flex items-center gap-4 mb-3 flex-wrap">
+                    <span class="flex items-center gap-1.5 type-label">
+                      <span class="inline-block w-2 h-2 rounded-full" style="background:var(--accent-color);box-shadow:0 0 6px var(--accent-muted)"></span>
+                      <span class="text-accent">{{ jp.drawn.length }} drawn</span>
+                    </span>
+                    <span class="flex items-center gap-1.5 type-label text-content-muted">
+                      <span class="inline-block w-2 h-2 rounded-full bg-white/15"></span>
+                      {{ jp.remaining.length }} remaining
+                    </span>
+                    <div class="flex-1 min-w-[6rem] h-1 rounded-full bg-white/10 overflow-hidden">
+                      <div class="h-full rounded-full transition-all duration-500" style="background:var(--accent-color)"
+                        :style="{ width: jp.total > 0 ? (jp.drawn.length / jp.total * 100) + '%' : '0%' }"></div>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span v-for="n in jp.total" :key="n"
+                      class="inline-flex items-center justify-center type-label tabular-nums"
+                      style="width:2.1rem;height:1.7rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                      :style="jp.drawn.includes(n)
+                        ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
+                        : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.2)'"
+                    >{{ n }}</span>
+                  </div>
+                </div>
+              </template>
+            </template>
+
+            <!-- Standard mode: flat pool -->
+            <template v-else>
+              <div class="flex items-center gap-4 mb-3 flex-wrap">
+                <span class="flex items-center gap-1.5 type-label">
+                  <span class="inline-block w-2 h-2 rounded-full" style="background:var(--accent-color);box-shadow:0 0 6px var(--accent-muted)"></span>
+                  <span class="text-accent">{{ div.drawn.length }} drawn</span>
+                </span>
+                <span class="flex items-center gap-1.5 type-label text-content-muted">
+                  <span class="inline-block w-2 h-2 rounded-full bg-white/15"></span>
+                  {{ div.remaining.length }} remaining
+                </span>
+                <div class="flex-1 min-w-[6rem] h-1 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-500" style="background:var(--accent-color)"
+                    :style="{ width: div.total > 0 ? (div.drawn.length / div.total * 100) + '%' : '0%' }"></div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-for="n in div.total" :key="n"
+                  class="inline-flex items-center justify-center type-label tabular-nums"
+                  style="width:2.1rem;height:1.7rem;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)"
+                  :style="div.drawn.includes(n)
+                    ? 'background:var(--accent-subtle);border:1px solid var(--accent-muted);color:var(--accent-color)'
+                    : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.2)'"
+                >{{ n }}</span>
+              </div>
+            </template>
+
           </div>
         </template>
       </div>
@@ -2876,6 +2941,7 @@ onUnmounted(() => {
                       style="box-shadow:0 0 5px rgba(52,211,153,0.7)"
                     ></span>
                     {{ g.categoryName }}
+                    <span v-if="g.judgeName" class="text-content-muted" style="font-size:12px">· {{ g.judgeName }}</span>
                     <span v-if="g.auditionNumber !== null" class="text-accent" style="font-size:16px">#{{ g.auditionNumber }}</span>
                   </span>
                 </div>
@@ -2960,7 +3026,9 @@ onUnmounted(() => {
               </div>
               <div class="flex flex-wrap gap-1.5 mt-1">
                 <span v-for="e in p.entries" :key="e.category" class="badge-neutral" style="font-size:13px; text-transform:none;letter-spacing:0.02em;">
-                  {{ e.category }}<span style="color:var(--accent-color);margin-left:0.25rem; font-size:16px">#{{ e.auditionNumber }}</span>
+                  {{ e.category }}
+                  <span v-if="e.judgeName" style="color:rgba(255,255,255,0.35);margin-left:0.2rem;font-size:12px">· {{ e.judgeName }}</span>
+                  <span style="color:var(--accent-color);margin-left:0.25rem; font-size:16px">#{{ e.auditionNumber }}</span>
                 </span>
               </div>
             </div>

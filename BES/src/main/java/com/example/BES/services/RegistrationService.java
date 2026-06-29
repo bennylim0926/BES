@@ -310,6 +310,7 @@ public class RegistrationService {
                 gs.categoryName = egp.getEventCategory().getName();
                 gs.eventCategoryId = egp.getEventCategory().getId();
                 gs.auditionNumber = egp.getAuditionNumber();
+                gs.judgeName = egp.getJudge() != null ? egp.getJudge().getName() : null;
                 return gs;
             }).collect(Collectors.toList());
             result.add(dto);

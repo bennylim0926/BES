@@ -13,5 +13,6 @@ public class GetCheckinListDto {
         public String categoryName;
         public Long eventCategoryId;
         public Integer auditionNumber;
+        public String judgeName;
     }
 }
