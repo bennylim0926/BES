@@ -358,7 +358,7 @@ onMounted(async () => {
                 class="unassigned-badge">
                 UNASSIGNED
               </span>
-              <span v-else class="judge-group-name type-name">{{ judgeName }}</span>
+              <span v-else class="section-rule-label type-name">{{ judgeName }}</span>
               <div class="judge-group-line"></div>
             </div>
 
@@ -615,11 +615,6 @@ onMounted(async () => {
 .judge-group-header {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 12px 6px;
-}
-.judge-group-name {
-  font-size: 13px; letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.75);
-  white-space: nowrap;
 }
 .judge-group-line {
   flex: 1; height: 1px;
