@@ -188,6 +188,35 @@ onUnmounted(() => {
       <!-- Main area: number+name+timer — centres in remaining space -->
       <div class="main-area">
 
+        <!-- Judge mode: multi-panel per judge -->
+        <div
+          v-if="state?.judgeMode && state?.judgeSlots"
+          class="judge-grid"
+          :style="{ gridTemplateColumns: `repeat(${Object.keys(state.judgeSlots).length}, 1fr)` }"
+        >
+          <div
+            v-for="(slot, judgeName) in state.judgeSlots"
+            :key="judgeName"
+            class="judge-panel flex flex-col items-center justify-center gap-3"
+          >
+            <span class="judge-label">{{ judgeName.toUpperCase() }}</span>
+            <template v-if="slot">
+              <span
+                class="audition-number"
+                :style="state.numberColor ? { color: state.numberColor } : {}"
+              >#{{ slot.auditionNumber }}</span>
+              <span class="participant-name">{{ slot.participantName }}</span>
+            </template>
+            <template v-else>
+              <span class="audition-number" style="opacity:0.2">—</span>
+              <span class="participant-name" style="opacity:0.2">WAITING</span>
+            </template>
+          </div>
+        </div>
+
+        <!-- Default: existing single/pair participant display -->
+        <template v-else>
+
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
           <!-- Left: both names stacked -->
@@ -260,6 +289,8 @@ onUnmounted(() => {
             <div class="type-stat timer-number">{{ timerLabel }}</div>
           </div>
         </div>
+
+        </template>
       </div>
 
     </div>
@@ -766,5 +797,32 @@ onUnmounted(() => {
 }
 .op-select option {
   background: #1a1a1a;
+}
+
+/* ── Judge mode: multi-panel grid ─────────────────────────────────────────── */
+.judge-grid {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.judge-panel {
+  background: rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.judge-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.5rem;
 }
 </style>

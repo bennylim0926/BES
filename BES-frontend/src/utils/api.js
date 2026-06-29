@@ -1708,6 +1708,17 @@ export const postAuditionDisplayState = async (state) => {
   }
 }
 
+export const updateAuditionDisplay = async (eventName, payload) => {
+  try {
+    await fetch(`${domain}/api/v1/event/audition-display`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+  } catch { /* silent — display is best-effort */ }
+}
+
 export const getAuditionDisplayState = async (eventName, categoryName) => {
   try {
     const url = `${domain}/api/v1/event/audition-display?event=${encodeURIComponent(eventName)}&category=${encodeURIComponent(categoryName || '')}`

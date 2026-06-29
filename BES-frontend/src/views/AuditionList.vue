@@ -1,7 +1,7 @@
 <script setup>
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags, resetJudgeScores, getParticipantsByJudge } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags, resetJudgeScores, getParticipantsByJudge, updateAuditionDisplay } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -57,6 +57,26 @@ const loadJudgeSlotsForCategory = async () => {
   if (!div) return
   judgeSlots.value = await getParticipantsByJudge(selectedEvent.value, div.eventCategoryId)
   judgeCurrentRound.value = 1
+}
+const broadcastJudgeRound = async (newRound) => {
+  if (!selectedEvent.value || !selectedCategory.value) return
+  const slots = {}
+  for (const [judgeName, pool] of Object.entries(judgeSlots.value)) {
+    if (judgeName === '__unassigned__') continue
+    const slot = pool.find(p => p.auditionNumber === newRound) ?? null
+    slots[judgeName] = slot ? {
+      auditionNumber: slot.auditionNumber,
+      participantName: slot.participantName,
+      memberNames: slot.memberNames ?? []
+    } : null
+  }
+  await updateAuditionDisplay(selectedEvent.value, {
+    eventName: selectedEvent.value,
+    categoryName: selectedCategory.value,
+    judgeMode: true,
+    judgeCurrentRound: newRound,
+    judgeSlots: slots
+  })
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1025,8 +1045,8 @@ onMounted(async () => {
         :judgeSlots="judgeSlots"
         :currentRound="judgeCurrentRound"
         :maxRound="judgeMaxRound"
-        @advance="judgeCurrentRound = Math.min(judgeCurrentRound + 1, judgeMaxRound)"
-        @retreat="judgeCurrentRound = Math.max(judgeCurrentRound - 1, 1)"
+        @advance="judgeCurrentRound = Math.min(judgeCurrentRound + 1, judgeMaxRound); broadcastJudgeRound(judgeCurrentRound)"
+        @retreat="judgeCurrentRound = Math.max(judgeCurrentRound - 1, 1); broadcastJudgeRound(judgeCurrentRound)"
       />
       <!-- Standard linear round view -->
       <EmceeRoundView
