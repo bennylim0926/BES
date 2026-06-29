@@ -40,7 +40,7 @@ const judgeSlots = ref({})
 const judgeMaxRound = computed(() =>
   Math.max(0, ...Object.values(judgeSlots.value)
     .filter(arr => Array.isArray(arr))
-    .map(arr => arr.length))
+    .flatMap(arr => arr.map(p => p.auditionNumber ?? 0)))
 )
 
 const selectedCategoryJudgeMode = computed(() => {

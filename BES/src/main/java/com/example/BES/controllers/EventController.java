@@ -299,7 +299,7 @@ public class EventController {
             @RequestBody Map<String, Boolean> body) {
         try {
             boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
-            eventCategoryService.setJudgeAssignmentMode(categoryId, enabled);
+            eventCategoryService.setJudgeAssignmentMode(eventName, categoryId, enabled);
             return ResponseEntity.ok(Map.of("message", "ok", "enabled", enabled));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

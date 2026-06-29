@@ -274,6 +274,9 @@ onMounted(async () => {
                 <option value="">No preference</option>
                 <option v-for="j in allJudges.filter(j => j !== '')" :key="j" :value="j">{{ j }}</option>
               </select>
+              <p v-if="createTable.categories.length > 1" class="type-prose text-amber-400/80 mt-1">
+                Judge assignment only applies to the first selected category in judge assignment mode.
+              </p>
             </div>
 
             <!-- Per-category team details (inline expansion) -->

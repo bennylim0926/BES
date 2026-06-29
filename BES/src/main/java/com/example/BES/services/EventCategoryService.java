@@ -112,9 +112,11 @@ public class EventCategoryService {
         eventCategoryRepo.deleteById(ec.getId());
     }
 
-    public void setJudgeAssignmentMode(Long categoryId, boolean enabled) {
+    public void setJudgeAssignmentMode(String eventName, Long categoryId, boolean enabled) {
         EventCategory ec = eventCategoryRepo.findById(categoryId)
             .orElseThrow(() -> new RuntimeException("Category not found: " + categoryId));
+        if (!ec.getEvent().getEventName().equalsIgnoreCase(eventName))
+            throw new RuntimeException("Category does not belong to event: " + eventName);
         ec.setJudgeAssignmentMode(enabled);
         eventCategoryRepo.save(ec);
     }
