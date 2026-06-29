@@ -165,10 +165,14 @@ watch(currentCategoryJudgeNames, (names) => {
 // ── Judge pools load ───────────────────────────────────────────────────────
 const loadJudgePools = async () => {
   if (!eventName) return
-  for (const div of eventDivisions.value) {
-    if (div.judgeAssignmentMode) {
-      judgePoolsByCategory.value[div.eventCategoryId] = await getParticipantsByJudge(eventName, div.eventCategoryId)
-    }
+  const modeCats = (eventDivisions.value || []).filter(div => div.judgeAssignmentMode)
+  if (modeCats.length === 0) return
+  const results = await Promise.all(
+    modeCats.map(div => getParticipantsByJudge(eventName, div.eventCategoryId)
+      .then(pool => ({ id: div.eventCategoryId, pool })))
+  )
+  for (const { id, pool } of results) {
+    judgePoolsByCategory.value[id] = pool
   }
 }
 
@@ -405,7 +409,7 @@ onUnmounted(() => {
               <span class="section-rule-label">{{ selectedJudgeTab || 'Select a judge tab' }}</span>
               <div class="section-rule-line"></div>
               <span class="type-label ml-2 flex-shrink-0 text-content-muted/60">
-                {{ judgeAvailableNumbers.length }} available
+                {{ judgeAvailableNumbers.length }} unassigned
               </span>
             </div>
             <div class="flex-1 overflow-y-auto space-y-1.5 min-h-0" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
