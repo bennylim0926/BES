@@ -85,6 +85,17 @@ const currentSlots  = computed(() => state.value?.currentSlots ?? [])
 const isNearEnd     = computed(() => displayTimeLeft.value <= 10 && displayTimeLeft.value > 0 && state.value?.timerRunning)
 const isFinished    = computed(() => state.value?.timerRunning && displayTimeLeft.value <= 0 && state.value?.timerDuration > 0)
 
+const judgeCount = computed(() => state.value?.judgeSlots ? Object.keys(state.value.judgeSlots).length : 0)
+
+// Scale participant name font size based on judge count (1–6 judges supported)
+const judgeNameFontSize = computed(() => {
+  const n = judgeCount.value
+  if (n <= 2) return 'clamp(52px, 9vw, 110px)'
+  if (n === 3) return 'clamp(40px, 7vw, 88px)'
+  if (n === 4) return 'clamp(30px, 5.5vw, 68px)'
+  return 'clamp(22px, 4.2vw, 54px)'  // 5–6 judges
+})
+
 // ── Circular ring progress ────────────────────────────────────────────────────
 const RING_R = 96
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R  // ~603.2
@@ -177,16 +188,52 @@ onUnmounted(() => {
     </div>
 
     <!-- ACTIVE display -->
-    <div v-else class="active-container">
+    <div v-else class="active-container" :class="{ 'active-container--judge': state?.judgeMode }">
 
-      <!-- Event name + category — flows in column, always above content -->
+      <!-- Event name + category -->
       <div class="event-header">
         <span class="event-header-name">{{ eventLabel }}</span>
         <span class="event-header-category">{{ categoryName }}<template v-if="categoryRoundLabel"> &nbsp;|&nbsp; {{ categoryRoundLabel }}</template></span>
       </div>
 
-      <!-- Main area: number+name+timer — centres in remaining space -->
-      <div class="main-area">
+      <!-- ── JUDGE MODE: compact top strip + full-height name grid ── -->
+      <template v-if="state?.judgeMode && state?.judgeSlots">
+
+        <!-- Timer ring — centered, no audition number (confusing on OBS) -->
+        <div class="judge-timer-row">
+          <div v-if="timerLabel" class="timer-ring-wrap timer-ring-wrap--judge" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
+            <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
+              <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
+              <circle cx="110" cy="110" :r="RING_R" class="ring-fill" :style="{ strokeDashoffset: ringDashoffset }" />
+            </svg>
+            <div class="type-stat timer-number timer-number--judge">{{ timerLabel }}</div>
+          </div>
+        </div>
+
+        <!-- Judge name columns — fills all remaining height -->
+        <div
+          class="judge-grid"
+          :style="{ gridTemplateColumns: `repeat(${judgeCount}, 1fr)` }"
+        >
+          <div
+            v-for="(slot, judgeName) in state.judgeSlots"
+            :key="judgeName"
+            class="judge-panel"
+          >
+            <span class="judge-label">{{ judgeName.toUpperCase() }}</span>
+            <template v-if="slot">
+              <span class="judge-participant-name" :style="{ fontSize: judgeNameFontSize }">{{ slot.participantName }}</span>
+              <div v-if="slot.memberNames?.length" class="judge-member-names">{{ slot.memberNames.join(' · ') }}</div>
+            </template>
+            <template v-else>
+              <span class="judge-participant-name" :style="{ fontSize: judgeNameFontSize, opacity: 0.2 }">WAITING</span>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- ── DEFAULT: solo / pair ── -->
+      <div v-else class="main-area">
 
         <!-- PAIR mode: stacked names left | timer right -->
         <div v-if="mode === 'PAIR'" class="pair-row">
@@ -194,15 +241,12 @@ onUnmounted(() => {
           <div class="pair-names" :class="{ 'pair-names-threeway': currentSlots.length >= 3 }">
             <template v-for="(slot, sIdx) in currentSlots" :key="sIdx">
               <div class="pair-name-entry">
-                <!-- Number + name stacked (left side) -->
                 <div class="pair-entry-content">
-                  <!-- Number + name on one row -->
                   <div class="pair-name-row">
                     <span class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">#{{ slot.auditionNumber }}</span>
                     <span v-if="slot.placeholder" class="participant-name" style="opacity:0.3">TBD</span>
                     <span v-else class="type-body participant-name">{{ slot.participantName }}</span>
                   </div>
-                  <!-- Member names + position label on same row -->
                   <div v-if="!slot.placeholder" class="pair-member-names" style="display:flex;align-items:center;gap:8px;">
                     <span v-if="slot.memberNames?.length">{{ slot.memberNames.join(' · ') }}</span>
                     <span v-if="slot.memberNames?.length" style="opacity:0.2;font-size:0.9em;">|</span>
@@ -217,12 +261,9 @@ onUnmounted(() => {
                   </div>
                 </div>
               </div>
-              <!-- Divider between entries (including 3-way) -->
               <div v-if="sIdx < currentSlots.length - 1" class="pair-divider" aria-hidden="true"></div>
             </template>
           </div>
-
-          <!-- Right: timer with circular progress ring -->
           <div class="timer-ring-wrap" :class="{ 'timer-near-end': isNearEnd, 'timer-finished': isFinished }">
             <svg class="timer-ring-svg" viewBox="0 0 220 220" fill="none">
               <circle cx="110" cy="110" :r="RING_R" class="ring-track" />
@@ -244,9 +285,7 @@ onUnmounted(() => {
               <div class="type-stat audition-number" :style="numberColor ? { color: numberColor } : {}">
                 #{{ currentSlots[0].auditionNumber }}
               </div>
-              <div class="type-body participant-name">
-                {{ currentSlots[0].participantName }}
-              </div>
+              <div class="type-body participant-name">{{ currentSlots[0].participantName }}</div>
               <div v-if="currentSlots[0].memberNames?.length" class="type-label member-names">
                 {{ currentSlots[0].memberNames.join(' · ') }}
               </div>
@@ -260,6 +299,7 @@ onUnmounted(() => {
             <div class="type-stat timer-number">{{ timerLabel }}</div>
           </div>
         </div>
+
       </div>
 
     </div>
@@ -766,5 +806,87 @@ onUnmounted(() => {
 }
 .op-select option {
   background: #1a1a1a;
+}
+
+/* ── Judge mode: compact header + timer + full-height name grid ────────────── */
+.active-container--judge {
+  padding: 28px 28px 20px;
+  justify-content: center;
+  gap: 12px;
+}
+.active-container--judge .event-header {
+  padding-top: 0;
+  gap: 2px;
+}
+.active-container--judge .event-header-name {
+  font-size: clamp(32px, 5vw, 68px);
+}
+.active-container--judge .event-header-category {
+  font-size: clamp(17px, 2.4vw, 34px);
+}
+
+.judge-timer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Medium timer ring — visible but not dominant */
+.timer-ring-wrap--judge {
+  width: clamp(110px, 16vw, 200px);
+  height: clamp(110px, 16vw, 200px);
+}
+.timer-number--judge {
+  font-size: clamp(54px, 8.5vw, 110px) !important;
+}
+
+.judge-grid {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+}
+
+.judge-panel {
+  background: rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  padding: clamp(20px, 3.5vh, 48px) 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.judge-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(13px, 1.6vw, 22px);
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.45);
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.judge-participant-name {
+  font-family: 'Oswald', sans-serif;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #ffffff;
+  text-align: center;
+  word-break: break-word;
+  hyphens: auto;
+  overflow-wrap: anywhere;
+  width: 100%;
+}
+
+.judge-member-names {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(10px, 1.2vw, 16px);
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.4);
+  text-transform: none;
+  text-align: center;
 }
 </style>

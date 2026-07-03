@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.BES.dtos.AuditionDisplayStateDto;
 import com.example.BES.services.EventAuditionDisplayService;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 import java.util.Map;
 
 @RestController
@@ -24,6 +26,7 @@ public class EventAuditionDisplayController {
     private EventAuditionDisplayService displayService;
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> updateDisplayState(@RequestBody AuditionDisplayStateDto dto) {
         if (dto == null || dto.eventName == null || dto.eventName.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "eventName is required"));

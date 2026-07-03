@@ -1,7 +1,7 @@
 <script setup>
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ReusableDropdown from '@/components/ReusableDropdown.vue';
-import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags, resetJudgeScores } from '@/utils/api';
+import { getRegisteredParticipantsByEvent, submitParticipantScore, getParticipantScore, whoami, getJudgingMode, setJudgingMode, getFeedbackEnabled, submitAuditionFeedback, getAuditionFeedback, getScoringCriteria, getCategoriesByEvent, getJudgesByDivision, claimEmceeCategory, releaseEmceeCategory, getActiveEmceeCategories, getEventFeedbackTags, resetJudgeScores, getParticipantsByJudge, updateAuditionDisplay } from '@/utils/api';
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { RouterLink, useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/utils/auth';
 import SwipeableCardsV2 from '@/components/SwipeableCardsV2.vue';
 import PairScoreCards from '@/components/PairScoreCards.vue';
 import EmceeRoundView from '@/components/EmceeRoundView.vue';
+import EmceeJudgeGridView from '@/components/EmceeJudgeGridView.vue';
 import MiniScoreMenu from '@/components/MiniScoreMenu.vue';
 import 'primeicons/primeicons.css'
 
@@ -31,6 +32,53 @@ const isAdmin = ref(false)
 const isOrganiser = ref(false)
 const isEmcee = ref(false)
 const activeEmceeCategories = ref(new Set())
+
+// ── Judge assignment mode (emcee concurrent grid view) ────────────────────────
+const judgeCurrentRound = ref(1)
+const judgeSlots = ref({})
+
+const judgeMaxRound = computed(() =>
+  Math.max(0, ...Object.values(judgeSlots.value)
+    .filter(arr => Array.isArray(arr))
+    .flatMap(arr => arr.map(p => p.auditionNumber ?? 0)))
+)
+
+const selectedCategoryJudgeMode = computed(() => {
+  const cat = eventDivisions.value?.find(d => d.name === selectedCategory.value)
+  return cat?.judgeAssignmentMode ?? false
+})
+
+const loadJudgeSlotsForCategory = async () => {
+  if (!selectedCategoryJudgeMode.value || !selectedEvent.value) {
+    judgeSlots.value = {}
+    return
+  }
+  const div = eventDivisions.value?.find(d => d.name === selectedCategory.value)
+  if (!div) return
+  judgeSlots.value = await getParticipantsByJudge(selectedEvent.value, div.eventCategoryId)
+  judgeCurrentRound.value = 1
+}
+const broadcastJudgeRound = async (newRound) => {
+  if (!selectedEvent.value || !selectedCategory.value) return
+  const slots = {}
+  for (const [judgeName, pool] of Object.entries(judgeSlots.value)) {
+    if (judgeName === '__unassigned__') continue
+    const slot = pool.find(p => p.auditionNumber === newRound) ?? null
+    slots[judgeName] = slot ? {
+      auditionNumber: slot.auditionNumber,
+      participantName: slot.participantName,
+      memberNames: slot.memberNames ?? []
+    } : null
+  }
+  await updateAuditionDisplay(selectedEvent.value, {
+    eventName: selectedEvent.value,
+    categoryName: selectedCategory.value,
+    judgeMode: true,
+    judgeCurrentRound: newRound,
+    judgeSlots: slots
+  })
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const loading = ref(true)
 const modalTitle = ref("")
@@ -301,6 +349,7 @@ watch(selectedEvent, async (newVal, oldVal) => {
     if (modeRes?.judgingMode) judgingMode.value = modeRes.judgingMode
     if (feedbackRes && typeof feedbackRes.feedbackEnabled === 'boolean') feedbackEnabled.value = feedbackRes.feedbackEnabled
     await loadScoresFromDb(newVal, selectedCategory.value, currentJudge.value)
+    await loadJudgeSlotsForCategory()
     loading.value = false
   } else {
     loading.value = false
@@ -341,11 +390,13 @@ watch(selectedCategory, async (newVal) => {
       }
     }
     await loadScoresFromDb(selectedEvent.value, newVal, currentJudge.value)
+    await loadJudgeSlotsForCategory()
   } else {
     allJudges.value = [""]
     currentJudge.value = ""
     filteredJudge.value = ""
     localStorage.removeItem("currentJudge")
+    judgeSlots.value = {}
   }
 }, { immediate: true });
 watch(selectedRole, (newVal) => { if (newVal) localStorage.setItem("selectedRole", newVal); }, { immediate: true });
@@ -710,6 +761,7 @@ onMounted(async () => {
       if (idx !== -1) {
         participants.value[idx] = { ...participants.value[idx], judgeName: msg.judge || null }
       }
+      if (selectedCategoryJudgeMode.value) loadJudgeSlotsForCategory()
     })
   const c3 = createClient()
   wsClients.push(c3)
@@ -987,7 +1039,20 @@ onMounted(async () => {
     <LoadingOverlay v-if="loading">Loading audition data…</LoadingOverlay>
 
     <template v-else-if="selectedRole === 'Emcee' && filteredParticipantsForEmceeView.length > 0">
+      <!-- Judge assignment mode: concurrent judge grid view -->
+      <EmceeJudgeGridView
+        v-if="selectedCategoryJudgeMode && Object.keys(judgeSlots).length > 0"
+        :judgeSlots="judgeSlots"
+        :currentRound="judgeCurrentRound"
+        :maxRound="judgeMaxRound"
+        :eventName="selectedEvent"
+        :categoryName="selectedCategory"
+        @advance="judgeCurrentRound = Math.min(judgeCurrentRound + 1, judgeMaxRound); broadcastJudgeRound(judgeCurrentRound)"
+        @retreat="judgeCurrentRound = Math.max(judgeCurrentRound - 1, 1); broadcastJudgeRound(judgeCurrentRound)"
+      />
+      <!-- Standard linear round view -->
       <EmceeRoundView
+        v-else
         ref="emceeRoundRef"
         :key="selectedCategory"
         :participants="filteredParticipantsForEmceeView"

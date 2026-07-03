@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/utils/auth'
 import CreateParticipantForm from '@/components/CreateParticipantForm.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -9,7 +9,9 @@ import {
   deleteParticipantFromEvent,
   removeParticipantCategory,
   updateParticipant,
-  updateParticipantsJudge
+  updateParticipantsJudge,
+  getCategoriesByEvent,
+  getJudgesByDivision
 } from '@/utils/api'
 
 const authStore   = useAuthStore()
@@ -22,6 +24,24 @@ const participants = computed(() => groupParticipants(rawRows.value))
 
 const search         = ref('')
 const activeCategory    = ref('All')
+const eventDivisions = ref([])
+
+const selectedCategoryData = computed(() =>
+  (eventDivisions.value || []).find(d => d.name === activeCategory.value)
+)
+
+const participantsGroupedByJudge = computed(() => {
+  if (!selectedCategoryData.value?.judgeAssignmentMode) return null
+  const rows = filtered.value
+  const groups = {}
+  for (const p of rows) {
+    const cat = p.categories.find(c => c.categoryName === activeCategory.value)
+    const key = (cat?.judgeName) || '__unassigned__'
+    if (!groups[key]) groups[key] = []
+    groups[key].push(p)
+  }
+  return groups
+})
 
 const categoryList = computed(() => {
   const names = [...new Set(rawRows.value.map(r => r.categoryName))].sort()
@@ -213,27 +233,34 @@ function groupParticipants(rows) {
 
 const reload = async () => {
   if (!selectedEvent.value) return
-  const res = await getRegisteredParticipantsByEvent(selectedEvent.value)
-  rawRows.value = Array.isArray(res) ? res : []
+  const [participantsRes, divisionsRes] = await Promise.all([
+    getRegisteredParticipantsByEvent(selectedEvent.value),
+    getCategoriesByEvent(selectedEvent.value)
+  ])
+  rawRows.value = Array.isArray(participantsRes) ? participantsRes : []
+  eventDivisions.value = Array.isArray(divisionsRes) ? divisionsRes : []
 }
 
-const fetchJudges = async () => {
-  try {
-    const res = await fetch('/api/v1/event/judges', { credentials: 'include' })
-    if (!res.ok) return
-    const data = await res.json()
-    allJudges.value = Object.values(data).map(j => j.judgeName)
-  } catch { /* silent */ }
+const fetchJudgesForCategory = async () => {
+  const cat = selectedCategoryData.value
+  if (!cat || !cat.eventCategoryId || !selectedEvent.value) {
+    allJudges.value = []
+    return
+  }
+  const judges = await getJudgesByDivision(selectedEvent.value, cat.eventCategoryId)
+  allJudges.value = Array.isArray(judges) ? judges.map(j => j.judgeName) : []
 }
 
 onMounted(async () => {
   try {
     await reload()
-    await fetchJudges()
+    await fetchJudgesForCategory()
   } finally {
     loading.value = false
   }
 })
+
+watch(activeCategory, () => fetchJudgesForCategory())
 </script>
 
 <template>
@@ -326,70 +353,154 @@ onMounted(async () => {
           <div class="pt-col-actions"></div>
         </div>
 
-        <template v-for="p in filtered" :key="p.participantId">
-          <div class="pt-row" :class="selectedIds.has(p.participantId) && 'selected'">
-            <input
-              type="checkbox"
-              class="row-check"
-              :checked="selectedIds.has(p.participantId)"
-              @change="toggleSelect(p.participantId)"
-              :aria-label="`Select ${p.name}`"
-            />
-            <!-- aria-expanded + label: glyph-only expander gets semantics -->
-            <button class="expand-btn" @click="toggle(p.participantId)"
-              :aria-expanded="expanded.has(p.participantId)"
-              :aria-label="`Show categories for ${p.name}`">
-              <i class="pi" :class="expanded.has(p.participantId) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true"></i>
-            </button>
-            <div class="pt-col-name">
-              <span class="participant-name">{{ p.name }}</span>
-            </div>
-            <div class="pt-col-format">
-              <span :class="['format-badge', isTeamFormat(p.format) ? 'team' : 'solo']">
-                {{ p.format || 'Solo' }}
+        <!-- Judge assignment mode: grouped view -->
+        <template v-if="participantsGroupedByJudge">
+          <template v-for="(groupParticipants, judgeName) in participantsGroupedByJudge" :key="judgeName">
+            <!-- Judge group header -->
+            <div class="judge-group-header">
+              <span v-if="judgeName === '__unassigned__'"
+                class="unassigned-badge">
+                UNASSIGNED
               </span>
+              <span v-else class="section-rule-label type-name">{{ judgeName }}</span>
+              <div class="judge-group-line"></div>
             </div>
-            <div class="pt-col-genres">
-              <span
-                v-for="g in p.categories"
-                :key="g.categoryName"
-                class="category-pill"
-              >{{ g.categoryName }}</span>
-            </div>
-            <div class="pt-col-actions">
-              <button class="btn-action" @click="openEdit(p)">
-                <i class="pi pi-pencil"></i> Edit
-              </button>
-              <button class="btn-action danger" @click="confirmDeleteParticipant(p)">
-                <i class="pi pi-trash"></i> Delete
-              </button>
-            </div>
-          </div>
 
-          <template v-if="expanded.has(p.participantId)">
-            <div
-              v-for="category in p.categories"
-              :key="category.categoryName"
-              class="pt-subrow"
-            >
-              <span class="subrow-indent">↳</span>
-              <span class="category-pill">{{ category.categoryName }}</span>
-              <span class="subrow-label">Judge:</span>
-              <select
-                class="judge-select"
-                :value="category.judgeName"
-                :aria-label="`Assign judge for ${p.name} in ${category.categoryName}`"
-                @change="assignJudge(p, category, $event.target.value)"
-              >
-                <option value="">—</option>
-                <option v-for="j in allJudges" :key="j" :value="j">{{ j }}</option>
-              </select>
-              <span v-if="category.auditionNumber" class="audition-num">#{{ category.auditionNumber }}</span>
-              <button
-                class="btn-remove-category"
-                @click="confirmRemoveCategory(p, category)"
-              >Remove Category</button>
+            <template v-for="p in groupParticipants" :key="p.participantId">
+              <div class="pt-row" :class="selectedIds.has(p.participantId) && 'selected'">
+                <input
+                  type="checkbox"
+                  class="row-check"
+                  :checked="selectedIds.has(p.participantId)"
+                  @change="toggleSelect(p.participantId)"
+                  :aria-label="`Select ${p.name}`"
+                />
+                <button class="expand-btn" @click="toggle(p.participantId)"
+                  :aria-expanded="expanded.has(p.participantId)"
+                  :aria-label="`Show categories for ${p.name}`">
+                  <i class="pi" :class="expanded.has(p.participantId) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true"></i>
+                </button>
+                <div class="pt-col-name">
+                  <span class="participant-name">{{ p.name }}</span>
+                </div>
+                <div class="pt-col-format">
+                  <span :class="['format-badge', isTeamFormat(p.format) ? 'team' : 'solo']">
+                    {{ p.format || 'Solo' }}
+                  </span>
+                </div>
+                <div class="pt-col-genres">
+                  <span
+                    v-for="g in p.categories"
+                    :key="g.categoryName"
+                    class="category-pill"
+                  >{{ g.categoryName }}</span>
+                </div>
+                <div class="pt-col-actions">
+                  <button class="btn-action" @click="openEdit(p)">
+                    <i class="pi pi-pencil"></i> Edit
+                  </button>
+                  <button class="btn-action danger" @click="confirmDeleteParticipant(p)">
+                    <i class="pi pi-trash"></i> Delete
+                  </button>
+                </div>
+              </div>
+
+              <template v-if="expanded.has(p.participantId)">
+                <div
+                  v-for="category in p.categories"
+                  :key="category.categoryName"
+                  class="pt-subrow"
+                >
+                  <span class="subrow-indent">↳</span>
+                  <span class="category-pill">{{ category.categoryName }}</span>
+                  <span class="subrow-label">Judge:</span>
+                  <select
+                    class="judge-select"
+                    :value="category.judgeName"
+                    :aria-label="`Assign judge for ${p.name} in ${category.categoryName}`"
+                    @change="assignJudge(p, category, $event.target.value)"
+                  >
+                    <option value="">—</option>
+                    <option v-for="j in allJudges" :key="j" :value="j">{{ j }}</option>
+                  </select>
+                  <span v-if="category.auditionNumber" class="audition-num">#{{ category.auditionNumber }}</span>
+                  <button
+                    class="btn-remove-category"
+                    @click="confirmRemoveCategory(p, category)"
+                  >Remove Category</button>
+                </div>
+              </template>
+            </template>
+          </template>
+        </template>
+
+        <!-- Default: flat list (judge assignment mode off) -->
+        <template v-else>
+          <template v-for="p in filtered" :key="p.participantId">
+            <div class="pt-row" :class="selectedIds.has(p.participantId) && 'selected'">
+              <input
+                type="checkbox"
+                class="row-check"
+                :checked="selectedIds.has(p.participantId)"
+                @change="toggleSelect(p.participantId)"
+                :aria-label="`Select ${p.name}`"
+              />
+              <!-- aria-expanded + label: glyph-only expander gets semantics -->
+              <button class="expand-btn" @click="toggle(p.participantId)"
+                :aria-expanded="expanded.has(p.participantId)"
+                :aria-label="`Show categories for ${p.name}`">
+                <i class="pi" :class="expanded.has(p.participantId) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true"></i>
+              </button>
+              <div class="pt-col-name">
+                <span class="participant-name">{{ p.name }}</span>
+              </div>
+              <div class="pt-col-format">
+                <span :class="['format-badge', isTeamFormat(p.format) ? 'team' : 'solo']">
+                  {{ p.format || 'Solo' }}
+                </span>
+              </div>
+              <div class="pt-col-genres">
+                <span
+                  v-for="g in p.categories"
+                  :key="g.categoryName"
+                  class="category-pill"
+                >{{ g.categoryName }}</span>
+              </div>
+              <div class="pt-col-actions">
+                <button class="btn-action" @click="openEdit(p)">
+                  <i class="pi pi-pencil"></i> Edit
+                </button>
+                <button class="btn-action danger" @click="confirmDeleteParticipant(p)">
+                  <i class="pi pi-trash"></i> Delete
+                </button>
+              </div>
             </div>
+
+            <template v-if="expanded.has(p.participantId)">
+              <div
+                v-for="category in p.categories"
+                :key="category.categoryName"
+                class="pt-subrow"
+              >
+                <span class="subrow-indent">↳</span>
+                <span class="category-pill">{{ category.categoryName }}</span>
+                <span class="subrow-label">Judge:</span>
+                <select
+                  class="judge-select"
+                  :value="category.judgeName"
+                  :aria-label="`Assign judge for ${p.name} in ${category.categoryName}`"
+                  @change="assignJudge(p, category, $event.target.value)"
+                >
+                  <option value="">—</option>
+                  <option v-for="j in allJudges" :key="j" :value="j">{{ j }}</option>
+                </select>
+                <span v-if="category.auditionNumber" class="audition-num">#{{ category.auditionNumber }}</span>
+                <button
+                  class="btn-remove-category"
+                  @click="confirmRemoveCategory(p, category)"
+                >Remove Category</button>
+              </div>
+            </template>
           </template>
         </template>
       </div>
@@ -465,6 +576,7 @@ onMounted(async () => {
   <CreateParticipantForm
     :event="selectedEvent"
     :show="showCreate"
+    :eventCategories="eventDivisions"
     title="New participant entry"
     @createNewEntry="showCreate = false; reload()"
     @close="showCreate = false"
@@ -505,6 +617,25 @@ onMounted(async () => {
 }
 
 .participant-table { display: flex; flex-direction: column; gap: 4px; }
+.judge-group-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 12px 6px;
+}
+.judge-group-line {
+  flex: 1; height: 1px;
+  background: rgba(255,255,255,0.07);
+}
+.unassigned-badge {
+  display: inline-flex; align-items: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+  padding: 3px 10px;
+  background: rgba(245,158,11,0.15);
+  border: 1px solid rgba(245,158,11,0.30);
+  color: #fbbf24;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  white-space: nowrap;
+}
 .pt-header {
   display: grid;
   grid-template-columns: 20px 32px 1fr auto auto auto;

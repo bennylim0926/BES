@@ -40,6 +40,7 @@ public class EventCategoryService {
             dto.pairSubMode = ec.getPairSubMode() != null ? ec.getPairSubMode() : "SHOWCASE";
             dto.sheetAliases = ec.getSheetAliases();
             dto.soloAllowed = ec.isSoloAllowed();
+            dto.judgeAssignmentMode = ec.isJudgeAssignmentMode();
             dto.participantCount = eventCategoryParticipantRepo.countByEventIdAndEventCategoryId(e.getEventId(), ec.getId());
             dtos.add(dto);
         }
@@ -109,5 +110,14 @@ public class EventCategoryService {
     public void deleteDivision(Long id) {
         EventCategory ec = eventCategoryRepo.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
         eventCategoryRepo.deleteById(ec.getId());
+    }
+
+    public void setJudgeAssignmentMode(String eventName, Long categoryId, boolean enabled) {
+        EventCategory ec = eventCategoryRepo.findById(categoryId)
+            .orElseThrow(() -> new RuntimeException("Category not found: " + categoryId));
+        if (!ec.getEvent().getEventName().equalsIgnoreCase(eventName))
+            throw new RuntimeException("Category does not belong to event: " + eventName);
+        ec.setJudgeAssignmentMode(enabled);
+        eventCategoryRepo.save(ec);
     }
 }

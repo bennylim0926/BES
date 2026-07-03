@@ -15,6 +15,7 @@ const selectedCategory = ref(localStorage.getItem(categoryKey(selectedEvent.valu
 const selectedTabulation = ref(localStorage.getItem(tabKey(selectedEvent.value)) || 'By Total')
 const selectedTopN = ref('')
 const selectedEntryType = ref('Teams') // 'Teams' | 'Solo'
+
 const participants = ref([])
 const tabulationMethod = ref(["By Total", "By Judge"])
 
@@ -236,7 +237,8 @@ watch([() => selectedEvent.value, () => selectedCategory.value, () => selectedTa
 
 const filteredParticipantsForScore = computed({
   get() {
-    return transformForScore(participants.value.filter(p => p.categoryName === selectedCategory.value && matchesEntryType(p)))
+    const data = participants.value.filter(p => p.categoryName === selectedCategory.value && matchesEntryType(p))
+    return transformForScore(data)
   }
 })
 
@@ -539,6 +541,15 @@ function aggregateJudgeScore(aspectMap) {
   return weighted / totalWeight
 }
 
+function sliceWithTie(sorted, n) {
+  if (n === Infinity || sorted.length <= n) return { rows: sorted, hasTie: false, tieScore: null, cutRank: null }
+  const cutScore = sorted[n - 1].score
+  let end = n
+  while (end < sorted.length && sorted[end].score === cutScore) end++
+  const hasTie = end > n
+  return { rows: sorted.slice(0, end), hasTie, tieScore: hasTie ? cutScore : null, cutRank: hasTie ? n : null }
+}
+
 function transformForScore(data) {
   const judges = [...new Set(data.map(d => d.judgeName).filter(j => j !== null))]
   const isMultiAspect = data.some(d => d.aspect && d.aspect !== '')
@@ -612,9 +623,13 @@ function transformForScore(data) {
             score: Number(aggregateJudgeScore(aspects).toFixed(2))
           }))
         }
-        byJudge[judge].rows = byJudge[judge].rows
-          .sort((a, b) => b.score - a.score)
-          .map((r, i) => ({ ...r, id: i + 1 }))
+        const n = (!selectedTopN.value || selectedTopN.value === '0') ? Infinity : parseInt(selectedTopN.value)
+        const sorted = byJudge[judge].rows.sort((a, b) => b.score - a.score)
+        const { rows: sliced, hasTie, tieScore, cutRank } = sliceWithTie(sorted, n)
+        byJudge[judge].rows = sliced.map((r, i) => ({ ...r, id: i + 1 }))
+        byJudge[judge].hasTie = hasTie
+        byJudge[judge].tieScore = tieScore
+        byJudge[judge].cutRank = cutRank
       })
     } else {
       data.forEach(d => {
@@ -631,9 +646,13 @@ function transformForScore(data) {
         byJudge[d.judgeName].rows.push({ participantName: d.participantName, score: d.score })
       })
       Object.values(byJudge).forEach(group => {
-        group.rows = group.rows
-          .sort((a, b) => b.score - a.score)
-          .map((r, i) => ({ ...r, id: i + 1 }))
+        const n = (!selectedTopN.value || selectedTopN.value === '0') ? Infinity : parseInt(selectedTopN.value)
+        const sorted = group.rows.sort((a, b) => b.score - a.score)
+        const { rows: sliced, hasTie, tieScore, cutRank } = sliceWithTie(sorted, n)
+        group.rows = sliced.map((r, i) => ({ ...r, id: i + 1 }))
+        group.hasTie = hasTie
+        group.tieScore = tieScore
+        group.cutRank = cutRank
       })
     }
     return { byJudge }
@@ -718,8 +737,8 @@ function transformForScore(data) {
     </div>
 
     <!-- Top N picker -->
-    <div v-if="selectedTabulation === 'By Total'" class="mb-6">
-      <p class="type-label text-content-muted mb-3">QUALIFY</p>
+    <div class="mb-6">
+      <p class="type-label text-content-muted mb-3">{{ selectedTabulation === 'By Total' ? 'QUALIFY' : 'TOP N' }}</p>
       <div class="flex items-center gap-3">
         <label class="type-label text-content-muted whitespace-nowrap">TOP</label>
         <input
@@ -732,13 +751,15 @@ function transformForScore(data) {
           style="width: 6rem"
           @input="(e) => { const v = parseInt(e.target.value); if (v > 64) selectedTopN = '64'; else if (v < 1 || isNaN(v)) selectedTopN = ''; else selectedTopN = String(v) }"
         />
-        <span v-if="!selectedTopN || selectedTopN === '0'" class="type-label text-content-muted">· {{ allRowsForPool.length }} scored</span>
-        <span v-else class="type-label text-content-muted">of {{ allRowsForPool.length }}</span>
+        <template v-if="selectedTabulation === 'By Total'">
+          <span v-if="!selectedTopN || selectedTopN === '0'" class="type-label text-content-muted">· {{ allRowsForPool.length }} scored</span>
+          <span v-else class="type-label text-content-muted">of {{ allRowsForPool.length }}</span>
+        </template>
       </div>
 
-      <!-- Status banner -->
+      <!-- Status banner (By Total only) -->
       <div
-        v-if="statusBanner"
+        v-if="selectedTabulation === 'By Total' && statusBanner"
         role="status"
         aria-live="polite"
         class="mt-4 px-4 py-3 flex items-center gap-3 border-l-[3px]"
@@ -998,15 +1019,25 @@ function transformForScore(data) {
             <div class="section-rule-line"></div>
           </div>
           <div class="flex flex-col gap-1">
-            <div
-              v-for="row in group.rows"
-              :key="row.participantName"
-              class="para-chip flex items-center gap-3 px-4 py-2 bg-surface-700/10"
-            >
-              <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
-              <span class="flex-1 type-name text-content-primary">{{ row.participantName }}</span>
-              <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.score }}</span>
-            </div>
+            <template v-for="row in group.rows" :key="row.participantName">
+              <!-- Tie cut line before the first tied row -->
+              <div
+                v-if="group.hasTie && row.id === group.cutRank + 1"
+                class="flex items-center gap-2 my-1"
+              >
+                <div class="flex-1 h-px bg-amber-400/40"></div>
+                <span class="type-label text-amber-400" style="font-size: 9px">TIED @ {{ group.tieScore }}</span>
+                <div class="flex-1 h-px bg-amber-400/40"></div>
+              </div>
+              <div
+                class="para-chip flex items-center gap-3 px-4 py-2"
+                :class="group.hasTie && row.id > group.cutRank ? 'bg-amber-500/[0.05] border-l border-amber-500/30' : 'bg-surface-700/10'"
+              >
+                <span class="type-stat flex-shrink-0 text-content-secondary" style="font-size: 18px; line-height: 1; min-width: 40px">{{ row.id }}</span>
+                <span class="flex-1 type-name text-content-primary">{{ row.participantName }}</span>
+                <span class="type-stat flex-shrink-0" style="font-size: 20px; line-height: 1">{{ row.score }}</span>
+              </div>
+            </template>
           </div>
         </div>
       </template>

@@ -1,0 +1,2 @@
+ALTER TABLE event_category
+    ADD COLUMN IF NOT EXISTS judge_assignment_mode BOOLEAN NOT NULL DEFAULT FALSE;

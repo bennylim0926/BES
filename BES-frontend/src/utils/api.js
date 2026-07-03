@@ -1708,6 +1708,17 @@ export const postAuditionDisplayState = async (state) => {
   }
 }
 
+export const updateAuditionDisplay = async (eventName, payload) => {
+  try {
+    await fetch(`${domain}/api/v1/event/audition-display`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+  } catch { /* silent — display is best-effort */ }
+}
+
 export const getAuditionDisplayState = async (eventName, categoryName) => {
   try {
     const url = `${domain}/api/v1/event/audition-display?event=${encodeURIComponent(eventName)}&category=${encodeURIComponent(categoryName || '')}`
@@ -1923,4 +1934,36 @@ export const updateDemoConfig = async (config) => {
   })
   if (!res.ok) throw new Error('Failed to update demo config')
   return res.json()
+}
+
+/**
+ * Toggle judge assignment mode for a category.
+ * @param {string} eventName - The event name
+ * @param {number} categoryId - The event category ID
+ * @param {boolean} enabled - Whether to enable judge assignment mode
+ * @returns {Promise<Response>} - Fetch response
+ */
+export const toggleJudgeAssignmentMode = async (eventName, categoryId, enabled) => {
+  return await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/categories/${categoryId}/judge-assignment-mode`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  })
+}
+
+/**
+ * Get participants grouped by judge for a category.
+ * @param {string} eventName - The event name
+ * @param {number} categoryId - The event category ID
+ * @returns {Promise<object>} - Map of judge name to array of participants, or empty object on error
+ */
+export const getParticipantsByJudge = async (eventName, categoryId) => {
+  try {
+    const res = await fetch(`${domain}/api/v1/event/${encodeURIComponent(eventName)}/categories/${categoryId}/participants-by-judge`, {
+      credentials: 'include'
+    })
+    if (!res.ok) return {}
+    return await res.json()
+  } catch { return {} }
 }

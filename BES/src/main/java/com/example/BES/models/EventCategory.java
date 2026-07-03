@@ -54,6 +54,9 @@ public class EventCategory {
     @Column(name = "solo_allowed", nullable = false)
     private boolean soloAllowed = true;
 
+    @Column(name = "judge_assignment_mode", nullable = false, columnDefinition = "boolean default false")
+    private boolean judgeAssignmentMode = false;
+
     @ToString.Exclude
     @OneToMany(mappedBy = "eventCategory")
     private List<EventCategoryParticipant> participants;

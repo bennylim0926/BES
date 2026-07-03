@@ -148,9 +148,16 @@ public class AuditionFeedbackService {
 
     public GetAuditionFeedbackDto getFeedback(String eventName, String categoryName,
                                                String judgeName, Integer auditionNumber) {
-        EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
-            eventName, categoryName, auditionNumber
+        // In judge-assignment mode audition numbers are per-judge (not globally unique).
+        // Try judge-scoped lookup first; fall back to global for standard mode.
+        EventCategoryParticipant egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumberAndJudgeName(
+            eventName, categoryName, auditionNumber, judgeName
         ).orElse(null);
+        if (egp == null) {
+            egp = egpRepo.findByEventNameAndCategoryNameAndAuditionNumber(
+                eventName, categoryName, auditionNumber
+            ).orElse(null);
+        }
         Judge judge = judgeRepo.findFirstByName(judgeName).orElse(null);
 
         if (egp == null || judge == null) return new GetAuditionFeedbackDto(List.of(), null);

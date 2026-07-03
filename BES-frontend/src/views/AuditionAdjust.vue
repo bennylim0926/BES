@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getActiveEvent } from '@/utils/auth'
-import { getCheckinList, assignAuditionNumbersBatch, swapAuditionNumbers, releaseAuditionNumbers } from '@/utils/api'
+import { getCheckinList, assignAuditionNumbersBatch, swapAuditionNumbers, releaseAuditionNumbers, getCategoriesByEvent, getParticipantsByJudge } from '@/utils/api'
 import { createClient, subscribeToChannel, deactivateClient } from '@/utils/websocket'
 import ActionDoneModal from './ActionDoneModal.vue'
 
@@ -15,6 +15,14 @@ const mode = ref('assign') // 'assign' | 'swap' | 'release'
 const checkinList = ref([])
 const loading     = ref(false)
 let wsClient = null
+
+// Categories (for judge assignment mode awareness)
+const eventDivisions    = ref([])       // full category objects with judgeAssignmentMode
+const selectedCategory  = ref(null)     // currently selected EventCategory object (or null = all)
+
+// Judge assignment mode state
+const selectedJudgeTab    = ref('')     // name of the currently active judge tab
+const judgePoolsByCategory = ref({})    // { [eventCategoryId]: { [judgeName]: [{auditionNumber, participantName, participantId}] } }
 
 // Assign mode
 const assignPart   = ref(null)
@@ -119,13 +127,67 @@ const assignedParticipants = computed(() =>
     .sort((a, b) => a.label.localeCompare(b.label))
 )
 
+// ── Judge mode derived data ────────────────────────────────────────────────
+const currentCategoryData = computed(() =>
+  (eventDivisions.value || []).find(d => d.eventCategoryId === selectedCategory.value?.eventCategoryId)
+)
+
+const currentCategoryJudgeMode = computed(() => currentCategoryData.value?.judgeAssignmentMode ?? false)
+
+const currentCategoryJudgeNames = computed(() => {
+  if (!currentCategoryJudgeMode.value) return []
+  const pool = judgePoolsByCategory.value[currentCategoryData.value?.eventCategoryId] ?? {}
+  return Object.keys(pool).filter(k => k !== '__unassigned__')
+})
+
+const currentJudgePool = computed(() => {
+  if (!currentCategoryJudgeMode.value || !selectedJudgeTab.value) return []
+  const pool = judgePoolsByCategory.value[currentCategoryData.value?.eventCategoryId] ?? {}
+  return pool[selectedJudgeTab.value] ?? []
+})
+
+// Available numbers scoped to the selected judge's pool (1..poolSize minus already-taken)
+const judgeAvailableNumbers = computed(() => {
+  if (!currentCategoryJudgeMode.value || !selectedJudgeTab.value) return []
+  const pool = currentJudgePool.value
+  const taken = pool.filter(p => p.auditionNumber !== null).map(p => p.auditionNumber)
+  const total = pool.length
+  return Array.from({ length: total }, (_, i) => i + 1).filter(n => !taken.includes(n))
+})
+
+// Auto-select first judge tab when switching to a mode-enabled category
+watch(currentCategoryJudgeNames, (names) => {
+  if (names.length > 0 && !names.includes(selectedJudgeTab.value)) {
+    selectedJudgeTab.value = names[0]
+  }
+})
+
+// ── Judge pools load ───────────────────────────────────────────────────────
+const loadJudgePools = async () => {
+  if (!eventName) return
+  const modeCats = (eventDivisions.value || []).filter(div => div.judgeAssignmentMode)
+  if (modeCats.length === 0) return
+  const results = await Promise.all(
+    modeCats.map(div => getParticipantsByJudge(eventName, div.eventCategoryId)
+      .then(pool => ({ id: div.eventCategoryId, pool })))
+  )
+  for (const { id, pool } of results) {
+    judgePoolsByCategory.value[id] = pool
+  }
+}
+
 // ── Data load ──────────────────────────────────────────────────────────────
 const load = async () => {
   if (!eventName) return
   loading.value = true
   const encoded = eventName.split(' ').join('%20')
-  const res = await getCheckinList(encoded)
+  const [res, divisions] = await Promise.all([
+    getCheckinList(encoded),
+    getCategoriesByEvent(eventName)
+  ])
   if (res?.ok) checkinList.value = await res.json()
+  eventDivisions.value = Array.isArray(divisions) ? divisions : []
+  await loadJudgePools()
   loading.value = false
 }
 
@@ -296,7 +358,83 @@ onUnmounted(() => {
 
       <!-- ── ASSIGN MODE ─────────────────────────────────────────────────── -->
       <template v-if="mode === 'assign'">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" style="height:calc(100vh - 260px)">
+
+        <!-- Category selector (for judge assignment mode awareness) -->
+        <div class="flex gap-2 mb-3 flex-wrap">
+          <button
+            class="para-chip-sm px-3 py-1.5 type-label transition-colors"
+            :class="selectedCategory === null
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+            @click="selectedCategory = null"
+          >All Divisions</button>
+          <button
+            v-for="div in divisionStats"
+            :key="div.eventCategoryId"
+            class="para-chip-sm px-3 py-1.5 type-label transition-colors flex items-center gap-1.5"
+            :class="selectedCategory?.eventCategoryId === div.eventCategoryId
+              ? 'text-accent border-[color:var(--accent-muted)]'
+              : 'text-content-muted hover:text-content-primary'"
+            @click="selectedCategory = eventDivisions.find(d => d.eventCategoryId === div.eventCategoryId) ?? { eventCategoryId: div.eventCategoryId, name: div.name }"
+          >
+            {{ div.name }}
+            <span
+              v-if="eventDivisions.find(d => d.eventCategoryId === div.eventCategoryId)?.judgeAssignmentMode"
+              class="type-label text-accent/60"
+              style="font-size:0.6rem;letter-spacing:0.1em"
+            >JUDGE</span>
+          </button>
+        </div>
+
+        <!-- Judge assignment mode: tab bar + per-judge participant list -->
+        <template v-if="currentCategoryJudgeMode">
+          <!-- Judge tabs -->
+          <div class="flex gap-2 mb-3 flex-wrap">
+            <button
+              v-for="j in currentCategoryJudgeNames"
+              :key="j"
+              class="para-chip-sm px-3 py-1.5 type-label transition-colors"
+              :class="selectedJudgeTab === j
+                ? 'bg-accent/15 border border-accent/40 text-accent'
+                : 'bg-white/5 border border-white/10 text-content-muted'"
+              @click="selectedJudgeTab = j"
+            >{{ j }}</button>
+            <p v-if="currentCategoryJudgeNames.length === 0" class="type-label text-content-muted py-1">No judges assigned to this category yet.</p>
+          </div>
+
+          <!-- Per-judge participant list -->
+          <div class="card-hover p-4 relative flex flex-col overflow-hidden" style="min-height:320px">
+            <div class="corner-bar-tl"></div>
+            <div class="section-rule mb-3 flex-shrink-0">
+              <span class="section-rule-label">{{ selectedJudgeTab || 'Select a judge tab' }}</span>
+              <div class="section-rule-line"></div>
+              <span class="type-label ml-2 flex-shrink-0 text-content-muted/60">
+                {{ judgeAvailableNumbers.length }} unassigned
+              </span>
+            </div>
+            <div class="flex-1 overflow-y-auto space-y-1.5 min-h-0" style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent">
+              <p v-if="!selectedJudgeTab" class="type-label text-content-muted py-4 text-center">Select a judge tab above</p>
+              <p v-else-if="currentJudgePool.length === 0" class="type-label text-content-muted py-4 text-center">No participants assigned to this judge yet.</p>
+              <template v-else>
+                <div
+                  v-for="p in currentJudgePool"
+                  :key="p.participantId"
+                  class="card mb-2 p-3 flex items-center justify-between"
+                >
+                  <span class="type-name">{{ p.participantName }}</span>
+                  <div class="flex items-center gap-2">
+                    <span v-if="p.auditionNumber !== null" class="type-label text-accent tabular-nums">#{{ p.auditionNumber }}</span>
+                    <span v-else class="type-label text-amber-400/70">unassigned</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Default (mode off or no category selected): existing two-column assignment UI -->
+        <template v-else>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" style="height:calc(100vh - 310px)">
 
           <!-- Step 1: Participant -->
           <div class="card-hover p-4 relative flex flex-col overflow-hidden">
@@ -407,6 +545,7 @@ onUnmounted(() => {
           </div>
 
         </div>
+        </template><!-- end v-else (non-judge mode) -->
       </template>
 
       <!-- ── SWAP MODE ───────────────────────────────────────────────────── -->

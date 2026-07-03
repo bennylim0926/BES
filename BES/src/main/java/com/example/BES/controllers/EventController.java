@@ -91,6 +91,7 @@ import com.example.BES.dtos.GetParticipantFeedbackDto;
 import com.example.BES.dtos.SubmitAuditionFeedbackDto;
 import com.example.BES.dtos.UpdateEmailTemplateDto;
 import com.example.BES.dtos.CheckinPreviewDto;
+import com.example.BES.dtos.JudgeParticipantSlotDto;
 import com.google.gson.Gson;
 import com.google.zxing.WriterException;
 
@@ -287,6 +288,31 @@ public class EventController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    @Operation(summary = "Set Judge Assignment Mode", description = "Enables or disables per-judge audition pools for a category")
+    @PostMapping("/{eventName}/categories/{categoryId}/judge-assignment-mode")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER')")
+    public ResponseEntity<?> setJudgeAssignmentMode(
+            @PathVariable String eventName,
+            @PathVariable Long categoryId,
+            @RequestBody Map<String, Boolean> body) {
+        try {
+            boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
+            eventCategoryService.setJudgeAssignmentMode(eventName, categoryId, enabled);
+            return ResponseEntity.ok(Map.of("message", "ok", "enabled", enabled));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @Operation(summary = "Get Participants By Judge", description = "Returns participants grouped by assigned judge, sorted by audition number per judge. Unassigned participants keyed as __unassigned__.")
+    @GetMapping("/{eventName}/categories/{categoryId}/participants-by-judge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
+    public ResponseEntity<Map<String, List<JudgeParticipantSlotDto>>> getParticipantsByJudge(
+            @PathVariable String eventName,
+            @PathVariable Long categoryId) {
+        return ResponseEntity.ok(eventCategoryParticipantService.getParticipantsByJudge(eventName, categoryId));
     }
 
     @Operation(summary = "Create Event", description = "Creates a new event")
@@ -545,6 +571,9 @@ public class EventController {
         } catch (IllegalStateException e) {
             if ("already_checked_in".equals(e.getMessage())) {
                 return new ResponseEntity<>("already_checked_in", HttpStatus.CONFLICT);
+            }
+            if ("no_judge_assigned".equals(e.getMessage())) {
+                return new ResponseEntity<>("no_judge_assigned", HttpStatus.UNPROCESSABLE_ENTITY);
             }
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {

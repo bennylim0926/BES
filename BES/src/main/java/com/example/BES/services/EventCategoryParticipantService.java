@@ -39,6 +39,7 @@ import com.example.BES.models.EventParticipantTeamMember;
 import com.example.BES.respositories.AuditionFeedbackRepository;
 import com.example.BES.respositories.EventParticipantTeamMemberRepo;
 import com.example.BES.respositories.ScoreRepo;
+import com.example.BES.dtos.JudgeParticipantSlotDto;
 import com.example.BES.dtos.UpdateParticipantDto;
 
 @Service
@@ -129,11 +130,18 @@ public class EventCategoryParticipantService {
         return result;
     }
 
+    @Transactional
     public void getAllAuditionNumsViaQR(Long participantId, Long eventId) {
         List<EventCategoryParticipant> entries =
             repo.findByEventIdAndParticipantId(eventId, participantId);
         if (!entries.isEmpty() && entries.stream().allMatch(e -> e.getAuditionNumber() != null)) {
             throw new IllegalStateException("already_checked_in");
+        }
+        // Validate: if any category has judgeAssignmentMode on, participant must have a judge assigned
+        for (EventCategoryParticipant entry : entries) {
+            if (entry.getEventCategory().isJudgeAssignmentMode() && entry.getJudge() == null) {
+                throw new IllegalStateException("no_judge_assigned");
+            }
         }
         for (EventCategoryParticipant entry : entries) {
             AddParticipantToEventCategoryDto dto = new AddParticipantToEventCategoryDto();
@@ -690,6 +698,26 @@ public class EventCategoryParticipantService {
             }
             repo.saveAll(ecps);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, List<JudgeParticipantSlotDto>> getParticipantsByJudge(String eventName, Long categoryId) {
+        List<EventCategoryParticipant> ecps = repo.findByEvent_EventNameIgnoreCaseAndEventCategory_Id(eventName, categoryId);
+        Map<String, List<JudgeParticipantSlotDto>> result = new java.util.LinkedHashMap<>();
+        for (EventCategoryParticipant ecp : ecps) {
+            String key = ecp.getJudge() != null ? ecp.getJudge().getName() : "__unassigned__";
+            result.computeIfAbsent(key, k -> new java.util.ArrayList<>());
+            JudgeParticipantSlotDto slot = new JudgeParticipantSlotDto();
+            slot.auditionNumber = ecp.getAuditionNumber();
+            slot.participantName = ecp.getDisplayName() != null ? ecp.getDisplayName()
+                : ecp.getParticipant().getParticipantName();
+            slot.participantId = ecp.getParticipant().getParticipantId();
+            slot.memberNames = ecp.getMembers() == null ? List.of()
+                : ecp.getMembers().stream().map(EventCategoryParticipantMember::getMemberName).toList();
+            result.get(key).add(slot);
+        }
+        result.forEach((k, v) -> v.sort(java.util.Comparator.comparingInt(s -> s.auditionNumber != null ? s.auditionNumber : Integer.MAX_VALUE)));
+        return result;
     }
 
     private boolean isTeamFormat(String fmt) {

@@ -10,4 +10,5 @@ public class GetEventCategoryDto {
     public String sheetAliases;
     public boolean soloAllowed = true;
     public long participantCount;
+    public boolean judgeAssignmentMode;
 }
