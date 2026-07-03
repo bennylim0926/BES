@@ -9,8 +9,9 @@ description: >
 
   This skill: (1) runs a local build/compile check, (2) identifies which of
   the three containers (frontend, backend, database) are affected, (3) rebuilds
-  only those containers with --no-cache, (4) verifies all containers are healthy,
-  and (5) reports a clear status summary.
+  only those containers (plain --build; --no-cache only when pom.xml/package.json/
+  Dockerfile changed or staleness is proven), (4) verifies all containers are
+  healthy, and (5) reports a clear status summary.
 ---
 
 # Local → Docker Verify Skill
