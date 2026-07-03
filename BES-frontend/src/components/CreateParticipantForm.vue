@@ -15,7 +15,6 @@ const emit = defineEmits(['createNewEntry', 'close'])
 const name = ref("")
 const selectedJudge = ref("")
 const categoryOptions = ref([])
-const allJudges = ref([])
 const categoryJudges = ref([])
 const adminCategoryMap = ref({})
 const createTable = reactive({ categories: [] })
@@ -188,8 +187,6 @@ onMounted(async () => {
   if (!props.eventCategories || props.eventCategories.length === 0) {
     categoryOptions.value = []
   }
-  const res = await getAllJudges()
-  allJudges.value = ["", ...Object.values(res).map(item => item.judgeName)]
 })
 </script>
 

@@ -101,6 +101,20 @@ public interface EventCategoryParticipantRepo extends JpaRepository<EventCategor
         @Param("categoryName") String categoryName,
         @Param("auditionNumber") Integer auditionNumber);
 
+    // Judge-scoped lookup: used in judge-assignment mode where audition numbers are per-judge (not globally unique)
+    @Query("""
+       SELECT e FROM EventCategoryParticipant e
+       WHERE LOWER(e.event.eventName) = LOWER(:eventName)
+         AND LOWER(e.eventCategory.name) = LOWER(:categoryName)
+         AND e.auditionNumber = :auditionNumber
+         AND LOWER(e.judge.name) = LOWER(:judgeName)
+       """)
+    Optional<EventCategoryParticipant> findByEventNameAndCategoryNameAndAuditionNumberAndJudgeName(
+        @Param("eventName") String eventName,
+        @Param("categoryName") String categoryName,
+        @Param("auditionNumber") Integer auditionNumber,
+        @Param("judgeName") String judgeName);
+
     // -- Format-scoped pool queries --
 
     @Query("SELECT COUNT(e) FROM EventCategoryParticipant e WHERE e.event.eventId = :eventId AND e.eventCategory.id = :eventCategoryId AND e.format IS NULL")

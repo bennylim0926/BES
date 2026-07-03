@@ -99,19 +99,13 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
 <template>
   <div class="judge-root w-full flex flex-col h-full touch-manipulation select-none" style="background:#111111; overflow-y:auto;">
 
-    <!-- Round counter + judge column headers (sticky) -->
+    <!-- Round counter (sticky) — judge column headers moved to just above NOW -->
     <div class="shrink-0 px-3 pt-3 pb-1">
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between">
         <span class="type-label text-content-muted">ROUND</span>
         <span class="text-accent font-oswald text-2xl font-medium tracking-wide">
           {{ currentRound }} / {{ maxRound }}
         </span>
-      </div>
-      <!-- Judge headers -->
-      <div class="grid gap-2" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
-        <div v-for="j in judgeNames" :key="j" class="card p-1.5 text-center">
-          <span class="section-rule-label" style="text-transform:uppercase;font-size:10px">{{ j }}</span>
-        </div>
       </div>
     </div>
 
@@ -138,7 +132,6 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
           <div class="grid gap-1.5 px-2 pb-1.5" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
             <div v-for="j in judgeNames" :key="j" class="flex flex-col min-w-0">
               <template v-if="slotAt(j, r)">
-                <span class="type-label text-accent tabular-nums" style="font-size:11px">#{{ slotAt(j, r).auditionNumber }}</span>
                 <span class="type-name text-content-muted truncate" style="font-size:12px">{{ slotAt(j, r).participantName }}</span>
               </template>
               <span v-else class="type-label text-content-muted/30" style="font-size:11px">—</span>
@@ -150,7 +143,7 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
 
     <!-- NOW: current round grid -->
     <div class="shrink-0 px-3 pb-1">
-      <!-- NOW header — doubles as progress bar (mirrors EmceeRoundView .now-card-header) -->
+      <!-- NOW header — progress bar + audition number shown once + countdown -->
       <div
         class="now-header"
         :class="{ 'now-header--near-end': headerTimerNearEnd, 'now-header--running': lastTimerState.running }"
@@ -158,7 +151,8 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
       >
         <div class="flex items-center gap-2 z-10 relative">
           <span class="glow-dot"></span>
-          <span class="type-label text-content-muted">Now on Stage</span>
+          <span class="type-label text-content-muted">NOW</span>
+          <span class="text-accent font-oswald font-medium tabular-nums" style="font-size:1rem">#{{ currentRound }}</span>
         </div>
         <span
           v-if="headerDisplayTime"
@@ -169,19 +163,23 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
         </span>
       </div>
 
-      <!-- Judge grid -->
-      <div class="grid gap-2 mt-2" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
+      <!-- Judge column headers — directly above their NOW participant cards -->
+      <div class="grid gap-2 mt-1.5" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
+        <div v-for="j in judgeNames" :key="j" class="card p-1.5 text-center">
+          <span class="section-rule-label" style="text-transform:uppercase;font-size:10px">{{ j }}</span>
+        </div>
+      </div>
+
+      <!-- NOW participant grid -->
+      <div class="grid gap-2 mt-1" :style="{ gridTemplateColumns: `repeat(${judgeNames.length}, 1fr)` }">
         <div
           v-for="j in judgeNames"
           :key="j"
           class="card p-3 flex flex-col items-center justify-center gap-1"
-          style="min-height:110px"
+          style="min-height:90px"
           :class="slotAt(j, currentRound) ? '' : 'opacity-30'"
         >
           <template v-if="slotAt(j, currentRound)">
-            <span class="text-accent font-oswald text-3xl font-medium tabular-nums">
-              #{{ slotAt(j, currentRound).auditionNumber }}
-            </span>
             <span class="type-name text-center" style="font-size:13px">
               {{ slotAt(j, currentRound).participantName }}
             </span>
@@ -190,7 +188,7 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
             </div>
           </template>
           <template v-else>
-            <span class="text-content-muted font-oswald text-3xl">—</span>
+            <span class="text-content-muted font-oswald text-xl">—</span>
             <span class="type-label text-content-muted text-xs">WAITING</span>
           </template>
         </div>
@@ -207,7 +205,7 @@ function onRetreat() { timerRef.value?.reset?.(); emit('retreat') }
       >NEXT ›</button>
     </div>
 
-    <!-- Timer -->
+    <!-- Timer controls -->
     <div class="shrink-0 px-3 pb-3 pt-1">
       <Timer ref="timerRef" :baseline-duration="baselineDuration"
         @started="onTimerStarted" @stopped="onTimerStopped" @tick="onTimerTick" />

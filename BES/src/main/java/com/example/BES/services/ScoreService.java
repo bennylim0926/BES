@@ -69,13 +69,23 @@ public class ScoreService {
     @Transactional
     public void updateParticipantScoreService(UpdateParticipantsScoreDto dto) {
         for (ParticipantScoreDto d : dto.participantScore) {
-            EventCategoryParticipant record = (d.auditionNumber != null)
-                    ? eventCategoryParticipantRepo
+            EventCategoryParticipant record;
+            if (d.auditionNumber != null) {
+                // In judge-assignment mode audition numbers are per-judge (not globally unique).
+                // Try the judge-scoped lookup first; fall back to the global lookup for standard mode.
+                record = eventCategoryParticipantRepo
+                        .findByEventNameAndCategoryNameAndAuditionNumberAndJudgeName(dto.eventName, dto.categoryName, d.auditionNumber, dto.judgeName)
+                        .orElse(null);
+                if (record == null) {
+                    record = eventCategoryParticipantRepo
                             .findByEventNameAndCategoryNameAndAuditionNumber(dto.eventName, dto.categoryName, d.auditionNumber)
-                            .orElse(null)
-                    : eventCategoryParticipantRepo
-                            .findByEventCategoryParticipant(dto.eventName, dto.categoryName, d.participantName)
                             .orElse(null);
+                }
+            } else {
+                record = eventCategoryParticipantRepo
+                        .findByEventCategoryParticipant(dto.eventName, dto.categoryName, d.participantName)
+                        .orElse(null);
+            }
             Judge judge = judgeRepo.findFirstByName(dto.judgeName).orElse(null);
             if (record == null || judge == null) continue;
 

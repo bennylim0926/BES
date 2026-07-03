@@ -308,7 +308,7 @@ public class EventController {
 
     @Operation(summary = "Get Participants By Judge", description = "Returns participants grouped by assigned judge, sorted by audition number per judge. Unassigned participants keyed as __unassigned__.")
     @GetMapping("/{eventName}/categories/{categoryId}/participants-by-judge")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANISER', 'EMCEE', 'JUDGE')")
     public ResponseEntity<Map<String, List<JudgeParticipantSlotDto>>> getParticipantsByJudge(
             @PathVariable String eventName,
             @PathVariable Long categoryId) {
